@@ -12,7 +12,25 @@ import { connectDB } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 
-async function checkMongoDB(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
+async function checkBunnyDatabase(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
+  const start = Date.now();
+  try {
+    const { bunnyExecute, isBunnyDatabaseConfigured } = await import('@/lib/bunnyDatabase');
+    if (!isBunnyDatabaseConfigured()) {
+      return { ok: false, latencyMs: 0, error: 'Bunny Database not configured' };
+    }
+    await bunnyExecute('SELECT 1');
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch (err) {
+    return { ok: false, latencyMs: Date.now() - start, error: (err as Error).message };
+  }
+}
+
+async function checkMongoDB(): Promise<{ ok: boolean; latencyMs: number; disabled?: boolean; error?: string }> {
+  const isBunnyOnly = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
+  if (isBunnyOnly) {
+    return { ok: false, latencyMs: 0, disabled: true, error: 'MongoDB connection disabled (Using Bunny Database only)' };
+  }
   const start = Date.now();
   try {
     await connectDB();
@@ -74,11 +92,13 @@ async function getRecentErrorCount(): Promise<{ last1h: number; last24h: number;
 
 export async function GET(request: NextRequest) {
   const deep = request.nextUrl.searchParams.get('deep') === 'true';
+  const isBunnyOnly = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
 
   const health: any = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
+    databaseMode: isBunnyOnly ? 'bunny_only' : 'hybrid',
     environment: {
       nodeVersion: process.version,
       nextVersion: process.env.NEXT_RUNTIME || 'nodejs',
@@ -87,9 +107,11 @@ export async function GET(request: NextRequest) {
     },
     checks: {
       api: true,
+      bunnyDatabase: { ok: false, latencyMs: 0 },
       mongodb: { ok: false, latencyMs: 0 },
     },
     config: {
+      hasBunnyDatabaseUrl: !!process.env.BUNNY_DATABASE_URL,
       hasMongoDBUri: !!(process.env.MONGODB_URI || process.env.MONGODB_URI_MAIN),
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasWhatsAppToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
@@ -97,9 +119,21 @@ export async function GET(request: NextRequest) {
     },
   };
 
-  // Always check MongoDB
+  // Check Bunny Database
+  health.checks.bunnyDatabase = await checkBunnyDatabase();
+
+  // Check MongoDB (or record as disabled if running Bunny only)
   health.checks.mongodb = await checkMongoDB();
-  if (!health.checks.mongodb.ok) health.status = 'degraded';
+
+  if (isBunnyOnly) {
+    if (!health.checks.bunnyDatabase.ok) {
+      health.status = 'degraded';
+    }
+  } else {
+    if (!health.checks.mongodb.ok && !health.checks.bunnyDatabase.ok) {
+      health.status = 'degraded';
+    }
+  }
 
   // Deep check: bridge + error counts
   if (deep) {
@@ -110,9 +144,12 @@ export async function GET(request: NextRequest) {
     health.checks.whatsappBridge = bridge;
     health.checks.errorRates = errors;
 
-    if (!bridge.ok) health.status = 'degraded';
+    if (!bridge.ok && health.status === 'ok') health.status = 'degraded';
     if (errors.critical > 0) health.status = 'warning';
-    if (!health.checks.mongodb.ok && !bridge.ok) health.status = 'down';
+    
+    // Overall down only if primary database is down and bridge is down
+    const primaryDbDown = isBunnyOnly ? !health.checks.bunnyDatabase.ok : (!health.checks.mongodb.ok && !health.checks.bunnyDatabase.ok);
+    if (primaryDbDown && !bridge.ok) health.status = 'down';
   }
 
   // Memory usage (basic)

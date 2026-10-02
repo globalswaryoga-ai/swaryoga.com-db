@@ -10,12 +10,14 @@ const http = require('http');
 const https = require('https');
 const mongoose = require('mongoose');
 require('dotenv').config();
+require('dotenv').config({ path: '.env.local', override: true });
 
 /**
  * Runtime checks. Also holds an internal `_detectedPort` field used to target the correct dev server.
  */
 const checks = {
   localhost: false,
+  bunny: false,
   mongodb: false,
   api: false,
   _detectedPort: 3000,
@@ -23,6 +25,7 @@ const checks = {
 
 const results = {
   localhost: null,
+  bunny: null,
   mongodb: null,
   api: null,
 };
@@ -82,19 +85,45 @@ async function detectDevPort() {
   return any ? any.port : DEFAULT_DEV_PORT;
 }
 
-// Check 1: MongoDB Connection
-const checkMongoDB = async () => {
+// Check 1: Bunny Database Connection
+const checkBunnyDB = async () => {
+  const url = process.env.BUNNY_DATABASE_URL;
+  const token = process.env.BUNNY_DATABASE_AUTH_TOKEN;
+  if (!url || !token) {
+    results.bunny = '⚠️  BUNNY_DATABASE_URL or BUNNY_DATABASE_AUTH_TOKEN not set';
+    return;
+  }
   try {
-    const mongoUri = process.env.MONGODB_URI;
+    const { createClient } = require('@libsql/client');
+    const client = createClient({ url, authToken: token });
+    await client.execute('SELECT 1');
+    client.close();
+    results.bunny = '✅ Connected successfully';
+    checks.bunny = true;
+  } catch (err) {
+    results.bunny = `❌ ${err.message || String(err)}`;
+  }
+};
+
+// Check 2: MongoDB Connection
+const checkMongoDB = async () => {
+  const isBunnyOnly = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
+  if (isBunnyOnly) {
+    results.mongodb = 'ℹ️  Disabled (Using Bunny Database only)';
+    checks.mongodb = true;
+    return;
+  }
+  try {
+    const mongoUri = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
     
     if (!mongoUri) {
-      results.mongodb = '⚠️  MONGODB_URI not set in .env';
+      results.mongodb = '⚠️  MONGODB_URI or MONGODB_URI_MAIN not set in .env or .env.local';
       return;
     }
 
     await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 3000,
+      socketTimeoutMS: 3000,
     });
 
     await mongoose.disconnect();
@@ -198,17 +227,21 @@ const runHealthCheck = async () => {
   checks._detectedPort = await detectDevPort();
 
   // Run checks in parallel
-  await Promise.all([checkLocalhost(), checkMongoDB(), checkAPI()]);
+  await Promise.all([checkLocalhost(), checkBunnyDB(), checkMongoDB(), checkAPI()]);
+
+  const isBunnyOnly = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
 
   // Display results
   console.log('📋 Status Report:\n');
-  console.log(`  Localhost:    ${results.localhost}`);
-  console.log(`  MongoDB:      ${results.mongodb}`);
-  console.log(`  API Endpoints: ${results.api}\n`);
+  console.log(`  Localhost:      ${results.localhost}`);
+  console.log(`  Bunny Database: ${results.bunny}`);
+  console.log(`  MongoDB:        ${results.mongodb}`);
+  console.log(`  API Endpoints:  ${results.api}\n`);
 
   // Summary
-  const allGood = checks.localhost && checks.mongodb && checks.api;
-  const partialGood = checks.localhost || checks.mongodb || checks.api;
+  const dbOk = isBunnyOnly ? checks.bunny : (checks.bunny || checks.mongodb);
+  const allGood = checks.localhost && dbOk && checks.api;
+  const partialGood = checks.localhost || checks.bunny || checks.mongodb || checks.api;
 
   if (allGood) {
     console.log('✨ All systems ready for development!\n');
@@ -220,12 +253,15 @@ const runHealthCheck = async () => {
 
   console.log('═══════════════════════════════════════════════════════════\n');
 
-  // Display helpful info
-  if (!checks.mongodb) {
+  if (!checks.bunny) {
+    console.log('💡 Bunny Database Tips:');
+    console.log('   • Verify BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN in .env.local\n');
+  }
+
+  if (!checks.mongodb && !isBunnyOnly) {
     console.log('💡 MongoDB Tips:');
-    console.log('   • Make sure MONGODB_URI is set in .env');
-    console.log('   • Check MongoDB cluster is running');
-    console.log('   • Verify IP whitelist includes your machine\n');
+    console.log('   • Set USE_BUNNY_DATABASE_ONLY=true in .env.local to run without MongoDB');
+    console.log('   • Or verify Atlas IP whitelist if using MongoDB\n');
   }
 
   if (!checks.localhost) {
@@ -234,10 +270,13 @@ const runHealthCheck = async () => {
     console.log('   • Wait a few more seconds and try again\n');
   }
 
-  // Environment info
+  const hasBunny = !!(process.env.BUNNY_DATABASE_URL && process.env.BUNNY_DATABASE_AUTH_TOKEN);
+  const hasMongo = !!(process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI);
   console.log('📝 Environment:\n');
   console.log(`   Node Version:    ${process.version}`);
-  console.log(`   MongoDB URI:     ${process.env.MONGODB_URI ? '✅ Set' : '❌ Not set'}`);
+  console.log(`   Database Mode:   ${isBunnyOnly ? 'Bunny Only' : 'Hybrid'}`);
+  console.log(`   Bunny DB:        ${hasBunny ? '✅ Configured' : '❌ Not set'}`);
+  console.log(`   MongoDB URI:     ${hasMongo ? '✅ Set' : '❌ Not set'}`);
   console.log(`   JWT Secret:      ${process.env.JWT_SECRET ? '✅ Set' : '❌ Not set'}`);
   console.log('\n');
 };

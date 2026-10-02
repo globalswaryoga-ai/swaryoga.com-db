@@ -70,7 +70,11 @@ export default function NewRegistrationPage() {
 
   const masterViewLanguageFilteredLeads = useMemo(() => {
     const currentBaseLang = getBaseLanguage(selectedDashboardLang);
-    return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
+    return leadsData.filter(l => {
+      const leadLang = l.language || l.workshopName || l.formName;
+      if (!leadLang) return true;
+      return getBaseLanguage(leadLang) === currentBaseLang;
+    });
   }, [leadsData, selectedDashboardLang]);
 
   const getDynamicBatchLeads = (batch: any) => {
@@ -105,7 +109,7 @@ export default function NewRegistrationPage() {
   const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
-  const [isAi7Active, setIsAi7Active] = useState(false);
+  const [isAi7Active, setIsAi7Active] = useState(true);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [isAi7Processing, setIsAi7Processing] = useState(false);
   const [isAi1Processing, setIsAi1Processing] = useState(false);
@@ -332,7 +336,8 @@ export default function NewRegistrationPage() {
       }
 
       setIsAi7Processing(false);
-      toast.success(`🤖 AI-7 categorized ${targetLeads.length} leads and updated batch cards!`);
+      setActiveTab('my_data');
+      toast.success(`🤖 AI-7 categorized ${targetLeads.length} leads and sent all data to My Data!`);
     }, 1500);
   };
 
@@ -770,7 +775,6 @@ export default function NewRegistrationPage() {
   useEffect(() => {
     async function loadLeads() {
       if (!linkedFormId) return;
-      if (linkedFormId !== 'google-form-sync' && !linkedFormId.includes('docs.google.com') && !token) return;
       setIsLoadingLeads(true);
       try {
         if (linkedFormId.includes('docs.google.com/spreadsheets')) {
@@ -785,66 +789,64 @@ export default function NewRegistrationPage() {
             const errorData = await res.json().catch(() => null);
             toast.error(errorData?.error || 'Failed to load Google Sheets CSV');
           }
-        } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms')) {
+        } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms') || linkedFormId) {
           let fetchedLeads = [];
           setNeedsGoogleAuth(false);
 
-          if (token) {
-            // Check Google Forms OAuth Sync first
-            const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+          const syncHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+          // Check Google Forms OAuth Sync first
+          const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
+            headers: syncHeaders
+          });
 
-            if (syncRes.ok) {
-              const json = await syncRes.json();
-              let mappedLeads = json.data || [];
-              const ws = selectedWorkshop;
-              const mapping = ws?.metadata?.googleFormMapping;
-              if (mapping && mappedLeads.length > 0) {
-                mappedLeads = mappedLeads.map((lead: any) => {
-                  const raw = lead._rawRecord || {};
-                  return {
-                    ...lead,
-                    name: raw[mapping['NAME']] || raw[mapping['Name']] || lead.name,
-                    email: raw[mapping['EMAIL']] || raw[mapping['Email']] || lead.email,
-                    mobile: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.mobile,
-                    phoneNumber: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.phoneNumber,
-                    city: raw[mapping['CITY']] || raw[mapping['City']] || lead.city,
-                    country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
-                    gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
-                    language: ws?.language || selectedDashboardLang,
-                  };
-                });
-              } else {
-                mappedLeads = mappedLeads.map((lead: any) => ({
+          if (syncRes.ok) {
+            const json = await syncRes.json();
+            let mappedLeads = json.data || [];
+            const ws = selectedWorkshop;
+            const mapping = ws?.metadata?.googleFormMapping;
+            if (mapping && mappedLeads.length > 0) {
+              mappedLeads = mappedLeads.map((lead: any) => {
+                const raw = lead._rawRecord || {};
+                return {
                   ...lead,
+                  name: raw[mapping['NAME']] || raw[mapping['Name']] || lead.name,
+                  email: raw[mapping['EMAIL']] || raw[mapping['Email']] || lead.email,
+                  mobile: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.mobile,
+                  phoneNumber: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.phoneNumber,
+                  city: raw[mapping['CITY']] || raw[mapping['City']] || lead.city,
+                  country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
+                  gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
                   language: ws?.language || selectedDashboardLang,
-                }));
-              }
-
-              fetchedLeads = mappedLeads;
-              if (json.linkedSheetId) setActiveLinkedSheetId(json.linkedSheetId);
-              if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
-              if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
-            } else if (syncRes.status === 401) {
-              setNeedsGoogleAuth(true);
-            } else {
-              const err = await syncRes.json();
-              setGoogleAuthError(err.error || 'Failed to sync form');
-              toast.error("Google Forms Sync Failed: " + (err.error || 'Invalid Form ID'));
-              // Fallback to webhook checking
-              const res = await fetch(`/api/admin/enquiries?workshopId=${encodeURIComponent(linkedFormId)}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                };
               });
-              if (res.ok) {
-                const json = await res.json();
-                fetchedLeads = json.data || [];
-              }
+            } else {
+              mappedLeads = mappedLeads.map((lead: any) => ({
+                ...lead,
+                language: ws?.language || selectedDashboardLang,
+              }));
+            }
+
+            fetchedLeads = mappedLeads;
+            if (json.linkedSheetId) setActiveLinkedSheetId(json.linkedSheetId);
+            if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
+            if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
+          } else if (syncRes.status === 401) {
+            setNeedsGoogleAuth(true);
+          } else {
+            const err = await syncRes.json().catch(() => ({}));
+            setGoogleAuthError(err.error || 'Failed to sync form');
+            toast.error("Google Forms Sync Failed: " + (err.error || 'Invalid Form ID'));
+            // Fallback to webhook checking
+            const res = await fetch(`/api/admin/enquiries?workshopId=${encodeURIComponent(linkedFormId)}`, {
+              headers: syncHeaders
+            });
+            if (res.ok) {
+              const json = await res.json();
+              fetchedLeads = json.data || [];
             }
           }
 
-          // No mock fallback — if API returned no data, show empty state
-
+          // Update leads data
           setLeadsData(fetchedLeads);
           setWorkshops(prev => {
             const updated = (prev || []).map(w => {
@@ -941,49 +943,49 @@ export default function NewRegistrationPage() {
             throw lastErr;
           };
 
-          if (currentFormId.includes('docs.google.com/forms')) {
-            if (token) {
-              const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(currentFormId)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              if (syncRes.ok) {
-                const json = await syncRes.json();
-                let mappedLeads: any[] = json.data || [];
-                if (mapping && mappedLeads.length > 0) {
-                  mappedLeads = mappedLeads.map((lead: any) => {
-                    const raw = lead._rawRecord || {};
-                    return {
-                      ...lead,
-                      name: raw[mapping['Name']] || lead.name,
-                      email: raw[mapping['Email']] || lead.email,
-                      mobile: raw[mapping['Mobile']] || lead.mobile,
-                      phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
-                      city: raw[mapping['City']] || lead.city,
-                      country: raw[mapping['Country']] || lead.country,
-                      gender: raw[mapping['Gender']] || lead.gender,
-                      language: currentWorkshop?.language || selectedDashboardLang,
-                    };
-                  });
-                } else {
-                  mappedLeads = mappedLeads.map((lead: any) => ({
+          if (currentFormId.includes('docs.google.com/forms') || currentFormId) {
+            const syncHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+            const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(currentFormId)}`, {
+              headers: syncHeaders
+            });
+            if (syncRes.ok) {
+              const json = await syncRes.json();
+              let mappedLeads: any[] = json.data || [];
+              if (mapping && mappedLeads.length > 0) {
+                mappedLeads = mappedLeads.map((lead: any) => {
+                  const raw = lead._rawRecord || {};
+                  return {
                     ...lead,
+                    name: raw[mapping['Name']] || lead.name,
+                    email: raw[mapping['Email']] || lead.email,
+                    mobile: raw[mapping['Mobile']] || lead.mobile,
+                    phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
+                    city: raw[mapping['City']] || lead.city,
+                    country: raw[mapping['Country']] || lead.country,
+                    gender: raw[mapping['Gender']] || lead.gender,
                     language: currentWorkshop?.language || selectedDashboardLang,
-                  }));
-                }
-
-                fetchedLeads = mappedLeads;
-                if (json.questionMap) newQuestionMap = json.questionMap;
-              } else if (syncRes.status === 401) {
-                setNeedsGoogleAuth(true);
-                toast.error('Please connect your Google Account to sync forms.');
+                  };
+                });
               } else {
-                const err = await syncRes.json().catch(() => ({}));
-                toast.error(err.error || 'Failed to sync form');
+                mappedLeads = mappedLeads.map((lead: any) => ({
+                  ...lead,
+                  language: currentWorkshop?.language || selectedDashboardLang,
+                }));
               }
+
+              fetchedLeads = mappedLeads;
+              if (json.questionMap) newQuestionMap = json.questionMap;
+            } else if (syncRes.status === 401) {
+              setNeedsGoogleAuth(true);
+              toast.error('Please connect your Google Account to sync forms.');
+            } else {
+              const err = await syncRes.json().catch(() => ({}));
+              toast.error(err.error || 'Failed to sync form');
             }
           } else {
+            const syncHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetchWithRetry(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(currentFormId)}`, {
-              headers: { Authorization: `Bearer ${token}` }
+              headers: syncHeaders
             });
             if (res.ok) {
               const json = await res.json();
@@ -1120,7 +1122,7 @@ export default function NewRegistrationPage() {
       } finally {
         isFetching = false;
       }
-    }, 5 * 60 * 1000); // Fixed 5 minutes interval for AI-7
+    }, 10 * 60 * 1000); // 10 minutes auto-sync interval for AI-7
 
     return () => clearInterval(interval);
   }, [isAi7Active, linkedFormId, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
@@ -1184,7 +1186,8 @@ export default function NewRegistrationPage() {
     if (savedRegisteredAiState) setIsRegisteredAiWorkerActive(savedRegisteredAiState === 'true');
 
     const savedAi7State = localStorage.getItem('crm_ai_7_active');
-    if (savedAi7State) setIsAi7Active(savedAi7State === 'true');
+    if (savedAi7State !== null) setIsAi7Active(savedAi7State === 'true');
+    else setIsAi7Active(true);
 
     try {
       const loadFromApi = async () => {
@@ -1193,7 +1196,12 @@ export default function NewRegistrationPage() {
           if (res.ok) {
             const data = await res.json();
             if (data) {
-              if (data.crm_workshops) setWorkshops(JSON.parse(data.crm_workshops));
+              if (data.crm_workshops) {
+                try {
+                  const parsed = typeof data.crm_workshops === 'string' ? JSON.parse(data.crm_workshops) : data.crm_workshops;
+                  if (Array.isArray(parsed)) setWorkshops(parsed);
+                } catch (_) {}
+              }
               if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
@@ -1357,15 +1365,21 @@ export default function NewRegistrationPage() {
       setPendingAiInsights(loadObj('crm_pending_insights'));
       setRegisteredAiInsights(loadObj('crm_registered_insights'));
     } else {
-      setLinkedFormId('');
-      setSelectedFormId('');
-      setLeadsData([]);
-      setGoogleFormUrl('');
-      setFieldMapping({});
+      // Do not wipe linkedFormId or leadsData when no specific batch is selected.
+      // This preserves all loaded leads for "All Leads Data" and "My Data" views.
       setLeadsFilter('');
       setLeadsSubFilter('');
+      setLeadsSubSubFilter('');
 
-      // Clear states when no batch is selected
+      // If linkedFormId is completely empty, restore the default Google Form URL
+      if (!linkedFormId) {
+        const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
+        setLinkedFormId(defaultUrl);
+        setGoogleFormUrl(defaultUrl);
+        setFormSource('google');
+      }
+
+      // Reset selection and insights when switching away from a batch
       setCrmLeadIds([]);
       setApprovedLeadIds([]);
       setPendingLeadIds([]);
@@ -1718,44 +1732,67 @@ export default function NewRegistrationPage() {
     // Look for a specific column or default to WORKSHOP DATE mapping
     let formField = '';
 
-    // First, try the manual column input from the UI
-    const manualCol = selectedWorkshop.metadata?.ai1Column;
+    // First, try the manual column input from the UI or workshop metadata
+    const manualCol = (selectedWorkshop?.metadata?.ai1Column || ai1ColumnInput || '').trim();
+
+    // Collect all available column headers across ALL leads
+    const allLeadKeys = new Set<string>();
+    leadsData.forEach((lead: any) => {
+      if (lead._rawRecord) Object.keys(lead._rawRecord).forEach(k => allLeadKeys.add(k));
+      if (lead.dynamicAnswers) Object.keys(lead.dynamicAnswers).forEach(k => allLeadKeys.add(k));
+    });
+    const keyList = Array.from(allLeadKeys);
 
     if (manualCol) {
-      // If they typed a number (1-based index)
-      if (!isNaN(Number(manualCol)) && leadsData.length > 0) {
-        const firstLead = leadsData[0];
-        const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
-        const keys = Object.keys(rawAnswers);
+      // 1. If they typed a number (1-based index)
+      if (!isNaN(Number(manualCol)) && keyList.length > 0) {
         const idx = parseInt(manualCol) - 1;
-        if (idx >= 0 && idx < keys.length) {
-          formField = keys[idx];
+        if (idx >= 0 && idx < keyList.length) {
+          formField = keyList[idx];
         }
       } else {
-        // They typed the column name, try exact match first
-        const firstLead = leadsData[0] || {};
-        const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
-        const keys = Object.keys(rawAnswers);
-
-        if (keys.includes(manualCol)) {
-          formField = manualCol;
+        // 2. Exact match (case-insensitive)
+        const exactMatch = keyList.find(k => k.toLowerCase() === manualCol.toLowerCase());
+        if (exactMatch) {
+          formField = exactMatch;
         } else {
-          // Try partial match
-          const partialMatch = keys.find(k => k.toLowerCase().includes(manualCol.toLowerCase()));
+          // 3. Partial match
+          const partialMatch = keyList.find(k =>
+            k.toLowerCase().includes(manualCol.toLowerCase()) ||
+            manualCol.toLowerCase().includes(k.toLowerCase())
+          );
           if (partialMatch) {
             formField = partialMatch;
           } else {
-            formField = manualCol;
+            // 4. Word-by-word match
+            const words = manualCol.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            const wordMatch = keyList.find(k => words.some(w => k.toLowerCase().includes(w)));
+            if (wordMatch) {
+              formField = wordMatch;
+            } else {
+              formField = manualCol;
+            }
           }
         }
       }
     }
 
-    // Fallback to the old mapped field logic if formField is still empty
+    // Fallback to mapped field logic
     if (!formField) {
-      const dateMappingKey = Object.keys(fieldMapping).find(k => k.toUpperCase().includes('DATE') || k.toUpperCase().includes('BATCH'));
+      const dateMappingKey = Object.keys(fieldMapping).find(k => k.toUpperCase().includes('DATE') || k.toUpperCase().includes('BATCH') || k.toUpperCase().includes('WORKSHOP'));
       if (dateMappingKey && fieldMapping[dateMappingKey]) {
         formField = fieldMapping[dateMappingKey];
+      }
+    }
+
+    // Fallback: auto-detect standard date/batch question in keyList
+    if (!formField || !keyList.includes(formField)) {
+      const autoDateKey = keyList.find(k => {
+        const lk = k.toLowerCase();
+        return lk.includes('workshop date') || lk.includes('batch name') || (lk.includes('batch') && lk.includes('join')) || (lk.includes('date') && !lk.includes('birth'));
+      });
+      if (autoDateKey) {
+        formField = autoDateKey;
       }
     }
 
@@ -1776,17 +1813,34 @@ export default function NewRegistrationPage() {
         const findVal = (obj: any) => {
           if (!obj) return undefined;
           if (obj[formField] !== undefined) return obj[formField];
-          const key = Object.keys(obj).find(k => k.toLowerCase().includes(searchCol));
+          const key = Object.keys(obj).find(k => k.toLowerCase().includes(searchCol) || searchCol.includes(k.toLowerCase()));
           return key ? obj[key] : undefined;
         };
         
         dateVal = findVal(lead._rawRecord);
         if (dateVal === undefined) dateVal = findVal(lead.dynamicAnswers);
 
-        if (dateVal && String(dateVal).trim() !== '') {
+        if (dateVal && String(dateVal).trim().length > 2) {
           uniqueDates.add(String(dateVal).trim());
         }
       });
+
+      // If uniqueDates is still 0, check candidate column across all keyList
+      if (uniqueDates.size === 0) {
+        const candidateKey = keyList.find(k => {
+          const lk = k.toLowerCase();
+          return lk.includes('date') || lk.includes('batch') || lk.includes('join') || lk.includes('time') || lk.includes('workshop');
+        });
+        if (candidateKey) {
+          formField = candidateKey;
+          leadsData.forEach((lead: any) => {
+            const v = lead._rawRecord?.[candidateKey] || lead.dynamicAnswers?.[candidateKey];
+            if (v && String(v).trim().length > 2) {
+              uniqueDates.add(String(v).trim());
+            }
+          });
+        }
+      }
 
       if (uniqueDates.size === 0 && manualCol) {
         const searchWord = manualCol.toLowerCase();
@@ -1795,13 +1849,13 @@ export default function NewRegistrationPage() {
             if (!obj) return undefined;
             for (const k of Object.keys(obj)) {
               const v = String(obj[k]);
-              if (v.toLowerCase().includes(searchWord)) return v;
+              if (v.toLowerCase().includes(searchWord) && v.trim().length > 2) return v;
             }
             return undefined;
           };
           let val = findAnswer(lead._rawRecord);
           if (val === undefined) val = findAnswer(lead.dynamicAnswers);
-          if (val && String(val).trim() !== '') {
+          if (val && String(val).trim().length > 2) {
             uniqueDates.add(String(val).trim());
           }
         });
@@ -1915,9 +1969,11 @@ export default function NewRegistrationPage() {
       leadsSubSubFilter={leadsSubSubFilter}
       refreshLeadsCounter={refreshLeadsCounter} setRefreshLeadsCounter={setRefreshLeadsCounter}
       setIsLoadingGoogleForms={setIsLoadingGoogleForms} setGoogleFormsList={setGoogleFormsList}
-      setNeedsGoogleAuth={setNeedsGoogleAuth} setActiveTab={setActiveTab}
+      setNeedsGoogleAuth={setNeedsGoogleAuth}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
-      Users={Users} leadsData={masterViewLanguageFilteredLeads} isLoadingLeads={isLoadingLeads}
+      Users={Users} 
+      leadsData={activeTab === 'my_data' ? (leadsData.length > 0 ? leadsData : masterViewLanguageFilteredLeads) : (masterViewLanguageFilteredLeads.length > 0 ? masterViewLanguageFilteredLeads : leadsData)} 
+      isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
       handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
       handleApproveBulk={handleApproveBulk} filterOptions={filterOptions}
@@ -2216,6 +2272,18 @@ export default function NewRegistrationPage() {
                   key={tab.id}
                   disabled={!canAccessTab(tab.id)}
                   onClick={() => {
+                    if (tab.id === 'all_leads') {
+                      setSelectedWorkshop(null);
+                      setIsFormSetupCollapsed(false);
+                      setLeadsFilter('');
+                      setLeadsSubFilter('');
+                      setLeadsSubSubFilter('');
+                    }
+                    if (tab.id === 'my_data') {
+                      setLeadsFilter('');
+                      setLeadsSubFilter('');
+                      setLeadsSubSubFilter('');
+                    }
                     setActiveTab(tab.id as any);
                   }}
                   className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id

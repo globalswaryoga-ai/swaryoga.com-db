@@ -86,15 +86,16 @@ export async function GET(request: NextRequest) {
       const { listBunnyLeads } = await import('@/lib/bunnyLeadsRepository');
       // For SuperAdmins fetching all enquiries, we pass null for visibleUserIds/viewerUserId
       // If we needed to restrict by user, we'd pass decoded.userId
-      const bunnyLeads = await listBunnyLeads({ 
+      const bunnyResult = await listBunnyLeads({ 
         visibleUserIds: null, 
         viewerUserId: 'system',
         label: 'enquiry',
         limit: 2000,
         skip: 0
       });
+      const leadsList = Array.isArray(bunnyResult) ? bunnyResult : (bunnyResult?.leads || []);
       
-      primaryEnquiries = bunnyLeads.map((l: any) => {
+      primaryEnquiries = leadsList.map((l: any) => {
         const meta = l.metadata?.lastEnquiry || l.metadata || {};
         const payment = l.metadata?.payment;
         return {

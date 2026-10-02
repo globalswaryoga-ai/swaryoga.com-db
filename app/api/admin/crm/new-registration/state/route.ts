@@ -17,7 +17,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const buffer = Buffer.from(JSON.stringify(body));
+    let existingData = {};
+    try {
+      const { buffer } = await fetchFromStorage(STATE_FILE_PATH);
+      existingData = JSON.parse(buffer.toString('utf-8'));
+    } catch (_) {}
+
+    const merged = { ...existingData, ...body };
+    const buffer = Buffer.from(JSON.stringify(merged));
     await uploadToPath(buffer, STATE_FILE_PATH, 'application/json');
     return NextResponse.json({ success: true });
   } catch (error: any) {

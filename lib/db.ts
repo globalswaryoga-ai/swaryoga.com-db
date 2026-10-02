@@ -15,14 +15,18 @@ const MONGODB_URI = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
 // Override when needed (e.g. staging) via MONGODB_MAIN_DB_NAME.
 const MAIN_DB_NAME = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
+const USE_BUNNY_DATABASE_ONLY = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
+
 // Log for debugging - but don't expose the full URI
-if (!MONGODB_URI) {
+if (USE_BUNNY_DATABASE_ONLY) {
+  console.log('ℹ️ Running in Bunny Database only mode (MongoDB connection disabled)');
+} else if (!MONGODB_URI) {
   console.error('❌ ERROR: MongoDB URI is not set (expected MONGODB_URI_MAIN or MONGODB_URI)');
   console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('MONGO') || k.includes('DB')));
 }
 
 let isConnecting = false;
-let lastConnectionStatus = 'Not Connected';
+let lastConnectionStatus = USE_BUNNY_DATABASE_ONLY ? 'Disabled (Using Bunny Database Only)' : 'Not Connected';
 
 // In serverless/dev environments, hot-reloads can re-evaluate modules.
 // Cache the in-flight connection promise globally to avoid spawning multiple
@@ -33,6 +37,11 @@ declare global {
 }
 
 export const connectDB = async () => {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    lastConnectionStatus = 'Disabled (Using Bunny Database Only)';
+    return mongoose.connection;
+  }
+
   if (mongoose.connection.readyState >= 1) {
     return mongoose.connection;
   }
@@ -49,6 +58,8 @@ export const connectDB = async () => {
     global.__mongooseConnectionPromise = mongoose.connect(MONGODB_URI, { 
       dbName: MAIN_DB_NAME,
       maxPoolSize: 10, // Recommended for serverless
+      serverSelectionTimeoutMS: 2000,
+      connectTimeoutMS: 2000,
     });
   }
   

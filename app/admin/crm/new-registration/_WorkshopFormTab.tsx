@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles } from 'lucide-react';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -61,7 +61,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
   let effectiveLeads = (leadsData || []).filter(Boolean);
   
-  if (p.activeTab === 'my_batches' && p.selectedWorkshop?.formFilterKeyword && p.selectedWorkshop.formFilterKeyword.trim() !== '') {
+  if ((p.activeTab === 'my_batches' || p.activeTab === 'my_data') && p.selectedWorkshop?.formFilterKeyword && p.selectedWorkshop.formFilterKeyword.trim() !== '') {
     const keywords = p.selectedWorkshop.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = p.selectedWorkshop?.metadata?.googleFormMapping?.['AI-7'] || p.selectedWorkshop?.metadata?.googleFormMapping?.['ai7'];
     effectiveLeads = effectiveLeads.filter((lead: any) => {
@@ -113,23 +113,22 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        {p.activeTab === 'all_leads' && (
-          <>
-            <button
-              onClick={() => setIsFormSetupCollapsed(!isFormSetupCollapsed)}
-              className="w-full text-left px-6 py-4 border-b border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-between"
-            >
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">Workshop Registration Form</h2>
-                <p className="text-sm text-slate-500">Connect a form to capture leads for this workshop.</p>
-              </div>
-              <div className="text-slate-400">
-                {isFormSetupCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
-              </div>
-            </button>
+      {p.activeTab === 'all_leads' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <button
+            onClick={() => setIsFormSetupCollapsed(!isFormSetupCollapsed)}
+            className="w-full text-left px-6 py-4 border-b border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-between"
+          >
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Workshop Registration Form</h2>
+              <p className="text-sm text-slate-500">Connect a form to capture leads for this workshop.</p>
+            </div>
+            <div className="text-slate-400">
+              {isFormSetupCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+            </div>
+          </button>
 
-            {!isFormSetupCollapsed && (
+          {!isFormSetupCollapsed && (
               <>
                 <div className="p-6 space-y-6">
                   <div className="space-y-4">
@@ -464,7 +463,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                                     >
                                       <option value="">-- Ignore --</option>
                                       {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
-                                        <option key={qId} value={qTitle}>{qTitle}</option>
+                                        <option key={qId} value={String(qTitle)}>{String(qTitle)}</option>
                                       ))}
                                     </select>
                                   )}
@@ -600,13 +599,12 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 </div>
               </>
             )}
-          </>
+          </div>
         )}
 
-
         {/* Render Fetched Leads Inline in Forms Tab */}
-        {linkedFormId && p.activeTab !== 'all_leads' && (
-          <div className="border-t border-slate-200">
+        {p.activeTab !== 'all_leads' && (linkedFormId || effectiveLeads.length > 0 || p.activeTab === 'my_data') && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-50 flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-4">
                 <h3 className="font-bold text-slate-800">
@@ -648,11 +646,38 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                   <>
                     <button 
                       onClick={() => {
+                        if (p.handleAi7Categorize) p.handleAi7Categorize();
+                      }}
+                      disabled={p.isAi7Processing}
+                      className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 rounded-lg border border-blue-200 shadow-sm mr-2 cursor-pointer disabled:opacity-50 text-blue-700 font-bold text-xs"
+                      title="Run AI-7: Categorize leads and send all data to My Data"
+                    >
+                      <Sparkles size={14} className="text-blue-600" />
+                      <span>{p.isAi7Processing ? '🤖 AI-7 Processing...' : '🤖 AI-7 To My Data'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const next = !p.isAi7Active;
+                        if (p.setIsAi7Active) p.setIsAi7Active(next);
+                        localStorage.setItem('crm_ai_7_active', String(next));
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm mr-2 ${
+                        p.isAi7Active
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                          : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                      }`}
+                      title="Auto-sync every 10 minutes"
+                    >
+                      <span className={`h-2 w-2 rounded-full ${p.isAi7Active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                      <span>Auto-Sync (10m): {p.isAi7Active ? 'ON' : 'OFF'}</span>
+                    </button>
+                    <button 
+                      onClick={() => {
                         if (p.handleAi1BatchCreate) p.handleAi1BatchCreate();
                       }}
                       disabled={p.isAi1Processing}
                       className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 transition-colors px-3 py-1.5 rounded-lg border border-purple-200 shadow-sm mr-2 cursor-pointer disabled:opacity-50"
-                      title="Click to instantly run Auto-Sync, or let it run every 5 minutes"
+                      title="Click to instantly run Auto-Sync, or let it run every 10 minutes"
                     >
                       <span className="text-xs font-bold text-purple-700">🤖 AI-1A Auto-Sync {p.isAi1Processing ? '...' : ''}</span>
                       <span className="relative flex h-2 w-2">
@@ -804,13 +829,24 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     <tbody className="divide-y divide-slate-200">
                       {isLoadingLeads ? (
                         <tr>
-                          <td colSpan={10 + dynamicColumns.length} className="p-8 text-center text-slate-500">Loading leads...</td>
+                          <td colSpan={10 + dynamicColumns.length} className="p-8 text-slate-500">
+                            <div className="sticky left-12 inline-flex items-center gap-2 font-medium">
+                              <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                              <span>Loading leads...</span>
+                            </div>
+                          </td>
                         </tr>
                       ) : tab2Leads.length === 0 ? (
                         <tr>
-                          <td colSpan={10 + dynamicColumns.length} className="p-12 text-center text-slate-500">
-                            <h3 className="font-bold text-slate-700">No new forms found</h3>
-                            <p className="text-sm text-slate-500 mt-1">All available forms have been moved to Leads Management.</p>
+                          <td colSpan={10 + dynamicColumns.length} className="p-12 text-slate-500">
+                            <div className="sticky left-12 inline-block">
+                              <h3 className="font-bold text-slate-700">No leads found</h3>
+                              <p className="text-sm text-slate-500 mt-1">
+                                {effectiveLeads.length > 0
+                                  ? `All ${effectiveLeads.length} leads have active search filters applied.`
+                                  : 'Syncing form responses or no leads recorded yet.'}
+                              </p>
+                            </div>
                           </td>
                         </tr>
                       ) : (
@@ -899,7 +935,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
             </div>
           </div>
         )}
-      </div>
 
       {/* Merge Batches Modal */}
       {isMergeModalOpen && (

@@ -240,7 +240,14 @@ export function LeadsManagementTab({
     return Array.from(questions);
   }, [leadsData]);
 
-  type FilterCondition = { question: string; keyword: string };
+  type FilterCondition = {
+    question: string;
+    keyword: string;
+    successCategory?: string;
+    successColor?: string;
+    failCategory?: string;
+    failColor?: string;
+  };
   const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('crm_ai_settings_v3');
@@ -263,9 +270,21 @@ export function LeadsManagementTab({
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
   const [selectedQueryLeadId, setSelectedQueryLeadId] = useState<string | null>(null);
 
+  const [aiCopyModes, setAiCopyModes] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_ai_copy_modes');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (_) {}
+      }
+    }
+    return {};
+  });
+  const [modalCopyMode, setModalCopyMode] = useState<boolean>(true);
+
   const openAiModal = (type: string) => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({ ...c })));
+    setModalCopyMode(aiCopyModes[type] !== false); // Default to true (Save data here & forward copy ahead)
     setActiveModal(type);
   };
 
@@ -281,6 +300,10 @@ export function LeadsManagementTab({
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
+
+    const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
+    setAiCopyModes(updatedCopyModes);
+    if (typeof window !== 'undefined') localStorage.setItem('crm_ai_copy_modes', JSON.stringify(updatedCopyModes));
 
     if (activeBatchId && /^[0-9a-fA-F]{24}$/.test(activeBatchId)) {
       const metadata = { ...(activeBatch?.metadata || {}), aiSettings: newSettings };
@@ -329,11 +352,16 @@ export function LeadsManagementTab({
     let approvedCount = 0;
     let pendingCount = 0;
 
-    const targetLeads = activeBatchLeads.filter(lead => {
-      const currentStatus = batchDecisions[lead.id]?.status || 'new_leads';
-      if (batchDecisions[lead.id]?.isRejected) return false;
-      return currentStatus === activeTab; // Process only leads in the current active tab
-    });
+    const targetLeads = (selectedLeads.length > 0)
+      ? activeBatchLeads.filter(lead => selectedLeads.includes(lead.id))
+      : (activeTab === 'new_leads')
+        ? activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.isRejected)
+        : activeBatchLeads.filter(lead => {
+            const dec = batchDecisions[lead.id] || {};
+            const currentStatus = dec.status || 'new_leads';
+            if (dec.isRejected) return false;
+            return currentStatus === activeTab || (dec.copies || []).includes(activeTab) || (dec.sourceTabs || []).includes(activeTab);
+          });
 
     targetLeads.forEach(lead => {
       const raw = lead._rawRecord || {};
@@ -380,9 +408,25 @@ export function LeadsManagementTab({
 
       if (finalCategory) {
         const currentDec = batchDecisions[lead.id] || {};
-        const oldStatus = currentDec.status || 'new_leads';
+        const oldStatus = currentDec.status || activeTab || 'new_leads';
         const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
-        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason, processedBy: type, history };
+        const copies = modalCopyMode
+          ? Array.from(new Set([...(currentDec.copies || []), finalCategory]))
+          : (currentDec.copies || []);
+        const sourceTabs = modalCopyMode
+          ? Array.from(new Set([...(currentDec.sourceTabs || []), activeTab]))
+          : (currentDec.sourceTabs || []);
+
+        newDecisions[lead.id] = {
+          ...currentDec,
+          status: finalCategory,
+          reason: finalReason,
+          processedBy: type,
+          history,
+          copies,
+          sourceTabs,
+          keepCopy: modalCopyMode
+        };
         if (isSuccess) approvedCount++;
         else pendingCount++;
       }
@@ -390,7 +434,7 @@ export function LeadsManagementTab({
 
     setBatchDecisions(newDecisions);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-    toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending.`);
+    toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending. ${modalCopyMode ? '(All data saved here & copies sent ahead)' : ''}`);
 
     setActiveModal(null);
   };
@@ -538,17 +582,17 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+          return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected && !dec.isRegistered;
         }).length;
       } else if (tab.id === 'approval_1') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_1' || dec.history?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
         }).length;
       } else if (tab.id === 'approval_2') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_2' || dec.history?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
         }).length;
       } else if (tab.id === 'registered_leads') {
         count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
@@ -557,12 +601,19 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads_3') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return dec.status === 'pending_leads_3' && !dec.isRegistered;
+          return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3')) && !dec.isRegistered;
         }).length;
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === tab.id || dec.history?.includes(tab.id) || getCategoryLabel(dec.status) === tab.label || (dec.history || []).some((h: string) => getCategoryLabel(h) === tab.label)) && !dec.isRejected && !dec.isRegistered;
+          const matches = dec.status === tab.id ||
+            dec.history?.includes(tab.id) ||
+            dec.copies?.includes(tab.id) ||
+            (dec.sourceTabs && dec.sourceTabs.includes(tab.id)) ||
+            getCategoryLabel(dec.status) === tab.label ||
+            (dec.history || []).some((h: string) => getCategoryLabel(h) === tab.label) ||
+            (dec.copies || []).some((c: string) => getCategoryLabel(c) === tab.label);
+          return matches && !dec.isRejected && !dec.isRegistered;
         }).length;
       }
       counts[tab.id] = count;
@@ -576,24 +627,24 @@ export function LeadsManagementTab({
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
     }
     if (activeTab === 'new_leads') {
-      return activeBatchLeads; // Show ALL forms here
+      return activeBatchLeads; // Show ALL forms here - all original data is preserved
     }
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+        return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected && !dec.isRegistered;
       });
     }
     if (activeTab === 'approval_1') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_1' || dec.history?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
+        return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
       });
     }
     if (activeTab === 'approval_2') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_2' || dec.history?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
+        return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
       });
     }
     if (activeTab === 'registered_leads') {
@@ -605,12 +656,20 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads_3') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return dec.status === 'pending_leads_3' && !dec.isRegistered;
+        return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3')) && !dec.isRegistered;
       });
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
-      return (dec.status === activeTab || dec.history?.includes(activeTab) || getCategoryLabel(dec.status) === activeTabLabel || (dec.history || []).some((h: string) => getCategoryLabel(h) === activeTabLabel)) && !dec.isRejected && !dec.isRegistered;
+      const matches = dec.status === activeTab ||
+        dec.history?.includes(activeTab) ||
+        dec.copies?.includes(activeTab) ||
+        (dec.sourceTabs && dec.sourceTabs.includes(activeTab)) ||
+        getCategoryLabel(dec.status) === activeTabLabel ||
+        (dec.history || []).some((h: string) => getCategoryLabel(h) === activeTabLabel) ||
+        (dec.copies || []).some((c: string) => getCategoryLabel(c) === activeTabLabel);
+
+      return matches && !dec.isRejected && !dec.isRegistered;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
@@ -1209,8 +1268,6 @@ export function LeadsManagementTab({
 
       {/* AI Modal (Dynamic) */}
       {renderCategoryModal()}
-      
-      {renderCategoryModal()}
       {activeModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
@@ -1228,6 +1285,45 @@ export function LeadsManagementTab({
 
             <div className="p-6 overflow-y-auto space-y-6 bg-slate-50 flex-1">
               
+              {/* Data Preservation & Copy Ahead Setting Banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg text-amber-800 text-lg">
+                    💾
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-amber-900">
+                        Data Preservation & Routing
+                      </h4>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        modalCopyMode 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                          : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {modalCopyMode ? '✓ Save & Copy Ahead' : 'Move Only'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                      {modalCopyMode 
+                        ? 'All data will be saved here on this page, and a copy will go ahead in the mapped pages/categories.' 
+                        : 'Leads will be removed from this page and moved to the mapped categories.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalCopyMode(!modalCopyMode)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap flex items-center justify-center gap-1.5 ${
+                    modalCopyMode 
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  {modalCopyMode ? '✓ Save & Copy Ahead ON' : 'Switch to Copy Ahead'}
+                </button>
+              </div>
+
               {modalConditions.map((condition, idx) => (
                 <div key={idx} className="space-y-4 border border-slate-200 rounded-xl p-5 bg-white shadow-sm relative group">
                   <button
@@ -1275,7 +1371,9 @@ export function LeadsManagementTab({
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Move to Category:</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {modalCopyMode ? 'Send Copy to Category:' : 'Move to Category:'}
+                      </label>
                       <select
                         value={condition.successCategory || ''}
                         onChange={(e) => {
@@ -1307,7 +1405,9 @@ export function LeadsManagementTab({
                   {/* Row 3: Failure Mismatch */}
                   <div className="p-3 rounded-lg border flex items-center gap-3" style={{ backgroundColor: condition.failColor || '#fff3cd' }}>
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">If Answer Mismatches, Move to:</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {modalCopyMode ? 'If Answer Mismatches, Send Copy to:' : 'If Answer Mismatches, Move to:'}
+                      </label>
                       <select
                         value={condition.failCategory || ''}
                         onChange={(e) => {
