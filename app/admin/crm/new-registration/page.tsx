@@ -2275,6 +2275,9 @@ export default function NewRegistrationPage() {
             {TopTabs.map(tab => {
               let count = null;
 
+              const isOurWorkshopsSubTab = tab.id === 'our_workshops' && ['my_batches', 'setup', 'workshop_details', 'leads', 'closing', 'templates', 'forms', 'details'].includes(activeTab);
+              const isActive = activeTab === tab.id || isOurWorkshopsSubTab;
+
               return (
                 <button
                   key={tab.id}
@@ -2294,14 +2297,14 @@ export default function NewRegistrationPage() {
                     }
                     setActiveTab(tab.id as any);
                   }}
-                  className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
+                  className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${isActive
                     ? 'border-blue-600 text-blue-700'
                     : canAccessTab(tab.id)
                       ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                       : 'border-transparent text-slate-300 cursor-not-allowed'
                     }`}
                 >
-                  <tab.icon size={16} className={activeTab === tab.id ? "text-blue-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
+                  <tab.icon size={16} className={isActive ? "text-blue-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
                   {tab.label} {count !== null && `- ${count}`}
                 </button>
               )
