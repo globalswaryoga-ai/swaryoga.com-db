@@ -18,17 +18,20 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 
 const DEFAULT_SIDEBAR_TABS = [
   { id: 'new_leads', label: 'New Leads', icon: FileText, isSystem: true },
-  { id: 'pending_leads', label: 'Pending Leads', icon: Clock, isSystem: true },
-  { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock, isSystem: true },
-  { id: 'pending_leads_2', label: 'Pending Leads-2', icon: Clock, isSystem: true },
-  { id: 'pending_leads_3', label: 'Pending Leads-3', icon: Clock, isSystem: true },
-  { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle, isSystem: true },
-  { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle, isSystem: true },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck, isSystem: true },
   { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar, isSystem: true },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video, isSystem: true },
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle, isSystem: true },
   { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap, isSystem: true },
+];
+
+const INITIAL_CUSTOM_CATEGORIES = [
+  { id: 'pending_leads', label: 'Pending Leads', icon: Clock, isSystem: false },
+  { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock, isSystem: false },
+  { id: 'pending_leads_2', label: 'Pending Leads-2', icon: Clock, isSystem: false },
+  { id: 'pending_leads_3', label: 'Pending Leads-3', icon: Clock, isSystem: false },
+  { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle, isSystem: false },
+  { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle, isSystem: false },
 ];
 
 const LANGUAGES = ['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'];
@@ -70,9 +73,15 @@ export function LeadsManagementTab({
   const [customCategories, setCustomCategories] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('crm_custom_categories');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.some((c: any) => c.id.startsWith('pending_') || c.id.startsWith('approval_'))) {
+          return [...INITIAL_CUSTOM_CATEGORIES, ...parsed];
+        }
+        return parsed;
+      }
     }
-    return [];
+    return INITIAL_CUSTOM_CATEGORIES;
   });
   
   const SIDEBAR_TABS = React.useMemo(() => [...DEFAULT_SIDEBAR_TABS, ...customCategories], [customCategories]);
