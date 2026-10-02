@@ -372,7 +372,23 @@ export function LeadsManagementTab({
     if (activeBatch?.metadata?.aiSettings) {
       setAiSettings(activeBatch.metadata.aiSettings);
     }
+    if (activeBatch?.metadata?.batchDecisions) {
+      setBatchDecisions(activeBatch.metadata.batchDecisions);
+    }
   }, [activeBatch]);
+
+  React.useEffect(() => {
+    if (Object.keys(batchDecisions).length === 0) return;
+    
+    if (activeBatchId && /^[0-9a-fA-F]{24}$/.test(activeBatchId)) {
+      const metadata = { ...(activeBatch?.metadata || {}), batchDecisions };
+      fetch('/api/admin/crm/workshop-management', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cohortId: activeBatchId, metadata })
+      }).catch(console.error);
+    }
+  }, [batchDecisions, activeBatchId]);
 
   // AI-4B Background Worker (Runs every 10 minutes)
   React.useEffect(() => {
