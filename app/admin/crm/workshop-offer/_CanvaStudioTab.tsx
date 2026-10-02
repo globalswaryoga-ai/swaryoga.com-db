@@ -1139,7 +1139,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, data: dataToFill }) });
                                 const json = await res.json(); if (json.error) throw new Error(json.error);
                                 const jobId = json.job.id;
-                                const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); openCanvaPopup(`https://www.canva.com/design/${sj.job.result.design.id}/edit`); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
+                                const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
                               } catch (error: any) { alert(error.message); if (btn) btn.innerText = 'Canva'; }
                             }}
                             id="btn-generate-canva"
