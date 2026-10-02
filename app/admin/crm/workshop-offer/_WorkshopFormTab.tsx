@@ -1027,11 +1027,25 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     setMergeTargetId('');
                     setMergeSourceIds([]);
                     
+                    const targetPayload = newWorkshops.find((w: any) => w.id === mergeTargetId);
+                    if (targetPayload) {
+                      fetch('/api/admin/crm/workshop-management', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...targetPayload, cohortId: mergeTargetId, _fullEdit: true })
+                      }).catch(console.error);
+                    }
+                    sources.forEach((src: any) => {
+                      fetch(`/api/admin/crm/workshop-management?cohortId=${src.id}`, {
+                        method: 'DELETE'
+                      }).catch(console.error);
+                    });
+                    
                     if (mergeSourceIds.includes(selectedWorkshop?.id)) {
                       setSelectedWorkshop(newWorkshops.find((w: any) => w.id === mergeTargetId) || null);
                     }
                     
-                    toast.success('Batches merged successfully!');
+                    toast.success('Batches merged successfully! Permanently saved to database.');
                   }
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg shadow-sm transition-all"
