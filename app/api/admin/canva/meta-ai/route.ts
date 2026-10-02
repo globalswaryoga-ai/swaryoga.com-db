@@ -106,11 +106,19 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
           : `Create a high-quality image based on this request: ${prompt}. If the request includes text or is for a thumbnail, make sure to beautifully integrate that text into the design.`;
 
+        let targetSize: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024';
+        const lowerPrompt = prompt.toLowerCase();
+        if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
+          targetSize = '1792x1024';
+        } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels')) {
+          targetSize = '1024x1792';
+        }
+
         const imageResponse = await openai.images.generate({
-          model: 'gpt-image-2',
+          model: 'dall-e-3',
           prompt: imagePrompt,
           n: 1,
-          size: '1024x1024',
+          size: targetSize,
         });
         
         const imgData = imageResponse.data[0];

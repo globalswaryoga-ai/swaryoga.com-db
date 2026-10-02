@@ -174,9 +174,18 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         imageUrl: data.imageUrl,
         createdAt: new Date().toISOString()
       };
-      const updatedAds = [newAd, ...savedMetaAds];
+      const updatedAds = [newAd, ...savedMetaAds].slice(0, 10);
       setSavedMetaAds(updatedAds);
-      if (typeof window !== 'undefined') localStorage.setItem('saved_meta_ads', JSON.stringify(updatedAds));
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('saved_meta_ads', JSON.stringify(updatedAds));
+        } catch (storageError) {
+          console.error("Storage full, clearing old ads");
+          localStorage.removeItem('saved_meta_ads');
+          localStorage.setItem('saved_meta_ads', JSON.stringify([newAd]));
+          setSavedMetaAds([newAd]);
+        }
+      }
       
     } catch (error: any) {
       setMetaError(error.message);
@@ -872,12 +881,22 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                     </div>
-                    <div className="flex-1 overflow-hidden relative">
-                       <iframe 
-                         src={metaCanvaUrl} 
-                         className="w-full h-full border-0 absolute inset-0"
-                         allowFullScreen
-                       />
+                    <div className="flex-1 flex flex-col items-center justify-center bg-slate-100 p-8 text-center relative">
+                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-sm w-full">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Canva Editor</h3>
+                        <p className="text-sm text-slate-500 mb-6">Canva does not support being embedded directly on other websites. Click below to open your design securely.</p>
+                        <a 
+                          href={metaCanvaUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-200 transition-all transform hover:-translate-y-0.5"
+                        >
+                          Open in Canva <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )}
