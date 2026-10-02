@@ -9,8 +9,15 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
   const k = String(keyword).toLowerCase().trim();
   if (!v || !k) return false;
   if (v === k) return true;
-  // If it's a short custom keyword (<= 3 words), allow substring matching
-  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  if (k.split(/\s+/).length <= 3) {
+    try {
+      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?:^|\\W)${escapedK}(?:\\W|$)`, 'i');
+      if (regex.test(v)) return true;
+    } catch (e) {}
+    // Only fall back to simple includes if the word boundary fails, but we should avoid generic substring matching for common short words
+    if (v.includes(k) && k.length > 4) return true;
+  }
   return false;
 };
 
