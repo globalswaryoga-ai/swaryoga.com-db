@@ -124,8 +124,9 @@ export function LeadsManagementTab({
   const SIDEBAR_TABS = React.useMemo(() => [...DEFAULT_SIDEBAR_TABS, ...customCategories], [customCategories]);
 
   const getCategoryLabel = React.useCallback((id: string) => {
+    if (!id) return 'Unknown';
     const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
-    return tab ? tab.label : "Deleted Folder (" + id.replace(/_/g, ' ') + ")";
+    return tab ? tab.label : "Deleted Folder (" + String(id).replace(/_/g, ' ') + ")";
   }, [SIDEBAR_TABS]);
   
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
