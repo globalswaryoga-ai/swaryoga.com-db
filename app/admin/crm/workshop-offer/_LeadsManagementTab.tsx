@@ -533,12 +533,12 @@ export function LeadsManagementTab({
       } else if (tab.id === 'approval_1') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
+          return (dec.status === 'approval_1' || dec.history?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
         }).length;
       } else if (tab.id === 'approval_2') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return ['approval_2', 'pending_leads_3'].includes(dec.status) && !dec.isRejected;
+          return (dec.status === 'approval_2' || dec.history?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
         }).length;
       } else if (tab.id === 'registered_leads') {
         count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
@@ -576,15 +576,13 @@ export function LeadsManagementTab({
     if (activeTab === 'approval_1') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        // Keep a copy in approval_1 if it ever reached there (meaning it's not pending_leads_1)
-        return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
+        return (dec.status === 'approval_1' || dec.history?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
       });
     }
     if (activeTab === 'approval_2') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        // The user specifically requested pending-3 to be shown in approval-2
-        return ['approval_2', 'pending_leads_3'].includes(dec.status) && !dec.isRejected;
+        return (dec.status === 'approval_2' || dec.history?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
       });
     }
     if (activeTab === 'registered_leads') {
