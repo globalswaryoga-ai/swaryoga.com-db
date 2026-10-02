@@ -305,6 +305,7 @@ export function LeadsManagementTab({
     successColor?: string;
     failCategory?: string;
     failColor?: string;
+    directMoveCategory?: string;
   };
   const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>(() => {
     if (typeof window !== 'undefined') {
@@ -533,16 +534,21 @@ export function LeadsManagementTab({
         Object.entries(aiSettings).forEach(([type, conditions]) => {
           if (!type.startsWith('AI-4')) return;
           if (!conditions || conditions.length === 0) return;
-          const hasValidCondition = conditions.some((c: any) => c.keyword?.trim() || (c.question || '').toLowerCase().includes('age'));
+          const hasValidCondition = conditions.some((c: any) => c.directMoveCategory || c.keyword?.trim() || (c.question || '').toLowerCase().includes('age'));
           if (!hasValidCondition) return;
 
-          // Target leads currently in new_leads (or no decision)
+          // Find the category this AI trigger is assigned to
+          // If unassigned (e.g., legacy or not in sidebars), fallback to processing new_leads
+          const assignedCategory = customCategories.find((c: any) => c.aiAssignment === type);
+          const sourceCategory = assignedCategory ? assignedCategory.id : 'new_leads';
+
+          // Target leads currently in the source category (or no decision if new_leads)
           const targetLeads = activeBatchLeads.filter(lead => {
             const dec = prev[lead.id] || {};
             const currentStatus = dec.status || 'new_leads';
             if (dec.isRejected || dec.isRegistered) return false;
-            // Background worker only auto-processes leads that are untouched or specifically new
-            return currentStatus === 'new_leads';
+            // Background worker only auto-processes leads that are in the source folder
+            return currentStatus === sourceCategory;
           });
 
           if (targetLeads.length === 0) return;
@@ -555,6 +561,14 @@ export function LeadsManagementTab({
             let finalReason = '';
 
             for (const c of conditions as any[]) {
+              // 1. Check for Direct Move (Bypasses keyword checks)
+              if (c.directMoveCategory) {
+                finalCategory = c.directMoveCategory;
+                finalReason = `Direct Move from ${sourceCategory}`;
+                break;
+              }
+
+              // 2. Otherwise run normal keyword matching
               if (!c.keyword || !c.keyword.trim()) continue;
               const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
               const kw = c.keyword.toLowerCase().trim();
@@ -1493,6 +1507,25 @@ export function LeadsManagementTab({
                         }}
                         className="h-8 w-12 cursor-pointer rounded border"
                       />
+                    </div>
+                  </div>
+
+                  {/* Row 4: Direct Move (Optional) */}
+                  <div className="p-3 rounded-lg border flex items-center gap-3 bg-blue-50 mt-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-blue-900 mb-1">OR Direct Move (Ignore rules above, direct move all leads here):</label>
+                      <select
+                        value={condition.directMoveCategory || ''}
+                        onChange={(e) => {
+                          const updated = [...modalConditions];
+                          updated[idx].directMoveCategory = e.target.value;
+                          setModalConditions(updated);
+                        }}
+                        className="w-full text-sm border border-blue-200 rounded-md px-2 py-1 outline-none bg-white text-blue-900"
+                      >
+                        <option value="">-- Do Not Direct Move (Use rules above) --</option>
+                        {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
                     </div>
                   </div>
                 </div>
