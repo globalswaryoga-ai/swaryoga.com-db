@@ -6,20 +6,19 @@ export const dynamic = 'force-dynamic';
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 
 // Call Replicate and poll until done
-async function runReplicate(model: string, input: Record<string, any>): Promise<any> {
-  // Create prediction
-  const createRes = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
+async function runReplicate(payload: Record<string, any>): Promise<any> {
+  const createRes = await fetch('https://api.replicate.com/v1/predictions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
       'Content-Type': 'application/json',
       'Prefer': 'wait=60',
     },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify(payload),
   });
 
   const prediction = await createRes.json();
-  if (!createRes.ok) throw new Error(prediction?.detail || 'Replicate API error');
+  if (!createRes.ok) throw new Error(prediction?.detail || JSON.stringify(prediction) || 'Replicate API error');
 
   // If already done (with Prefer: wait)
   if (prediction.status === 'succeeded') return prediction.output;
@@ -37,6 +36,9 @@ async function runReplicate(model: string, input: Record<string, any>): Promise<
   }
   throw new Error('Replicate timed out');
 }
+
+// Llama 3 8B Instruct version ID
+const LLAMA3_VERSION = '5a6809ca6288247d06daf6365557e5e429063f32a21146b2a807c682652136b8';
 
 // Detect if the user is asking for an image
 function wantsImage(prompt: string): boolean {
@@ -89,11 +91,14 @@ export async function POST(request: Request) {
 
     if (shouldGenerateAdCopy) {
       const systemPrompt = `You are an expert social media copywriter. Given a prompt for an ad, generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA". Return ONLY the JSON, no extra text.`;
-      const llmOutput = await runReplicate('meta/meta-llama-3-8b-instruct', {
-        prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
-        system_prompt: systemPrompt,
-        max_new_tokens: 300,
-        temperature: 0.7,
+      const llmOutput = await runReplicate({
+        version: LLAMA3_VERSION,
+        input: {
+          prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
+          system_prompt: systemPrompt,
+          max_new_tokens: 300,
+          temperature: 0.7,
+        }
       });
       const rawText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
       try {
@@ -113,11 +118,14 @@ You help users create ads, posters, book content, and any creative content they 
 IMPORTANT INSTRUCTION: If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style or elements you are incorporating.
 Respond naturally and conversationally. Keep responses concise and helpful.`;
 
-      const llmOutput = await runReplicate('meta/meta-llama-3-8b-instruct', {
-        prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
-        system_prompt: systemPrompt,
-        max_new_tokens: 500,
-        temperature: 0.7,
+      const llmOutput = await runReplicate({
+        version: LLAMA3_VERSION,
+        input: {
+          prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
+          system_prompt: systemPrompt,
+          max_new_tokens: 500,
+          temperature: 0.7,
+        }
       });
       aiText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
     }
@@ -140,13 +148,16 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
           width = 768; height = 1344;
         }
 
-        const output = await runReplicate('black-forest-labs/flux-schnell', {
-          prompt: imagePrompt,
-          width,
-          height,
-          num_outputs: 1,
-          output_format: 'webp',
-          output_quality: 90,
+        const output = await runReplicate({
+          model: 'black-forest-labs/flux-schnell',
+          input: {
+            prompt: imagePrompt,
+            width,
+            height,
+            num_outputs: 1,
+            output_format: 'webp',
+            output_quality: 90,
+          }
         });
 
         imageUrl = Array.isArray(output) ? output[0] : output;
