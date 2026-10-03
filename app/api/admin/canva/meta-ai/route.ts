@@ -1,12 +1,42 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+
+// Call Replicate and poll until done
+async function runReplicate(model: string, input: Record<string, any>): Promise<any> {
+  // Create prediction
+  const createRes = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'wait=60',
+    },
+    body: JSON.stringify({ input }),
+  });
+
+  const prediction = await createRes.json();
+  if (!createRes.ok) throw new Error(prediction?.detail || 'Replicate API error');
+
+  // If already done (with Prefer: wait)
+  if (prediction.status === 'succeeded') return prediction.output;
+
+  // Poll
+  const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const pollRes = await fetch(pollUrl, {
+      headers: { 'Authorization': `Bearer ${REPLICATE_API_TOKEN}` }
+    });
+    const data = await pollRes.json();
+    if (data.status === 'succeeded') return data.output;
+    if (data.status === 'failed') throw new Error(data.error || 'Replicate prediction failed');
+  }
+  throw new Error('Replicate timed out');
+}
 
 // Detect if the user is asking for an image
 function wantsImage(prompt: string): boolean {
@@ -48,56 +78,51 @@ export async function POST(request: Request) {
     const shouldGenerateImage = wantsImage(prompt);
     const shouldGenerateAdCopy = wantsAdCopy(prompt);
 
-    // Build conversation history for context
-    const conversationHistory = (messages || []).map((m: any) => ({
-      role: m.role === 'user' ? 'user' : 'assistant',
-      content: m.content,
-    }));
+    // Build conversation history
+    const historyText = (messages || []).map((m: any) =>
+      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+    ).join('\n');
 
-    // 1. Generate Chat Response
+    // 1. Generate Chat Response via Llama 3 on Replicate
     let aiText = '';
     let aiData: any = null;
 
     if (shouldGenerateAdCopy) {
-      // Generate structured Ad Copy (JSON)
-      const chatCompletion = await openai.chat.completions.create({
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert social media copywriter. Given a prompt for an ad, generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA".'
-          },
-          ...conversationHistory,
-          { role: 'user', content: prompt }
-        ],
-        model: 'gpt-4o',
-        response_format: { type: 'json_object' }
+      const systemPrompt = `You are an expert social media copywriter. Given a prompt for an ad, generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA". Return ONLY the JSON, no extra text.`;
+      const llmOutput = await runReplicate('meta/meta-llama-3-8b-instruct', {
+        prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
+        system_prompt: systemPrompt,
+        max_new_tokens: 300,
+        temperature: 0.7,
       });
-
-      const content = chatCompletion.choices[0].message.content || '{}';
-      aiData = JSON.parse(content);
-      aiText = `Headline: ${aiData.Headline}\nSubheading: ${aiData.Subheading}\nCTA: ${aiData.CTA}`;
-
+      const rawText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
+      try {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        aiData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        if (aiData) {
+          aiText = `Headline: ${aiData.Headline}\nSubheading: ${aiData.Subheading}\nCTA: ${aiData.CTA}`;
+        } else {
+          aiText = rawText;
+        }
+      } catch {
+        aiText = rawText;
+      }
     } else {
-      // General conversational chat
-      const chatCompletion = await openai.chat.completions.create({
-        messages: [
-          {
-            role: 'system',
-            content: `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design. 
+      const systemPrompt = `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design.
 You help users create ads, posters, book content, and any creative content they need.
 IMPORTANT INSTRUCTION: If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style or elements you are incorporating.
-Respond naturally and conversationally. Keep responses concise and helpful.`
-          },
-          ...conversationHistory,
-          { role: 'user', content: prompt }
-        ],
-        model: 'gpt-4o',
-      });
+Respond naturally and conversationally. Keep responses concise and helpful.`;
 
-      aiText = chatCompletion.choices[0].message.content || '';
+      const llmOutput = await runReplicate('meta/meta-llama-3-8b-instruct', {
+        prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
+        system_prompt: systemPrompt,
+        max_new_tokens: 500,
+        temperature: 0.7,
+      });
+      aiText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
     }
 
-    // 2. Generate Image if requested
+    // 2. Generate Image via Flux Schnell on Replicate
     let imageUrl = null;
     const aiDecidedToGenerate = aiText.toLowerCase().includes('generate this image');
     if (shouldGenerateImage || shouldGenerateAdCopy || aiDecidedToGenerate) {
@@ -106,55 +131,28 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
           : `Create a high-quality image based on this request: ${prompt}. If the request includes text or is for a thumbnail, make sure to beautifully integrate that text into the design.`;
 
-        let targetSize: '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024';
+        let width = 1024;
+        let height = 1024;
         const lowerPrompt = prompt.toLowerCase();
         if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
-          targetSize = '1536x1024';
+          width = 1344; height = 768;
         } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels')) {
-          targetSize = '1024x1536';
+          width = 768; height = 1344;
         }
 
-        const imageResponse = await openai.images.generate({
-          model: 'chatgpt-image-latest',
+        const output = await runReplicate('black-forest-labs/flux-schnell', {
           prompt: imagePrompt,
-          n: 1,
-          size: targetSize,
+          width,
+          height,
+          num_outputs: 1,
+          output_format: 'webp',
+          output_quality: 90,
         });
-        
-        const imgData = imageResponse.data[0];
-        if (imgData.b64_json) {
-          imageUrl = `data:image/png;base64,${imgData.b64_json}`;
-        } else if (imgData.url) {
-          imageUrl = imgData.url;
-        }
+
+        imageUrl = Array.isArray(output) ? output[0] : output;
       } catch (e: any) {
-        const errorMsg = e.response?.data?.error?.message || e.message || "Unknown error";
-        
-        // Fallback to dall-e-2 if dall-e-3 doesn't exist
-        if (errorMsg.includes('does not exist') || errorMsg.includes('model')) {
-          try {
-            console.log('Falling back to gpt-image-2.5-sunburst...');
-            const fallbackResponse = await openai.images.generate({
-              model: 'gpt-image-2.5-sunburst',
-              prompt: imagePrompt,
-              n: 1,
-              size: '1024x1024',
-            });
-            const imgData = fallbackResponse.data[0];
-            if (imgData.b64_json) {
-              imageUrl = `data:image/png;base64,${imgData.b64_json}`;
-            } else if (imgData.url) {
-              imageUrl = imgData.url;
-            }
-          } catch (fallbackErr: any) {
-            const fallbackMsg = fallbackErr.response?.data?.error?.message || fallbackErr.message || "Unknown error";
-            console.error('Image generation failed with error:', fallbackMsg);
-            aiText += `\n\n[System Error: Image generation failed: ${fallbackMsg}]`;
-          }
-        } else {
-          console.error('Image generation failed with error:', errorMsg);
-          aiText += `\n\n[System Error: Image generation failed: ${errorMsg}]`;
-        }
+        console.error('Replicate image generation failed:', e.message);
+        aiText += `\n\n[System Error: Image generation failed: ${e.message}]`;
       }
     }
 
