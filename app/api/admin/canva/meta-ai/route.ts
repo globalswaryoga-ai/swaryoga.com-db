@@ -23,10 +23,10 @@ async function runReplicate(payload: Record<string, any>): Promise<any> {
   // If already done (with Prefer: wait)
   if (prediction.status === 'succeeded') return prediction.output;
 
-  // Poll
+  // Poll (up to 5 minutes for video generation)
   const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 2000));
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 5000));
     const pollRes = await fetch(pollUrl, {
       headers: { 'Authorization': `Bearer ${REPLICATE_API_TOKEN}` }
     });
@@ -61,6 +61,13 @@ function wantsAdCopy(prompt: string): boolean {
     'ad copy', 'advertisement', 'social media ad',
     'instagram ad', 'facebook ad', 'meta ad', 'canva ad'
   ];
+  const lower = prompt.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
+// Detect if the user is asking for a video
+function wantsVideo(prompt: string): boolean {
+  const keywords = ['video', 'animate', 'animation', 'motion', 'mp4', 'movie', 'clip', 'reels', 'reel'];
   const lower = prompt.toLowerCase();
   return keywords.some(k => lower.includes(k));
 }
@@ -132,8 +139,11 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
 
     // 2. Generate Image via Flux Schnell on Replicate
     let imageUrl = null;
-    const aiDecidedToGenerate = aiText.toLowerCase().includes('generate this image');
-    if (shouldGenerateImage || shouldGenerateAdCopy || aiDecidedToGenerate) {
+    let videoUrl = null;
+    const shouldGenerateVideo = wantsVideo(prompt);
+    const aiDecidedToGenerate = aiText.toLowerCase().includes('generate this image') || aiText.toLowerCase().includes('generate this video');
+    
+    if (shouldGenerateImage || shouldGenerateAdCopy || shouldGenerateVideo || aiDecidedToGenerate) {
       try {
         const imagePrompt = shouldGenerateAdCopy && aiData
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
@@ -144,7 +154,7 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
         const lowerPrompt = prompt.toLowerCase();
         if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
           width = 1344; height = 768;
-        } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels')) {
+        } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) {
           width = 768; height = 1344;
         }
 
@@ -161,9 +171,32 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
         });
 
         imageUrl = Array.isArray(output) ? output[0] : output;
+
+        // 3. Generate Video if requested
+        if (shouldGenerateVideo && imageUrl) {
+           const videoOutput = await runReplicate({
+             model: 'prunaai/p-video-2-pro',
+             input: {
+               mode: "speed",
+               image: imageUrl,
+               prompt: `Use the provided image as the exact first frame. ${prompt}`,
+               duration: 5,
+               resolution: "768p",
+               aspect_ratio: width > height ? "16:9" : width < height ? "9:16" : "1:1",
+               prompt_upsampler: "turbo"
+             }
+           });
+           
+           videoUrl = Array.isArray(videoOutput) ? videoOutput[0] : videoOutput;
+           // If it returns a string URL directly (some models return just the URL, some return an array)
+           if (typeof videoOutput === 'string' && videoOutput.endsWith('.mp4')) {
+               videoUrl = videoOutput;
+           }
+        }
+        
       } catch (e: any) {
-        console.error('Replicate image generation failed:', e.message);
-        aiText += `\n\n[System Error: Image generation failed: ${e.message}]`;
+        console.error('Replicate image/video generation failed:', e.message);
+        aiText += `\n\n[System Error: Generation failed: ${e.message}]`;
       }
     }
 
@@ -208,6 +241,7 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
       aiText,
       job,
       imageUrl,
+      videoUrl,
       generatedText: aiData,
     });
 

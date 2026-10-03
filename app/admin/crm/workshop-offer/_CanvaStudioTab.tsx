@@ -25,11 +25,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [brandTemplates, setBrandTemplates] = useState<any[]>([]);
   const [isLoadingBrandTemplates, setIsLoadingBrandTemplates] = useState(false);
 
-  type ChatMessage = { role: 'user' | 'ai'; content: string; imageUrl?: string | null; error?: boolean };
+  type ChatMessage = { role: 'user' | 'ai'; content: string; imageUrl?: string | null; videoUrl?: string | null; error?: boolean };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [metaPrompt, setMetaPrompt] = useState<string>('');
   const [showCanvaPopup, setShowCanvaPopup] = useState(false);
   const [metaCanvaUrl, setMetaCanvaUrl] = useState<string | null>(null);
+  const [metaVideoUrl, setMetaVideoUrl] = useState<string | null>(null);
   const [showBatchCanvaPopup, setShowBatchCanvaPopup] = useState(false);
   const [batchCanvaProgress, setBatchCanvaProgress] = useState<{current: number, total: number, status: string, links: string[]}>({current: 0, total: 0, status: '', links: []});
   const [batchCanvaTemplateId, setBatchCanvaTemplateId] = useState('');
@@ -185,8 +186,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         setMetaCanvaUrl(data.imageUrl); // Auto-open right panel with image
       }
       
+      if (data.videoUrl) {
+        setMetaVideoUrl(data.videoUrl); // Auto-open right panel with video
+      }
+      
       // Add AI response to chat
-      setChatMessages(prev => [...prev, { role: 'ai', content: aiText, imageUrl: data.imageUrl }]);
+      setChatMessages(prev => [...prev, { role: 'ai', content: aiText, imageUrl: data.imageUrl, videoUrl: data.videoUrl }]);
       
       // We auto-save the generated ad to history
       const newAd = {
@@ -631,9 +636,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           onClick={() => {
                             setChatMessages([
                               { role: 'user', content: ad.prompt },
-                              { role: 'ai', content: ad.text, imageUrl: ad.imageUrl }
+                              { role: 'ai', content: ad.text, imageUrl: ad.imageUrl, videoUrl: ad.videoUrl }
                             ]);
                             setGeneratedAiImage(ad.imageUrl || '');
+                            setMetaCanvaUrl(ad.imageUrl || null);
+                            setMetaVideoUrl(ad.videoUrl || null);
                             setGeneratedAiText(ad.text || '');
                             setMetaLanguage(ad.language);
                             setMetaPlatform(ad.platform);
@@ -709,7 +716,28 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  </div>
                                )}
                                
-                               {msg.imageUrl && (
+                               {msg.videoUrl && (
+                                 <div className="mb-4">
+                                   <video src={msg.videoUrl} controls autoPlay loop className="rounded-xl max-w-sm w-full border border-slate-200 shadow-sm" />
+                                   <div className="mt-3 flex gap-2">
+                                     <button 
+                                       onClick={() => {
+                                         const a = document.createElement('a');
+                                         a.href = msg.videoUrl;
+                                         a.download = `AI-Video-${Date.now()}.mp4`;
+                                         document.body.appendChild(a);
+                                         a.click();
+                                         document.body.removeChild(a);
+                                       }}
+                                       className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
+                                     >
+                                       <Download size={14} /> Download Video
+                                     </button>
+                                   </div>
+                                 </div>
+                               )}
+                               
+                               {msg.imageUrl && !msg.videoUrl && (
                                  <div className="mb-4">
                                    <img src={msg.imageUrl} alt="Generated" className="rounded-xl max-w-sm w-full border border-slate-200 shadow-sm" />
                                    <div className="mt-3 flex gap-2">
@@ -906,43 +934,55 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                 </div>
                 </div>
 
-                {/* Image Preview Panel (Right Side) */}
-                {metaCanvaUrl && (
+                {/* Media Preview Panel (Right Side) */}
+                {(metaCanvaUrl || metaVideoUrl) && (
                   <div className="w-1/2 flex flex-col h-full bg-slate-900 relative border-l border-slate-700">
                     {/* Header */}
                     <div className="flex justify-between items-center p-3 border-b border-slate-700 bg-slate-800 z-10">
                       <div className="flex items-center gap-2 text-white font-bold text-sm">
                         <div className="w-2 h-5 bg-indigo-400 rounded-full"></div>
-                        Generated Image
+                        Generated {metaVideoUrl ? 'Video' : 'Image'}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => { const a = document.createElement('a'); a.href = metaCanvaUrl; a.download = `AI-Design-${Date.now()}.webp`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                          onClick={() => { const a = document.createElement('a'); a.href = metaVideoUrl || metaCanvaUrl; a.download = `AI-Media-${Date.now()}.${metaVideoUrl ? 'mp4' : 'webp'}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
                         >
                           <Download size={12} /> Download
                         </button>
+                        {!metaVideoUrl && (
+                          <button
+                            onClick={() => openCanvaPopup('https://www.canva.com/')}
+                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+                          >
+                            <Share2 size={12} /> Edit in Canva
+                          </button>
+                        )}
                         <button
-                          onClick={() => openCanvaPopup('https://www.canva.com/')}
-                          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
-                        >
-                          <Share2 size={12} /> Edit in Canva
-                        </button>
-                        <button
-                          onClick={() => setMetaCanvaUrl(null)}
+                          onClick={() => { setMetaCanvaUrl(null); setMetaVideoUrl(null); }}
                           className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
                       </div>
                     </div>
-                    {/* Image Display */}
+                    {/* Media Display */}
                     <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-                      <img
-                        src={metaCanvaUrl}
-                        alt="AI Generated Design"
-                        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-                      />
+                      {metaVideoUrl ? (
+                        <video
+                          src={metaVideoUrl}
+                          controls
+                          autoPlay
+                          loop
+                          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                        />
+                      ) : (
+                        <img
+                          src={metaCanvaUrl}
+                          alt="AI Generated Design"
+                          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                        />
+                      )}
                     </div>
                   </div>
                 )}

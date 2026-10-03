@@ -328,10 +328,11 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
 
 export async function GET(request: NextRequest) {
   try {
-    // Accept token from header OR query param (for iframe embeds)
+    // Accept token from header OR query param (for iframe embeds) OR cookies
     const url   = new URL(request.url);
     const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
       || url.searchParams.get('token')
+      || request.cookies.get('token')?.value
       || undefined;
 
     const decoded = verifyToken(token);

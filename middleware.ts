@@ -164,6 +164,7 @@ function applySecurityHeaders(res: NextResponse, requestId: string, pathname: st
   res.headers.set('X-Request-Id', requestId);
   const isDev = process.env.NODE_ENV !== 'production';
   const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
+  const isPdfPreview = pathname === '/api/admin/crm/receipts/pdf';
   const embeddable = isExtensionEmbeddablePath(pathname);
   
   // Strict security headers (CSP, Frame denial, HSTS) are ONLY applied in production
@@ -171,7 +172,7 @@ function applySecurityHeaders(res: NextResponse, requestId: string, pathname: st
   // HMR websockets, and iframe testing render cleanly without being blocked.
   if (!isDev) {
     if (!embeddable) {
-      res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+      res.headers.set('X-Frame-Options', (isLandingPagePreview || isPdfPreview) ? 'SAMEORIGIN' : 'DENY');
     }
     res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
     res.headers.set('Content-Security-Policy', embeddable ? `${CSP}; frame-ancestors 'self' https://web.whatsapp.com` : CSP);
