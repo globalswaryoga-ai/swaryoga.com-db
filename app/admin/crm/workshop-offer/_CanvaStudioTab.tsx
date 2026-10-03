@@ -182,6 +182,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       
       if (data.imageUrl) {
         setGeneratedAiImage(data.imageUrl);
+        setMetaCanvaUrl(data.imageUrl); // Auto-open right panel with image
       }
       
       // Add AI response to chat
@@ -905,37 +906,43 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                 </div>
                 </div>
 
-                {/* Canva Sidebar (Right Side) */}
+                {/* Image Preview Panel (Right Side) */}
                 {metaCanvaUrl && (
-                  <div className="w-1/2 flex flex-col h-full bg-slate-50 relative border-l border-slate-200">
-                    <div className="flex justify-between items-center p-3 border-b border-slate-200 bg-white shadow-sm z-10">
-                      <div className="flex items-center gap-2 text-indigo-700 font-bold">
-                        <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
-                        Canva Editor
+                  <div className="w-1/2 flex flex-col h-full bg-slate-900 relative border-l border-slate-700">
+                    {/* Header */}
+                    <div className="flex justify-between items-center p-3 border-b border-slate-700 bg-slate-800 z-10">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <div className="w-2 h-5 bg-indigo-400 rounded-full"></div>
+                        Generated Image
                       </div>
-                      <button 
-                        onClick={() => setMetaCanvaUrl(null)} 
-                        className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </button>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center justify-center bg-slate-100 p-8 text-center relative">
-                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-sm w-full">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-                        </div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">Canva Editor</h3>
-                        <p className="text-sm text-slate-500 mb-6">Canva does not support being embedded directly on other websites. Click below to open your design securely.</p>
-                        <a 
-                          href={metaCanvaUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-200 transition-all transform hover:-translate-y-0.5"
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { const a = document.createElement('a'); a.href = metaCanvaUrl; a.download = `AI-Design-${Date.now()}.webp`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
                         >
-                          Open in Canva <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                        </a>
+                          <Download size={12} /> Download
+                        </button>
+                        <button
+                          onClick={() => openCanvaPopup('https://www.canva.com/')}
+                          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+                        >
+                          <Share2 size={12} /> Edit in Canva
+                        </button>
+                        <button
+                          onClick={() => setMetaCanvaUrl(null)}
+                          className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
                       </div>
+                    </div>
+                    {/* Image Display */}
+                    <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+                      <img
+                        src={metaCanvaUrl}
+                        alt="AI Generated Design"
+                        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                      />
                     </div>
                   </div>
                 )}
