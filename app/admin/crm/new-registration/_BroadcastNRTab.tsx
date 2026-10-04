@@ -171,12 +171,22 @@ export function BroadcastNRTab({
     setSending(true);
     setResult(null);
     try {
-      const recipientPhones = targetLeads.map((l: any) => l.phoneNumber || l.phone).filter(Boolean);
+      const recipientPhones = targetLeads.map((l: any) => l.phoneNumber || l.phone || l['Phone Number'] || l['WhatsApp Number']).filter(Boolean);
+      const csvContacts = targetLeads.map((l: any) => ({
+        name: l.name || l.userName || l.firstName || l['Name'] || l['Full Name'] || 'Form Lead',
+        phoneNumber: String(l.phoneNumber || l.phone || l['Phone Number'] || l['WhatsApp Number'] || ''),
+        email: l.email || l['Email'] || l['Email Address'],
+      })).filter((c: any) => c.phoneNumber.length >= 10);
+      
       const payload: any = {
         name: broadcastName || `${activeBatch?.name || 'Batch'} - ${selectedSegment || 'All'} - ${new Date().toLocaleDateString('en-IN')}`,
         templateId: selectedTemplate._id,
         provider: providerMode === 'group' ? 'qr' : providerMode,
-        target: { type: 'filters', leadIds: targetLeads.map((l: any) => l._id || l.id).filter(Boolean) },
+        target: { 
+          type: 'filters', 
+          leadIds: targetLeads.map((l: any) => l._id).filter(Boolean),
+          csvContacts: csvContacts
+        },
         mode: sendMode,
       };
       if (sendMode === 'schedule') payload.scheduleAt = `${scheduleDate}T${scheduleTime}:00`;
