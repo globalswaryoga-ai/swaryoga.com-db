@@ -734,79 +734,78 @@ export default function BroadcastPage(props: any) {
       }
     }
 
-    const namesFromSource = (sourceWorkshops || [])
-      .filter((w: any) => 
-        w && 
-        (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase())
-      )
-      .map((w: any) => w.name || w.title)
-      .filter(Boolean);
-
-    const namesFromLeads = (leads || [])
-      .map((l: any) => l.workshopName)
-      .filter(Boolean);
-
-    const namesFromPropLeads = (propLeadsData || [])
-      .map((l: any) => l.workshopName || l.workshop)
-      .filter(Boolean);
-
-    return Array.from(new Set([...namesFromSource, ...namesFromLeads, ...namesFromPropLeads]));
-  }, [props?.workshops, filterLanguage, leads, propLeadsData]);
+    const filtered = (sourceWorkshops || []).filter((w: any) => 
+      w && w.id && w.id.startsWith('batch_') &&
+      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase()) &&
+      w.isMovedToLeadsManagement
+    );
+    
+    return filtered.map((w: any) => w.name);
+  }, [props?.workshops, filterLanguage]);
 
   const uniqueLanguages = useMemo(() => {
     return ['English', 'Hindi', 'Marathi', 'Kannada'];
   }, []);
 
   const filteredLeads = useMemo(() => {
-    // Mimic LeadsManagementTab exact filtering if embedded
-    if (isEmbedded && propLeadsData && propLeadsData.length > 0) {
-      let batchDecisions: Record<string, any> = {};
-      if (typeof window !== 'undefined') {
-        const d = localStorage.getItem('crm_ai4_decisions');
-        if (d) { try { batchDecisions = JSON.parse(d); } catch(e){} }
+    // Determine the source leads based on embedded mode
+    const sourceLeads = (isEmbedded && propLeadsData && propLeadsData.length > 0) ? propLeadsData : leads;
+
+    let batchDecisions: Record<string, any> = {};
+    if (typeof window !== 'undefined') {
+      const d = localStorage.getItem('crm_ai4_decisions');
+      if (d) { try { batchDecisions = JSON.parse(d); } catch(e){} }
+    }
+
+    const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
+    let activeBatches = (props?.workshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
+    
+    // If not embedded, fetch workshops from localStorage
+    if (!isEmbedded && typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_workshops');
+      if (saved) {
+        try { activeBatches = JSON.parse(saved).filter((w: any) => allowedBatchNames.includes(w.name)); } catch (e) {}
       }
+    }
 
-      const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
-      const activeBatches = (propWorkshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
-      
-      let activeBatchLeads: any[] = [];
-      const seenLeadIds = new Set<string>();
+    let activeBatchLeads: any[] = [];
+    const seenLeadIds = new Set<string>();
 
-      if (activeBatches.length > 0) {
-        activeBatches.forEach((activeBatch: any) => {
-          const keywords = activeBatch?.formFilterKeyword ? activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean) : [];
-          const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
+    if (activeBatches.length > 0) {
+      activeBatches.forEach((activeBatch: any) => {
+        const keywords = activeBatch?.formFilterKeyword ? activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean) : [];
+        const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
 
-          propLeadsData.forEach((lead: any) => {
-            const leadId = lead.id || lead._id || Math.random().toString();
-            if (seenLeadIds.has(leadId)) return;
+        sourceLeads.forEach((lead: any) => {
+          const leadId = lead.id || lead._id || Math.random().toString();
+          if (seenLeadIds.has(leadId)) return;
 
-            if (keywords.length > 0) {
-              let matches = false;
-              if (lead._rawRecord) {
-                if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                  matches = keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-                } else {
-                  matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
-                }
+          if (keywords.length > 0) {
+            let matches = false;
+            if (lead._rawRecord) {
+              if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+                matches = keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
               } else {
-                matches = true;
-              }
-              if (matches) {
-                seenLeadIds.add(leadId);
-                activeBatchLeads.push(lead);
+                matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
               }
             } else {
+              matches = true;
+            }
+            if (matches) {
               seenLeadIds.add(leadId);
               activeBatchLeads.push(lead);
             }
-          });
+          } else {
+            seenLeadIds.add(leadId);
+            activeBatchLeads.push(lead);
+          }
         });
-      }
+      });
+    }
 
-      if (activeBatchLeads.length === 0) {
-        activeBatchLeads = propLeadsData;
-      }
+    if (activeBatchLeads.length === 0) {
+      activeBatchLeads = sourceLeads;
+    }
 
       let tabLeads = activeBatchLeads;
       if (filterStatus === 'new_leads' || filterStatus === 'new' || filterStatus === 'lead') {
@@ -864,7 +863,7 @@ export default function BroadcastPage(props: any) {
       }
 
       // Map back to Lead type required by BroadcastPage
-      return tabLeads.map((l: any, idx: number) => {
+      let mappedLeads = tabLeads.map((l: any, idx: number) => {
         let phone = String(l.phoneNumber || l.mobile || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
         if (l._rawRecord) {
            for (const [k, v] of Object.entries(l._rawRecord)) {
@@ -882,83 +881,79 @@ export default function BroadcastPage(props: any) {
           status: filterStatus,
           workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
+          labels: l.labels || [],
+          deliveryStatus: l.deliveryStatus,
         };
-      }).filter((l: any) => {
-        if (!searchQuery) return true;
-        return l.name?.toLowerCase().includes(searchQuery.toLowerCase()) || l.phoneNumber.includes(searchQuery);
       });
-    }
 
-    // Merge DB leads + CSV contacts
-    let allLeads = [...leads];
-
-    // Add CSV contacts as virtual leads (if not already in DB by phone)
-    if (csvContacts.length > 0) {
-      const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
-      csvContacts.forEach((c, idx) => {
-        const normalPhone = c.phoneNumber.replace(/\D/g, '').slice(-10);
-        if (!existingPhones.has(normalPhone)) {
-          allLeads.push({
-            _id: `csv_${idx}_${normalPhone}`,
-            name: c.name || '',
-            phoneNumber: c.phoneNumber,
-            email: c.email,
-            status: 'csv',
-            isCSV: true,
-          });
-        }
-      });
-    }
-
-    // Deduplicate by phone number (keep first occurrence)
-    const seenPhones = new Set<string>();
-    const dedupedLeads = allLeads.filter(lead => {
-      const normalPhone = (lead.phoneNumber || '').replace(/\D/g, '').slice(-10);
-      if (!normalPhone) return true;
-      if (seenPhones.has(normalPhone)) {
-        return false;
-      }
-      seenPhones.add(normalPhone);
-      return true;
-    });
-
-    return dedupedLeads.filter(lead => {
-      const matchesSearch = !searchQuery ||
-        lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.phoneNumber.includes(searchQuery);
-
-      const leadStatusNorm = (lead.status || '').toLowerCase();
-      const filterStatusNorm = filterStatus.toLowerCase();
-      let matchesStatus = filterStatus === 'all';
-      if (!matchesStatus) {
-        if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
-          matchesStatus = ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
-        } else if (filterStatusNorm.includes('pending')) {
-          matchesStatus = leadStatusNorm.includes('pending');
-        } else if (filterStatusNorm.includes('registered')) {
-          matchesStatus = leadStatusNorm.includes('register');
-        } else if (filterStatusNorm.includes('approval')) {
-          matchesStatus = leadStatusNorm.includes('approval');
-        } else if (filterStatusNorm.includes('rejected')) {
-          matchesStatus = leadStatusNorm.includes('reject');
-        } else {
-          matchesStatus = leadStatusNorm === filterStatusNorm;
-        }
+      // Add CSV contacts as virtual leads (if not already in DB by phone)
+      if (!isEmbedded && csvContacts.length > 0) {
+        const existingPhones = new Set(mappedLeads.map((l: any) => (l.phoneNumber || '').replace(/\D/g, '').slice(-10)));
+        csvContacts.forEach((c, idx) => {
+          const normalPhone = c.phoneNumber.replace(/\D/g, '').slice(-10);
+          if (!existingPhones.has(normalPhone)) {
+            mappedLeads.push({
+              _id: `csv_${idx}_${normalPhone}`,
+              name: c.name || '',
+              phoneNumber: c.phoneNumber,
+              email: c.email,
+              status: 'csv',
+              isCSV: true,
+              workshopName: '',
+            });
+          }
+        });
       }
 
-      const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
-      const matchesMultiWorkshop = filterWorkshops.length === 0 || 
-        filterWorkshops.includes(lead.workshopName || '');
+      // Deduplicate by phone number (keep first occurrence)
+      const seenPhones = new Set<string>();
+      mappedLeads = mappedLeads.filter((lead: any) => {
+        const normalPhone = (lead.phoneNumber || '').replace(/\D/g, '').slice(-10);
+        if (!normalPhone) return true;
+        if (seenPhones.has(normalPhone)) return false;
+        seenPhones.add(normalPhone);
+        return true;
+      });
 
-      const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
-      const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
-      const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
-      const matchesLanguage = filterLanguage === 'all' || 
-        lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
-        (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
-      
-      return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && matchesLanguage;
-    });
+      return mappedLeads.filter((lead: any) => {
+        const matchesSearch = !searchQuery ||
+          lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          lead.phoneNumber?.includes(searchQuery);
+
+        const leadStatusNorm = (lead.status || '').toLowerCase();
+        const filterStatusNorm = filterStatus.toLowerCase();
+        let matchesStatus = filterStatus === 'all';
+        if (!matchesStatus) {
+          if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
+            matchesStatus = ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+          } else if (filterStatusNorm.includes('pending')) {
+            matchesStatus = leadStatusNorm.includes('pending');
+          } else if (filterStatusNorm.includes('registered')) {
+            matchesStatus = leadStatusNorm.includes('register');
+          } else if (filterStatusNorm.includes('approval')) {
+            matchesStatus = leadStatusNorm.includes('approval');
+          } else if (filterStatusNorm.includes('rejected')) {
+            matchesStatus = leadStatusNorm.includes('reject');
+          } else {
+            matchesStatus = leadStatusNorm === filterStatusNorm;
+          }
+        }
+
+        const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
+        
+        const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
+        const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
+        const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
+        
+        const matchesLanguage = filterLanguage === 'all' || 
+          lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+          (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
+        
+        const matchesMultiWorkshop = filterWorkshops.length === 0 || activeBatches.length > 0;
+        const finalLanguageMatch = activeBatches.length > 0 ? true : matchesLanguage;
+
+        return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
+      });
   }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
 
   const filteredTemplates = useMemo(() => {
