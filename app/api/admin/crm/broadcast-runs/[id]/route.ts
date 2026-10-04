@@ -72,7 +72,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       }
 
       if (action === 'cancel') {
-        await broadcastRunUpdateOne(id, { status: 'cancelled', lastError: 'Cancelled by admin' });
+        await broadcastRunUpdateOne(id, { status: 'cancelled' });
         await broadcastRunMessageUpdateMany(
           { runId: id, status: ['pending', 'sending', 'retrying'] },
           { status: 'cancelled', failureReason: 'Parent run cancelled by admin' },
@@ -81,7 +81,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       } 
       
       if (action === 'reset-pending') {
-        await broadcastRunUpdateOne(id, { status: 'scheduled', lastError: '' });
+        await broadcastRunUpdateOne(id, { status: 'scheduled' });
         await broadcastRunMessageUpdateMany(
           { runId: id, status: ['failed', 'skipped', 'sending'] },
           { status: 'pending', failureReason: '' }
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       }
 
       if (action === 'retry-failed') {
-        await broadcastRunUpdateOne(id, { status: 'scheduled', lastError: '' });
+        await broadcastRunUpdateOne(id, { status: 'scheduled' });
         await broadcastRunMessageUpdateMany(
           { runId: id, status: ['failed'] },
           { status: 'pending', failureReason: '' }
@@ -109,7 +109,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 
       // If we don't recognize the action but it's a BunnyRun, it might be reset-all or reset-sent.
       if (action === 'reset-sent' || action === 'reset-all') {
-         await broadcastRunUpdateOne(id, { status: 'scheduled', lastError: '' });
+         await broadcastRunUpdateOne(id, { status: 'scheduled' });
          await broadcastRunMessageUpdateMany(
            { runId: id, status: action === 'reset-all' ? undefined : ['sent', 'delivered', 'read'] },
            { status: 'pending', failureReason: '' }

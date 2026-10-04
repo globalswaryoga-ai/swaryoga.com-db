@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
+    // Mongo is removed.
 
     // Run health checks in parallel
     const [bridgeHealth, metaHealth] = await Promise.all([

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     if (!run) return NextResponse.json({ success: false, error: 'Broadcast not found' }, { status: 404 });
     if (!isSuperAdmin(decoded) && String(run.createdByUserId) !== String(getViewerUserId(decoded) || decoded?.userId)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     const status = action === 'cancel' ? 'cancelled' : action === 'pause' ? 'scheduled' : 'draft';
-    await broadcastRunUpdateOne(runId, { status, lastError: action === 'cancel' ? String(body.reason || 'Manual cancel') : undefined });
+    await broadcastRunUpdateOne(runId, { status });
     if (action === 'cancel') await broadcastRunMessageUpdateMany({ runId, status: ['pending', 'sending', 'retrying'] }, { status: 'cancelled', failureReason: String(body.reason || 'Parent run cancelled') });
     return NextResponse.json({ success: true, message: `Broadcast ${action}d` });
   } catch (error: any) {
