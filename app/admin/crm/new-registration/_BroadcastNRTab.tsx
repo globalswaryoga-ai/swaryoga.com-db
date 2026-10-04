@@ -260,7 +260,7 @@ export function BroadcastNRTab({
             <select value={selectedBatchId} onChange={e => { setSelectedBatchId(e.target.value); setSelectedSegment(null); }}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-green-500">
               <option value="">-- Choose a batch --</option>
-              {workshops.filter(w => w && w.id).map(w => (
+              {workshops.filter(w => w && w.id && w.id.startsWith('batch_') && w.isMovedToLeadsManagement).map(w => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
