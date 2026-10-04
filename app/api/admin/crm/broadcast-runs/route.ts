@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const target = body.target || { type: 'filters', filters: {} };
     let leads = allLeads.filter((lead: any) => !lead.isBlocked && isOwned(lead, viewerUserId, superAdmin));
 
-    if (Array.isArray(target.leadIds) && target.leadIds.length) {
+    if (Array.isArray(target.leadIds)) {
       const wanted = new Set(target.leadIds.map((id: unknown) => String(id)));
       leads = leads.filter((lead: any) => wanted.has(String(lead._id)));
     } else if (target.type === 'filters' || !target.type) {

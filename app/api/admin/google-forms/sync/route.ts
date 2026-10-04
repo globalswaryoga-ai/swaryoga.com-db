@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 import { decryptCredential, encryptCredential } from '@/lib/auth';
+import { saveBunnyLead, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { ensureFormTables, getFormById, createForm, createQuestion } from '@/lib/bunny-forms-db';
+import { nanoid } from 'nanoid';
 
 export async function GET(request: NextRequest) {
   try {
@@ -162,7 +165,7 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      return {
+      const leadObj: any = {
         id: `oauth-form-${resp.responseId || Date.now()}-${index}`,
         name: name || `Lead ${index + 1}`,
         email: email || '',
@@ -175,7 +178,57 @@ export async function GET(request: NextRequest) {
         dynamicAnswers,
         _rawRecord: record // send raw record for custom mapping
       };
+      return leadObj;
     });
+
+    const formTitle = formData.info?.title || 'Google Form';
+    await ensureFormTables();
+    let existingForm = await getFormById(formId);
+    if (!existingForm) {
+       existingForm = await createForm({
+         formId: formId,
+         workshopName: formTitle,
+         description: formData.info?.description || '',
+         workshopMode: 'online',
+         price: 0
+       });
+       if (formData.items) {
+         let sortOrder = 1;
+         for (const item of formData.items) {
+           if (item.questionItem && item.questionItem.question) {
+             await createQuestion({
+               formId: formId,
+               fieldKey: `q_${item.questionItem.question.questionId}`,
+               questionType: 'text',
+               labelEn: item.title || 'Question',
+               required: Boolean(item.questionItem.question.required),
+               sortOrder: sortOrder++
+             });
+           }
+         }
+       }
+    }
+
+    // Now auto-import leads into CRM!
+    const allLeads = await loadBunnyLeads();
+    for (const lead of leads) {
+      const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
+      if (phone.length < 10) continue;
+      
+      const existing = allLeads.find((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10) === phone.slice(-10));
+      if (!existing) {
+        await saveBunnyLead({
+          name: lead.name,
+          phoneNumber: phone,
+          email: lead.email,
+          city: lead.city,
+          country: lead.country,
+          source: 'google_forms',
+          workshopName: formTitle,
+          status: 'new',
+        });
+      }
+    }
 
     return NextResponse.json({ 
       data: leads,
