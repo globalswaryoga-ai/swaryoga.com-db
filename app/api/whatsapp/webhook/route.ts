@@ -405,7 +405,8 @@ async function handleWebhookPayload(payload: any) {
 
             if (lead.isBlocked) continue;
 
-            await handleInboundWhatsAppAutomations({
+            // Run automations in background so webhook responds instantly
+            handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
               messageBody: body,

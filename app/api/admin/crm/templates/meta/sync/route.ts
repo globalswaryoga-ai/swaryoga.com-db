@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getViewerUserId } from '@/lib/crm-handlers';
+import { getViewerUserId, tenantFilter } from '@/lib/crm-handlers';
 import { findMetaTemplate, createTemplate, updateTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import {
   fetchTemplatesFromMeta,
