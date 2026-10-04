@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const forms = await listForms();
-    const results = [];
+    const results: any[] = [];
     
     // Use the absolute URL for the fetch call
     const host = request.headers.get('host') || 'swaryoga.com';
