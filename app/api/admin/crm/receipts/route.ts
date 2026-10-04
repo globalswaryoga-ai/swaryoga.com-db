@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import dbConnect from '@/lib/mongodb';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { formatPersonName } from '@/lib/formatName';
 import { getBunnyReceiptById, getBunnyReceiptBySaleId, getBunnyReceiptsByLeadId, getBunnyReceiptByLeadId, createBunnyReceipt, updateBunnyReceipt } from '@/lib/bunnyReceiptRepository';
@@ -27,7 +26,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
@@ -77,7 +75,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });

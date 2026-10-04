@@ -1,24 +1,24 @@
 /**
- * Receipt Routes to Fetch Receipt Data
+ * Receipt Routes to Fetch Receipt Data via BunnyDB
  * GET /api/receipts/[id] - Fetch receipt by ID
  * GET /api/receipts/lead/[leadId] - Fetch all receipts for a lead
  * GET /api/receipts/phone/[phone] - Fetch receipts by phone (customer lookup)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getCrmReceipt, getTallyInvoice } from '@/lib/schemas/enterpriseSchemas';
+import {
+  getBunnyReceiptById,
+  getBunnyReceiptsByLeadId,
+  getBunnyReceiptsByPhone
+} from '@/lib/bunnyReceiptRepository';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string[] } }
 ) {
   try {
-    await connectDB();
-    const CrmReceipt = getCrmReceipt();
-    const TallyInvoice = getTallyInvoice();
-
-    // Parse catch-all slug segments
     const slug = params.slug;
     const id = slug.length === 1 ? slug[0] : undefined;
     const leadId = slug[0] === 'lead' && slug[1] ? slug[1] : undefined;
@@ -26,7 +26,7 @@ export async function GET(
 
     // Fetch by receipt ID
     if (id) {
-      const receipt: any = await CrmReceipt.findById(id);
+      const receipt: any = await getBunnyReceiptById(id);
       if (!receipt) {
         return NextResponse.json(
           { error: 'Receipt not found' },
@@ -34,26 +34,18 @@ export async function GET(
         );
       }
 
-      // Get Tally invoice if linked
-      let tallyInvoice: any = null;
-      if (receipt.metadata?.tallyInvoiceId) {
-        tallyInvoice = await TallyInvoice.findById(receipt.metadata.tallyInvoiceId);
-      }
-
       return NextResponse.json({
         success: true,
         data: {
-          receipt: receipt.toObject(),
-          tallyInvoice: tallyInvoice?.toObject(),
+          receipt,
+          tallyInvoice: null,
         },
       });
     }
 
     // Fetch by lead ID
     if (leadId) {
-      const receipts = await CrmReceipt.find({ leadId })
-        .sort({ issuedAt: -1 })
-        .limit(10);
+      const receipts = await getBunnyReceiptsByLeadId(leadId, 10);
 
       return NextResponse.json({
         success: true,
@@ -64,9 +56,7 @@ export async function GET(
 
     // Fetch by phone number
     if (phone) {
-      const receipts = await CrmReceipt.find({ customerPhone: phone })
-        .sort({ issuedAt: -1 })
-        .limit(10);
+      const receipts = await getBunnyReceiptsByPhone(phone, 10);
 
       return NextResponse.json({
         success: true,

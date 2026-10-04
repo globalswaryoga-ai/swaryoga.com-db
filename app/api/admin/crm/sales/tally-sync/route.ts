@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, generateInvoiceNumber } from '@/lib/crm-handlers';
-import { getSalesReport, getCrmReceipt } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
+import { getBunnyReceiptByLeadId, createBunnyReceipt } from '@/lib/bunnyReceiptRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,10 +85,8 @@ export async function POST(request: NextRequest) {
     let receipt = null;
     if (generateReceipt && sale.leadId) {
       try {
-        const CrmReceipt = getCrmReceipt();
-
         // Check for existing receipt
-        const existing = await CrmReceipt.findOne({ leadId: sale.leadId }).sort({ issuedAt: -1 }).lean();
+        const existing = await getBunnyReceiptByLeadId(sale.leadId);
         if (existing) {
           receipt = existing;
         } else {
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
           // creation) instead of minting a differently-formatted one.
           const receiptNumber = sale.receiptNumber || await generateInvoiceNumber();
 
-          receipt = await CrmReceipt.create({
+          receipt = await createBunnyReceipt({
             leadId: sale.leadId,
             leadNumber: sale.customerId,
             receiptNumber,
@@ -116,7 +113,7 @@ export async function POST(request: NextRequest) {
               transactionId: sale.transactionId,
               paidAt: sale.saleDate || now,
             },
-            metadata: { tallyVoucherId: voucherResult.insertedId.toString(), source: 'tally_sync' },
+            metadata: { tallyVoucherId: voucherResult?.insertedId?.toString() || '', source: 'tally_sync' },
           });
         }
 

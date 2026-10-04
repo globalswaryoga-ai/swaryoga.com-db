@@ -26,7 +26,9 @@ function normalizePhone(value: unknown): string {
 }
 
 function isOwned(lead: any, viewerUserId: string, superAdmin: boolean) {
-  return superAdmin || String(lead.createdByUserId || '') === viewerUserId || String(lead.assignedToUserId || '') === viewerUserId;
+  if (superAdmin) return true;
+  if (!lead.createdByUserId || lead.createdByUserId === 'system' || lead.createdByUserId === 'admin') return true;
+  return String(lead.createdByUserId || '') === viewerUserId || String(lead.assignedToUserId || '') === viewerUserId;
 }
 
 export async function POST(request: NextRequest) {
@@ -61,11 +63,14 @@ export async function POST(request: NextRequest) {
 
     const allLeads = await loadBunnyLeads();
     const target = body.target || { type: 'filters', filters: {} };
+    const csvContacts = Array.isArray(target.csvContacts) ? target.csvContacts : [];
     let leads = allLeads.filter((lead: any) => !lead.isBlocked && isOwned(lead, viewerUserId, superAdmin));
 
-    if (Array.isArray(target.leadIds)) {
+    if (Array.isArray(target.leadIds) && target.leadIds.length > 0) {
       const wanted = new Set(target.leadIds.map((id: unknown) => String(id)));
-      leads = leads.filter((lead: any) => wanted.has(String(lead._id)));
+      leads = leads.filter((lead: any) => wanted.has(String(lead._id)) || wanted.has(String(lead.id)) || wanted.has(String(lead.document_id)));
+    } else if (Array.isArray(target.leadIds) && target.leadIds.length === 0 && csvContacts.length === 0) {
+      leads = [];
     } else if (target.type === 'filters' || !target.type) {
       const filters = target.filters || {};
       if (filters.status) leads = leads.filter((lead: any) => String(lead.status || '') === String(filters.status));

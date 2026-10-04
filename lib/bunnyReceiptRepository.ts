@@ -138,3 +138,13 @@ export async function getBunnyReceiptsByLeadId(leadId: string, limit: number = 5
   });
   return result.rows.map(normalizeReceipt);
 }
+
+export async function getBunnyReceiptsByPhone(phone: string, limit: number = 50) {
+  await initBunnyReceiptsSchema();
+  const result = await bunnyExecute({
+    sql: 'SELECT document_id, data_json, created_at, updated_at FROM crm_receipts_sql WHERE customer_phone = ? ORDER BY created_at DESC LIMIT ?',
+    args: [phone, limit]
+  });
+  return result.rows.map(normalizeReceipt);
+}
+

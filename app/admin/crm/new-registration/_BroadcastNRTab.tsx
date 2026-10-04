@@ -184,7 +184,7 @@ export function BroadcastNRTab({
         provider: providerMode === 'group' ? 'qr' : providerMode,
         target: { 
           type: 'filters', 
-          leadIds: targetLeads.map((l: any) => l._id).filter(Boolean),
+          leadIds: targetLeads.map((l: any) => l._id || l.id || l.document_id).filter(Boolean),
           csvContacts: csvContacts
         },
         mode: sendMode,
