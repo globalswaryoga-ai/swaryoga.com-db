@@ -8,6 +8,17 @@ import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { ChevronDown } from 'lucide-react';
 import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
+// Helper to prevent double counting on long overlapping form answers
+const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
+  const v = String(valStr).toLowerCase().trim();
+  const k = String(keyword).toLowerCase().trim();
+  if (!v || !k) return false;
+  if (v === k) return true;
+  // If it's a short custom keyword (<= 3 words), allow substring matching
+  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  return false;
+};
+
 // ============================================================================
 // TYPES
 // ============================================================================
