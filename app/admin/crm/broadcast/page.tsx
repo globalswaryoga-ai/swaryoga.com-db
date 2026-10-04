@@ -723,14 +723,24 @@ export default function BroadcastPage(props: any) {
       }
     }
 
-    const filtered = (sourceWorkshops || []).filter((w: any) => 
-      w && w.id && w.id.startsWith('batch_') &&
-      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase()) &&
-      w.isMovedToLeadsManagement
-    );
-    
-    return filtered.map((w: any) => w.name);
-  }, [props?.workshops, filterLanguage]);
+    const namesFromSource = (sourceWorkshops || [])
+      .filter((w: any) => 
+        w && 
+        (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase())
+      )
+      .map((w: any) => w.name || w.title)
+      .filter(Boolean);
+
+    const namesFromLeads = (leads || [])
+      .map((l: any) => l.workshopName)
+      .filter(Boolean);
+
+    const namesFromPropLeads = (propLeadsData || [])
+      .map((l: any) => l.workshopName || l.workshop)
+      .filter(Boolean);
+
+    return Array.from(new Set([...namesFromSource, ...namesFromLeads, ...namesFromPropLeads]));
+  }, [props?.workshops, filterLanguage, leads, propLeadsData]);
 
   const uniqueLanguages = useMemo(() => {
     return ['English', 'Hindi', 'Marathi', 'Kannada'];
@@ -788,54 +798,57 @@ export default function BroadcastPage(props: any) {
       }
 
       let tabLeads = activeBatchLeads;
-      if (filterStatus === 'new_leads' || filterStatus === 'new') {
+      if (filterStatus === 'new_leads' || filterStatus === 'new' || filterStatus === 'lead') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return (!dec.status || dec.status === 'new' || dec.status === 'new_leads') && !dec.isRejected && !dec.isRegistered;
+            const leadStatus = (l.status || '').toLowerCase();
+            const isNewStatus = !dec.status || dec.status === 'new' || dec.status === 'new_leads' || leadStatus === 'new' || leadStatus === 'lead' || leadStatus === 'new_leads' || leadStatus === 'new_registration';
+            return isNewStatus && !dec.isRejected && !dec.isRegistered && leadStatus !== 'registered' && leadStatus !== 'rejected';
          });
       } else if (filterStatus === 'pending_leads') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+            const leadStatus = (l.status || '').toLowerCase();
+            return (dec.status?.includes('pending') || leadStatus.includes('pending')) && !dec.isRejected && !dec.isRegistered;
          });
       } else if (filterStatus === 'approval_1') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'approval_1' && !dec.isRejected && !dec.isRegistered;
+            return (dec.status === 'approval_1' || l.status === 'approval_1') && !dec.isRejected && !dec.isRegistered;
          });
       } else if (filterStatus === 'approval_2') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'approval_2' && !dec.isRejected && !dec.isRegistered;
+            return (dec.status === 'approval_2' || l.status === 'approval_2') && !dec.isRejected && !dec.isRegistered;
          });
       } else if (filterStatus === 'registered_leads') {
-         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRegistered);
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRegistered || l.status === 'registered' || l.status === 'registered_leads');
       } else if (filterStatus === 'rejected_leads') {
-         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRejected);
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRejected || l.status === 'rejected' || l.status === 'rejected_leads');
       } else if (filterStatus === 'set_zoom_meeting') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'set_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+            return (dec.status === 'set_zoom_meeting' || l.status === 'set_zoom_meeting') && !dec.isRegistered && !dec.isRejected;
          });
       } else if (filterStatus === 'take_zoom_meeting') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'take_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+            return (dec.status === 'take_zoom_meeting' || l.status === 'take_zoom_meeting') && !dec.isRegistered && !dec.isRejected;
          });
       } else if (filterStatus === 'pending_leads_1') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+            return (dec.status === 'pending_leads_1' || l.status === 'pending_leads_1') && !dec.isRejected && !dec.isRegistered;
          });
       } else if (filterStatus === 'pending_leads_2') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+            return (dec.status === 'pending_leads_2' || l.status === 'pending_leads_2') && !dec.isRejected && !dec.isRegistered;
          });
       } else if (filterStatus === 'pending_leads_3') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
-            return dec.status === 'pending_leads_3' && !dec.isRejected && !dec.isRegistered;
+            return (dec.status === 'pending_leads_3' || l.status === 'pending_leads_3') && !dec.isRejected && !dec.isRegistered;
          });
       }
 
@@ -856,7 +869,7 @@ export default function BroadcastPage(props: any) {
           phoneNumber: phone,
           email: l.email || l.Email || '',
           status: filterStatus,
-          workshopName: filterWorkshop,
+          workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
         };
       }).filter((l: any) => {
@@ -889,7 +902,8 @@ export default function BroadcastPage(props: any) {
     // Deduplicate by phone number (keep first occurrence)
     const seenPhones = new Set<string>();
     const dedupedLeads = allLeads.filter(lead => {
-      const normalPhone = lead.phoneNumber.replace(/\D/g, '').slice(-10);
+      const normalPhone = (lead.phoneNumber || '').replace(/\D/g, '').slice(-10);
+      if (!normalPhone) return true;
       if (seenPhones.has(normalPhone)) {
         return false;
       }
@@ -901,13 +915,36 @@ export default function BroadcastPage(props: any) {
       const matchesSearch = !searchQuery ||
         lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.phoneNumber.includes(searchQuery);
-      const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
+
+      const leadStatusNorm = (lead.status || '').toLowerCase();
+      const filterStatusNorm = filterStatus.toLowerCase();
+      let matchesStatus = filterStatus === 'all';
+      if (!matchesStatus) {
+        if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
+          matchesStatus = !leadStatusNorm || ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+        } else if (filterStatusNorm.includes('pending')) {
+          matchesStatus = leadStatusNorm.includes('pending');
+        } else if (filterStatusNorm.includes('registered')) {
+          matchesStatus = leadStatusNorm.includes('register');
+        } else if (filterStatusNorm.includes('approval')) {
+          matchesStatus = leadStatusNorm.includes('approval');
+        } else if (filterStatusNorm.includes('rejected')) {
+          matchesStatus = leadStatusNorm.includes('reject');
+        } else {
+          matchesStatus = leadStatusNorm === filterStatusNorm;
+        }
+      }
+
       const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
-      const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.workshopName || '');
+      const matchesMultiWorkshop = filterWorkshops.length === 0 || 
+        !lead.workshopName || 
+        filterWorkshops.includes(lead.workshopName);
+
       const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
       const matchesLanguage = filterLanguage === 'all' || 
+        !lead.workshopName || 
         lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
         (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
       
