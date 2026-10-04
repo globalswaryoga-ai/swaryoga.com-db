@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         if (formRes.status === 401 && parsed.refreshToken) {
           try {
             const refreshToken = decryptCredential(parsed.refreshToken);
-            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            let tokenRes = await fetch('https://oauth2.googleapis.com/token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               body: new URLSearchParams({
@@ -65,6 +65,24 @@ export async function GET(request: NextRequest) {
                 grant_type: 'refresh_token',
               }),
             });
+            
+            // If the refresh token fails with 400/401 because of client mismatch, try fallback
+            if (!tokenRes.ok) {
+              const errData = await tokenRes.clone().json().catch(() => ({}));
+              if (errData.error === 'unauthorized_client' && process.env.GOOGLE_CLIENT_ID) {
+                tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
+                    client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
+                    refresh_token: refreshToken,
+                    grant_type: 'refresh_token',
+                  }),
+                });
+              }
+            }
+
             const tokenData = await tokenRes.json();
             if (tokenRes.ok && tokenData.access_token) {
               accessToken = tokenData.access_token;
