@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Broadcast lists are not yet migrated to Bunny SQL' }, { status: 400 });
     }
 
-    const csvContacts = Array.isArray(target.csvContacts) ? target.csvContacts : [];
     for (const contact of csvContacts) {
       const phoneNumber = normalizePhone(contact.phoneNumber);
       if (phoneNumber.length < 10) continue;
