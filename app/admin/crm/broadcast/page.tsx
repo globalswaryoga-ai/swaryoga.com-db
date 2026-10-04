@@ -751,33 +751,49 @@ export default function BroadcastPage(props: any) {
       let activeBatchLeads: any[] = [];
       const seenLeadIds = new Set<string>();
 
-      activeBatches.forEach((activeBatch: any) => {
-        if (activeBatch && activeBatch.formFilterKeyword) {
-          const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+      if (activeBatches.length > 0) {
+        activeBatches.forEach((activeBatch: any) => {
+          const keywords = activeBatch?.formFilterKeyword ? activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean) : [];
           const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
 
           propLeadsData.forEach((lead: any) => {
-            if (lead._rawRecord) {
+            const leadId = lead.id || lead._id || Math.random().toString();
+            if (seenLeadIds.has(leadId)) return;
+
+            if (keywords.length > 0) {
               let matches = false;
-              if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                matches = keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+              if (lead._rawRecord) {
+                if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+                  matches = keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
+                } else {
+                  matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
+                }
               } else {
-                matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+                matches = true;
               }
-              if (matches && !seenLeadIds.has(lead.id || lead._id)) {
-                 seenLeadIds.add(lead.id || lead._id);
-                 activeBatchLeads.push(lead);
+              if (matches) {
+                seenLeadIds.add(leadId);
+                activeBatchLeads.push(lead);
               }
-            } else if (!seenLeadIds.has(lead.id || lead._id)) {
-               seenLeadIds.add(lead.id || lead._id);
-               activeBatchLeads.push(lead);
+            } else {
+              seenLeadIds.add(leadId);
+              activeBatchLeads.push(lead);
             }
           });
-        }
-      });
+        });
+      }
+
+      if (activeBatchLeads.length === 0) {
+        activeBatchLeads = propLeadsData;
+      }
 
       let tabLeads = activeBatchLeads;
-      if (filterStatus === 'pending_leads') {
+      if (filterStatus === 'new_leads' || filterStatus === 'new') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return (!dec.status || dec.status === 'new' || dec.status === 'new_leads') && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'pending_leads') {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
             return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
@@ -824,18 +840,19 @@ export default function BroadcastPage(props: any) {
       }
 
       // Map back to Lead type required by BroadcastPage
-      return tabLeads.map((l: any) => {
-        let phone = String(l.phoneNumber || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
+      return tabLeads.map((l: any, idx: number) => {
+        let phone = String(l.phoneNumber || l.mobile || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
         if (l._rawRecord) {
            for (const [k, v] of Object.entries(l._rawRecord)) {
-              if (k.toLowerCase().includes('whatsapp') || k.toLowerCase().includes('phone')) {
-                 if (v) phone = String(v);
+              if ((k.toLowerCase().includes('whatsapp') || k.toLowerCase().includes('phone') || k.toLowerCase().includes('mobile')) && v) {
+                 phone = String(v);
               }
            }
         }
+        const stableId = l._id || l.id || `lead-${phone || idx}`;
         return {
-          _id: l.id || l._id || Math.random().toString(),
-          name: l.name || l.Name || 'Unknown',
+          _id: stableId,
+          name: l.name || l.Name || `Lead ${idx + 1}`,
           phoneNumber: phone,
           email: l.email || l.Email || '',
           status: filterStatus,
@@ -1794,9 +1811,10 @@ export default function BroadcastPage(props: any) {
                   onClick={() => {
                     setShowLeadsList(true);
                     if (filteredLeads.length > 0) {
-                      const newSelected = new Set(selectedLeads);
-                      filteredLeads.forEach(l => newSelected.add(l._id));
+                      const newSelected = new Set(filteredLeads.map(l => l._id));
                       setSelectedLeads(newSelected);
+                    } else {
+                      setSelectedLeads(new Set());
                     }
                   }}
                   className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors"
