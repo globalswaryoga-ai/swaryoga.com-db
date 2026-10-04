@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'csv-parse/sync';
 
-function getGoogleSheetCsvUrls(rawUrl: string): string[] {
+function cleanUrl(rawUrl: string): string {
   let url = rawUrl.trim();
+  // Strip trailing line numbers or devtools artifacts like :1 or :123
+  url = url.replace(/:\d+$/, '');
+  return url;
+}
+
+function getGoogleSheetCsvUrls(rawUrl: string): string[] {
+  let url = cleanUrl(rawUrl);
   const urls: string[] = [];
 
   // Extract GID if present
@@ -67,81 +74,91 @@ async function fetchGoogleSheetCsv(sheetUrl: string): Promise<string> {
   throw new Error('Failed to fetch CSV from Google Sheets. Access is restricted. Please change Google Sheet sharing to "Anyone with the link can view".');
 }
 
-async function fetchGoogleSheetViaOAuth(sheetId: string): Promise<any[] | null> {
+async function fetchGoogleSheetViaOAuth(sheetId: string): Promise<Record<string, string>[] | null> {
   try {
     const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
     const { decryptCredential, encryptCredential } = await import('@/lib/auth');
 
     const accountRes = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
 
-    let account: any = null;
-    if (accountRes && accountRes.rows) {
-      for (const row of accountRes.rows) {
-        try {
-          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-          if (parsed && parsed.platform === 'google_forms' && parsed.accessToken) {
-            account = parsed;
-            break;
-          }
-        } catch {}
-      }
-    }
+    if (!accountRes || !accountRes.rows || accountRes.rows.length === 0) return null;
 
-    if (!account || !account.accessToken) return null;
-    let accessToken = decryptCredential(account.accessToken);
+    for (const row of accountRes.rows) {
+      try {
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+        if (!parsed || (parsed.platform !== 'google_forms' && parsed.platform !== 'google') || !parsed.accessToken) {
+          continue;
+        }
 
-    let sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+        let accessToken = decryptCredential(parsed.accessToken);
 
-    if (sheetsRes.status === 401 && account.refreshToken) {
-      const refreshToken = decryptCredential(account.refreshToken);
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
-          client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
-      const tokenData = await tokenRes.json();
-      if (tokenRes.ok && tokenData.access_token) {
-        accessToken = tokenData.access_token;
-        sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
+        let sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
-        const updatedDoc = {
-          ...account,
-          accessToken: encryptCredential(accessToken),
-          tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts'",
-          args: [JSON.stringify(updatedDoc)]
-        });
+
+        if (sheetsRes.status === 401 && parsed.refreshToken) {
+          try {
+            const refreshToken = decryptCredential(parsed.refreshToken);
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                client_id: process.env.GOOGLE_CLIENT_ID || '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
+                client_secret: process.env.GOOGLE_CLIENT_SECRET || ('GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD'),
+                refresh_token: refreshToken,
+                grant_type: 'refresh_token',
+              }),
+            });
+            const tokenData = await tokenRes.json();
+            if (tokenRes.ok && tokenData.access_token) {
+              accessToken = tokenData.access_token;
+              sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+              });
+
+              const docId = row.document_id || parsed.document_id || parsed._id;
+              const updatedDoc = {
+                ...parsed,
+                accessToken: encryptCredential(accessToken),
+                tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+              if (docId) {
+                await bunnyExecute({
+                  sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
+                  args: [JSON.stringify(updatedDoc), String(docId)]
+                });
+              }
+            }
+          } catch (refErr) {
+            console.warn('[google-form-csv] Refresh token error:', refErr);
+          }
+        }
+
+        if (sheetsRes.ok) {
+          const data = await sheetsRes.json();
+          const values = data.values;
+          if (!values || values.length === 0) continue;
+
+          const headers: string[] = values[0];
+          const records: Record<string, string>[] = [];
+          for (let i = 1; i < values.length; i++) {
+            const rowData: Record<string, string> = {};
+            for (let j = 0; j < headers.length; j++) {
+              rowData[headers[j]] = values[i][j] || '';
+            }
+            records.push(rowData);
+          }
+          return records;
+        }
+      } catch (accErr) {
+        console.warn('[google-form-csv] Account trial error:', accErr);
       }
     }
 
-    if (!sheetsRes.ok) return null;
-    const data = await sheetsRes.json();
-    const values = data.values;
-    if (!values || values.length === 0) return null;
-
-    const headers = values[0];
-    const records = [];
-    for (let i = 1; i < values.length; i++) {
-      const rowData: Record<string, string> = {};
-      for (let j = 0; j < headers.length; j++) {
-        rowData[headers[j]] = values[i][j] || '';
-      }
-      records.push(rowData);
-    }
-    return records;
+    return null;
   } catch (err) {
     console.warn('[google-form-csv] Google Sheets OAuth API fallback error:', err);
     return null;
@@ -151,11 +168,13 @@ async function fetchGoogleSheetViaOAuth(sheetId: string): Promise<any[] | null> 
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const csvUrl = url.searchParams.get('url');
+    const rawCsvUrl = url.searchParams.get('url');
 
-    if (!csvUrl || !csvUrl.includes('docs.google.com')) {
+    if (!rawCsvUrl || !rawCsvUrl.includes('docs.google.com')) {
       return NextResponse.json({ error: 'Invalid Google URL provided' }, { status: 400 });
     }
+
+    const csvUrl = cleanUrl(rawCsvUrl);
 
     // 1. If user provided a Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), delegate to OAuth Google Form sync API
     if (csvUrl.includes('/forms/')) {
@@ -182,7 +201,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Fetch records either via public CSV or Google Sheets OAuth API
-    let records: any[] = [];
+    let records: Record<string, string>[] = [];
     let publicError = '';
 
     try {
@@ -224,13 +243,13 @@ export async function GET(request: NextRequest) {
         } catch (_) {}
 
         return NextResponse.json({
-          error: 'Failed to fetch Google Sheet. The sheet access is restricted. Please change sharing setting to "Anyone with the link can view".'
+          error: 'Failed to fetch Google Sheet. The sheet access is restricted. Please ensure your Google account is connected or set Google Sheet sharing to "Anyone with the link can view".'
         }, { status: 400 });
       }
     }
 
     // Map the records to our Lead format
-    const leads = records.map((record: any, index: number) => {
+    const leads = records.map((record: Record<string, string>, index: number) => {
       // Find common keys (case insensitive)
       const findKey = (keywords: string[]) => {
         const keys = Object.keys(record);
@@ -278,3 +297,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: String(error).replace('Error: ', '') }, { status: 400 });
   }
 }
+
