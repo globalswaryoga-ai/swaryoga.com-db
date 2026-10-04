@@ -173,13 +173,13 @@ export function BroadcastNRTab({
     try {
       const recipientPhones = targetLeads.map((l: any) => l.phoneNumber || l.phone).filter(Boolean);
       const payload: any = {
-        broadcastName: broadcastName || `${activeBatch?.name || 'Batch'} - ${selectedSegment || 'All'} - ${new Date().toLocaleDateString('en-IN')}`,
+        name: broadcastName || `${activeBatch?.name || 'Batch'} - ${selectedSegment || 'All'} - ${new Date().toLocaleDateString('en-IN')}`,
         templateId: selectedTemplate._id,
         provider: providerMode === 'group' ? 'qr' : providerMode,
-        recipientPhones,
-        sendMode,
+        target: { type: 'filters', leadIds: targetLeads.map((l: any) => l._id || l.id).filter(Boolean) },
+        mode: sendMode,
       };
-      if (sendMode === 'schedule') payload.scheduledFor = `${scheduleDate}T${scheduleTime}:00`;
+      if (sendMode === 'schedule') payload.scheduleAt = `${scheduleDate}T${scheduleTime}:00`;
 
       const res = await fetch('/api/admin/crm/broadcast-runs', {
         method: 'POST',
@@ -387,7 +387,7 @@ export function BroadcastNRTab({
                 : (
                   <div className="divide-y divide-slate-100">
                     {recentRuns.map(run => (
-                      <div key={run._id} className="px-4 py-3 flex items-center justify-between text-sm">
+                      <div key={run._id} className="px-4 py-3 flex items-center justify-between text-sm group hover:bg-slate-50 transition-colors">
                         <div>
                           <p className="font-semibold text-slate-700">{run.name}</p>
                           <p className="text-xs text-slate-400">{new Date(run.createdAt).toLocaleString('en-IN')}</p>
@@ -403,6 +403,29 @@ export function BroadcastNRTab({
                             : run.status === 'running' ? 'bg-yellow-100 text-yellow-700'
                             : 'bg-slate-100 text-slate-600'
                           }`}>{run.status}</span>
+                          {(run.status === 'scheduled' || run.status === 'draft' || run.status === 'running') && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Cancel “${run.name}”? Pending messages will not be sent.`)) return;
+                                try {
+                                  const res = await fetch(`/api/admin/crm/broadcast-runs/${run._id}`, {
+                                    method: 'PATCH',
+                                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ action: 'cancel' }),
+                                  });
+                                  if (!res.ok) throw new Error('Failed to cancel');
+                                  toast.success('Broadcast cancelled');
+                                  fetchRuns();
+                                } catch (e) {
+                                  toast.error('Could not cancel broadcast');
+                                }
+                              }}
+                              className="text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50"
+                              title="Cancel Broadcast"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

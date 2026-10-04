@@ -3,11 +3,11 @@ import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, Re
 import CreateTemplatePage from '@/app/admin/crm/templates/builder/page';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
-import { BroadcastNRTab } from './_BroadcastNRTab';
+import { BroadcastNRTab } from '../new-registration/_BroadcastNRTab';
 import MetaBroadcastPage from '@/app/admin/crm/broadcast/page';
 import QRBroadcastPage from '@/app/admin/crm/qr/broadcast/page';
 import GroupSchedulerPage from '@/app/admin/crm/qr/group-scheduler/page';
-import ReportsTab from './_ReportsTab';
+import ReportsTab from '../new-registration/_ReportsTab';
 
 const WhatsAppTabs = [
   { id: 'meta_whatsapp', label: 'Meta WhatsApp', icon: MessageSquare },
