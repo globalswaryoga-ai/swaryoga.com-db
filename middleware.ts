@@ -273,9 +273,12 @@ export function middleware(request: NextRequest) {
   } else if (path.startsWith('/api/admin/crm/messages')) {
     bucket = 'crm_messages';
     baseLimit = hasAuthHeader ? 300 : 120;
+  } else if (path.includes('/new-registration/state') || path.includes('/workshop-offer/state') || path.endsWith('/state')) {
+    bucket = 'crm_state';
+    baseLimit = 1200;
   } else if (path.startsWith('/api/admin/crm/')) {
     bucket = 'crm_admin';
-    baseLimit = hasAuthHeader ? 300 : 120;
+    baseLimit = hasAuthHeader ? 600 : 300;
   } else if (path.startsWith('/api/life-planner/')) {
     bucket = 'life_planner';
     baseLimit = hasAuthHeader ? 100 : 30;
