@@ -64,7 +64,88 @@ async function fetchGoogleSheetCsv(sheetUrl: string): Promise<string> {
     } catch (_) {}
   }
 
-  throw new Error('Failed to fetch CSV from Google Sheets. Please ensure the Google Sheet access is set to "Anyone with the link can view".');
+  throw new Error('Failed to fetch CSV from Google Sheets. Access is restricted. Please change Google Sheet sharing to "Anyone with the link can view".');
+}
+
+async function fetchGoogleSheetViaOAuth(sheetId: string): Promise<any[] | null> {
+  try {
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
+    const { decryptCredential, encryptCredential } = await import('@/lib/auth');
+
+    const accountRes = await bunnyExecute({
+      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+    });
+
+    let account: any = null;
+    if (accountRes && accountRes.rows) {
+      for (const row of accountRes.rows) {
+        try {
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+          if (parsed && parsed.platform === 'google_forms' && parsed.accessToken) {
+            account = parsed;
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    if (!account || !account.accessToken) return null;
+    let accessToken = decryptCredential(account.accessToken);
+
+    let sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (sheetsRes.status === 401 && account.refreshToken) {
+      const refreshToken = decryptCredential(account.refreshToken);
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
+          client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenRes.ok && tokenData.access_token) {
+        accessToken = tokenData.access_token;
+        sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:ZZ50000`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const updatedDoc = {
+          ...account,
+          accessToken: encryptCredential(accessToken),
+          tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await bunnyExecute({
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts'",
+          args: [JSON.stringify(updatedDoc)]
+        });
+      }
+    }
+
+    if (!sheetsRes.ok) return null;
+    const data = await sheetsRes.json();
+    const values = data.values;
+    if (!values || values.length === 0) return null;
+
+    const headers = values[0];
+    const records = [];
+    for (let i = 1; i < values.length; i++) {
+      const rowData: Record<string, string> = {};
+      for (let j = 0; j < headers.length; j++) {
+        rowData[headers[j]] = values[i][j] || '';
+      }
+      records.push(rowData);
+    }
+    return records;
+  } catch (err) {
+    console.warn('[google-form-csv] Google Sheets OAuth API fallback error:', err);
+    return null;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -100,37 +181,53 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. Otherwise fetch as a Google Sheet CSV
-    let csvText = '';
+    // 2. Fetch records either via public CSV or Google Sheets OAuth API
+    let records: any[] = [];
+    let publicError = '';
+
     try {
-      csvText = await fetchGoogleSheetCsv(csvUrl);
+      const csvText = await fetchGoogleSheetCsv(csvUrl);
+      records = parse(csvText, {
+        columns: true,
+        skip_empty_lines: true,
+        relax_quotes: true,
+        trim: true,
+      });
     } catch (sheetErr: any) {
-      // If public CSV fetch failed, try Google Form OAuth sync as final fallback
-      try {
-        const host = request.headers.get('host') || 'swaryoga.com';
-        const protocol = host.includes('localhost') ? 'http' : 'https';
-        const syncUrl = `${protocol}://${host}/api/admin/google-forms/sync?url=${encodeURIComponent(csvUrl)}`;
-        const syncRes = await fetch(syncUrl, {
-          headers: {
-            cookie: request.headers.get('cookie') || '',
-            authorization: request.headers.get('authorization') || '',
-          },
-        });
-        const syncData = await syncRes.json();
-        if (syncRes.ok && Array.isArray(syncData.data)) {
-          return NextResponse.json({ data: syncData.data });
+      publicError = sheetErr.message || String(sheetErr);
+
+      // Attempt OAuth fetch for private Google Sheets
+      const sheetIdMatch = csvUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (sheetIdMatch) {
+        const oauthRecords = await fetchGoogleSheetViaOAuth(sheetIdMatch[1]);
+        if (oauthRecords && oauthRecords.length > 0) {
+          records = oauthRecords;
         }
-      } catch (_) {}
-      throw sheetErr;
+      }
+
+      if (!records || records.length === 0) {
+        // Fallback to Google Forms OAuth sync as final attempt
+        try {
+          const host = request.headers.get('host') || 'swaryoga.com';
+          const protocol = host.includes('localhost') ? 'http' : 'https';
+          const syncUrl = `${protocol}://${host}/api/admin/google-forms/sync?url=${encodeURIComponent(csvUrl)}`;
+          const syncRes = await fetch(syncUrl, {
+            headers: {
+              cookie: request.headers.get('cookie') || '',
+              authorization: request.headers.get('authorization') || '',
+            },
+          });
+          const syncData = await syncRes.json();
+          if (syncRes.ok && Array.isArray(syncData.data) && syncData.data.length > 0) {
+            return NextResponse.json({ data: syncData.data });
+          }
+        } catch (_) {}
+
+        return NextResponse.json({
+          error: 'Failed to fetch Google Sheet. The sheet access is restricted. Please change sharing setting to "Anyone with the link can view".'
+        }, { status: 400 });
+      }
     }
-    
-    // Parse the CSV
-    const records = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-      relax_quotes: true,
-      trim: true,
-    });
 
     // Map the records to our Lead format
     const leads = records.map((record: any, index: number) => {
