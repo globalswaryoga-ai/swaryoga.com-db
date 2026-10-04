@@ -63,9 +63,13 @@ export default function NewRegistrationPage() {
   };
 
   const matchesLanguage = (w: any, targetLang: string) => {
-    if (!w) return false;
-    const wLang = w.language || w.name || '';
-    return getBaseLanguage(wLang) === getBaseLanguage(targetLang);
+    if (!w || !targetLang) return false;
+    const wLang = String(w.language || w.name || '').toLowerCase();
+    const tLang = String(targetLang).toLowerCase();
+    const isWOffer = wLang.includes('offer') || String(w.id || '').toLowerCase().includes('offer');
+    const isTOffer = tLang.includes('offer');
+    if (isWOffer !== isTOffer) return false;
+    return getBaseLanguage(wLang) === getBaseLanguage(tLang);
   };
 
   const masterViewLanguageFilteredLeads = useMemo(() => {
@@ -2053,6 +2057,28 @@ export default function NewRegistrationPage() {
                         selectedDashboardLang === lang 
                           ? 'bg-blue-600 text-white border border-blue-600 shadow-sm' 
                           : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                      title={lang}
+                    >
+                      {isSidebarCollapsed ? lang.substring(0, 2) : lang.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+
+                {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-1.5 px-1">Offer Forms</div>}
+                <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                  {['English Offer', 'Hindi Offer', 'Marathi Offer', 'Kannada Offer'].map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => {
+                        setSelectedDashboardLang(lang);
+                        const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
+                        setSelectedWorkshop(masterWorkshop || null);
+                      }}
+                      className={`w-full text-center px-2 py-2 rounded-xl text-xs font-bold transition-all ${
+                        selectedDashboardLang === lang 
+                          ? 'bg-purple-600 text-white border border-purple-600 shadow-sm' 
+                          : 'bg-white text-slate-600 border border-slate-200 hover:border-purple-300 hover:bg-purple-50'
                       }`}
                       title={lang}
                     >

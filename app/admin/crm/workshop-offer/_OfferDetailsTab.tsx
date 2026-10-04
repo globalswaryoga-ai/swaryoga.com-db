@@ -45,9 +45,13 @@ export default function OfferDetailsTab({
   };
 
   const matchesLanguage = (w: any, targetLang: string) => {
-    if (!w) return false;
-    const wLang = w.language || w.name || '';
-    return getBaseLanguage(wLang) === getBaseLanguage(targetLang);
+    if (!w || !targetLang) return false;
+    const wLang = String(w.language || w.name || '').toLowerCase();
+    const tLang = String(targetLang).toLowerCase();
+    const isWOffer = wLang.includes('offer') || String(w.id || '').toLowerCase().includes('offer');
+    const isTOffer = tLang.includes('offer');
+    if (isWOffer !== isTOffer) return false;
+    return getBaseLanguage(wLang) === getBaseLanguage(tLang);
   };
 
   // Include all batches (including master) for the selected language
@@ -167,10 +171,18 @@ export default function OfferDetailsTab({
             }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium"
           >
-            <option value="English Workshop">English Workshop</option>
-            <option value="Hindi Workshop">Hindi Workshop</option>
-            <option value="Marathi Workshop">Marathi Workshop</option>
-            <option value="Kannada Workshop">Kannada Workshop</option>
+            <optgroup label="Offer Forms">
+              <option value="English Offer">English Offer</option>
+              <option value="Hindi Offer">Hindi Offer</option>
+              <option value="Marathi Offer">Marathi Offer</option>
+              <option value="Kannada Offer">Kannada Offer</option>
+            </optgroup>
+            <optgroup label="Workshop Forms">
+              <option value="English Workshop">English Workshop</option>
+              <option value="Hindi Workshop">Hindi Workshop</option>
+              <option value="Marathi Workshop">Marathi Workshop</option>
+              <option value="Kannada Workshop">Kannada Workshop</option>
+            </optgroup>
           </select>
 
           <select 

@@ -60,9 +60,13 @@ const getBaseLanguage = (langStr?: string): string => {
 };
 
 const matchesLanguage = (w: any, targetLang: string) => {
-  if (!w) return false;
-  const wLang = w.language || w.name || '';
-  return getBaseLanguage(wLang) === getBaseLanguage(targetLang);
+  if (!w || !targetLang) return false;
+  const wLang = String(w.language || w.name || '').toLowerCase();
+  const tLang = String(targetLang).toLowerCase();
+  const isWOffer = wLang.includes('offer') || String(w.id || '').toLowerCase().includes('offer');
+  const isTOffer = tLang.includes('offer');
+  if (isWOffer !== isTOffer) return false;
+  return getBaseLanguage(wLang) === getBaseLanguage(tLang);
 };
 
 export function LeadsManagementTab({
