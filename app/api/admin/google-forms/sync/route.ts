@@ -66,21 +66,18 @@ export async function GET(request: NextRequest) {
               }),
             });
             
-            // If the refresh token fails with 400/401 because of client mismatch, try fallback
-            if (!tokenRes.ok) {
-              const errData = await tokenRes.clone().json().catch(() => ({}));
-              if (errData.error === 'unauthorized_client' && process.env.GOOGLE_CLIENT_ID) {
-                tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                  body: new URLSearchParams({
-                    client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
-                    client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
-                    refresh_token: refreshToken,
-                    grant_type: 'refresh_token',
-                  }),
-                });
-              }
+            // If the refresh token fails, try fallback (in case the tokens were generated with the legacy client ID)
+            if (!tokenRes.ok && process.env.GOOGLE_CLIENT_ID) {
+              tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
+                  client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
+                  refresh_token: refreshToken,
+                  grant_type: 'refresh_token',
+                }),
+              });
             }
 
             const tokenData = await tokenRes.json();
