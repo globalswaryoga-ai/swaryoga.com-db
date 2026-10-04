@@ -932,7 +932,7 @@ export default function BroadcastPage(props: any) {
       let matchesStatus = filterStatus === 'all';
       if (!matchesStatus) {
         if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
-          matchesStatus = !leadStatusNorm || ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+          matchesStatus = ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
         } else if (filterStatusNorm.includes('pending')) {
           matchesStatus = leadStatusNorm.includes('pending');
         } else if (filterStatusNorm.includes('registered')) {
@@ -948,14 +948,12 @@ export default function BroadcastPage(props: any) {
 
       const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
       const matchesMultiWorkshop = filterWorkshops.length === 0 || 
-        !lead.workshopName || 
-        filterWorkshops.includes(lead.workshopName);
+        filterWorkshops.includes(lead.workshopName || '');
 
       const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
       const matchesLanguage = filterLanguage === 'all' || 
-        !lead.workshopName || 
         lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
         (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
       
