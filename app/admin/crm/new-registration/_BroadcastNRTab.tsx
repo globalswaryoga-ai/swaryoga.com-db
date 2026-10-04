@@ -16,7 +16,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 import { 
   FileText, Clock, CheckCircle, UserCheck, Video,
   Send, RefreshCw, X, Zap, Calendar,
-  MessageSquare, QrCode, Users
+  MessageSquare, QrCode, Users, Trash2
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/admin/crm/ui/Toast';

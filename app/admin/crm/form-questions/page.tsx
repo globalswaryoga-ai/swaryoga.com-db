@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import * as XLSX from 'xlsx';
 import {
   Plus, Trash2, Edit3, Save, X, GripVertical,
   Image as ImageIcon, QrCode, Link as LinkIcon, CreditCard,
@@ -313,6 +314,51 @@ export default function GoogleFormBuilderPage() {
       };
       
       // Auto-map dynamic questions
+      submissionQuestions.forEach(q => {
+        const qLabel = (q.label?.en || q.fieldKey).toLowerCase();
+        initialMap[q.fieldKey] = (data.columns || []).find((c: string) => c.toLowerCase().includes(qLabel)) || '';
+      });
+      
+      setImportMapping(initialMap);
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const loadQuestions = (formId: string) => {
+    if (!token || !formId) return;
+    setLoadingQuestions(true);
+    fetch(`/api/admin/form-questions?formId=${formId}`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => setQuestions(d.questions || []))
+      .catch(() => showToast('Failed to load questions', 'error'))
+      .finally(() => setLoadingQuestions(false));
+  };
+
+  const handleFetchGoogleSheetColumns = async () => {
+    if (!googleSheetUrl || !selectedFormForSubmissions) return;
+    setIsImporting(true);
+    try {
+      const res = await fetch('/api/admin/enquiries/import/google-sheets?action=preview', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ url: googleSheetUrl })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to read Google Sheet');
+      
+      setImportColumns(data.columns || []);
+      
+      const initialMap: Record<string, string> = {
+        name: (data.columns || []).find((c: string) => /name/i.test(c)) || '',
+        mobile: (data.columns || []).find((c: string) => /phone|mobile/i.test(c)) || '',
+        email: (data.columns || []).find((c: string) => /email|gmail/i.test(c)) || '',
+        gender: (data.columns || []).find((c: string) => /gender/i.test(c)) || '',
+        city: (data.columns || []).find((c: string) => /city|location/i.test(c)) || '',
+      };
+      
       submissionQuestions.forEach(q => {
         const qLabel = (q.label?.en || q.fieldKey).toLowerCase();
         initialMap[q.fieldKey] = (data.columns || []).find((c: string) => c.toLowerCase().includes(qLabel)) || '';

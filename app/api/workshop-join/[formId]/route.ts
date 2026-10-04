@@ -45,7 +45,7 @@ export async function POST(
   if (!form) return NextResponse.json({ error: 'Form not found or inactive' }, { status: 404 });
 
   const body = await req.json();
-  const { name, mobile, email, gender, country } = body;
+  const { name, mobile, email, gender, country, city } = body;
 
   if (!name?.trim() || !mobile?.trim() || !email?.trim()) {
     return NextResponse.json({ error: 'Name, mobile and email are required' }, { status: 400 });
@@ -66,7 +66,7 @@ export async function POST(
 
       if (existingLead) {
         if (!existingLead.leadNumber) {
-          const { leadNumber: num } = await allocateNextLeadNumber();
+          const { leadNumber: num } = await allocateNextLeadNumber('system');
           existingLead.leadNumber = num;
         }
         if (cleanedName && !existingLead.name) existingLead.name = cleanedName;
@@ -92,7 +92,7 @@ export async function POST(
         await addLeadToMainBroadcastList(existingLead);
         leadNumber = existingLead.leadNumber;
       } else {
-        const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
+        const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber('system');
         const newLead = await Lead.create({
           leadNumber: allocatedLeadNumber,
           name: cleanedName || 'Unknown User',
@@ -108,7 +108,7 @@ export async function POST(
             formType: 'join-form',
             workshopId: form.workshopId || form.formId,
             workshopName: form.workshopName,
-            city: city.trim(),
+            city: city?.trim() || '',
             country: country?.trim() || '',
             email: email?.trim() || '',
             submittedAt: new Date(),
