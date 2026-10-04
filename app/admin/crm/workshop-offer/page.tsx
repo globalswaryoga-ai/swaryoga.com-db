@@ -2310,13 +2310,13 @@ export default function WorkshopOfferPage() {
                     setActiveTab(tab.id as any);
                   }}
                   className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-indigo-600 text-indigo-700'
+                    ? 'border-blue-600 text-blue-700'
                     : canAccessTab(tab.id)
                       ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                       : 'border-transparent text-slate-300 cursor-not-allowed'
                     }`}
                 >
-                  <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
+                  <tab.icon size={16} className={activeTab === tab.id ? "text-blue-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
                   {tab.label} {count !== null && `- ${count}`}
                 </button>
               )
@@ -2333,7 +2333,7 @@ export default function WorkshopOfferPage() {
           {activeTab === 'offer_details' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in h-full w-full">
               <OfferDetailsTab 
-                leads={selectedWorkshop?.isMovedToLeadsManagement ? masterViewLanguageFilteredLeads : effectiveLeads}
+                leads={selectedWorkshop?.isMovedToLeadsManagement ? masterViewLanguageFilteredLeads : masterViewLanguageFilteredLeads}
                 selectedWorkshop={selectedWorkshop}
                 saveWorkshopSettings={saveWorkshopSettings}
                 selectedDashboardLang={selectedDashboardLang}

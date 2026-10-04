@@ -195,6 +195,24 @@ export default function RootLayout({
             `,
           }}
         />
+        
+        {/* Google Analytics (gtag.js) */}
+        <Script
+          strategy="afterInteractive"
+          src="https://www.googletagmanager.com/gtag/js?id=G-3FZ03GTW4J"
+        />
+        <Script
+          id="google-analytics"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-3FZ03GTW4J');
+            `,
+          }}
+        />
       </head>
       <body className="antialiased bg-white text-swar-text overflow-x-hidden">
         {/* Schema.org JSON-LD */}

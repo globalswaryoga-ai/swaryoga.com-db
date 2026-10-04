@@ -46,6 +46,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [metaTemplatesMap, setMetaTemplatesMap] = useState<Record<string, string>>({});
   const [savedMetaAds, setSavedMetaAds] = useState<any[]>([]);
 
+  const isInitialChatMount = React.useRef(true);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedPlats = localStorage.getItem('meta_platforms');
@@ -58,19 +60,24 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       
       const storedAds = localStorage.getItem('saved_meta_ads');
       if (storedAds) setSavedMetaAds(JSON.parse(storedAds));
+
+      const storedChat = localStorage.getItem('meta_chat_messages');
+      if (storedChat) setChatMessages(JSON.parse(storedChat));
     }
   }, []);
 
+  useEffect(() => {
+    if (isInitialChatMount.current) {
+      isInitialChatMount.current = false;
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages]);
+
   const openCanvaPopup = (url: string) => {
-    const width = 1000;
-    const height = 800;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    window.open(
-      url,
-      'CanvaEditor',
-      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,status=no,location=no,directories=no`
-    );
+    window.open(url, '_blank');
   };
 
   const handleEditLanguage = (oldLang: string) => {
@@ -150,7 +157,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
       const res = await fetch('/api/admin/canva/meta-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
         body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: chatMessages })
       });
 
@@ -1055,7 +1062,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Template ID</label>
-                               <input id="global-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4') : 'https://www.canva.com/brand/brand-templates/EAHW508uKP4'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
+                               <div className="flex gap-2">
+                                 <input id="global-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4') : 'https://www.canva.com/brand/brand-templates/EAHW508uKP4'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
+                                 <button onClick={() => {
+                                   const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value;
+                                   if (tpl) openCanvaPopup(tpl.includes('canva.com') ? tpl : `https://www.canva.com/brand/brand-templates/${tpl}`);
+                                 }} className="px-3 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">Open</button>
+                               </div>
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
@@ -1065,7 +1078,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              <div className="mt-4 pt-4 border-t border-slate-200">
                                <label className="text-[10px] uppercase font-black text-pink-500 tracking-widest mb-1.5 block">Canva Design ID (Edit directly)</label>
                                <div className="flex gap-2">
-                                 <input id="receipt-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
+                                 <input id="receipt-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 min-w-0 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
                                  <button 
                                    onClick={() => {
                                      const id = (document.getElementById('receipt-design-id') as HTMLInputElement)?.value;
@@ -1114,7 +1127,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Certificate Template ID</label>
-                               <input id="cert-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaCertificateTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaCertificateTemplateId', e.target.value); }} />
+                               <div className="flex gap-2">
+                                 <input id="cert-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaCertificateTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaCertificateTemplateId', e.target.value); }} />
+                                 <button onClick={() => {
+                                   const tpl = (document.getElementById('cert-template-id') as HTMLInputElement)?.value;
+                                   if (tpl) openCanvaPopup(tpl.includes('canva.com') ? tpl : `https://www.canva.com/brand/brand-templates/${tpl}`);
+                                 }} className="px-3 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">Open</button>
+                               </div>
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
@@ -1124,7 +1143,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              <div className="mt-4 pt-4 border-t border-slate-200">
                                <label className="text-[10px] uppercase font-black text-pink-500 tracking-widest mb-1.5 block">Canva Design ID (Edit directly)</label>
                                <div className="flex gap-2">
-                                 <input id="cert-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
+                                 <input id="cert-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 min-w-0 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
                                  <button 
                                    onClick={() => {
                                      const id = (document.getElementById('cert-design-id') as HTMLInputElement)?.value;
@@ -1157,13 +1176,16 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || '';
                                 const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '';
                                 const whatsapp = (document.getElementById('receipt-whatsapp') as HTMLInputElement)?.value || '';
-                                await fetch('/api/admin/crm/receipts', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ leadId, receiptNumber: receiptNo, customerName: name, customerPhone: whatsapp, workshopName: workshop, issuedAt: new Date().toISOString(), payment: { amount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, paidAmount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, method: mode, provider: mode, paidAt: new Date().toISOString() } })
+                                const res = await fetch('/api/admin/crm/receipts', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
+                                  body: JSON.stringify({ force: true, leadId, receiptNumber: receiptNo, customerName: name, customerPhone: whatsapp, workshopName: workshop, issuedAt: new Date().toISOString(), payment: { amount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, paidAmount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, method: mode, provider: mode, paidAt: new Date().toISOString() } })
                                 });
-                                const token = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1] || '';
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error || 'Failed to generate receipt');
+                                const token = localStorage.getItem('adminToken') || '';
                                 setGeneratedDesignId(`PDF_${leadId}`);
-                                setTimeout(() => { const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; if (frame) frame.src = `/api/admin/crm/receipts/pdf?leadId=${leadId}&token=${token}`; }, 100);
+                                const realReceiptId = data.data?._id || data.data?.id || '';
+                                setTimeout(() => { const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; if (frame) frame.src = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&token=${token}&t=${Date.now()}`; }, 100);
                                 if (btn) { btn.innerText = '\u2705 Done!'; setTimeout(() => { if (btn) btn.innerText = '\ud83d\udcc4 Generate PDF'; }, 2000); }
                                  // Auto-trigger Canva with default receipt template
                                  let tplId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4';
@@ -1171,7 +1193,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  if (tplId) {
                                    const date = (document.getElementById('receipt-date') as HTMLInputElement)?.value || '';
                                    const canvaData = { Name: { type: 'text', text: name }, Amount: { type: 'text', text: amount }, Mode: { type: 'text', text: mode }, ReceiptNo: { type: 'text', text: receiptNo }, WorkshopName: { type: 'text', text: workshop }, Date: { type: 'text', text: date } };
-                                   fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId: tplId, data: canvaData }) })
+                                   fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId: tplId, data: canvaData }) })
                                      .then(r => r.json()).then(cj => {
                                        if (!cj.error && cj.job?.id) {
                                          const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${cj.job.id}`); const sj = await sr.json(); if (sj.job?.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); } else if (sj.job?.status === 'failed') { clearInterval(poll); } }, 2000);
@@ -1206,7 +1228,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 } else {
                                   dataToFill = { FirstName: { type: 'text', text: (document.getElementById('cert-firstname') as HTMLInputElement)?.value || '' }, FullName: { type: 'text', text: (document.getElementById('cert-fullname') as HTMLInputElement)?.value || '' }, City: { type: 'text', text: (document.getElementById('cert-city') as HTMLInputElement)?.value || '' }, Country: { type: 'text', text: (document.getElementById('cert-country') as HTMLInputElement)?.value || '' }, BatchName: { type: 'text', text: (document.getElementById('cert-batch') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('cert-workshop') as HTMLInputElement)?.value || '' }, CertificateNo: { type: 'text', text: (document.getElementById('cert-number') as HTMLInputElement)?.value || '' } };
                                 }
-                                const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, data: dataToFill }) });
+                                const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId, data: dataToFill }) });
                                 const json = await res.json(); if (json.error) throw new Error(json.error);
                                 const jobId = json.job.id;
                                 const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
@@ -1231,18 +1253,25 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              />
                            ) : (
                              <div className="flex flex-col w-full h-full p-2">
-                               <iframe 
-                                 src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
-                                 className="flex-1 w-full rounded-xl border-none shadow-sm mb-4"
-                                 allowFullScreen
-                                 allow="fullscreen"
-                               ></iframe>
+                               {generatedDesignId.startsWith('EAH') ? (
+                                 <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-xl mb-4 text-slate-500 p-8 text-center border border-slate-200">
+                                   <p className="font-bold mb-2">Canva Brand Template Detected</p>
+                                   <p className="text-sm">Templates cannot be embedded. Click the button below to open the template, create your design, and then paste the new Design ID here.</p>
+                                 </div>
+                               ) : (
+                                 <iframe 
+                                   src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
+                                   className="flex-1 w-full rounded-xl border-none shadow-sm mb-4"
+                                   allowFullScreen
+                                   allow="fullscreen"
+                                 ></iframe>
+                               )}
                                <div className="flex gap-4 w-full h-14">
-                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
-                                   Edit in Canva
+                                 <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
+                                   {generatedDesignId.startsWith('EAH') ? 'Use Template' : 'Edit in Canva'}
                                  </button>
-                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
-                                   Download
+                                 <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
+                                   {generatedDesignId.startsWith('EAH') ? 'Open Template' : 'Download'}
                                  </button>
                                </div>
                              </div>
@@ -1276,19 +1305,19 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                  <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
                    <button
                      onClick={() => setDownloadTab('meta')}
-                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'meta' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'meta' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Meta Work
                    </button>
                    <button
                      onClick={() => setDownloadTab('receipts')}
-                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'receipts' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'receipts' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Receipts
                    </button>
                    <button
                      onClick={() => setDownloadTab('certificate')}
-                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'certificate' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'certificate' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Certificates
                    </button>
@@ -1672,7 +1701,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           try {
                             const res = await fetch('/api/admin/canva/autofill', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
                               body: JSON.stringify({ templateId: batchCanvaTemplateId, data: dataToFill })
                             });
                             const json = await res.json();

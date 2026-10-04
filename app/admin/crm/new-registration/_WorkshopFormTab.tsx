@@ -607,8 +607,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-50 flex items-center justify-between border-b border-slate-200">
               <div className="flex items-center gap-4">
-                <h3 className="font-bold text-slate-800">
-                  Linked Leads {effectiveLeads.length > 0 && <span className="text-sm font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full ml-2">{effectiveLeads.length} leads</span>}
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  All New Leads ({p.selectedDashboardLang || 'All Languages'})
+                  {effectiveLeads.length > 0 && <span className="text-sm font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full ml-2">{effectiveLeads.length} leads</span>}
                 </h3>
               </div>
 
@@ -729,10 +730,29 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                   if (aProcessed !== bProcessed) return aProcessed ? 1 : -1;
 
+                  // Parse actual form fill date
+                  const getTimestamp = (lead: any) => {
+                    const ts = lead.createdAt || lead._rawRecord?.['Timestamp'] || lead._rawRecord?.['timestamp'];
+                    return ts ? new Date(ts).getTime() : 0;
+                  };
+
+                  const aTime = getTimestamp(a);
+                  const bTime = getTimestamp(b);
+
+                  if (aTime && bTime && aTime !== bTime) {
+                    return tab2SortOrder === 'asc' ? aTime - bTime : bTime - aTime;
+                  }
+
                   return tab2SortOrder === 'asc'
                     ? a.originalIndex - b.originalIndex
                     : b.originalIndex - a.originalIndex;
                 });
+
+                const tsWidth = colWidths['t2_timestamp'] || 140;
+                const nameWidth = colWidths['t2_name'] || 150;
+                const waWidth = colWidths['t2_whatsapp'] || 110;
+                const nameLeft = 50 + tsWidth;
+                const waLeft = nameLeft + nameWidth;
 
                 return (
                   <table className="min-w-full text-left text-sm text-slate-600">
@@ -749,8 +769,36 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             }}
                           />
                         </th>
-                        <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[200px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
+                        <th style={{ width: `${tsWidth}px`, minWidth: `${tsWidth}px`, maxWidth: `${tsWidth}px`, left: '50px' }} className="px-4 py-3 font-bold text-slate-500 sticky z-30 bg-slate-50 group">
+                          Timestamp
+                          <div className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors" onMouseDown={(e) => {
+                            e.preventDefault();
+                            const startX = e.pageX;
+                            const onMouseMove = (moveEvent: MouseEvent) => setColWidths(prev => ({ ...prev, t2_timestamp: Math.max(50, tsWidth + moveEvent.pageX - startX) }));
+                            const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+                            document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+                          }} />
+                        </th>
+                        <th style={{ width: `${nameWidth}px`, minWidth: `${nameWidth}px`, maxWidth: `${nameWidth}px`, left: `${nameLeft}px` }} className="px-4 py-3 font-bold text-slate-500 sticky z-30 bg-slate-50 group">
+                          Name
+                          <div className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors" onMouseDown={(e) => {
+                            e.preventDefault();
+                            const startX = e.pageX;
+                            const onMouseMove = (moveEvent: MouseEvent) => setColWidths(prev => ({ ...prev, t2_name: Math.max(50, nameWidth + moveEvent.pageX - startX) }));
+                            const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+                            document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+                          }} />
+                        </th>
+                        <th style={{ width: `${waWidth}px`, minWidth: `${waWidth}px`, maxWidth: `${waWidth}px`, left: `${waLeft}px` }} className="px-4 py-3 font-bold text-slate-500 sticky z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] group">
+                          WhatsApp
+                          <div className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors" onMouseDown={(e) => {
+                            e.preventDefault();
+                            const startX = e.pageX;
+                            const onMouseMove = (moveEvent: MouseEvent) => setColWidths(prev => ({ ...prev, t2_whatsapp: Math.max(50, waWidth + moveEvent.pageX - startX) }));
+                            const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+                            document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+                          }} />
+                        </th>
                         {showDynamicColumns && dynamicColumns.map(col => {
                           const width = colWidths[`t2_${col}`] || 150;
                           return (
@@ -832,10 +880,16 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                                   }}
                                 />
                               </td>
-                              <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[50px] z-20 ${bgClass} transition-colors`}>
+                              <td style={{ width: `${tsWidth}px`, minWidth: `${tsWidth}px`, maxWidth: `${tsWidth}px`, left: '50px' }} className={`px-4 py-3 whitespace-nowrap text-xs text-slate-600 sticky z-20 ${bgClass} transition-colors`}>
+                                <div className="truncate w-full">{(() => {
+                                  const ts = lead.createdAt || lead._rawRecord?.['Timestamp'] || lead._rawRecord?.['timestamp'];
+                                  return ts ? new Date(ts).toLocaleString() : '-';
+                                })()}</div>
+                              </td>
+                              <td style={{ width: `${nameWidth}px`, minWidth: `${nameWidth}px`, maxWidth: `${nameWidth}px`, left: `${nameLeft}px` }} className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap sticky z-20 ${bgClass} transition-colors`}>
                                 <div className="truncate w-full" title={lead.name}>{lead.name || '-'}</div>
                               </td>
-                              <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[200px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
+                              <td style={{ width: `${waWidth}px`, minWidth: `${waWidth}px`, maxWidth: `${waWidth}px`, left: `${waLeft}px` }} className={`px-4 py-3 whitespace-nowrap sticky z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
                                 <div className="truncate w-full" title={lead.mobile || lead.phoneNumber}>{lead.mobile || lead.phoneNumber || '-'}</div>
                               </td>
                               {showDynamicColumns && dynamicColumns.map(col => {

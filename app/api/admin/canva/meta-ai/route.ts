@@ -3,22 +3,50 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-
 // Call Replicate and poll until done
 async function runReplicate(payload: Record<string, any>): Promise<any> {
-  const createRes = await fetch('https://api.replicate.com/v1/predictions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'wait=60',
-    },
-    body: JSON.stringify(payload),
-  });
+  const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+  
+  if (!REPLICATE_API_TOKEN) {
+    throw new Error('REPLICATE_API_TOKEN environment variable is missing.');
+  }
 
-  const prediction = await createRes.json();
-  if (!createRes.ok) throw new Error(prediction?.detail || JSON.stringify(prediction) || 'Replicate API error');
+  let endpoint = 'https://api.replicate.com/v1/predictions';
+  if (payload.model) {
+    endpoint = `https://api.replicate.com/v1/models/${payload.model}/predictions`;
+    delete payload.model;
+  }
+
+  let createRes;
+  let prediction;
+  
+  // Retry loop for rate limits (429)
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    createRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'wait=60',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    prediction = await createRes.json();
+    
+    // If it's a rate limit error, wait 10 seconds and try again
+    if (createRes.status === 429 && attempt < 3) {
+      console.log('Replicate rate limited. Waiting 10 seconds before retry...');
+      await new Promise(r => setTimeout(r, 10000));
+      continue;
+    }
+    
+    break; // Success or non-retryable error
+  }
+
+  if (!createRes || !createRes.ok) {
+    throw new Error(prediction?.detail || JSON.stringify(prediction) || 'Replicate API error');
+  }
 
   // If already done (with Prefer: wait)
   if (prediction.status === 'succeeded') return prediction.output;
@@ -28,7 +56,7 @@ async function runReplicate(payload: Record<string, any>): Promise<any> {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 5000));
     const pollRes = await fetch(pollUrl, {
-      headers: { 'Authorization': `Bearer ${REPLICATE_API_TOKEN}` }
+      headers: { 'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}` }
     });
     const data = await pollRes.json();
     if (data.status === 'succeeded') return data.output;
@@ -67,8 +95,11 @@ function wantsAdCopy(prompt: string): boolean {
 
 // Detect if the user is asking for a video
 function wantsVideo(prompt: string): boolean {
-  const keywords = ['video', 'animate', 'animation', 'motion', 'mp4', 'movie', 'clip', 'reels', 'reel'];
   const lower = prompt.toLowerCase();
+  if (lower.includes('thumbnail') || lower.includes('thumbline')) {
+    return false; // User wants a thumbnail image for a video, not the video itself
+  }
+  const keywords = ['video', 'animate', 'animation', 'motion', 'mp4', 'movie', 'clip', 'reels', 'reel'];
   return keywords.some(k => lower.includes(k));
 }
 
@@ -121,9 +152,11 @@ export async function POST(request: Request) {
       }
     } else {
       const systemPrompt = `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design.
-You help users create ads, posters, book content, and any creative content they need.
-IMPORTANT INSTRUCTION: If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style or elements you are incorporating.
-Respond naturally and conversationally. Keep responses concise and helpful.`;
+You help users create ads, posters, YouTube thumbnails, and any creative content they need.
+IMPORTANT INSTRUCTIONS: 
+1. If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style.
+2. DO NOT make assumptions about the platform (e.g., Facebook) unless the user specifically mentions it. If they ask for a YouTube thumbnail, acknowledge it is for YouTube.
+3. Keep responses concise and helpful.`;
 
       const llmOutput = await runReplicate({
         version: LLAMA3_VERSION,
@@ -147,24 +180,21 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
       try {
         const imagePrompt = shouldGenerateAdCopy && aiData
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
-          : `Create a high-quality image based on this request: ${prompt}. If the request includes text or is for a thumbnail, make sure to beautifully integrate that text into the design.`;
+          : `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled.`;
 
-        let width = 1024;
-        let height = 1024;
+        let aspectRatio = "1:1";
         const lowerPrompt = prompt.toLowerCase();
         if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
-          width = 1344; height = 768;
+          aspectRatio = "16:9";
         } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) {
-          width = 768; height = 1344;
+          aspectRatio = "9:16";
         }
 
         const output = await runReplicate({
-          model: 'black-forest-labs/flux-schnell',
+          model: 'black-forest-labs/flux-1.1-pro',
           input: {
             prompt: imagePrompt,
-            width,
-            height,
-            num_outputs: 1,
+            aspect_ratio: aspectRatio,
             output_format: 'webp',
             output_quality: 90,
           }
@@ -182,7 +212,7 @@ Respond naturally and conversationally. Keep responses concise and helpful.`;
                prompt: `Use the provided image as the exact first frame. ${prompt}`,
                duration: 5,
                resolution: "768p",
-               aspect_ratio: width > height ? "16:9" : width < height ? "9:16" : "1:1",
+               aspect_ratio: aspectRatio,
                prompt_upsampler: "turbo"
              }
            });

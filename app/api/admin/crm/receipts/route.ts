@@ -4,7 +4,7 @@ import dbConnect from '@/lib/mongodb';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { formatPersonName } from '@/lib/formatName';
 import { getBunnyReceiptById, getBunnyReceiptBySaleId, getBunnyReceiptsByLeadId, getBunnyReceiptByLeadId, createBunnyReceipt, updateBunnyReceipt } from '@/lib/bunnyReceiptRepository';
-import { getBunnySaleById, getBunnySaleByLeadId, updateBunnySale } from '@/lib/bunnySalesRepository';
+import { getBunnySaleById, getBunnySaleByLeadId, updateBunnySale, createBunnySale } from '@/lib/bunnySalesRepository';
 import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 
 // Builds the payment/workshop snapshot for a receipt from the actual sale
@@ -88,25 +88,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({} as any));
-    const leadId = String(body?.leadId || '').trim();
-    const saleId = String(body?.saleId || '').trim();
+    let leadId = String(body?.leadId || '').trim();
+    let saleId = String(body?.saleId || '').trim();
     const force = Boolean(body?.force);
 
     if (!leadId) {
-      return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+      leadId = Math.random().toString(36).substring(2, 15); // Auto-generate for offline forms
     }
 
     let lead: any = await getBunnyLeadById(leadId);
+    let isVirtualLead = false;
     if (!lead) {
-      // If the lead doesn't exist (e.g. unapproved google form lead), create a virtual one from the body
+      isVirtualLead = true;
       lead = {
+        _id: leadId, // Set ID so it can be saved to BunnyLeads later
+        createdByUserId: viewerUserId,
         name: body.customerName,
         userName: body.customerName,
         phoneNumber: body.customerPhone,
         email: body.customerEmail,
-        leadNumber: String(leadId).substring(0, 8),
+        leadNumber: String(leadId).substring(0, 8).toUpperCase(),
         workshopName: body.workshopName,
-        sales: { payment: body.payment, workshop: { slug: '', scheduleId: '' } }
+        sales: { payment: body.payment, workshop: { slug: '', scheduleId: '' } },
+        source: 'offline_form'
       };
     }
 
@@ -119,6 +123,22 @@ export async function POST(request: NextRequest) {
     }
     if (!sale) {
       sale = await getBunnySaleByLeadId(leadId);
+    }
+    
+    // Auto-create a sale if this is a brand new virtual lead from an offline form
+    if (!sale && isVirtualLead) {
+      sale = await createBunnySale({
+        leadId: leadId,
+        reportedByUserId: viewerUserId,
+        userId: viewerUserId,
+        customerName: body.customerName,
+        customerPhone: body.customerPhone,
+        customerEmail: body.customerEmail,
+        saleAmount: Number(body.payment?.amount || 0),
+        paymentMode: body.payment?.method || '',
+        workshopName: body.workshopName,
+        saleDate: new Date().toISOString()
+      });
     }
 
     // If a receipt exists already for THIS specific sale, reuse it — unless

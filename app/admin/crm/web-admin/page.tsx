@@ -57,6 +57,7 @@ const tabConfig: Record<TabKey, { label: string; icon: React.ElementType; pages:
       { label: 'Signin Data', description: 'Login history and authentication records', href: '/admin/signin-data', icon: LogIn, color: 'bg-indigo-600' },
       { label: 'Contact Messages', description: 'Messages from the contact form', href: '/admin/contact-messages', icon: MessageSquare, color: 'bg-indigo-500' },
       { label: 'Website Users', description: 'View all registered website users', href: '/admin/users', icon: Users, color: 'bg-indigo-600' },
+      { label: 'Website Visitors', description: 'Visitor analytics, clicks, and locations', href: '/admin/crm/visitors', icon: Globe, color: 'bg-indigo-500' },
       { label: 'Enquiries', description: 'Service and workshop enquiries', href: '/admin/enquiries', icon: MessageSquare, color: 'bg-violet-500' },
       { label: 'Admin Users', description: 'CRM admin user management', href: '/admin/crm/users', icon: Shield, color: 'bg-violet-600' },
       { label: 'Workshop Dates', description: 'Manage workshop schedules and timings', href: '/admin/workshops/schedules', icon: Calendar, color: 'bg-purple-500' },

@@ -117,6 +117,7 @@ export interface WebsiteSchema {
   '@context': 'https://schema.org';
   '@type': 'WebSite';
   name: string;
+  alternateName?: string;
   url: string;
   description: string;
   potentialAction: {
@@ -216,6 +217,7 @@ export function generateWebsiteSchema(): WebsiteSchema {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: siteConfig.name,
+    alternateName: siteConfig.name,
     url: siteConfig.url,
     description: siteConfig.description,
     potentialAction: {

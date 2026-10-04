@@ -2006,7 +2006,7 @@ export default function NewRegistrationPage() {
       setNeedsGoogleAuth={setNeedsGoogleAuth}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
       Users={Users} 
-      leadsData={activeTab === 'my_data' ? (leadsData.length > 0 ? leadsData : masterViewLanguageFilteredLeads) : (masterViewLanguageFilteredLeads.length > 0 ? masterViewLanguageFilteredLeads : leadsData)} 
+      leadsData={masterViewLanguageFilteredLeads.length > 0 ? masterViewLanguageFilteredLeads : leadsData} 
       isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
       handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
