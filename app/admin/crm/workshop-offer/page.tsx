@@ -926,10 +926,20 @@ export default function WorkshopOfferPage() {
       }
     }
     loadLeads();
-  }, [linkedFormId, selectedWorkshop?.id, token, refreshLeadsCounter]);
+  }, [linkedFormId, token, refreshLeadsCounter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const workshopsRef = React.useRef(workshops);
+  const leadsFilterRef = React.useRef(leadsFilter);
+  const leadsSubFilterRef = React.useRef(leadsSubFilter);
+  const leadsSubSubFilterRef = React.useRef(leadsSubSubFilter);
+
+  React.useEffect(() => { workshopsRef.current = workshops; }, [workshops]);
+  React.useEffect(() => { leadsFilterRef.current = leadsFilter; }, [leadsFilter]);
+  React.useEffect(() => { leadsSubFilterRef.current = leadsSubFilter; }, [leadsSubFilter]);
+  React.useEffect(() => { leadsSubSubFilterRef.current = leadsSubSubFilter; }, [leadsSubSubFilter]);
 
   useEffect(() => {
     if (!isAi7Active) return;
@@ -940,14 +950,15 @@ export default function WorkshopOfferPage() {
       if (isFetching) return;
       isFetching = true;
       try {
-        const formsToSync = Array.from(new Set(workshops.filter((w: any) => w.formId && (w.formId.includes('docs.google.com') || w.formSource === 'google')).map((w: any) => w.formId)));
+        const currentWorkshops = workshopsRef.current || [];
+        const formsToSync = Array.from(new Set(currentWorkshops.filter((w: any) => w.formId && (w.formId.includes('docs.google.com') || w.formSource === 'google')).map((w: any) => w.formId)));
         if (formsToSync.length === 0 && linkedFormId && linkedFormId.includes('docs.google.com')) {
           formsToSync.push(linkedFormId);
         }
 
         for (const currentFormId of formsToSync) {
-          const mapping = workshops.find((w: any) => w.formId === currentFormId)?.metadata?.googleFormMapping;
-          const currentWorkshop = workshops.find((w: any) => w.formId === currentFormId);
+          const mapping = currentWorkshops.find((w: any) => w.formId === currentFormId)?.metadata?.googleFormMapping;
+          const currentWorkshop = currentWorkshops.find((w: any) => w.formId === currentFormId);
           let fetchedLeads: any[] = [];
           let newQuestionMap: any = null;
 
@@ -957,13 +968,12 @@ export default function WorkshopOfferPage() {
               try {
                 const res = await fetch(url, options);
                 if (res.ok) return res;
-                // If it's a server error but not ok, we also might want to retry
                 if (res.status >= 500) throw new Error('Server error');
-                return res; // Client errors (400) shouldn't be retried
+                return res;
               } catch (e) {
                 lastErr = e;
                 if (i < retries - 1) {
-                  await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Backoff
+                  await new Promise(r => setTimeout(r, 1000 * (i + 1)));
                 }
               }
             }
@@ -1004,20 +1014,7 @@ export default function WorkshopOfferPage() {
                 if (json.questionMap) newQuestionMap = json.questionMap;
               } else if (syncRes.status === 401) {
                 setNeedsGoogleAuth(true);
-                toast.error('Please connect your Google Account to sync forms.');
-              } else {
-                const err = await syncRes.json().catch(() => ({}));
-                toast.error(err.error || 'Failed to sync form');
               }
-            }
-          } else {
-            const res = await fetchWithRetry(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(currentFormId)}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-              const json = await res.json();
-              fetchedLeads = json.data || [];
-              fetchedLeads = fetchedLeads.map(l => ({ ...l, language: currentWorkshop?.language || selectedDashboardLang }));
             }
           }
 
@@ -1027,11 +1024,11 @@ export default function WorkshopOfferPage() {
               const newLeads = fetchedLeads.filter((l: any) => l && l.id && !existingIds.has(l.id));
 
               if (newLeads.length > 0) {
-                const ws = workshops.find((w: any) => w.formId === linkedFormId);
+                const ws = (workshopsRef.current || []).find((w: any) => w.formId === linkedFormId);
                 let leadsToMove = newLeads;
-                const effectiveF1 = leadsFilter || ws?.metadata?.mainFilter || '';
-                const effectiveF2 = leadsSubFilter || ws?.metadata?.subFilter || '';
-                const effectiveF3 = leadsSubSubFilter || '';
+                const effectiveF1 = leadsFilterRef.current || ws?.metadata?.mainFilter || '';
+                const effectiveF2 = leadsSubFilterRef.current || ws?.metadata?.subFilter || '';
+                const effectiveF3 = leadsSubSubFilterRef.current || '';
 
                 if (effectiveF1 || effectiveF2 || effectiveF3) {
                   leadsToMove = newLeads.filter((lead: any) => {
@@ -1070,8 +1067,6 @@ export default function WorkshopOfferPage() {
                     toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
                     return newCrmIds;
                   });
-                } else {
-                  toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
                 }
 
                 setWorkshops((prev: any[]) => {
@@ -1081,7 +1076,6 @@ export default function WorkshopOfferPage() {
                       const f2 = w.metadata?.subFilter || '';
                       
                       if (String(w.id).startsWith('master_')) {
-                        // Master lists match by language
                         const matchedLangs = newLeads.filter((l: any) => matchesLanguage({ language: currentWorkshop?.language || selectedDashboardLang }, w.language));
                         return { ...w, leads: (w.leads || 0) + matchedLangs.length };
                       }
@@ -1090,7 +1084,6 @@ export default function WorkshopOfferPage() {
                         return { ...w, leads: (w.leads || 0) + newLeads.length };
                       }
 
-                      // Filter new leads based on batch keywords
                       const matched = newLeads.filter((lead: any) => {
                         const vals = [
                           lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
@@ -1109,33 +1102,8 @@ export default function WorkshopOfferPage() {
                     return w;
                   });
                 });
-                
-                setSelectedWorkshop((prev: any) => {
-                  if (prev && prev.formId === currentFormId) {
-                    const f1 = prev.formFilterKeyword || prev.metadata?.mainFilter || '';
-                    const f2 = prev.metadata?.subFilter || '';
-                    if (!f1 && !f2) return { ...prev, leads: (prev.leads || 0) + newLeads.length };
-                    
-                    const matched = newLeads.filter((lead: any) => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      
-                      const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                      const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => isLeadMatchingKeyword(v, k)));
-                      const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
-                      return m1 && m2;
-                    });
-                    return { ...prev, leads: (prev.leads || 0) + matched.length };
-                  }
-                  return prev;
-                });
 
                 return [...(prevLeads || []).filter(Boolean), ...newLeads];
-              } else {
-                toast.info(`🤖 AI-7: Sync check completed. No new leads found.`);
               }
 
               return prevLeads;
@@ -1149,10 +1117,10 @@ export default function WorkshopOfferPage() {
       } finally {
         isFetching = false;
       }
-    }, 5 * 60 * 1000); // Fixed 5 minutes interval for AI-7
+    }, 10 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [isAi7Active, linkedFormId, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
+  }, [isAi7Active, linkedFormId, token, formSource]);
 
 
   useEffect(() => {
