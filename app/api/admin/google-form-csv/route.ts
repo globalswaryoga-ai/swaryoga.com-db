@@ -1,34 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'csv-parse/sync';
 
+function getGoogleSheetCsvUrls(rawUrl: string): string[] {
+  let url = rawUrl.trim();
+  const urls: string[] = [];
+
+  // Extract GID if present
+  let gid = '';
+  const gidMatch = url.match(/[?&]gid=([0-9]+)/) || url.match(/#gid=([0-9]+)/);
+  if (gidMatch) {
+    gid = gidMatch[1];
+  }
+
+  // Handle published web links (e.g. /d/e/2PACX-.../pubhtml or /pub)
+  if (url.includes('/d/e/2PACX-')) {
+    const pubBase = url.split('/pub')[0].split('?')[0].split('#')[0];
+    urls.push(`${pubBase}/pub?output=csv${gid ? `&gid=${gid}` : ''}`);
+    urls.push(`${pubBase}/pub?output=csv`);
+  }
+
+  // Extract sheet ID (/d/SPREADSHEET_ID)
+  const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (idMatch) {
+    const sheetId = idMatch[1];
+    if (gid) {
+      urls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`);
+      urls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`);
+    }
+    urls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
+    urls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+  }
+
+  // Fallback to modified rawUrl
+  let exportUrl = url;
+  if (exportUrl.includes('/edit')) {
+    exportUrl = exportUrl.replace(/\/edit.*$/, `/export?format=csv${gid ? `&gid=${gid}` : ''}`);
+  } else if (!exportUrl.includes('/export') && !exportUrl.includes('/gviz') && !exportUrl.includes('/pub')) {
+    exportUrl = exportUrl.split('?')[0].split('#')[0] + `/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+  }
+  urls.push(exportUrl);
+
+  return Array.from(new Set(urls));
+}
+
+async function fetchGoogleSheetCsv(sheetUrl: string): Promise<string> {
+  const candidateUrls = getGoogleSheetCsvUrls(sheetUrl);
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/csv,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  };
+
+  for (const fetchUrl of candidateUrls) {
+    try {
+      const response = await fetch(fetchUrl, { headers, redirect: 'follow' });
+      if (response.ok) {
+        const text = await response.text();
+        const trimmed = text.trim().toLowerCase();
+        // Ensure it's valid CSV text, not an HTML login/permission page
+        if (trimmed.length > 0 && !trimmed.startsWith('<!doctype html>') && !trimmed.startsWith('<html')) {
+          return text;
+        }
+      }
+    } catch (_) {}
+  }
+
+  throw new Error('Failed to fetch CSV from Google Sheets. Please ensure the Google Sheet access is set to "Anyone with the link can view".');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const csvUrl = url.searchParams.get('url');
 
-    if (!csvUrl || !csvUrl.includes('docs.google.com/spreadsheets')) {
-      return NextResponse.json({ error: 'Invalid Google Sheets CSV URL' }, { status: 400 });
+    if (!csvUrl || !csvUrl.includes('docs.google.com')) {
+      return NextResponse.json({ error: 'Invalid Google Sheets URL' }, { status: 400 });
     }
 
-    // Convert /edit URL to /export?format=csv
-    let fetchUrl = csvUrl;
-    if (fetchUrl.includes('/edit')) {
-      fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
-    } else if (!fetchUrl.includes('/export')) {
-      fetchUrl += '/export?format=csv';
-    }
-
-    // Proxy the fetch to avoid any potential CORS issues on the client
-    const response = await fetch(fetchUrl);
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch CSV from Google Sheets' }, { status: response.status });
-    }
-
-    const csvText = await response.text();
-    
-    if (csvText.trim().toLowerCase().startsWith('<!doctype html>') || csvText.trim().toLowerCase().startsWith('<html')) {
-      return NextResponse.json({ error: 'Failed to load Sheet. Please ensure the Google Sheet access is set to "Anyone with the link can view".' }, { status: 403 });
-    }
+    const csvText = await fetchGoogleSheetCsv(csvUrl);
     
     // Parse the CSV
     const records = parse(csvText, {
@@ -76,7 +124,8 @@ export async function GET(request: NextRequest) {
         city: city || '',
         gender: gender || '',
         createdAt: record['Timestamp'] ? new Date(record['Timestamp']).toISOString() : new Date().toISOString(),
-        dynamicAnswers
+        dynamicAnswers,
+        _rawRecord: record
       };
     });
 
