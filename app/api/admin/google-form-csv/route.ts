@@ -73,10 +73,56 @@ export async function GET(request: NextRequest) {
     const csvUrl = url.searchParams.get('url');
 
     if (!csvUrl || !csvUrl.includes('docs.google.com')) {
-      return NextResponse.json({ error: 'Invalid Google Sheets URL' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid Google URL provided' }, { status: 400 });
     }
 
-    const csvText = await fetchGoogleSheetCsv(csvUrl);
+    // 1. If user provided a Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), delegate to OAuth Google Form sync API
+    if (csvUrl.includes('/forms/')) {
+      try {
+        const host = request.headers.get('host') || 'swaryoga.com';
+        const protocol = host.includes('localhost') ? 'http' : 'https';
+        const syncUrl = `${protocol}://${host}/api/admin/google-forms/sync?url=${encodeURIComponent(csvUrl)}`;
+        const syncRes = await fetch(syncUrl, {
+          headers: {
+            cookie: request.headers.get('cookie') || '',
+            authorization: request.headers.get('authorization') || '',
+          },
+        });
+        const syncData = await syncRes.json();
+        if (syncRes.ok && Array.isArray(syncData.data) && syncData.data.length > 0) {
+          return NextResponse.json({ data: syncData.data });
+        }
+        if (syncData.error) {
+          return NextResponse.json({ error: syncData.error }, { status: syncRes.status || 400 });
+        }
+      } catch (formSyncErr) {
+        console.warn('[google-form-csv] Google Forms OAuth sync fallback error:', formSyncErr);
+      }
+    }
+
+    // 2. Otherwise fetch as a Google Sheet CSV
+    let csvText = '';
+    try {
+      csvText = await fetchGoogleSheetCsv(csvUrl);
+    } catch (sheetErr: any) {
+      // If public CSV fetch failed, try Google Form OAuth sync as final fallback
+      try {
+        const host = request.headers.get('host') || 'swaryoga.com';
+        const protocol = host.includes('localhost') ? 'http' : 'https';
+        const syncUrl = `${protocol}://${host}/api/admin/google-forms/sync?url=${encodeURIComponent(csvUrl)}`;
+        const syncRes = await fetch(syncUrl, {
+          headers: {
+            cookie: request.headers.get('cookie') || '',
+            authorization: request.headers.get('authorization') || '',
+          },
+        });
+        const syncData = await syncRes.json();
+        if (syncRes.ok && Array.isArray(syncData.data)) {
+          return NextResponse.json({ data: syncData.data });
+        }
+      } catch (_) {}
+      throw sheetErr;
+    }
     
     // Parse the CSV
     const records = parse(csvText, {
@@ -132,6 +178,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: leads });
   } catch (error) {
     console.error('Error fetching/parsing CSV:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ error: String(error).replace('Error: ', '') }, { status: 400 });
   }
 }
