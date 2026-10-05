@@ -823,12 +823,14 @@ export default function NewRegistrationPage() {
                   country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
                   gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
                   language: ws?.language || selectedDashboardLang,
+                  workshopName: ws?.name || '',
                 };
               });
             } else {
               mappedLeads = mappedLeads.map((lead: any) => ({
                 ...lead,
                 language: ws?.language || selectedDashboardLang,
+                workshopName: ws?.name || '',
               }));
             }
 
@@ -968,7 +970,7 @@ export default function NewRegistrationPage() {
               const json = await syncRes.json();
               let mappedLeads: any[] = json.data || [];
               if (mapping && mappedLeads.length > 0) {
-                mappedLeads = mappedLeads.map((lead: any) => {
+                  mappedLeads = mappedLeads.map((lead: any) => {
                   const raw = lead._rawRecord || {};
                   return {
                     ...lead,
@@ -980,12 +982,14 @@ export default function NewRegistrationPage() {
                     country: raw[mapping['Country']] || lead.country,
                     gender: raw[mapping['Gender']] || lead.gender,
                     language: currentWorkshop?.language || selectedDashboardLang,
+                    workshopName: currentWorkshop?.name || '',
                   };
                 });
               } else {
                 mappedLeads = mappedLeads.map((lead: any) => ({
                   ...lead,
                   language: currentWorkshop?.language || selectedDashboardLang,
+                  workshopName: currentWorkshop?.name || '',
                 }));
               }
 
