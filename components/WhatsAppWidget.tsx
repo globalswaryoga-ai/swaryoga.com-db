@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation';
 export default function WhatsAppWidget() {
   const pathname = usePathname();
 
-  // Hide on admin/CRM routes (admins have dedicated WhatsApp tools inside CRM).
-  if (pathname?.startsWith('/admin')) return null;
+  // Hide on admin/CRM routes and mobile-chat.
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/mobile-chat')) return null;
 
   const whatsappNumber = '919779006820';
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hello%20Swar%20Yoga!%20I%20would%20like%20to%20inquire%20about%20your%20services.`;

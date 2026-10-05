@@ -3332,10 +3332,10 @@ export default function MetaInboxPage() {
                       </button>
                     </div>
                   ) : (
-                  <div className="flex-1 rounded-lg bg-white/80 backdrop-blur-sm focus-within:ring-2 focus-within:ring-[#1E7F43]/20 focus-within:border-[#1E7F43] transition-all relative z-20" style={{ border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.06)' }}>
+                  <div className="flex-1 min-w-0 rounded-lg bg-white/80 backdrop-blur-sm focus-within:ring-2 focus-within:ring-[#1E7F43]/20 focus-within:border-[#1E7F43] transition-all relative z-20" style={{ border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.06)' }}>
                       
                       {/* Top Toolbar */}
-                      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-[#E0EDE6]/60 rounded-t-lg relative" style={{ background: 'linear-gradient(90deg, rgba(230,244,236,0.5) 0%, rgba(250,252,251,0.8) 100%)' }}>
+                      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-[#E0EDE6]/60 rounded-t-lg relative overflow-x-auto no-scrollbar whitespace-nowrap" style={{ background: 'linear-gradient(90deg, rgba(230,244,236,0.5) 0%, rgba(250,252,251,0.8) 100%)' }}>
                           <button onClick={() => handleToolAction('bold')} title="Bold" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-bolder text-sm"></i></button>
                           <button onClick={() => handleToolAction('italic')} title="Italic" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-italic text-sm"></i></button>
                           <button onClick={() => handleToolAction('emoji')} title="Emoji" className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}><i className="ph ph-smiley text-sm"></i></button>
@@ -3475,7 +3475,7 @@ export default function MetaInboxPage() {
                           }
                         }}
                         placeholder={autoCorrectEnabled ? "Type message... (Auto ON)" : "Type message..."}
-                        className="px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px]"
+                        className="px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] w-full bg-transparent resize-none"
                         token={token || ''}
                       />
                   </div>
@@ -3484,11 +3484,11 @@ export default function MetaInboxPage() {
                   <button 
                     onClick={handleSendMessage}
                     disabled={(!composerText.trim() && !attachedMedia) || sending || selected?.isBlocked}
-                    className="text-white h-8 px-4 rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 disabled:transform-none flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
+                    className="text-white h-10 w-10 md:h-8 md:w-auto md:px-4 rounded-full md:rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 disabled:transform-none flex items-center justify-center gap-1.5 shrink-0 self-end hover:shadow-lg hover:scale-105"
                     style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 100%)', boxShadow: '0 2px 8px rgba(30,127,67,0.3)' }}
                   >
-                    {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-sm"></i>}
-                    <span className="hidden xl:inline">Send</span>
+                    {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-lg md:text-sm"></i>}
+                    <span className="hidden md:inline">Send</span>
                   </button>
                 </div>
               </div>
