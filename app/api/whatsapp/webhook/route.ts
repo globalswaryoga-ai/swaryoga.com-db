@@ -258,32 +258,26 @@ async function handleWebhookPayload(payload: any) {
               const mediaId = mediaData?.id;
               
               if (mediaId) {
-                // Background async download & upload so chatbot flow responds in 1-2s
-                await (async () => {
-                  try {
-                    const metaMediaUrl = await getWhatsAppMediaUrl(mediaId, tenantCreds);
-                    if (metaMediaUrl) {
-                      const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl, tenantCreds);
-                      const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
-                      const fileName = `whatsapp-inbound/${from}/${Date.now()}.${extension}`;
-                      let uploadedUrl: string | undefined;
-                      try {
-                        uploadedUrl = await uploadToBunnyStorage(buffer, fileName, { contentType });
-                      } catch (bunnyErr) {
-                        uploadedUrl = await uploadToS3(buffer, fileName, {
-                          metadata: { 'wa-message-id': inboundWaMessageId || '', 'phone-number': from }
-                        });
-                      }
-                      if (uploadedUrl && inboundWaMessageId) {
-                        await updateBunnyMetaMessage(inboundWaMessageId, {
-                          media: { kind: type as any, url: uploadedUrl, mimeType: contentType, error: null }
-                        }).catch(() => {});
-                      }
+                try {
+                  const metaMediaUrl = await getWhatsAppMediaUrl(mediaId, tenantCreds);
+                  if (metaMediaUrl) {
+                    const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl, tenantCreds);
+                    mimeType = contentType;
+                    const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
+                    const fileName = `whatsapp-inbound/${from}/${Date.now()}.${extension}`;
+                    
+                    try {
+                      s3MediaUrl = await uploadToBunnyStorage(buffer, fileName, { contentType });
+                    } catch (bunnyErr) {
+                      s3MediaUrl = await uploadToS3(buffer, fileName, {
+                        metadata: { 'wa-message-id': inboundWaMessageId || '', 'phone-number': from }
+                      });
                     }
-                  } catch (mediaErr: any) {
-                    console.error('[WEBHOOK] Async media process error:', mediaErr);
                   }
-                })();
+                } catch (mediaErr: any) {
+                  console.error('[WEBHOOK] Async media process error:', mediaErr);
+                  mediaError = mediaErr instanceof Error ? mediaErr.message : String(mediaErr);
+                }
               }
             }
 

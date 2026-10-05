@@ -2120,7 +2120,7 @@ export default function MetaInboxPage() {
       <div className="flex flex-1 overflow-hidden bg-[#F9FAF9]">
 
         {/* LEFT CHAT LIST */}
-        <aside className="w-[27rem] border-r border-[#E0EDE6] flex flex-col overflow-hidden" style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #FAFCFB 100%)' }}>
+        <aside className={`w-full md:w-[27rem] border-r border-[#E0EDE6] flex-col overflow-hidden ${selected ? 'hidden md:flex' : 'flex'}`} style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #FAFCFB 100%)' }}>
 
           <div className="px-3 py-2.5 border-b border-[#E0EDE6] flex gap-2 items-center shrink-0" style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #F5FAF7 100%)' }}>
             <div className="relative flex-1 group">
@@ -2714,11 +2714,14 @@ export default function MetaInboxPage() {
         </aside>
 
     {/* CHAT AREA */}
-    <main className="flex-1 flex flex-col overflow-hidden relative z-10" style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F5F8F6 100%)', boxShadow: '0 8px 32px rgba(30,127,67,0.08), 0 2px 8px rgba(0,0,0,0.04)' }}>
+    <main className={`flex-1 flex-col overflow-hidden relative z-10 ${selected ? 'flex' : 'hidden md:flex'}`} style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F5F8F6 100%)', boxShadow: '0 8px 32px rgba(30,127,67,0.08), 0 2px 8px rgba(0,0,0,0.04)' }}>
 
           {selected ? (
             <>
               <div className="px-3 py-1.5 flex gap-2 items-center sticky top-0 z-30 shrink-0 backdrop-blur-md" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(230,244,236,0.4) 100%)', borderBottom: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 2px 12px rgba(30,127,67,0.06)' }}>
+                <button className="md:hidden p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors" onClick={() => setSelected(null)}>
+                  <i className="ph ph-arrow-left text-lg"></i>
+                </button>
                 <div className="flex items-center gap-2 mr-2">
                    <div className="h-7 w-7 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)' }}>
                       <i className="ph ph-user text-sm"></i>
@@ -3930,7 +3933,7 @@ export default function MetaInboxPage() {
 
         {/* RIGHT SIDEBAR */}
         {showSidebar && (
-          <aside className="w-72 p-4 overflow-y-auto shrink-0 backdrop-blur-sm" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(240,247,242,0.9) 100%)', borderLeft: '1px solid rgba(30,127,67,0.1)' }}>
+          <aside className="hidden xl:block w-72 p-4 overflow-y-auto shrink-0 backdrop-blur-sm" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(240,247,242,0.9) 100%)', borderLeft: '1px solid rgba(30,127,67,0.1)' }}>
             {selected ? (
               <>
               <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(30,127,67,0.1)' }}>
