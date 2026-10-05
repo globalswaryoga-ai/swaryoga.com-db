@@ -348,7 +348,9 @@ export default function BroadcastPage(props: any) {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const statusFilterRef = useRef<HTMLDivElement>(null);
   const [filterWorkshop, setFilterWorkshop] = useState('all');
   const [filterAssignedUser, setFilterAssignedUser] = useState('all');
   const [workshopFilterOpen, setWorkshopFilterOpen] = useState(false);
@@ -692,6 +694,9 @@ export default function BroadcastPage(props: any) {
       if (workshopFilterRef.current && !workshopFilterRef.current.contains(e.target as Node)) {
         setWorkshopFilterOpen(false);
       }
+      if (statusFilterRef.current && !statusFilterRef.current.contains(e.target as Node)) {
+        setStatusFilterOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -839,62 +844,25 @@ export default function BroadcastPage(props: any) {
     }
 
       let tabLeads = activeBatchLeads;
-      if (filterStatus === 'new_leads' || filterStatus === 'new' || filterStatus === 'lead') {
+      if (filterStatuses.length > 0) {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
             const leadStatus = (l.status || '').toLowerCase();
-            const isNewStatus = !dec.status || dec.status === 'new' || dec.status === 'new_leads' || leadStatus === 'new' || leadStatus === 'lead' || leadStatus === 'new_leads' || leadStatus === 'new_registration';
-            return isNewStatus && !dec.isRejected && !dec.isRegistered && leadStatus !== 'registered' && leadStatus !== 'rejected';
-         });
-      } else if (filterStatus === 'pending_leads') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            const leadStatus = (l.status || '').toLowerCase();
-            return (dec.status?.includes('pending') || leadStatus.includes('pending')) && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'approval_1') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'approval_1' || l.status === 'approval_1') && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'approval_2') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'approval_2' || l.status === 'approval_2') && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'registered_leads') {
-         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRegistered || l.status === 'registered' || l.status === 'registered_leads');
-      } else if (filterStatus === 'rejected_leads') {
-         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRejected || l.status === 'rejected' || l.status === 'rejected_leads');
-      } else if (filterStatus === 'set_zoom_meeting') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'set_zoom_meeting' || l.status === 'set_zoom_meeting') && !dec.isRegistered && !dec.isRejected;
-         });
-      } else if (filterStatus === 'take_zoom_meeting') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'take_zoom_meeting' || l.status === 'take_zoom_meeting') && !dec.isRegistered && !dec.isRejected;
-         });
-      } else if (filterStatus === 'pending_leads_1') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'pending_leads_1' || l.status === 'pending_leads_1') && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'pending_leads_2') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'pending_leads_2' || l.status === 'pending_leads_2') && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'pending_leads_3') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'pending_leads_3' || l.status === 'pending_leads_3') && !dec.isRejected && !dec.isRegistered;
-         });
-      } else if (filterStatus === 'student_kota') {
-         tabLeads = activeBatchLeads.filter((l: any) => {
-            const dec = batchDecisions[l.id || l._id] || {};
-            return (dec.status === 'student_kota' || l.status === 'student_kota');
+            const effStatus = dec.status || leadStatus;
+            
+            return filterStatuses.some(status => {
+               if (status === 'new_leads' || status === 'new' || status === 'lead') {
+                 return (!dec.status || dec.status === 'new' || dec.status === 'new_leads' || leadStatus === 'new' || leadStatus === 'lead' || leadStatus === 'new_leads' || leadStatus === 'new_registration') && !dec.isRejected && !dec.isRegistered && leadStatus !== 'registered' && leadStatus !== 'rejected';
+               } else if (status === 'pending_leads') {
+                 return (dec.status?.includes('pending') || leadStatus.includes('pending')) && !dec.isRejected && !dec.isRegistered;
+               } else if (status === 'registered_leads') {
+                 return batchDecisions[l.id || l._id]?.isRegistered || leadStatus === 'registered' || leadStatus === 'registered_leads';
+               } else if (status === 'rejected_leads') {
+                 return batchDecisions[l.id || l._id]?.isRejected || leadStatus === 'rejected' || leadStatus === 'rejected_leads';
+               } else {
+                 return effStatus === status && !dec.isRejected && !dec.isRegistered;
+               }
+            });
          });
       }
 
@@ -914,7 +882,7 @@ export default function BroadcastPage(props: any) {
           name: l.name || l.Name || `Lead ${idx + 1}`,
           phoneNumber: phone,
           email: l.email || l.Email || '',
-          status: filterStatus,
+          status: filterStatuses.join(', '),
           workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
           labels: l.labels || [],
@@ -957,22 +925,24 @@ export default function BroadcastPage(props: any) {
           lead.phoneNumber?.includes(searchQuery);
 
         const leadStatusNorm = (lead.status || '').toLowerCase();
-        const filterStatusNorm = filterStatus.toLowerCase();
-        let matchesStatus = filterStatus === 'all';
+        let matchesStatus = filterStatuses.length === 0;
         if (!matchesStatus) {
-          if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
-            matchesStatus = ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
-          } else if (filterStatusNorm.includes('pending')) {
-            matchesStatus = leadStatusNorm.includes('pending');
-          } else if (filterStatusNorm.includes('registered')) {
-            matchesStatus = leadStatusNorm.includes('register');
-          } else if (filterStatusNorm.includes('approval')) {
-            matchesStatus = leadStatusNorm.includes('approval');
-          } else if (filterStatusNorm.includes('rejected')) {
-            matchesStatus = leadStatusNorm.includes('reject');
-          } else {
-            matchesStatus = leadStatusNorm === filterStatusNorm;
-          }
+          matchesStatus = filterStatuses.some(status => {
+            const filterStatusNorm = status.toLowerCase();
+            if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
+              return ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+            } else if (filterStatusNorm.includes('pending')) {
+              return leadStatusNorm.includes('pending');
+            } else if (filterStatusNorm.includes('registered')) {
+              return leadStatusNorm.includes('register');
+            } else if (filterStatusNorm.includes('approval')) {
+              return leadStatusNorm.includes('approval');
+            } else if (filterStatusNorm.includes('rejected')) {
+              return leadStatusNorm.includes('reject');
+            } else {
+              return leadStatusNorm === filterStatusNorm;
+            }
+          });
         }
 
         const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
@@ -990,7 +960,7 @@ export default function BroadcastPage(props: any) {
 
         return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
       });
-  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
+  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -1886,14 +1856,43 @@ export default function BroadcastPage(props: any) {
                   )}
                 </div>
 
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[200px]"
-                >
-                  <option value="all">Leads Management (All)</option>
-                  {uniqueStatuses.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
-                </select>
+                <div className="relative" ref={statusFilterRef}>
+                  <div
+                    onClick={() => setStatusFilterOpen(!statusFilterOpen)}
+                    className="px-3 py-2 border border-green-600 rounded-lg text-sm bg-white min-w-[200px] flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {filterStatuses.length === 0 ? 'Leads Management (All)' : filterStatuses.length === 1 ? (STATUS_LABELS[filterStatuses[0]] || filterStatuses[0]) : `${filterStatuses.length} Statuses Selected`}
+                    </span>
+                    <svg className={`w-4 h-4 text-gray-500 transition-transform ${statusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                  {statusFilterOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                        <button
+                          onClick={() => setFilterStatuses([])}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                      {uniqueStatuses.map(s => (
+                        <label key={s} className="flex items-start gap-2.5 px-3 py-2 hover:bg-green-50 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={filterStatuses.includes(s)}
+                            onChange={(e) => {
+                              if (e.target.checked) setFilterStatuses(prev => [...prev, s]);
+                              else setFilterStatuses(prev => prev.filter(x => x !== s));
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded accent-green-600 shrink-0"
+                          />
+                          <span className="leading-tight text-gray-700">{STATUS_LABELS[s] || s}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => {
@@ -2123,10 +2122,10 @@ export default function BroadcastPage(props: any) {
               )}
 
               {/* Clear Filters */}
-              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus.size > 0) && (
+              {(filterStatuses.length > 0 || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus.size > 0) && (
                 <button
                   onClick={() => {
-                    setFilterStatus('all');
+                    setFilterStatuses([]);
                     setFilterWorkshop('all');
                     setFilterAssignedUser('all');
                     setFilterDeliveryStatus(new Set());
