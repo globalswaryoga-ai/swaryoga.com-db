@@ -721,17 +721,24 @@ export default function BroadcastPage(props: any) {
       'registered_leads',
       'set_zoom_meeting',
       'take_zoom_meeting',
-      'rejected_leads'
+      'rejected_leads',
+      'student_kota'
     ];
   }, []);
 
   const uniqueWorkshops = useMemo(() => {
     let sourceWorkshops = props?.workshops || [];
     if (sourceWorkshops.length === 0 && typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_workshops');
-      if (saved) {
-        try { sourceWorkshops = JSON.parse(saved); } catch (e) {}
+      let combined: any[] = [];
+      const savedW = localStorage.getItem('crm_workshops');
+      if (savedW) {
+        try { combined = combined.concat(JSON.parse(savedW)); } catch (e) {}
       }
+      const savedO = localStorage.getItem('crm_offers');
+      if (savedO) {
+        try { combined = combined.concat(JSON.parse(savedO)); } catch (e) {}
+      }
+      sourceWorkshops = combined;
     }
 
     const filtered = (sourceWorkshops || []).filter((w: any) => 
@@ -760,12 +767,18 @@ export default function BroadcastPage(props: any) {
     const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
     let activeBatches = (props?.workshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
     
-    // If not embedded, fetch workshops from localStorage
+    // If not embedded, fetch workshops and offers from localStorage
     if (!isEmbedded && typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_workshops');
-      if (saved) {
-        try { activeBatches = JSON.parse(saved).filter((w: any) => allowedBatchNames.includes(w.name)); } catch (e) {}
+      let combined: any[] = [];
+      const savedW = localStorage.getItem('crm_workshops');
+      if (savedW) {
+        try { combined = combined.concat(JSON.parse(savedW)); } catch (e) {}
       }
+      const savedO = localStorage.getItem('crm_offers');
+      if (savedO) {
+        try { combined = combined.concat(JSON.parse(savedO)); } catch (e) {}
+      }
+      activeBatches = combined.filter((w: any) => allowedBatchNames.includes(w.name));
     }
 
     let activeBatchLeads: any[] = [];
@@ -796,15 +809,33 @@ export default function BroadcastPage(props: any) {
               activeBatchLeads.push(lead);
             }
           } else {
-            seenLeadIds.add(leadId);
-            activeBatchLeads.push(lead);
+            const bName = (activeBatch.name || '').toLowerCase();
+            let isMatch = false;
+            const lName = (lead.workshopName || '').toLowerCase();
+            const lLabels = Array.isArray(lead.labels) ? lead.labels.join(' ').toLowerCase() : '';
+            const leadLangStr = lName + ' ' + lLabels;
+            
+            if (bName.includes('english') && leadLangStr.includes('english')) isMatch = true;
+            else if (bName.includes('hindi') && leadLangStr.includes('hindi')) isMatch = true;
+            else if (bName.includes('marathi') && leadLangStr.includes('marathi')) isMatch = true;
+            else if (bName.includes('kannada') && leadLangStr.includes('kannada')) isMatch = true;
+            else if (!bName.includes('english') && !bName.includes('hindi') && !bName.includes('marathi') && !bName.includes('kannada')) isMatch = true;
+            
+            if (isMatch) {
+              seenLeadIds.add(leadId);
+              activeBatchLeads.push(lead);
+            }
           }
         });
       });
     }
 
-    if (activeBatchLeads.length === 0) {
-      activeBatchLeads = sourceLeads;
+    if (activeBatches.length === 0) {
+      if (!isEmbedded) {
+        activeBatchLeads = sourceLeads;
+      } else {
+        activeBatchLeads = [];
+      }
     }
 
       let tabLeads = activeBatchLeads;
@@ -859,6 +890,11 @@ export default function BroadcastPage(props: any) {
          tabLeads = activeBatchLeads.filter((l: any) => {
             const dec = batchDecisions[l.id || l._id] || {};
             return (dec.status === 'pending_leads_3' || l.status === 'pending_leads_3') && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'student_kota') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return (dec.status === 'student_kota' || l.status === 'student_kota');
          });
       }
 
