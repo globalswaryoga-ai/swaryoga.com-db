@@ -66,11 +66,13 @@ export async function POST(request: NextRequest) {
     const csvContacts = Array.isArray(target.csvContacts) ? target.csvContacts : [];
     let leads = allLeads.filter((lead: any) => !lead.isBlocked && isOwned(lead, viewerUserId, superAdmin));
 
-    if (Array.isArray(target.leadIds) && target.leadIds.length > 0) {
-      const wanted = new Set(target.leadIds.map((id: unknown) => String(id)));
-      leads = leads.filter((lead: any) => wanted.has(String(lead._id)) || wanted.has(String(lead.id)) || wanted.has(String(lead.document_id)));
-    } else if (Array.isArray(target.leadIds) && target.leadIds.length === 0 && csvContacts.length === 0) {
-      leads = [];
+    if (Array.isArray(target.leadIds)) {
+      if (target.leadIds.length > 0) {
+        const wanted = new Set(target.leadIds.map((id: unknown) => String(id)));
+        leads = leads.filter((lead: any) => wanted.has(String(lead._id)) || wanted.has(String(lead.id)) || wanted.has(String(lead.document_id)));
+      } else {
+        leads = [];
+      }
     } else if (target.type === 'filters' || !target.type) {
       const filters = target.filters || {};
       if (filters.status) leads = leads.filter((lead: any) => String(lead.status || '') === String(filters.status));

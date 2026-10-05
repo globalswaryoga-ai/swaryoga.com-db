@@ -1370,7 +1370,8 @@ export default function BroadcastPage(props: any) {
           }
         } else if (id.startsWith('google-csv-') || id.startsWith('oauth-form-')) {
           // Unsaved lead from Google Forms/Sheets integration
-          const l = leads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
+          const allPossibleLeads = [...leads, ...(propLeadsData || [])];
+          const l = allPossibleLeads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
           if (l && l.phoneNumber) {
             virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
           }
