@@ -1292,7 +1292,7 @@ export default function BroadcastPage(props: any) {
 
     if (sendMode === 'repeat') {
       try {
-        const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_'));
+        const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_') && !id.startsWith('google-csv-') && !id.startsWith('oauth-form-'));
         if (realLeadIds.length === 0) throw new Error('Repeat requires recipients with saved lead records (CSV-only contacts are not supported)');
         if (repeatSelectedDates.length === 0) throw new Error('Select at least one day to repeat on');
 
@@ -1353,27 +1353,37 @@ export default function BroadcastPage(props: any) {
         delayMins = delayMinutes;
       }
 
-      // Split real leadIds from CSV virtual IDs
+      // Split real leadIds from CSV virtual IDs and unsaved virtual IDs
       const allIds = Array.from(selectedLeads);
-      const realLeadIds = allIds.filter(id => !id.startsWith('csv_'));
-      const csvIds = allIds.filter(id => id.startsWith('csv_'));
-      const csvPhoneNumbers = csvIds.map(id => {
-        // csv_${idx}_${last10digits} — extract the full phone from csvContacts
-        const parts = id.split('_');
-        const idx = parseInt(parts[1], 10);
-        return csvContacts[idx]?.phoneNumber || parts.slice(2).join('_');
-      }).filter(Boolean);
+      const realLeadIds: string[] = [];
+      const virtualContacts: { name?: string; phoneNumber: string; email?: string }[] = [];
+
+      allIds.forEach(id => {
+        if (id.startsWith('csv_')) {
+          const idx = parseInt(id.split('_')[1], 10);
+          const c = csvContacts[idx];
+          if (c) {
+            virtualContacts.push({ name: c.name || '', phoneNumber: c.phoneNumber, email: c.email });
+          } else {
+            const parts = id.split('_');
+            virtualContacts.push({ phoneNumber: parts.slice(2).join('_') });
+          }
+        } else if (id.startsWith('google-csv-') || id.startsWith('oauth-form-')) {
+          // Unsaved lead from Google Forms/Sheets integration
+          const l = leads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
+          if (l && l.phoneNumber) {
+            virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
+          }
+        } else {
+          realLeadIds.push(id);
+        }
+      });
 
       // Build target — include both leadIds and csvPhoneNumbers
       const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
-      if (csvPhoneNumbers.length > 0) {
-        target.csvPhoneNumbers = csvPhoneNumbers;
-        // Include CSV contact details for lead creation
-        target.csvContacts = csvIds.map(id => {
-          const idx = parseInt(id.split('_')[1], 10);
-          const c = csvContacts[idx];
-          return c ? { name: c.name, phoneNumber: c.phoneNumber, email: c.email } : null;
-        }).filter(Boolean);
+      if (virtualContacts.length > 0) {
+        target.csvPhoneNumbers = virtualContacts.map(c => c.phoneNumber);
+        target.csvContacts = virtualContacts;
       }
 
       const payload: Record<string, unknown> = {
