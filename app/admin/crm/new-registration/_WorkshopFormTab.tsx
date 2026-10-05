@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download } from 'lucide-react';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -616,6 +616,31 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <div className="flex items-center gap-3">
                 {(p.activeTab === 'my_batches' || p.activeTab === 'our_workshops') && (
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const leadsToDownload = effectiveLeads.filter(Boolean);
+                        if (!leadsToDownload.length) return alert("No leads to download");
+                        const headers = ['Name', 'WhatsApp', 'Email'];
+                        const rows = leadsToDownload.map((l: any) => {
+                          const name = l.name || l.Name || '';
+                          const phone = l.phoneNumber || l.whatsapp || l.WhatsApp || l.Contact || '';
+                          const email = l.email || l.Email || '';
+                          return [name, phone, email].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+                        });
+                        const csvContent = [headers.join(','), ...rows].join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `Batch_Leads_${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                    >
+                      <Download size={14} /> Download Selected Batch Leads
+                    </button>
                     <button
                       onClick={() => setIsMergeModalOpen(true)}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
