@@ -85,6 +85,9 @@ export async function saveBunnyLead(lead: any, documentId?: string) {
   const now = new Date().toISOString();
   const docId = documentId || lead._id?.$oid || lead._id || Math.random().toString(36).substring(2, 15);
   
+  const existing = documentId || lead._id ? await getBunnyLeadById(docId) : null;
+  const isNew = !existing;
+  
   const leadToSave = {
     ...lead,
     _id: docId,
@@ -114,6 +117,18 @@ export async function saveBunnyLead(lead: any, documentId?: string) {
       leadToSave.updatedAt
     ]
   });
+  
+  if (isNew && leadToSave.createdByUserId && leadToSave.createdByUserId !== 'system') {
+    const { pushLeadToGoogleContacts } = await import('@/lib/googleContactsManager');
+    pushLeadToGoogleContacts(leadToSave.createdByUserId, {
+      name: leadToSave.name || 'Unknown',
+      phone: leadToSave.phoneNumber,
+      email: leadToSave.email,
+      labels: leadToSave.labels,
+      city: leadToSave.city,
+      country: leadToSave.country
+    }).catch(console.error);
+  }
   
   return leadToSave;
 }

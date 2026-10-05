@@ -251,6 +251,8 @@ export async function GET(request: NextRequest) {
             source: 'google_forms',
             workshopName: formTitle,
             status: 'new',
+            createdByUserId: parsed.userId,
+            assignedToUserId: parsed.userId,
           });
         }
       }

@@ -12,7 +12,7 @@ async function run() {
       console.log('Status:', row.status);
       const dataJson = JSON.parse(String(row.data_json || '{}'));
       console.log('Stats:', dataJson.stats);
-      console.log('Targets length:', dataJson.target ? (dataJson.target.leadIds ? dataJson.target.leadIds.length : 'no leadIds') : 'no target');
+      console.log('Targets leadIds:', dataJson.target ? (dataJson.target.leadIds ? dataJson.target.leadIds.slice(0, 5) : 'no leadIds') : 'no target');
       console.log('Created at:', row.created_at);
       console.log('-------------------------');
     }

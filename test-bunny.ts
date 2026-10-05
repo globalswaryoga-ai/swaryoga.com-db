@@ -1,22 +1,8 @@
-import { bunnyExecute } from './lib/bunnyDatabase.ts';
-import dotenv from 'dotenv';
-dotenv.config();
-
+import { bunnyExecute, cleanMongoJson } from './lib/bunnyDatabase';
 async function run() {
-  try {
-    console.log('--- social_media_accounts_sql ---');
-    const res1 = await bunnyExecute({ sql: "SELECT * FROM social_media_accounts_sql WHERE platform = 'youtube'" });
-    console.log(res1.rows);
-  } catch (e) {
-    console.log('Error querying social_media_accounts_sql:', e.message);
-  }
-
-  try {
-    console.log('\n--- mongo_documents (socialmediaaccounts) ---');
-    const res2 = await bunnyExecute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'" });
-    console.log(res2.rows.map(r => JSON.parse(r.document_json).email));
-  } catch (e) {
-    console.log('Error querying mongo_documents:', e.message);
-  }
+  const accountRes = await bunnyExecute({
+    sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+  });
+  console.log(accountRes.rows.map(r => cleanMongoJson(JSON.parse(String(r.document_json || '{}')))));
 }
 run();
