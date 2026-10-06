@@ -55,7 +55,8 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
     throw new Error('Workshop cohort not found');
   }
 
-  const zoomMeetingId = cohort.zoomMeetingId ? String(cohort.zoomMeetingId).trim() : '';
+  const zoomMeetingIdRaw = cohort.zoomMeetingId ? String(cohort.zoomMeetingId).trim() : '';
+  const zoomMeetingId = zoomMeetingIdRaw.replace(/\s+/g, '');
   if (!zoomMeetingId) {
     return {
       success: false,

@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
           // Auto-delete from Zoom if completely successful
           if (result.zoomSync.success) {
             try {
-              await deleteZoomRecording(cohort.zoomMeetingId, 'trash');
+              await deleteZoomRecording(cohort.zoomMeetingId, 'delete');
               result.zoomDeleted = true;
             } catch (delErr: any) {
               result.zoomDeleteError = delErr.message;

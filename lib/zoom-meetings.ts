@@ -192,6 +192,41 @@ export async function addZoomMeetingRegistrant(
   return response.json();
 }
 
-export const getZoomMeetingRecordings = async (meetingId: string | number) => [];
-export const recoverZoomRecording = async (meetingId: string | number) => {};
-export const deleteZoomRecording = async (meetingId: string | number) => {};
+export const getZoomMeetingRecordings = async (meetingId: string | number) => {
+  const accessToken = await getZoomAccessToken();
+  const cleanId = String(meetingId).replace(/\s+/g, '');
+  const res = await fetch(`https://api.zoom.us/v2/meetings/${encodeURIComponent(cleanId)}/recordings`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store'
+  });
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`Failed to get recordings for ${cleanId}: ${await res.text()}`);
+  }
+  return res.json();
+};
+
+export const recoverZoomRecording = async (meetingId: string | number) => {
+  const accessToken = await getZoomAccessToken();
+  const cleanId = String(meetingId).replace(/\s+/g, '');
+  const res = await fetch(`https://api.zoom.us/v2/meetings/${encodeURIComponent(cleanId)}/recordings/status`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'recover' })
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Failed to recover recording for ${cleanId}: ${await res.text()}`);
+  }
+};
+
+export const deleteZoomRecording = async (meetingId: string | number, action: 'trash' | 'delete' = 'delete') => {
+  const accessToken = await getZoomAccessToken();
+  const cleanId = String(meetingId).replace(/\s+/g, '');
+  const res = await fetch(`https://api.zoom.us/v2/meetings/${encodeURIComponent(cleanId)}/recordings?action=${action}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`Failed to delete recording for ${cleanId}: ${await res.text()}`);
+  }
+};

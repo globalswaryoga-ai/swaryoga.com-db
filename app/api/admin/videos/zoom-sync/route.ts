@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
       // Auto‑delete recordings from Zoom after successful upload to free storage
       try {
         await sendEvent('progress', { type: 'start', percent: 101, message: 'Deleting recordings from Zoom...' });
-        const delRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings`, {
+        const delRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings?action=delete`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${accessToken}` },
         });
