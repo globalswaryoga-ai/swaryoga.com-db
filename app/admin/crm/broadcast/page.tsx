@@ -867,7 +867,8 @@ export default function BroadcastPage(props: any) {
             
             return filterStatuses.some(status => {
                if (status === 'new_leads' || status === 'new' || status === 'lead') {
-                 return (!dec.status || dec.status === 'new' || dec.status === 'new_leads' || leadStatus === 'new' || leadStatus === 'lead' || leadStatus === 'new_leads' || leadStatus === 'new_registration') && !dec.isRejected && !dec.isRegistered && leadStatus !== 'registered' && leadStatus !== 'rejected';
+                 // Unconditionally include leads that aren't explicitly registered or rejected
+                 return leadStatus !== 'registered' && leadStatus !== 'rejected' && !dec.isRegistered && !dec.isRejected;
                } else if (status === 'pending_leads') {
                  return (dec.status?.includes('pending') || leadStatus.includes('pending')) && !dec.isRejected && !dec.isRegistered;
                } else if (status === 'registered_leads') {
@@ -943,8 +944,9 @@ export default function BroadcastPage(props: any) {
         if (!matchesStatus) {
           matchesStatus = filterStatuses.some(status => {
             const filterStatusNorm = status.toLowerCase();
+            // If the status is 'new_leads', and it passed the tabLeads filter, it should definitely be shown here!
             if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
-              return ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+              return true;
             } else if (filterStatusNorm.includes('pending')) {
               return leadStatusNorm.includes('pending');
             } else if (filterStatusNorm.includes('registered')) {
