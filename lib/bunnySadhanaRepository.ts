@@ -298,7 +298,7 @@ export async function insertProgramVideo(doc: any) {
   await bunnyExecute({
     sql: `INSERT INTO sadhana_program_videos_sql (id, program_id, date, title, video_url, hls_url, sort_order, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [vid, doc.programId, doc.date, doc.title, doc.videoUrl, doc.hlsUrl || null, doc.order || 0, now()]
+    args: [vid, doc.programId, doc.date, doc.title || '', doc.videoUrl || '', doc.hlsUrl || null, doc.order || 0, now()]
   });
   return vid;
 }

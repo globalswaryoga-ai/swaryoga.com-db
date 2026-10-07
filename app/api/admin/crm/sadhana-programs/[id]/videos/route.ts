@@ -46,9 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const updateData: any = {
       title: title ? String(title).slice(0, 150) : '',
       order: order !== undefined ? parseInt(order) : undefined,
+      videoUrl: videoUrl ? String(videoUrl) : '',
+      hlsUrl: hlsUrl ? String(hlsUrl) : ''
     };
-    if (videoUrl) updateData.videoUrl = String(videoUrl);
-    if (hlsUrl) updateData.hlsUrl = String(hlsUrl);
 
     let existingVideo = await getProgramVideoByDate(program.id, date);
     if (existingVideo) {
