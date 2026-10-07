@@ -74,23 +74,36 @@ export async function GET(request: NextRequest) {
     });
 
     if (!superAdmin) {
-      // Need to filter by accessible leads and ownership
-      const allLeads = await loadBunnyLeads();
-      const accessibleLeads = allLeads.filter(l => l.assignedToUserId === viewerUserId || l.createdByUserId === viewerUserId);
-      const accessibleIds = accessibleLeads.map(l => String(l._id));
-
-      if (filterParams.leadId && !accessibleIds.includes(String(filterParams.leadId))) {
-        return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
+      let isAccessible = false;
+      if (filterParams.leadId) {
+        const lead = await getBunnyLeadById(filterParams.leadId);
+        if (lead && (lead.assignedToUserId === viewerUserId || lead.createdByUserId === viewerUserId)) {
+          isAccessible = true;
+        }
+      } else if (filterParams.phoneNumber) {
+        const lead = await getBunnyLeadByPhone(filterParams.phoneNumber);
+        if (lead && (lead.assignedToUserId === viewerUserId || lead.createdByUserId === viewerUserId)) {
+          isAccessible = true;
+        }
       }
 
-      // Filter messages in memory for now if not superAdmin
-      bunnyMessages = bunnyMessages.filter((m: any) => 
-        (m.leadId && accessibleIds.includes(String(m.leadId))) ||
-        m.sentByUserId === viewerUserId ||
-        m.bridgeUserId === viewerUserId ||
-        m.ownerId === viewerUserId
-      );
-      bunnyTotal = bunnyMessages.length; // Approximate
+      if ((filterParams.leadId || filterParams.phoneNumber) && !isAccessible) {
+        return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
+      } else if (!filterParams.leadId && !filterParams.phoneNumber) {
+        // Fallback for global message search (rare)
+        const allLeads = await loadBunnyLeads();
+        const accessibleIds = allLeads
+          .filter(l => l.assignedToUserId === viewerUserId || l.createdByUserId === viewerUserId)
+          .map(l => String(l._id));
+        
+        bunnyMessages = bunnyMessages.filter((m: any) => 
+          (m.leadId && accessibleIds.includes(String(m.leadId))) ||
+          m.sentByUserId === viewerUserId ||
+          m.bridgeUserId === viewerUserId ||
+          m.ownerId === viewerUserId
+        );
+        bunnyTotal = bunnyMessages.length;
+      }
     }
 
     // Apply additional filters (status, direction)

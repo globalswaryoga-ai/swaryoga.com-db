@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 interface CanvaStudioTabProps {
@@ -730,7 +730,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                      <button 
                                        onClick={() => {
                                          const a = document.createElement('a');
-                                         a.href = msg.videoUrl;
+                                         a.href = msg.videoUrl || "";
                                          a.download = `AI-Video-${Date.now()}.mp4`;
                                          document.body.appendChild(a);
                                          a.click();
@@ -784,7 +784,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                      <button 
                                        onClick={() => {
                                          const a = document.createElement('a');
-                                         a.href = msg.imageUrl;
+                                         a.href = msg.imageUrl || "";
                                          a.download = `AI-Design-${Date.now()}.png`;
                                          document.body.appendChild(a);
                                          a.click();
@@ -952,7 +952,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => { const a = document.createElement('a'); a.href = metaVideoUrl || metaCanvaUrl; a.download = `AI-Media-${Date.now()}.${metaVideoUrl ? 'mp4' : 'webp'}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                          onClick={() => { const a = document.createElement('a'); a.href = metaVideoUrl || metaCanvaUrl || ""; a.download = `AI-Media-${Date.now()}.${metaVideoUrl ? 'mp4' : 'webp'}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
                         >
                           <Download size={12} /> Download
@@ -985,7 +985,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                         />
                       ) : (
                         <img
-                          src={metaCanvaUrl}
+                          src={metaCanvaUrl || undefined}
                           alt="AI Generated Design"
                           className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
                         />

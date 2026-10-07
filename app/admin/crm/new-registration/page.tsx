@@ -974,13 +974,13 @@ export default function NewRegistrationPage() {
                   const raw = lead._rawRecord || {};
                   return {
                     ...lead,
-                    name: raw[mapping['Name']] || lead.name,
-                    email: raw[mapping['Email']] || lead.email,
-                    mobile: raw[mapping['Mobile']] || lead.mobile,
-                    phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
-                    city: raw[mapping['City']] || lead.city,
-                    country: raw[mapping['Country']] || lead.country,
-                    gender: raw[mapping['Gender']] || lead.gender,
+                    name: raw[mapping['NAME']] || raw[mapping['Name']] || lead.name,
+                    email: raw[mapping['EMAIL']] || raw[mapping['Email']] || lead.email,
+                    mobile: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.mobile,
+                    phoneNumber: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.phoneNumber,
+                    city: raw[mapping['CITY']] || raw[mapping['City']] || lead.city,
+                    country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
+                    gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
                     language: currentWorkshop?.language || selectedDashboardLang,
                     workshopName: currentWorkshop?.name || '',
                   };
@@ -1350,7 +1350,7 @@ export default function NewRegistrationPage() {
       setLinkedFormId('');
       setSelectedFormId('');
       setGoogleFormUrl('');
-      setFormSource('crm');
+      setFormSource('internal');
       setLeadsData([]);
       setFieldMapping({});
       setLeadsFilter('');

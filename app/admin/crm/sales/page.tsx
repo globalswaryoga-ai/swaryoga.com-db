@@ -2036,10 +2036,10 @@ export default function SalesPage() {
 
                           setCsvContacts(mappedContacts);
                           setCsvColumnMap({
-                            name: 0,
-                            amount: 1,
-                            date: 2,
-                          });
+                            name: 'name',
+                            amount: 'amount',
+                            date: 'date',
+                          } as any);
                           setCsvFileName(`${file.name} (${data.count} entries)`);
                           alert(`✅ Extracted ${data.count} sales entries from PDF`);
                         } else {

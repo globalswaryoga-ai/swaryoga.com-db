@@ -11,12 +11,27 @@ import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 // Helper to prevent double counting on long overlapping form answers
 const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
   const v = String(valStr).toLowerCase().trim();
-  const k = String(keyword).toLowerCase().trim();
-  if (!v || !k) return false;
-  if (v === k) return true;
-  // If it's a short custom keyword (<= 3 words), allow substring matching
-  if (k.split(/\s+/).length <= 3) return v.includes(k);
-  return false;
+  const kStr = String(keyword).toLowerCase().trim();
+  if (!v || !kStr) return false;
+  
+  // Handle multiple keywords separated by commas (OR logic)
+  const keywords = kStr.split(',').map(k => k.trim()).filter(Boolean);
+  
+  return keywords.some(k => {
+    if (v === k) return true;
+    
+    // Strict 100% word boundary match
+    try {
+      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?:^|\\W)${escapedK}(?:\\W|$)`, 'i');
+      if (regex.test(v)) return true;
+    } catch (e) {}
+    
+    // Safe substring fallback for long phrases
+    if (k.length > 15 && v.includes(k)) return true;
+    
+    return false;
+  });
 };
 
 // ============================================================================
@@ -902,9 +917,8 @@ export default function BroadcastPage(props: any) {
               phoneNumber: c.phoneNumber,
               email: c.email,
               status: 'csv',
-              isCSV: true,
               workshopName: '',
-            });
+            } as any);
           }
         });
       }
@@ -2204,7 +2218,7 @@ export default function BroadcastPage(props: any) {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <span>{lead.phoneNumber}</span>
-                        {lead.isCSV && (
+                        {(lead as any).isCSV && (
                           <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs font-medium">
                             📄 CSV
                           </span>
@@ -2214,9 +2228,9 @@ export default function BroadcastPage(props: any) {
                             {lead.workshopName}
                           </span>
                         )}
-                        {lead.userName && (
+                        {(lead as any).userName && (
                           <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-xs">
-                            👤 {lead.userName}
+                            👤 {(lead as any).userName}
                           </span>
                         )}
                       </div>

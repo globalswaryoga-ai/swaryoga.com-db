@@ -362,9 +362,9 @@ export async function getBunnyMetaAnalytics(scope: Record<string, any>, startDat
 
 export async function getBunnyMetaMessageByWaId(waMessageId: string) {
   await initBunnyMetaWhatsAppSchema();
-  const result = await bunnyExecute({ sql: `SELECT document_json FROM meta_messages_sql WHERE wa_message_id = ?`, args: [waMessageId] });
+  const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE wa_message_id = ?`, args: [waMessageId] });
   if (!result.rows[0]) return null;
-  const msg: any = parse(result.rows[0].document_json, {});
+  const msg: any = parse(result.rows[0].data_json, {});
   return { ...msg, _id: String(msg._id || msg.documentId) };
 }
 

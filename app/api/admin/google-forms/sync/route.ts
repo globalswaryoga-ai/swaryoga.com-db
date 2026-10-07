@@ -172,12 +172,14 @@ export async function GET(request: NextRequest) {
         return '';
       };
 
-      const name = findKey(['name', 'first', 'full name']);
-      const email = findKey(['email', 'mail']);
-      const mobile = findKey(['mobile', 'phone', 'whatsapp']);
-      const country = findKey(['country', 'nation']);
-      const city = findKey(['city', 'town', 'location']);
-      const gender = findKey(['gender', 'sex']);
+      // Broad keyword matching for field detection across languages & form styles
+      const name = findKey(['full name', 'your name', 'name', 'first', 'pura naam', 'poora naam', 'नाव', 'नाम', 'naam']);
+      const email = findKey(['email', 'mail', 'ईमेल']);
+      const mobile = findKey(['mobile', 'phone', 'whatsapp', 'contact', 'number', 'नंबर', 'नम्बर']);
+      const country = findKey(['country', 'nation', 'देश']);
+      const city = findKey(['city', 'town', 'location', 'शहर']);
+      // "I am" covers forms that say "I am: Male / Female" instead of "Gender"
+      const gender = findKey(['gender', 'sex', 'i am', 'male', 'female', 'लिंग', 'पुरुष', 'स्त्री']);
 
       const dynamicAnswers: Record<string, string> = {};
       Object.keys(record).forEach(k => {
@@ -189,6 +191,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: `oauth-form-${resp.responseId || Date.now()}-${index}`,
+        responseId: resp.responseId || String(Date.now() + index),
         name: name || `Lead ${index + 1}`,
         email: email || '',
         mobile: mobile || '',
@@ -264,10 +267,11 @@ export async function GET(request: NextRequest) {
       
       for (const lead of leads) {
         // 1. Add to Form Submissions (if not exists by responseId)
-        const responseIdStr = lead.id.replace('oauth-form-', '').split('-')[0];
+        const responseIdStr = lead.responseId || lead.id.replace('oauth-form-', '').split('-')[0];
         const isDuplicateSubmission = existingSubmissions.some((s: any) => 
           (s.formData && s.formData === responseIdStr) || 
-          (lead.email && s.email && s.email.toLowerCase() === lead.email.toLowerCase())
+          (lead.email && s.email && s.email.toLowerCase() === lead.email.toLowerCase()) ||
+          (lead.mobile && s.mobile && String(s.mobile).replace(/\\D/g, '').length >= 10 && String(lead.mobile).replace(/\\D/g, '') === String(s.mobile).replace(/\\D/g, ''))
         );
         
         if (!isDuplicateSubmission) {
@@ -283,7 +287,7 @@ export async function GET(request: NextRequest) {
             createdAt: lead.createdAt
           });
           // Update the array so subsequent identical items in this batch are caught
-          existingSubmissions.push({ formData: responseIdStr, email: lead.email });
+          existingSubmissions.push({ formData: responseIdStr, email: lead.email, mobile: lead.mobile });
         }
 
         // 2. Add to Global CRM Leads
@@ -305,6 +309,8 @@ export async function GET(request: NextRequest) {
             createdByUserId: matchedUserId,
             assignedToUserId: matchedUserId,
           });
+          // Track in-memory so same phone won't be added again in this batch
+          allLeads.push({ phoneNumber: phone });
         }
       }
     } catch (importErr) {

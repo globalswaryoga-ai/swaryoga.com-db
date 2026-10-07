@@ -324,7 +324,7 @@ export default function DietaryRecommendationsPage() {
                             setFormData({ ...formData, tasteRecommendations: updated });
                           }}
                           placeholder="🍶"
-                          maxLength="2"
+                          maxLength={2}
                           className="w-full px-3 py-2 border border-green-300 rounded text-sm text-center"
                         />
                       </div>
@@ -401,7 +401,7 @@ export default function DietaryRecommendationsPage() {
                             setFormData({ ...formData, avoidRecommendations: updated });
                           }}
                           placeholder="🧂"
-                          maxLength="2"
+                          maxLength={2}
                           className="w-full px-3 py-2 border border-red-300 rounded text-sm text-center"
                         />
                       </div>

@@ -716,11 +716,16 @@ export default function MetaInboxPage() {
       const isPhoneNumber = digitsOnly.length >= 10;
       const params: any = isPhoneNumber ? { phoneNumber: digitsOnly } : { leadId: id };
       params.provider = providerScope;
+      const reqConvId = selectedRef.current?._id;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { 
         params,
         silent, // Pass silent flag to crmFetch
       });
+      
+      // Prevent race conditions: check if user switched chats while fetching
+      if (!silent && reqConvId && selectedRef.current?._id !== reqConvId) return;
+
       if (data?.messages) {
         // Reverse needed so oldest is at top (standard chat view)
         const fresh = [...data.messages].reverse();

@@ -527,7 +527,7 @@ export default function GoogleFormBuilderPage() {
   }, [token, activeForm]);
 
   // ── Upload image helper ──
-  const uploadImage = async (file: File, type: 'image' | 'qr' | 'formImage') => {
+  const uploadImage = async (file: File, type: 'image' | 'qr' | 'formImage' | 'urlImage') => {
     setUploadingImage(type);
     try {
       const reader = new FileReader();
@@ -679,12 +679,12 @@ export default function GoogleFormBuilderPage() {
       // Update backend for both
       await fetch(`/api/admin/form-questions?id=${currentQ._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: authHeaders(),
         body: JSON.stringify({ formId: activeForm?.formId, order: currentQ.order })
       });
       await fetch(`/api/admin/form-questions?id=${swapQ._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: authHeaders(),
         body: JSON.stringify({ formId: activeForm?.formId, order: swapQ.order })
       });
       showToast('Order updated');
@@ -780,7 +780,7 @@ export default function GoogleFormBuilderPage() {
                   onClick={() => openSubmissionsModal(activeForm)}
                   className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 border border-emerald-700 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-sm transition-all"
                 >
-                  <Eye size={16} /> View Data ({activeForm.submissionCount || 0})
+                  <Eye size={16} /> View Data ({(activeForm as any).submissionCount || 0})
                 </button>
                 
                 <button
@@ -1559,7 +1559,7 @@ export default function GoogleFormBuilderPage() {
                         onClick={() => {
                           const arr = Array.isArray(qData.paymentConfig) ? [...qData.paymentConfig] : (qData.paymentConfig ? [qData.paymentConfig] : []);
                           arr.splice(i, 1);
-                          setQData(f => ({ ...f, paymentConfig: arr }));
+                          setQData(f => ({ ...f, paymentConfig: arr as any }));
                         }} 
                         className="absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-500 rounded-full flex items-center justify-center hover:bg-red-200"
                       >×</button>
@@ -1569,7 +1569,7 @@ export default function GoogleFormBuilderPage() {
                           <input type="number" min="0" value={payOpt.amount || ''} onChange={e => {
                             const arr = Array.isArray(qData.paymentConfig) ? [...qData.paymentConfig] : (qData.paymentConfig ? [qData.paymentConfig] : []);
                             arr[i] = { ...arr[i], amount: Number(e.target.value) };
-                            setQData(f => ({ ...f, paymentConfig: arr }));
+                            setQData(f => ({ ...f, paymentConfig: arr as any }));
                           }} placeholder="e.g. 500" className="w-full h-8 px-2 border border-slate-200 rounded-lg text-sm outline-none" />
                         </div>
                         <div>
@@ -1577,7 +1577,7 @@ export default function GoogleFormBuilderPage() {
                           <select value={payOpt.currency || 'INR'} onChange={e => {
                             const arr = Array.isArray(qData.paymentConfig) ? [...qData.paymentConfig] : (qData.paymentConfig ? [qData.paymentConfig] : []);
                             arr[i] = { ...arr[i], currency: e.target.value };
-                            setQData(f => ({ ...f, paymentConfig: arr }));
+                            setQData(f => ({ ...f, paymentConfig: arr as any }));
                           }} className="w-full h-8 px-2 border border-slate-200 rounded-lg text-sm outline-none bg-white">
                             <option value="INR">INR (₹)</option>
                             <option value="NPR">NPR (रु)</option>
@@ -1592,7 +1592,7 @@ export default function GoogleFormBuilderPage() {
                         <input value={payOpt.buttonText || ''} onChange={e => {
                           const arr = Array.isArray(qData.paymentConfig) ? [...qData.paymentConfig] : (qData.paymentConfig ? [qData.paymentConfig] : []);
                           arr[i] = { ...arr[i], buttonText: e.target.value };
-                          setQData(f => ({ ...f, paymentConfig: arr }));
+                          setQData(f => ({ ...f, paymentConfig: arr as any }));
                         }} placeholder="e.g. Pay Now" className="w-full h-8 px-2 border border-slate-200 rounded-lg text-sm outline-none" />
                       </div>
                     </div>
@@ -1602,7 +1602,7 @@ export default function GoogleFormBuilderPage() {
                     onClick={() => {
                       const arr = Array.isArray(qData.paymentConfig) ? [...qData.paymentConfig] : (qData.paymentConfig ? [qData.paymentConfig] : []);
                       arr.push({ amount: 0, currency: 'INR', buttonText: 'Pay Now' });
-                      setQData(f => ({ ...f, paymentConfig: arr }));
+                      setQData(f => ({ ...f, paymentConfig: arr as any }));
                     }}
                     className="w-full py-2 border border-dashed border-emerald-300 rounded-xl text-xs font-bold text-emerald-600 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1"
                   >
@@ -1858,7 +1858,7 @@ export default function GoogleFormBuilderPage() {
                               {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '-'}
                             </td>
                             {submissionQuestions.map(q => {
-                              let val = sub.dynamicAnswers ? (sub.dynamicAnswers[q.fieldKey] ?? sub.dynamicAnswers[q.label?.en] ?? sub.dynamicAnswers[q.label_en]) : sub[q.fieldKey];
+                              let val = sub.dynamicAnswers ? (sub.dynamicAnswers[q.fieldKey] ?? sub.dynamicAnswers[q.label?.en] ?? sub.dynamicAnswers[(q as any).label_en]) : sub[q.fieldKey];
                               if (!val && q.label?.en) {
                                 const lbl = q.label.en.toLowerCase();
                                 if (lbl.includes('name') || lbl.includes('first')) val = sub.name;

@@ -113,7 +113,7 @@ export default function SadhanaProgramsPage() {
           name: '', description: '', timeSlots: ['22:00', '', '', ''], timezone: 'Asia/Kolkata',
           videoDuration: 40, countdownMinutes: 3, days: [0, 1, 2, 3, 4, 5, 6], repeatFrequency: 'daily',
           startDate: new Date().toISOString().split('T')[0], botName: '🤖 Swar Yoga Bot',
-          botJoinMinutes: 5, enableBotAutomation: true,
+          botJoinMinutes: 5, enableBotAutomation: true, zoomPassword: '',
         });
         load();
         setTimeout(() => setToast(''), 3000);

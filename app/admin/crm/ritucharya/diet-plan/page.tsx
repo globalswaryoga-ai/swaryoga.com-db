@@ -36,13 +36,13 @@ const RITU_LABELS: Record<string, string> = {
 };
 
 const MEAL_SLOTS = [
-  { key: 'gond_pani', time: '4:00 AM', label: 'Gond Pani', emoji: '🌙' },
-  { key: 'herbal_drink', time: '6:00 AM', label: 'Herbal Drink', emoji: '🌿' },
-  { key: 'breakfast', time: '8:30 AM', label: 'Breakfast', emoji: '🥣' },
-  { key: 'lunch', time: '11:30 AM', label: 'Lunch (Bhojan)', emoji: '🍱' },
-  { key: 'snacks', time: '5:00 PM', label: 'Snacks (Nashta)', emoji: '🍎' },
-  { key: 'dinner', time: '7:30 PM', label: 'Dinner (Ratri Bhojan)', emoji: '🍽️' },
-  { key: 'sleep_drink', time: '9:30 PM', label: 'Sleep Drink', emoji: '🥛' },
+  { slotKey: 'gond_pani', time: '4:00 AM', label: 'Gond Pani', emoji: '🌙' },
+  { slotKey: 'herbal_drink', time: '6:00 AM', label: 'Herbal Drink', emoji: '🌿' },
+  { slotKey: 'breakfast', time: '8:30 AM', label: 'Breakfast', emoji: '🥣' },
+  { slotKey: 'lunch', time: '11:30 AM', label: 'Lunch (Bhojan)', emoji: '🍱' },
+  { slotKey: 'snacks', time: '5:00 PM', label: 'Snacks (Nashta)', emoji: '🍎' },
+  { slotKey: 'dinner', time: '7:30 PM', label: 'Dinner (Ratri Bhojan)', emoji: '🍽️' },
+  { slotKey: 'sleep_drink', time: '9:30 PM', label: 'Sleep Drink', emoji: '🥛' },
 ];
 
 export default function DietPlanPage() {

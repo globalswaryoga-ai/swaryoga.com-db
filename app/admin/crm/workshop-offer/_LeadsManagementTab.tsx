@@ -248,7 +248,7 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiFilter = (type: 'AI-4' | 'AI-4A' | 'AI-4B', conditions: FilterCondition[]) => {
+  const saveAiFilter = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C', conditions: FilterCondition[]) => {
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
