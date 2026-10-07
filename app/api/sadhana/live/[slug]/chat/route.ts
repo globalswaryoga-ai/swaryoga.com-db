@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
   try {
@@ -11,26 +13,27 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       return NextResponse.json({ error: 'name and message required' }, { status: 400 });
     }
 
-    const db = await getProgramsDb();
-    const chatCol = db.collection('sadhana_live_chat');
-    const now = new Date();
+    await initSadhanaBunnySchema();
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
 
-    await chatCol.insertOne({
-      programSlug: params.slug,
-      name: String(name).slice(0, 50),
-      message: cleanMsg,
-      createdAt: now,
+    await bunnyExecute({
+      sql: `INSERT INTO sadhana_live_chat_sql (id, program_slug, session_id, sender, message, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [id, params.slug, 'default', String(name).slice(0, 50), cleanMsg, now]
     });
 
     // Keep only last 200 messages per program
-    const old = await chatCol
-      .find({ programSlug: params.slug })
-      .sort({ createdAt: -1 })
-      .skip(200)
-      .toArray();
-    if (old.length > 0) {
-      await chatCol.deleteMany({ _id: { $in: old.map((m: any) => m._id) } });
-    }
+    await bunnyExecute({
+      sql: `DELETE FROM sadhana_live_chat_sql 
+            WHERE program_slug = ? AND id NOT IN (
+              SELECT id FROM sadhana_live_chat_sql 
+              WHERE program_slug = ? 
+              ORDER BY created_at DESC 
+              LIMIT 200
+            )`,
+      args: [params.slug, params.slug]
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

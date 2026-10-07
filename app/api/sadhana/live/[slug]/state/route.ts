@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
-
-async function getDb() {
-  await connectDB();
-  return mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-}
-
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { listPrograms, initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
 function zonedTimeToUtc(localIso: string, tz: string): Date {
   const asUtc = new Date(localIso + 'Z');
   const dtf = new Intl.DateTimeFormat('en-US', {
@@ -133,69 +126,36 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   try {
     const { sessionId } = await request.json();
     console.log(`[Sadhana Live] ${params.slug} - Session state requested`, { sessionId, time: new Date().toISOString() });
-    const db = await getDb();
-    const participants = db.collection('sadhana_live_participants');
-    const schedules = db.collection('sadhana_schedules');
-    const chatCol = db.collection('sadhana_live_chat');
-    const joinHistoryCol = db.collection('sadhana_join_history');
 
+    await initSadhanaBunnySchema();
     const now = new Date();
     const activeThreshold = new Date(now.getTime() - 15 * 1000);
+    const nowIso = now.toISOString();
+    const thresholdIso = activeThreshold.toISOString();
 
     if (sessionId) {
-      await participants.updateOne({ sessionId, programSlug: params.slug }, { $set: { lastSeen: now } });
-      // Heartbeat the persistent join-history record too, so its lastSeen doubles
-      // as an effective "left at" time once polling stops (used for duration filtering).
-      await joinHistoryCol.updateOne({ sessionId, programSlug: params.slug }, { $set: { lastSeen: now } });
+      await bunnyExecute({
+        sql: `UPDATE sadhana_live_participants_sql SET last_seen = ? WHERE session_id = ? AND program_slug = ?`,
+        args: [nowIso, sessionId, params.slug]
+      });
+      await bunnyExecute({
+        sql: `UPDATE sadhana_join_history_sql SET last_seen = ? WHERE session_id = ? AND program_slug = ?`,
+        args: [nowIso, sessionId, params.slug]
+      });
     }
 
-    await participants.deleteMany({ programSlug: params.slug, lastSeen: { $lt: activeThreshold } });
+    await bunnyExecute({
+      sql: `DELETE FROM sadhana_live_participants_sql WHERE program_slug = ? AND last_seen < ?`,
+      args: [params.slug, thresholdIso]
+    });
 
-    const activeParticipants = await participants
-      .find({ programSlug: params.slug, lastSeen: { $gte: activeThreshold } })
-      .sort({ joinedAt: 1 })
-      .limit(200)
-      .toArray();
+    const activeParticipants = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_live_participants_sql WHERE program_slug = ? AND last_seen >= ? ORDER BY joined_at ASC LIMIT 200`,
+      args: [params.slug, thresholdIso]
+    });
 
-    // Find schedule by program slug
-    let activeSchedule: any = null;
-    try {
-      activeSchedule = await schedules.findOne({ programSlug: params.slug });
-    } catch {
-      activeSchedule = null;
-    }
-
-    // Fallback: if no schedule, try to find program directly and use it as schedule
-    if (!activeSchedule) {
-      try {
-        const programsDb = await getProgramsDb();
-        const programsCol = programsDb.collection('sadhana_programs');
-        const program = await programsCol.findOne({ slug: params.slug });
-        if (program) {
-          activeSchedule = {
-            _id: program._id,
-            slug: program.slug,
-            name: program.name,
-            description: program.description,
-            programSlug: program.slug,
-            timeSlots: program.timeSlots,
-            timezone: program.timezone,
-            videoDuration: program.videoDuration,
-            countdownMinutes: program.countdownMinutes,
-            days: program.days,
-            startDate: program.startDate,
-            botName: program.botName,
-            botJoinMinutes: program.botJoinMinutes,
-            enableBotAutomation: program.enableBotAutomation,
-            playerMode: program.playerMode || 'player',
-            playerUrl: program.playerUrl || '',
-            videoCalendar: program.videoCalendar || {},
-          };
-        }
-      } catch {
-        activeSchedule = null;
-      }
-    }
+    const allPrograms = await listPrograms();
+    let activeSchedule = allPrograms.find(p => p.slug === params.slug);
 
     if (!activeSchedule) {
       console.log(`[Sadhana Live] ${params.slug} - Program not found`);
@@ -205,236 +165,155 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     console.log(`[Sadhana Live] ${params.slug} - Program found`, {
       name: activeSchedule.name,
       playerMode: activeSchedule.playerMode,
-      hasVideoUrl: !!activeSchedule.videoUrl,
-      hasPlayerUrl: !!activeSchedule.playerUrl,
+      hasVideoUrl: !!activeSchedule.playerUrl,
     });
 
     let sessionInfo: any = null;
     let playableVideoUrl: any = null;
-    if (activeSchedule) {
-      sessionInfo = computeSessionStatus(activeSchedule, now);
+    
+    // Convert program format to old schedule format for computeSessionStatus
+    const scheduleFmt = {
+      ...activeSchedule,
+      timezone: activeSchedule.timezone || 'Asia/Kolkata',
+      timeSlots: activeSchedule.timeSlots,
+      videoDuration: activeSchedule.videoDuration,
+      countdownMinutes: activeSchedule.countdownMinutes || 5,
+      days: activeSchedule.days || [0, 1, 2, 3, 4, 5, 6],
+      startDate: activeSchedule.startDate,
+      videoUrl: activeSchedule.playerUrl
+    };
 
-      // Get video URL for playback - try schedule first, then program calendar
-      let videoUrlForPlayback = activeSchedule.videoUrl;
-      console.log(`[Sadhana Live] ${params.slug} - Looking for video`, { status: sessionInfo.status, hasScheduleUrl: !!videoUrlForPlayback });
-
-      if (!videoUrlForPlayback) {
-        try {
-          const programsDb = await getProgramsDb();
-          const programsCol = programsDb.collection('sadhana_programs');
-          // Try to find program by programSlug or slug
-          const program = await programsCol.findOne({
-            $or: [
-              { slug: activeSchedule.programSlug || activeSchedule.slug },
-              { slug: params.slug }
-            ]
-          });
-
-          if (program?.videoCalendar) {
-            const tz = activeSchedule.timezone || 'Asia/Kolkata';
-            const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
-            const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
-            const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
-            const yyyymmdd = `${y}-${mo}-${d}`;
-            const todayEntry = program.videoCalendar[yyyymmdd];
-            const playerMode = activeSchedule.playerMode || 'player';
-            if (playerMode === 'hls' && todayEntry?.hlsUrl) {
-              videoUrlForPlayback = todayEntry.hlsUrl;
-              console.log(`[Sadhana Live] ${params.slug} - Using HLS URL from calendar`);
-            } else if (todayEntry?.videoUrl) {
-              videoUrlForPlayback = todayEntry.videoUrl;
-              console.log(`[Sadhana Live] ${params.slug} - Using Player URL from calendar`);
-            } else {
-              console.log(`[Sadhana Live] ${params.slug} - Calendar entry has no valid URL`, { playerMode, hasHls: !!todayEntry?.hlsUrl, hasPlayer: !!todayEntry?.videoUrl });
-            }
+    sessionInfo = computeSessionStatus(scheduleFmt, now);
+    let videoUrlForPlayback = activeSchedule.playerUrl;
+    
+    if (!videoUrlForPlayback && activeSchedule.videoCalendar) {
+      try {
+        const tz = activeSchedule.timezone || 'Asia/Kolkata';
+        const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+        const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+        const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+        const yyyymmdd = `${y}-${mo}-${d}`;
+        const todayEntry = activeSchedule.videoCalendar[yyyymmdd];
+        
+        if (todayEntry) {
+          const playerMode = activeSchedule.playerMode || 'player';
+          if (playerMode === 'hls' && todayEntry.hlsUrl) {
+            videoUrlForPlayback = todayEntry.hlsUrl;
+          } else if (todayEntry.videoUrl) {
+            videoUrlForPlayback = todayEntry.videoUrl;
           }
-        } catch (err) {
-          console.error('Error fetching video from calendar:', err);
         }
-      }
-
-      if (sessionInfo.status === 'live' && videoUrlForPlayback && videoUrlForPlayback.startsWith('http')) {
-        playableVideoUrl = buildVideoUrlWithOffset(
-          videoUrlForPlayback,
-          sessionInfo.videoOffsetSeconds
-        );
+      } catch (err) {
+        console.error('Error fetching video from calendar:', err);
       }
     }
 
-    // Auto-add bot botJoinMinutes before session starts, keep lastSeen updated
-    if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && sessionInfo.sessionStartUtc) {
+    if (sessionInfo.status === 'live' && videoUrlForPlayback && videoUrlForPlayback.startsWith('http')) {
+      playableVideoUrl = buildVideoUrlWithOffset(videoUrlForPlayback, sessionInfo.videoOffsetSeconds);
+    }
+
+    // Bot logic
+    if (activeSchedule.enableBotAutomation !== false && sessionInfo.sessionStartUtc) {
       const botJoinMinutes = activeSchedule.botJoinMinutes || 5;
       const sessionStart = new Date(sessionInfo.sessionStartUtc).getTime();
       const botJoinTime = sessionStart - (botJoinMinutes * 60 * 1000);
       const shouldBotBeActive = now.getTime() >= botJoinTime && sessionInfo.status !== 'ended';
 
       const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
-      const botExists = await participants.findOne({
-        programSlug: params.slug,
-        name: botName
+      const botExistsRes = await bunnyExecute({
+        sql: `SELECT 1 FROM sadhana_live_participants_sql WHERE program_slug = ? AND name = ?`,
+        args: [params.slug, botName]
       });
+      const botExists = botExistsRes.length > 0;
 
       if (shouldBotBeActive && !botExists) {
-        await participants.insertOne({
-          programSlug: params.slug,
-          name: botName,
-          sessionId: 'bot',
-          joinedAt: now,
-          lastSeen: now,
+        await bunnyExecute({
+          sql: `INSERT INTO sadhana_live_participants_sql (session_id, program_slug, name, joined_at, last_seen) VALUES (?, ?, ?, ?, ?)`,
+          args: ['bot', params.slug, botName, nowIso, nowIso]
         });
-        // Bot welcome message in chat
-        await chatCol.insertOne({
-          programSlug: params.slug,
-          name: botName,
-          message: `Namaste! 🙏 ${activeSchedule.name || 'Session'} starting soon. Welcome everyone!`,
-          createdAt: now,
+        const msgId = require('crypto').randomUUID();
+        await bunnyExecute({
+          sql: `INSERT INTO sadhana_live_chat_sql (id, program_slug, session_id, sender, message, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [msgId, params.slug, 'bot', botName, `Namaste! 🙏 ${activeSchedule.name || 'Session'} starting soon. Welcome everyone!`, nowIso]
         });
       } else if (shouldBotBeActive && botExists) {
-        // Keep bot's lastSeen updated so it doesn't get deleted
-        await participants.updateOne(
-          { programSlug: params.slug, name: botName },
-          { $set: { lastSeen: now } }
-        );
-      } else if (!shouldBotBeActive && botExists) {
-        // Remove bot after session ends
-        await participants.deleteOne({
-          programSlug: params.slug,
-          name: botName
+        await bunnyExecute({
+          sql: `UPDATE sadhana_live_participants_sql SET last_seen = ? WHERE program_slug = ? AND name = ?`,
+          args: [nowIso, params.slug, botName]
         });
-        // Bot farewell message
-        await chatCol.insertOne({
-          programSlug: params.slug,
-          name: botName,
-          message: 'Thank you for practicing! See you next session. 🙏',
-          createdAt: now,
+      } else if (!shouldBotBeActive && botExists) {
+        await bunnyExecute({
+          sql: `DELETE FROM sadhana_live_participants_sql WHERE program_slug = ? AND name = ?`,
+          args: [params.slug, botName]
+        });
+        const msgId = require('crypto').randomUUID();
+        await bunnyExecute({
+          sql: `INSERT INTO sadhana_live_chat_sql (id, program_slug, session_id, sender, message, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [msgId, params.slug, 'bot', botName, 'Thank you for practicing! See you next session. 🙏', nowIso]
         });
       }
     }
 
-    // Get chat for today only (last 24 hours)
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const chatMessages = await chatCol
-      .find({ createdAt: { $gte: oneDayAgo } })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .toArray();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const chatMessages = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_live_chat_sql WHERE created_at >= ? ORDER BY created_at DESC LIMIT 50`,
+      args: [oneDayAgo]
+    });
 
-    // Get persistent join history for today
-    const todaysJoins = await joinHistoryCol
-      .find({ programSlug: params.slug, joinedAt: { $gte: oneDayAgo } })
-      .sort({ joinedAt: 1 })
-      .limit(500)
-      .toArray();
+    const todaysJoins = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_join_history_sql WHERE program_slug = ? AND joined_at >= ? ORDER BY joined_at ASC LIMIT 500`,
+      args: [params.slug, oneDayAgo]
+    });
 
-    // Get todayVideo from program calendar or schedule videoUrl
     let todayVideo: any = null;
     let upcomingVideos: any[] = [];
-    if (activeSchedule?.slug) {
-      try {
-        const programsDb = await getProgramsDb();
-        const programsCol = programsDb.collection('sadhana_programs');
-        const program = await programsCol.findOne({ slug: activeSchedule.slug });
-
-        if (program?.videoCalendar) {
-          const tz = activeSchedule.timezone || 'Asia/Kolkata';
-          const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
-          const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
-          const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
-          const yyyymmdd = `${y}-${mo}-${d}`;
-          const todayEntry = program.videoCalendar?.[yyyymmdd];
-          if (todayEntry) {
-            let playerMode = activeSchedule.playerMode || 'player';
-            // Fallback: if playerMode is 'player' but only hlsUrl is available, switch to HLS mode
-            if (playerMode === 'player' && !todayEntry.videoUrl && todayEntry.hlsUrl) {
-              playerMode = 'hls';
-              if (sessionInfo.status === 'live') {
-                activeSchedule.playerMode = 'hls';
-                activeSchedule.playerUrl = todayEntry.hlsUrl;
-              }
-            }
-            const url = playerMode === 'hls' && todayEntry.hlsUrl ? todayEntry.hlsUrl : todayEntry.videoUrl;
-            todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: url };
-          }
-
-          // Get next 7 days of videos
-          for (let i = 1; i <= 7; i++) {
-            const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-            const fy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(futureDate);
-            const fmo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(futureDate);
-            const fd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(futureDate);
-            const futureDateStr = `${fy}-${fmo}-${fd}`;
-            const entry = program.videoCalendar?.[futureDateStr];
-            if (entry) {
-              upcomingVideos.push({ date: futureDateStr, title: entry.title });
-            }
+    if (activeSchedule.videoCalendar) {
+      const tz = activeSchedule.timezone || 'Asia/Kolkata';
+      const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+      const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+      const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+      const yyyymmdd = `${y}-${mo}-${d}`;
+      const todayEntry = activeSchedule.videoCalendar[yyyymmdd];
+      
+      if (todayEntry) {
+        let playerMode = activeSchedule.playerMode || 'player';
+        if (playerMode === 'player' && !todayEntry.videoUrl && todayEntry.hlsUrl) {
+          playerMode = 'hls';
+          if (sessionInfo.status === 'live') {
+            activeSchedule.playerMode = 'hls';
+            activeSchedule.playerUrl = todayEntry.hlsUrl;
           }
         }
-      } catch (err) {
-        // Fallback to videoUrl if calendar not available
+        const url = playerMode === 'hls' && todayEntry.hlsUrl ? todayEntry.hlsUrl : todayEntry.videoUrl;
+        todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: url };
+      }
+
+      for (let i = 1; i <= 7; i++) {
+        const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+        const fy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(futureDate);
+        const fmo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(futureDate);
+        const fd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(futureDate);
+        const futureDateStr = `${fy}-${fmo}-${fd}`;
+        const entry = activeSchedule.videoCalendar[futureDateStr];
+        if (entry) upcomingVideos.push({ date: futureDateStr, title: entry.title });
       }
     }
 
-    // Fallback to schedule videoUrl if no calendar
-    if (!todayVideo && activeSchedule?.videoUrl) {
-      todayVideo = {
-        title: activeSchedule.name || 'Session',
-        videoUrl: activeSchedule.videoUrl,
-      };
+    if (!todayVideo && activeSchedule.playerUrl) {
+      todayVideo = { title: activeSchedule.name || 'Session', videoUrl: activeSchedule.playerUrl };
     }
 
-    // Determine playerMode with fallback: if only hlsUrl available, use HLS
-    let playerMode = activeSchedule?.playerMode || 'player';
-    let playerUrl = activeSchedule?.playerUrl || '';
-
-    // Secondary fallback: check if we need to switch to HLS mode based on available URLs
-    if (playerMode === 'player' && !playerUrl && sessionInfo.status === 'live') {
-      try {
-        const programsDb = await getProgramsDb();
-        const programsCol = programsDb.collection('sadhana_programs');
-        const program = await programsCol.findOne({ slug: activeSchedule.slug });
-        if (program?.videoCalendar) {
-          const tz = activeSchedule.timezone || 'Asia/Kolkata';
-          const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
-          const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
-          const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
-          const yyyymmdd = `${y}-${mo}-${d}`;
-          const entry = program.videoCalendar?.[yyyymmdd];
-          if (entry?.hlsUrl && !entry.videoUrl) {
-            playerMode = 'hls';
-            playerUrl = entry.hlsUrl;
-          }
-        }
-      } catch {
-        // Fallback attempt failed, continue
-      }
-    }
+    let playerMode = activeSchedule.playerMode || 'player';
+    let playerUrl = activeSchedule.playerUrl || '';
 
     const validPlayerUrl = playerUrl && playerUrl.startsWith('http') ? playerUrl : '';
-
-    console.log(`[Sadhana Live] ${params.slug} - Returning response`, {
-      status: sessionInfo.status,
-      playerMode,
-      hasPlayableUrl: !!playableVideoUrl,
-      hasPlayerUrl: !!validPlayerUrl,
-      participants: activeParticipants.length,
-    });
 
     return NextResponse.json({
       success: true,
       count: activeParticipants.length,
-      participants: activeParticipants.map((p: any) => ({
-        name: p.name,
-        joinedAt: p.joinedAt,
-      })),
-      todaysParticipants: todaysJoins.map((p: any) => ({
-        name: p.name,
-        joinedAt: p.joinedAt,
-      })),
-      program: {
-        slug: params.slug,
-        name: activeSchedule?.name || 'Sadhana Live',
-        timezone: activeSchedule?.timezone || 'Asia/Kolkata',
-      },
+      participants: activeParticipants.map((p: any) => ({ name: p.name, joinedAt: p.joined_at })),
+      todaysParticipants: todaysJoins.map((p: any) => ({ name: p.name, joinedAt: p.joined_at })),
+      program: { slug: params.slug, name: activeSchedule.name || 'Sadhana Live', timezone: activeSchedule.timezone || 'Asia/Kolkata' },
       todayVideo,
       upcomingVideos,
       session: sessionInfo,
@@ -442,12 +321,12 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       playerMode,
       playerUrl: validPlayerUrl,
       chat: chatMessages.reverse().map((m: any) => ({
-        id: m._id.toString(),
-        name: m.name,
+        id: m.id,
+        name: m.sender,
         message: m.message,
-        createdAt: m.createdAt,
+        createdAt: m.created_at,
       })),
-      serverTime: now.toISOString(),
+      serverTime: nowIso,
     });
   } catch (error) {
     return handleCrmError(error, 'POST sadhana/live/[slug]/state');
