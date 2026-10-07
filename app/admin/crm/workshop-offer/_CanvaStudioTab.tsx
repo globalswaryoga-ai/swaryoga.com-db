@@ -25,7 +25,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [brandTemplates, setBrandTemplates] = useState<any[]>([]);
   const [isLoadingBrandTemplates, setIsLoadingBrandTemplates] = useState(false);
 
-  type ChatMessage = { role: 'user' | 'ai'; content: string; imageUrl?: string | null; videoUrl?: string | null; error?: boolean };
+  type ChatMessage = { role: 'user' | 'ai'; content: string; imageUrl?: string | null; videoUrl?: string | null; designUrl?: string | null; error?: boolean };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [metaPrompt, setMetaPrompt] = useState<string>('');
   const [showCanvaPopup, setShowCanvaPopup] = useState(false);
@@ -198,7 +198,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       }
       
       // Add AI response to chat
-      setChatMessages(prev => [...prev, { role: 'ai', content: aiText, imageUrl: data.imageUrl, videoUrl: data.videoUrl }]);
+      setChatMessages(prev => [...prev, { role: 'ai', content: aiText, imageUrl: data.imageUrl, videoUrl: data.videoUrl, designUrl: data.designUrl }]);
       
       // We auto-save the generated ad to history
       const newAd = {
@@ -750,6 +750,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                    <div className="mt-3 flex gap-2">
                                      <button 
                                        onClick={async () => {
+                                         if (msg.designUrl) {
+                                            openCanvaPopup(msg.designUrl);
+                                            return;
+                                         }
+                                         
+                                         // Fallback if design generation failed but image generated
                                          try {
                                            let blob: Blob;
                                            if (msg.imageUrl!.startsWith('data:')) {
@@ -779,7 +785,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                        }}
                                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
                                      >
-                                       <Share2 size={14} /> Open in Canva
+                                       <Share2 size={14} /> {msg.designUrl ? 'Edit in Canva' : 'Open in Canva'}
                                      </button>
                                      <button 
                                        onClick={() => {

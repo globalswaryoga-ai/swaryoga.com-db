@@ -103,6 +103,60 @@ function wantsVideo(prompt: string): boolean {
   return keywords.some(k => lower.includes(k));
 }
 
+
+
+async function uploadImageToCanva(imageUrl, accessToken) {
+  try {
+    console.log('Downloading image from Replicate...', imageUrl);
+    const imgRes = await fetch(imageUrl);
+    const imgBuffer = await imgRes.arrayBuffer();
+
+    console.log('Initiating Canva asset upload...');
+    const initRes = await fetch('https://api.canva.com/rest/v1/asset-uploads', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const initData = await initRes.json();
+    if (!initData.job || !initData.job.upload_url) {
+      console.error('Failed to init Canva upload:', initData);
+      return null;
+    }
+
+    const { id: jobId, upload_url: uploadUrl } = initData.job;
+
+    console.log('Uploading binary to Canva...', jobId);
+    await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Length': imgBuffer.byteLength.toString(), 'Content-Type': 'image/webp' },
+      body: imgBuffer
+    });
+
+    console.log('Polling Canva upload status...');
+    let assetId = null;
+    for (let i = 0; i < 5; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const statusRes = await fetch(`https://api.canva.com/rest/v1/asset-uploads/${jobId}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const statusData = await statusRes.json();
+      if (statusData.job && statusData.job.status === 'success') {
+        assetId = statusData.job.asset.id;
+        break;
+      } else if (statusData.job && statusData.job.status === 'failed') {
+        console.error('Canva upload failed:', statusData);
+        break;
+      }
+    }
+    return assetId;
+  } catch (e) {
+    console.error('Error uploading image to Canva:', e);
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -128,7 +182,7 @@ export async function POST(request: Request) {
     let aiData: any = null;
 
     if (shouldGenerateAdCopy) {
-      const systemPrompt = `You are an expert social media copywriter. Given a prompt for an ad, generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA". Return ONLY the JSON, no extra text.`;
+      const systemPrompt = `You are a world-class social media copywriter and ad strategist. When the user provides a topic, prompt, or idea, you MUST brainstorm and generate exactly 3 highly engaging elements: a catchy Headline, a compelling Subheading, and a strong Call-to-Action (CTA). \n\nReturn them STRICTLY as a valid JSON object with keys: "Headline", "Subheading", "CTA". \n\nDo not include markdown blocks, just the raw JSON object.`;
       const llmOutput = await runReplicate({
         version: LLAMA3_VERSION,
         input: {
@@ -151,12 +205,12 @@ export async function POST(request: Request) {
         aiText = rawText;
       }
     } else {
-      const systemPrompt = `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design.
+      const systemPrompt = `You are a world-class creative AI assistant, highly trained in social media marketing, image generation, video creation, and design strategy.
 You help users create ads, posters, YouTube thumbnails, and any creative content they need.
 IMPORTANT INSTRUCTIONS: 
 1. If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style.
 2. DO NOT make assumptions about the platform (e.g., Facebook) unless the user specifically mentions it. If they ask for a YouTube thumbnail, acknowledge it is for YouTube.
-3. Keep responses concise and helpful.`;
+3. Keep responses concise, engaging, and professional. Act like a high-end agency partner.\n4. Always explicitly acknowledge the requested aspect ratio or platform size if the user mentions one (e.g. 16:9, square, reels).`;
 
       const llmOutput = await runReplicate({
         version: LLAMA3_VERSION,
@@ -183,6 +237,10 @@ IMPORTANT INSTRUCTIONS:
           : `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled.`;
 
         let aspectRatio = "1:1";
+        // Default sizes based on platform selection passed in the prompt
+        if (prompt.includes("Platform: YouTube(16:9)") || prompt.includes("Platform: FB(16:9)") || prompt.includes("Platform: LinkedIn(16:9)")) { aspectRatio = "16:9"; }
+        else if (prompt.includes("Platform: Insta(size)") || prompt.includes("Platform: FB(size)")) { aspectRatio = "1:1"; }
+        else if (prompt.includes("Platform: TikTok") || prompt.includes("Platform: Reels")) { aspectRatio = "9:16"; }
         const lowerPrompt = prompt.toLowerCase();
         if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
           aspectRatio = "16:9";
@@ -230,41 +288,73 @@ IMPORTANT INSTRUCTIONS:
       }
     }
 
-    // 3. Send to Canva Autofill (only if templateId provided AND ad copy generated)
+    // 3. Canva Integration (Autofill OR Create from Asset)
     let job = null;
-    if (templateId && aiData) {
-      if (!accessToken) {
-        return NextResponse.json({
-          aiText,
-          imageUrl,
-          generatedText: aiData,
-          error: 'Not connected to Canva. Text and image generated successfully.'
+    let designUrl = null;
+
+    if (accessToken && (templateId || imageUrl)) {
+      let assetId = null;
+      if (imageUrl) {
+         assetId = await uploadImageToCanva(imageUrl, accessToken);
+      }
+
+      if (templateId && aiData) {
+        // Option A: Autofill template
+        const dataToFill: any = {
+          Headline: { type: 'text', text: aiData.Headline || 'Amazing Offer' },
+          Subheading: { type: 'text', text: aiData.Subheading || "Don't miss out." },
+          CTA: { type: 'text', text: aiData.CTA || 'Learn More' }
+        };
+
+        // If template has a predefined image replacement slot named 'Background' or 'Image'
+        if (assetId) {
+          dataToFill['Image'] = { type: 'image', asset_id: assetId };
+          dataToFill['Background'] = { type: 'image', asset_id: assetId };
+        }
+
+        const response = await fetch('https://api.canva.com/rest/v1/autofills', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            brand_template_id: templateId,
+            title: `AI Ad - ${aiData.Headline || 'Generated'}`,
+            data: dataToFill
+          })
         });
+
+        const responseData = await response.json();
+        if (response.ok) {
+          job = responseData.job;
+        }
+      } else if (assetId) {
+        // Option B: Create a brand new design from the uploaded asset
+        const presetName = aspectRatio === '9:16' ? 'instagram_story' : (aspectRatio === '16:9' ? 'youtube_thumbnail' : 'instagram_post');
+        
+        const response = await fetch('https://api.canva.com/rest/v1/designs', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            design_type: { type: 'preset', name: presetName },
+            title: 'AI Generated Ad',
+            asset_id: assetId
+          })
+        });
+
+        const responseData = await response.json();
+        if (response.ok && responseData.design) {
+          designUrl = responseData.design.url;
+          aiText += `\n\n✨ **[Click here to edit your design in Canva](${designUrl})**`;
+        }
       }
-
-      const dataToFill = {
-        Headline: { type: 'text', text: aiData.Headline || 'Amazing Offer' },
-        Subheading: { type: 'text', text: aiData.Subheading || "Don't miss out." },
-        CTA: { type: 'text', text: aiData.CTA || 'Learn More' }
-      };
-
-      const response = await fetch('https://api.canva.com/rest/v1/autofills', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          brand_template_id: templateId,
-          title: `AI Ad - ${aiData.Headline || 'Generated'}`,
-          data: dataToFill
-        })
-      });
-
-      const responseData = await response.json();
-      if (response.ok) {
-        job = responseData.job;
-      }
+    } else if (!accessToken && (templateId || imageUrl)) {
+       // Just notify that it's not connected
+       // The error will be passed to UI but generation succeeded
     }
 
     return NextResponse.json({
@@ -272,6 +362,7 @@ IMPORTANT INSTRUCTIONS:
       job,
       imageUrl,
       videoUrl,
+      designUrl,
       generatedText: aiData,
     });
 
