@@ -14,19 +14,41 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const now = new Date().toISOString();
     const cleanName = String(name).slice(0, 50);
 
-    await bunnyExecute({
-      sql: `INSERT INTO sadhana_live_participants_sql (session_id, program_slug, name, joined_at, last_seen)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(session_id, program_slug) DO UPDATE SET name = excluded.name, last_seen = excluded.last_seen`,
-      args: [sessionId, params.slug, cleanName, now, now]
+    const id1 = require('crypto').randomUUID();
+    const existingParticipant = await bunnyExecute({
+      sql: `SELECT id FROM sadhana_live_participants_sql WHERE session_id = ? AND program_slug = ?`,
+      args: [sessionId, params.slug]
+    });
+    
+    if (existingParticipant.rows && existingParticipant.rows.length > 0) {
+      await bunnyExecute({
+        sql: `UPDATE sadhana_live_participants_sql SET name = ?, last_seen = ? WHERE session_id = ? AND program_slug = ?`,
+        args: [cleanName, now, sessionId, params.slug]
+      });
+    } else {
+      await bunnyExecute({
+        sql: `INSERT INTO sadhana_live_participants_sql (id, session_id, program_slug, name, joined_at, last_seen) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [id1, sessionId, params.slug, cleanName, now, now]
+      });
+    }
+
+    const existingJoin = await bunnyExecute({
+      sql: `SELECT id FROM sadhana_join_history_sql WHERE session_id = ? AND program_slug = ?`,
+      args: [sessionId, params.slug]
     });
 
-    await bunnyExecute({
-      sql: `INSERT INTO sadhana_join_history_sql (session_id, program_slug, name, joined_at, left_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(session_id, program_slug) DO UPDATE SET name = excluded.name, left_at = excluded.left_at`,
-      args: [sessionId, params.slug, cleanName, now, now]
-    });
+    if (existingJoin.rows && existingJoin.rows.length > 0) {
+      await bunnyExecute({
+        sql: `UPDATE sadhana_join_history_sql SET name = ?, left_at = ? WHERE session_id = ? AND program_slug = ?`,
+        args: [cleanName, now, sessionId, params.slug]
+      });
+    } else {
+      const id2 = require('crypto').randomUUID();
+      await bunnyExecute({
+        sql: `INSERT INTO sadhana_join_history_sql (id, session_id, program_slug, name, joined_at, left_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [id2, sessionId, params.slug, cleanName, now, now]
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
