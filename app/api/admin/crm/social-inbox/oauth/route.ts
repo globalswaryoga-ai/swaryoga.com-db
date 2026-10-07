@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 import { exchangeLongLivedUserToken, listManagedPages } from '@/lib/socialInbox';
@@ -33,7 +32,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Facebook access token is required' }, { status: 400 });
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
 
     // Exchange the short-lived token from FB.login for a long-lived one so the

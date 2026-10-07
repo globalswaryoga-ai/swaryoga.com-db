@@ -1,6 +1,4 @@
 import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import {
@@ -9,7 +7,6 @@ import {
   resolveSocialInboxAccount,
 } from '@/lib/socialInbox';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
-import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     const conversationIds: string[] = Array.isArray(body?.conversationIds)
-      ? body.conversationIds.map((id: any) => String(id)).filter((id: string) => mongoose.Types.ObjectId.isValid(id))
+      ? body.conversationIds.map((id: any) => String(id)).filter((id: string) => id && id.length > 5)
       : [];
     if (conversationIds.length === 0) {
       return apiError('VALIDATION_ERROR', 'conversationIds is required');
@@ -73,7 +70,6 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', `Select at most ${MAX_RECIPIENTS} conversations per send`);
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
     const account = await resolveSocialInboxAccount(decoded, platform);
     if (!account) {
@@ -86,10 +82,14 @@ export async function POST(request: NextRequest) {
     const templateId = String(body?.templateId || '').trim();
 
     if (templateId) {
-      if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      if (!templateId || templateId.length < 5) {
         return apiError('VALIDATION_ERROR', 'Invalid templateId');
       }
-      const template = await getWhatsAppTemplate().findById(templateId).lean<any>();
+      
+      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const res = await bunnyExecute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'whatsapp_templates'" });
+      const template = res.rows.map((r: any) => { try { return JSON.parse(String(r.document_json || '{}')); } catch { return null; } }).find((t: any) => t && (String(t._id) === templateId || String(t.templateId) === templateId));
+      
       if (!template) {
         return apiError('NOT_FOUND', 'Template not found');
       }

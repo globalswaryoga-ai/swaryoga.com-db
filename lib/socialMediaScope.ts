@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import type { TokenPayload } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
@@ -9,8 +8,6 @@ export type SocialMediaScope = {
   ownerUserId: string;
   tenantSlug?: string;
 };
-
-const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 export async function resolveSocialMediaScope(decoded: TokenPayload | null | undefined): Promise<SocialMediaScope> {
   const ownerUserId = String(decoded?.userId || decoded?.username || '').trim();
@@ -42,7 +39,7 @@ export async function resolveSocialMediaScope(decoded: TokenPayload | null | und
       const res = await bunnyExecute({
         sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'admin_users'"
       });
-      let currentUser = null;
+      let currentUser: any = null;
       for (const row of res.rows) {
         try {
           const parsed = JSON.parse(String(row.document_json || '{}'));

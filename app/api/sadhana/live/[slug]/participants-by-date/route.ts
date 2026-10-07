@@ -38,7 +38,7 @@ export async function GET(
     const MIN_ATTENDANCE_MINUTES = 3;
 
     // Helper: convert a local wall-clock time (in tz) to a UTC Date
-    function zonedTimeToUtc(localIso: string, tz: string): Date {
+    const zonedTimeToUtc = (localIso: string, tz: string) => {
       const asUtc = new Date(localIso + 'Z');
       const dtf = new Intl.DateTimeFormat('en-US', {
         timeZone: tz,
@@ -71,7 +71,7 @@ export async function GET(
     });
 
     // Helper: convert local date string to UTC range
-    function getUtcRangeForLocalDate(localDateStr: string, tz: string) {
+    const getUtcRangeForLocalDate = (localDateStr: string, tz: string) => {
       const [year, month, day] = localDateStr.split('-').map(Number);
 
       // Treat the date string as a local date (e.g., 2026-05-06 00:00:00 in program timezone)

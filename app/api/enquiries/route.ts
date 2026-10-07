@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { connectDB } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -86,18 +84,17 @@ export async function POST(request: NextRequest) {
     // Also create/update CRM Lead so enquiries appear under Leads for unknown users
     let leadNumber: string | null = null;
     try {
-      await connectDB();
-      const Lead = getLead();
+      const { getBunnyLeadByPhone, getBunnyLeadByEmail, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
       const cleanedPhone = normalizePhone(mobile);
       const cleanedEmail = String(email || '').trim().toLowerCase();
       const cleanedName = String(name || '').trim();
 
       if (cleanedPhone) {
         // Check for existing lead by phone or email
-        const searchQuery: any[] = [{ phoneNumber: cleanedPhone }];
-        if (cleanedEmail) searchQuery.push({ email: cleanedEmail });
-
-        const existingLead = await Lead.findOne({ $or: searchQuery });
+        let existingLead = await getBunnyLeadByPhone(cleanedPhone);
+        if (!existingLead && cleanedEmail) {
+          existingLead = await getBunnyLeadByEmail(cleanedEmail);
+        }
 
         if (existingLead) {
           // Update existing lead with enquiry info
@@ -124,16 +121,16 @@ export async function POST(request: NextRequest) {
               month,
               gender,
               city: city?.trim(),
-              submittedAt: new Date(),
+              submittedAt: new Date().toISOString(),
             },
           };
-          await existingLead.save();
+          await saveBunnyLead(existingLead);
           await addLeadToMainBroadcastList(existingLead);
           leadNumber = existingLead.leadNumber;
         } else {
           // Create new lead for unknown user
           const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
-          const newLead = await Lead.create({
+          const newLead = {
             leadNumber: allocatedLeadNumber,
             name: cleanedName || 'Unknown User',
             email: cleanedEmail,
@@ -153,9 +150,10 @@ export async function POST(request: NextRequest) {
               month,
               gender,
               city: city?.trim(),
-              submittedAt: new Date(),
+              submittedAt: new Date().toISOString(),
             },
-          });
+          };
+          await saveBunnyLead(newLead);
           await addLeadToMainBroadcastList(newLead);
           leadNumber = allocatedLeadNumber;
           console.log(`✅ New CRM lead created from enquiry: ${allocatedLeadNumber}`);

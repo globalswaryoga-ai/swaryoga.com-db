@@ -73,6 +73,7 @@ export interface SyncedFile {
   s3Key: string;
   /** @deprecated kept for backward compat */
   s3Url: string;
+  zoomFileId: string; // Add zoom file id for targeted deletion
 }
 
 export interface SyncResult {
@@ -146,8 +147,8 @@ async function downloadZoomRecording(
  * Zoom recurring meetings have multiple recording_files with different recording_start dates.
  * Returns a map: dateStr → dayNumber (1-based, sorted chronologically).
  */
-function buildDayMap(files: ZoomRecording[]): Map<string, number> {
-  const dates = new Set<string>();
+function buildDayMap(files: ZoomRecording[], pastDates: string[] = []): Map<string, number> {
+  const dates = new Set<string>(pastDates);
   for (const f of files) {
     if (f.recording_start) {
       dates.add(f.recording_start.split('T')[0]); // YYYY-MM-DD
@@ -167,7 +168,8 @@ function buildDayMap(files: ZoomRecording[]): Map<string, number> {
  */
 export async function syncZoomToBunny(
   meetingRecording: ZoomMeetingRecording,
-  onProgress?: SyncProgressCallback
+  onProgress?: SyncProgressCallback,
+  pastDates: string[] = []
 ): Promise<SyncResult> {
   const result: SyncResult = {
     success: true,
@@ -202,6 +204,15 @@ export async function syncZoomToBunny(
         result.skippedFiles.push(`${file.recording_type} (not video: ${file.file_type})`);
         return false;
       }
+
+      // Check if it's older than 24 hours
+      const recordingTime = new Date(file.recording_start).getTime();
+      const ageHours = (Date.now() - recordingTime) / (1000 * 60 * 60);
+      if (ageHours < 24) {
+        result.skippedFiles.push(`${file.recording_type} (less than 24 hours old: ${ageHours.toFixed(1)}h)`);
+        return false;
+      }
+
       return true;
     });
 
@@ -209,8 +220,8 @@ export async function syncZoomToBunny(
       throw new Error('Bunny Stream not configured (BUNNY_API_KEY / BUNNY_STREAM_LIBRARY_ID missing)');
     }
 
-    // Build day map from all recording dates
-    const dayMap = buildDayMap(recordingsToSync);
+    // Build day map from all recording dates (including trashed)
+    const dayMap = buildDayMap(recordingsToSync, pastDates);
     const totalDays = dayMap.size;
     const totalFiles = recordingsToSync.length;
 
@@ -306,6 +317,7 @@ export async function syncZoomToBunny(
           recordingDate: dateStr,
           s3Key: '', // deprecated
           s3Url: '', // deprecated
+          zoomFileId: recording.id,
         });
 
         const uploadedTo = [bunnyResult ? `Bunny(${bunnyResult.embedUrl})` : null, ytResult ? `YouTube(${ytResult.url})` : null].filter(Boolean).join(', ');

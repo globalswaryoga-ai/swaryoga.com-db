@@ -1,46 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB, WorkshopSeatInventory } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { notifyWorkshopEnrollment } from '@/lib/notifications';
+import crypto from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
-
-// Workshop Registration Schema
-const workshopRegistrationSchema = new mongoose.Schema(
-  {
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String, required: true },
-    workshopId: { type: String, required: true },
-    workshopName: { type: String, required: true },
-    scheduleId: { type: String, required: true },
-    mode: { type: String, enum: ['online', 'offline', 'residential', 'recorded'], required: true },
-    startDate: { type: String, required: true },
-    endDate: { type: String, required: true },
-    price: { type: Number, required: true },
-    currency: { type: String, default: 'INR' },
-    status: { type: String, enum: ['pending', 'confirmed', 'cancelled'], default: 'pending' },
-    orderId: { type: String },
-    paymentStatus: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
-    registrationDate: { type: Date, default: Date.now },
-  },
-  { timestamps: true }
-);
-
-// Create model if it doesn't exist
-let WorkshopRegistration: mongoose.Model<any>;
-
-try {
-  WorkshopRegistration = mongoose.model('WorkshopRegistration');
-} catch {
-  WorkshopRegistration = mongoose.model('WorkshopRegistration', workshopRegistrationSchema);
+async function initRegistrationTable() {
+  await bunnyExecute({
+    sql: `CREATE TABLE IF NOT EXISTS workshop_registrations_sql (
+      id TEXT PRIMARY KEY,
+      first_name TEXT,
+      last_name TEXT,
+      email TEXT,
+      phone TEXT,
+      workshop_id TEXT,
+      workshop_name TEXT,
+      schedule_id TEXT,
+      mode TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      price REAL,
+      currency TEXT,
+      status TEXT,
+      order_id TEXT,
+      payment_status TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`
+  });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await initRegistrationTable();
 
     const {
       firstName,
@@ -58,7 +49,6 @@ export async function POST(request: NextRequest) {
       orderId,
     } = await request.json();
 
-    // Validate required fields
     if (
       !firstName ||
       !lastName ||
@@ -78,41 +68,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create registration
-    const registration = await WorkshopRegistration.create({
-      firstName,
-      lastName,
-      email,
-      phone,
-      workshopId,
-      workshopName,
-      scheduleId,
-      mode,
-      startDate,
-      endDate,
-      price,
-      currency,
-      orderId,
-      status: 'confirmed',
-      paymentStatus: orderId ? 'completed' : 'pending',
+    const regId = crypto.randomUUID();
+    const paymentStatus = orderId ? 'completed' : 'pending';
+    const status = 'confirmed';
+    
+    await bunnyExecute({
+      sql: `INSERT INTO workshop_registrations_sql (
+        id, first_name, last_name, email, phone, workshop_id, workshop_name,
+        schedule_id, mode, start_date, end_date, price, currency,
+        status, order_id, payment_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        regId, firstName, lastName, email, phone, workshopId, workshopName,
+        scheduleId, mode, startDate, endDate, price, currency,
+        status, orderId || null, paymentStatus
+      ]
     });
 
-    // Decrement seat inventory for this schedule
-    try {
-      await WorkshopSeatInventory.findOneAndUpdate(
-        { workshopSlug: workshopId, scheduleId },
-        { 
-          $inc: { seatsRemaining: -1 },
-          updatedAt: new Date()
-        },
-        { upsert: true }
-      );
-    } catch (seatError) {
-      console.warn('Warning: Could not update seat inventory:', seatError);
-      // Don't fail the registration if seat inventory update fails
-    }
+    const registration = {
+      _id: regId,
+      firstName, lastName, email, phone, workshopId, workshopName,
+      scheduleId, mode, startDate, endDate, price, currency,
+      status, orderId, paymentStatus,
+      registrationDate: new Date().toISOString()
+    };
 
-    // Send workshop enrollment email notification
     if (email) {
       notifyWorkshopEnrollment(
         { name: `${firstName} ${lastName}`.trim(), email, phone },
@@ -123,7 +103,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: 'Registration successful',
-        registrationId: registration._id,
+        registrationId: regId,
         registration,
       },
       { status: 201 }
@@ -139,7 +119,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initRegistrationTable();
 
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
@@ -151,10 +131,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch registrations by email
-    const registrations = await WorkshopRegistration.find({ email }).sort({
-      registrationDate: -1,
+    const result = await bunnyExecute({
+      sql: 'SELECT * FROM workshop_registrations_sql WHERE email = ? ORDER BY created_at DESC',
+      args: [email]
     });
+
+    const registrations = result.rows.map((r: any) => ({
+      _id: r.id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      email: r.email,
+      phone: r.phone,
+      workshopId: r.workshop_id,
+      workshopName: r.workshop_name,
+      scheduleId: r.schedule_id,
+      mode: r.mode,
+      startDate: r.start_date,
+      endDate: r.end_date,
+      price: r.price,
+      currency: r.currency,
+      status: r.status,
+      orderId: r.order_id,
+      paymentStatus: r.payment_status,
+      registrationDate: r.created_at
+    }));
 
     return NextResponse.json(
       {

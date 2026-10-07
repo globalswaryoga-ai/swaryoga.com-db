@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
+
+
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import {
@@ -13,7 +13,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
-import { getSocialInboxConversation, getSocialInboxMessage } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnySocialMessages, listBunnySocialConversations } from '@/lib/bunnySocialInboxRepository';
 
 
 export async function GET(request: NextRequest) {
@@ -30,31 +30,21 @@ export async function GET(request: NextRequest) {
     if (!platform) {
       return apiError('VALIDATION_ERROR', 'platform must be messenger or instagram');
     }
-    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+    if (!conversationId) {
       return apiError('VALIDATION_ERROR', 'conversationId is required');
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
-    const Conversation = getSocialInboxConversation();
-    const Message = getSocialInboxMessage();
-
-    const conversation = await Conversation.findOne({
-      _id: conversationId,
-      ...buildSocialInboxScopeFilter(scope, platform),
-    }).lean();
+    const conversations = await listBunnySocialConversations({ platform, scopeType: scope.scopeType, scopeKey: scope.scopeKey, limit: 1000 });
+    const conversation = conversations.find((c) => String(c._id) === conversationId);
 
     if (!conversation) {
       return apiError('NOT_FOUND', 'Conversation not found');
     }
 
-    const messages = await Message.find({
-      conversationId: new mongoose.Types.ObjectId(conversationId),
-      ...buildSocialInboxScopeFilter(scope, platform),
-    })
-      .sort({ sentAt: 1, createdAt: 1 })
-      .limit(500)
-      .lean();
+    let messages = await listBunnySocialMessages(conversationId, 500);
+    // listBunnySocialMessages returns them reversed for us, but let's ensure sentAt ascending
+    messages = messages.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
 
     await markSocialConversationRead(scope, platform, conversationId);
 
@@ -85,14 +75,13 @@ export async function POST(request: NextRequest) {
     if (!platform) {
       return apiError('VALIDATION_ERROR', 'platform must be messenger or instagram');
     }
-    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+    if (!conversationId) {
       return apiError('VALIDATION_ERROR', 'conversationId is required');
     }
     if (!messageContent) {
       return apiError('VALIDATION_ERROR', 'messageContent is required');
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
     const account = await resolveSocialInboxAccount(decoded, platform);
     if (!account) {

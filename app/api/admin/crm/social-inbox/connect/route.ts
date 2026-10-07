@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
@@ -45,7 +44,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
 
     // Connecting the Page auto-links any Instagram business account, subscribes the

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 
@@ -49,20 +47,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: search in CRM Leads
-    await connectDB();
-    const Lead = getLead();
+    const { getBunnyLeadByPhone, getBunnyLeadByEmail } = await import('@/lib/bunnyLeadsRepository');
     
-    const orClauses: any[] = [{ email: query }];
-    if (phoneMatch) orClauses.push({ phoneNumber: phoneMatch });
-    orClauses.push({ leadNumber: query });
+    let lead: any = null;
+    if (phoneMatch) {
+      lead = await getBunnyLeadByPhone(phoneMatch);
+    }
+    if (!lead && query.includes('@')) {
+      lead = await getBunnyLeadByEmail(query);
+    }
+    if (!lead) {
+      const leadRes = await bunnyExecute({
+        sql: "SELECT data_json FROM leads_sql WHERE lead_number = ?",
+        args: [query]
+      });
+      if (leadRes.rows && leadRes.rows.length > 0) {
+        try {
+          lead = JSON.parse(String(leadRes.rows[0].data_json));
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
     
-    const lead = await Lead.findOne({ $or: orClauses }).sort({ createdAt: -1 }).lean();
     if (lead) {
-      const meta = (lead as any).metadata?.lastEnquiry || (lead as any).metadata || {};
+      const meta = lead.metadata?.lastEnquiry || lead.metadata || {};
       result = {
-        name: (lead as any).name || '',
-        email: (lead as any).email || meta.email || '',
-        mobile: ((lead as any).phoneNumber || '').replace('+91', ''),
+        name: lead.name || '',
+        email: lead.email || meta.email || '',
+        mobile: (lead.phoneNumber || '').replace('+91', ''),
         gender: meta.gender || '',
         city: meta.city || '',
         dynamicAnswers: meta.dynamicAnswers || {}

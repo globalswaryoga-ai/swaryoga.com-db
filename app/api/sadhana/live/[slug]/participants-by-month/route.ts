@@ -53,7 +53,7 @@ export async function GET(
       sql: `SELECT joined_at FROM sadhana_join_history_sql 
             WHERE program_slug = ? AND joined_at >= ? AND joined_at <= ?`,
       args: [params.slug, startIso, endIso]
-    })).rows;
+    })).rows || [];
 
     // Group by local date using the program timezone
     const countsByDate: Record<string, number> = {};

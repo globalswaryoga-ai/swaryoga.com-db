@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { buildSocialInboxScopeFilter, normalizeSocialInboxPlatform } from '@/lib/socialInbox';
+import { normalizeSocialInboxPlatform } from '@/lib/socialInbox';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
-import { getSocialInboxConversation } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnySocialConversations, upsertBunnySocialConversation } from '@/lib/bunnySocialInboxRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +22,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const id = params.id;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!id || id.length < 5) {
       return apiError('VALIDATION_ERROR', 'Invalid conversation id');
     }
 
@@ -33,9 +31,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return apiError('BAD_REQUEST', 'Invalid JSON body');
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
-    const Conversation = getSocialInboxConversation();
+
+    const conversations = await listBunnySocialConversations({
+      platform,
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      limit: 1000
+    });
+    
+    let conversation = conversations.find(c => String(c._id) === id);
+
+    if (!conversation) {
+      return apiError('NOT_FOUND', 'Conversation not found');
+    }
 
     const update: Record<string, any> = {};
     if (typeof body.status === 'string' && body.status.trim()) update.status = body.status.trim();
@@ -43,20 +52,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (Array.isArray(body.labels)) update.labels = body.labels.map((item: any) => String(item || '').trim()).filter(Boolean);
     if (typeof body.assignedToUserId === 'string') update.assignedToUserId = body.assignedToUserId.trim();
     if (typeof body.isBlocked === 'boolean') update.isBlocked = body.isBlocked;
-    update.updatedAt = new Date();
+    update.updatedAt = new Date().toISOString();
 
-    const conversation = await Conversation.findOneAndUpdate(
-      {
-        _id: id,
-        ...buildSocialInboxScopeFilter(scope, platform),
-      },
-      { $set: update },
-      { new: true }
-    ).lean();
-
-    if (!conversation) {
-      return apiError('NOT_FOUND', 'Conversation not found');
-    }
+    Object.assign(conversation, update);
+    conversation = await upsertBunnySocialConversation(conversation);
 
     return apiSuccess(conversation);
   } catch (error) {

@@ -210,8 +210,8 @@ export async function POST(request: NextRequest) {
 
     // Save to BunnyDB form_submissions
     let submissionId = newEnquiryId;
-    let paymentSessionId = undefined;
-    let cashfreeOrderId = undefined;
+    let paymentSessionId: string | undefined = undefined;
+    let cashfreeOrderId: string | undefined = undefined;
     
     try {
       submissionId = await createSubmission({
@@ -467,15 +467,15 @@ export async function PATCH(request: NextRequest) {
     try {
       const { getBunnyLeadById, listBunnyLeads, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
       
-      let lead = null;
+      let lead: any = null;
       // Try by ID first if it looks like a document ID
       if (enquiryId && enquiryId.length > 10) {
           lead = await getBunnyLeadById(enquiryId);
       }
       // Fallback to searching by leadNumber
       if (!lead) {
-          const leads = await listBunnyLeads({ visibleUserIds: null, viewerUserId: 'system', skip: 0, limit: 100 });
-          lead = leads.find((l: any) => l.leadNumber === enquiryId || String(l._id) === enquiryId);
+          const leadsData = await listBunnyLeads({ visibleUserIds: null, viewerUserId: 'system', skip: 0, limit: 100 });
+          lead = leadsData.leads.find((l: any) => l.leadNumber === enquiryId || String(l._id) === enquiryId);
       }
 
       if (lead) {
@@ -520,8 +520,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (body.status) enquiry.status = body.status;
-    if (hasName) enquiry.name = body.name.trim();
-    if (hasMobile) enquiry.mobile = String(body.mobile).trim();
+    if (body.name !== undefined) enquiry.name = String(body.name).trim();
+    if (body.mobile !== undefined) enquiry.mobile = String(body.mobile).trim();
     if (body.notes) enquiry.notes = body.notes;
     enquiry.updatedAt = new Date().toISOString();
     saveEnquiries(enquiries);

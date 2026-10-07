@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -46,8 +44,7 @@ export async function POST(request: NextRequest) {
     let imported = 0; 
     let skipped = 0;
 
-    await connectDB();
-    const Lead = getLead();
+    const { getBunnyLeadByPhone, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
 
     for (const [index, row] of rows.entries()) {
       const name = mapped(row, 'name', ['name', 'full name', 'first name']);
@@ -91,7 +88,7 @@ export async function POST(request: NextRequest) {
         const cleanedName = String(name || '').trim();
 
         if (cleanedPhone) {
-          const existingLead = await Lead.findOne({ phoneNumber: cleanedPhone });
+          const existingLead = await getBunnyLeadByPhone(cleanedPhone);
 
           if (existingLead) {
             if (!existingLead.leadNumber) {
@@ -102,13 +99,13 @@ export async function POST(request: NextRequest) {
             existingLead.labels = Array.from(new Set([...(existingLead.labels || []), 'enquiry', 'admin-form', workshopName]));
             existingLead.metadata = {
               ...(existingLead.metadata || {}),
-              lastEnquiry: { workshopId, workshopName, gender, city, submittedAt: new Date(), dynamicAnswers },
+              lastEnquiry: { workshopId, workshopName, gender, city, submittedAt: new Date().toISOString(), dynamicAnswers },
             };
-            await existingLead.save();
+            await saveBunnyLead(existingLead);
             await addLeadToMainBroadcastList(existingLead);
           } else {
             const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
-            const newLead = await Lead.create({
+            const newLead = {
               leadNumber: allocatedLeadNumber,
               name: cleanedName || 'Unknown User',
               phoneNumber: cleanedPhone,
@@ -124,10 +121,11 @@ export async function POST(request: NextRequest) {
                 workshopName,
                 gender,
                 city,
-                submittedAt: new Date(),
+                submittedAt: new Date().toISOString(),
                 dynamicAnswers,
               },
-            });
+            };
+            await saveBunnyLead(newLead);
             await addLeadToMainBroadcastList(newLead);
           }
         }

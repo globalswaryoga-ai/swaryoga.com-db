@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state');
 
-    let stateOrigin = null;
+    let stateOrigin: string | null = null;
     try {
       if (state && state !== 'swaryoga_admin_forms') {
         const decoded = state.startsWith('{') ? state : Buffer.from(state, 'base64url').toString('utf-8');

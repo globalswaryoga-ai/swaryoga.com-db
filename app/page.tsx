@@ -393,17 +393,6 @@ const HomePage = () => {
           </div>
         )}
       
-      {/* Floating WhatsApp Mobile Chat Button */}
-      <Link 
-        href="/mobile-chat"
-        className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center cursor-pointer border-2 border-white"
-        title="Admin Mobile Chat"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 256 256">
-          <path d="M187.58,144.84l-32-16a8,8,0,0,0-8,1.5l-19.62,17.93a89.25,89.25,0,0,1-47.38-47.38l17.93-19.62a8,8,0,0,0,1.5-8l-16-32A8,8,0,0,0,76.58,35.1l-24,8a8.13,8.13,0,0,0-5.46,6.33c-3,37.38,10.6,74.52,38.29,102.21,27.69,27.69,64.83,41.25,102.21,38.29a8.13,8.13,0,0,0,6.33-5.46l8-24A8,8,0,0,0,187.58,144.84ZM128,24A104,104,0,0,0,36.18,176.88L24.83,210.93a16,16,0,0,0,20.24,20.24l34.05-11.35A104,104,0,1,0,128,24Zm0,192a87.87,87.87,0,0,1-44.06-11.81,8,8,0,0,0-6.54-.67L40,216,52.47,178.6a8,8,0,0,0-.66-6.54A88,88,0,1,1,128,216Z"></path>
-        </svg>
-      </Link>
-
       <Footer />
     </div>
   );

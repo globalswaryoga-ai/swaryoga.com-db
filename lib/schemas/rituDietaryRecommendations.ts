@@ -114,9 +114,9 @@ rituDietaryRecommendationSchema.index({ ritu: 1, phase: 1 }, { unique: true });
 let RituDietaryRecommendation: mongoose.Model<IRituDietaryRecommendation>;
 
 try {
-  RituDietaryRecommendation = mongoose.model('RituDietaryRecommendation');
+  RituDietaryRecommendation = mongoose.model<IRituDietaryRecommendation>('RituDietaryRecommendation');
 } catch (e) {
-  RituDietaryRecommendation = mongoose.model(
+  RituDietaryRecommendation = mongoose.model<IRituDietaryRecommendation>(
     'RituDietaryRecommendation',
     rituDietaryRecommendationSchema
   );

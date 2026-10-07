@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     let responses: any[] = [];
     let validAccessToken = '';
     let lastError = '';
+    let matchedUserId = 'system';
 
     // Loop through ALL accounts in socialmediaaccounts to find the one with access to this form
     for (const row of accountRes.rows) {
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest) {
         if (formRes.ok) {
           formData = await formRes.json();
           validAccessToken = accessToken;
+          matchedUserId = parsed.userId || 'system';
 
           // Fetch responses using the valid token
           const res = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses`, {
@@ -251,8 +253,9 @@ export async function GET(request: NextRequest) {
             source: 'google_forms',
             workshopName: formTitle,
             status: 'new',
-            createdByUserId: parsed.userId,
-            assignedToUserId: parsed.userId,
+            labels: ['Google Form Lead', formTitle].filter(Boolean),
+            createdByUserId: matchedUserId,
+            assignedToUserId: matchedUserId,
           });
         }
       }

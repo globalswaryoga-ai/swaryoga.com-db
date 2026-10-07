@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
-import { apiError, apiSuccess, logError } from '@/lib/api-error';
+import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyLeadByPhone, getBunnyLeadByEmail, saveBunnyLead, listBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { generateToken } from '@/lib/auth';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -16,7 +17,6 @@ async function sendCredentialsAsync(phone: string, name: string, email: string, 
     const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-    // WhatsApp notification
     if (WHATSAPP_TOKEN && PHONE_NUMBER_ID) {
       const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
       const waMessage = `Welcome to Swar Yoga! 🧘\n\nYour account has been created.\n\n🔐 Login Credentials:\nLead ID: ${leadNumber}\nEmail: ${email}\nPassword: ${password}\n\nLogin: https://swaryoga.com/signin\n\nHar Har Mahadev 🙏`;
@@ -33,13 +33,9 @@ async function sendCredentialsAsync(phone: string, name: string, email: string, 
           type: 'text',
           text: { body: waMessage },
         }),
-      }).then(r => {
-        if (r.ok) console.log(`✅ WhatsApp credentials sent to ${fullPhone}`);
-        else console.error('❌ WhatsApp send failed');
       }).catch(e => console.error('WhatsApp error:', e));
     }
 
-    // Email notification
     if (RESEND_API_KEY) {
       fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -70,9 +66,6 @@ async function sendCredentialsAsync(phone: string, name: string, email: string, 
             </div>
           </div>`,
         }),
-      }).then(r => {
-        if (r.ok) console.log(`✅ Email credentials sent to ${email}`);
-        else console.error('❌ Email send failed');
       }).catch(e => console.error('Email error:', e));
     }
   } catch (error) {
@@ -83,13 +76,6 @@ async function sendCredentialsAsync(phone: string, name: string, email: string, 
 function escapeRegexLiteral(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
-// Public website endpoint:
-// - creates/updates a CRM Lead (so it appears in /admin/crm/leads)
-// - returns a permanent 6-digit leadNumber
-//
-// NOTE: This endpoint is intentionally unauthenticated because it's used from the public workshop form.
-// We keep it minimal and safe (validation + phone normalization + duplicate handling).
 
 export async function POST(request: NextRequest) {
   try {
@@ -107,7 +93,7 @@ export async function POST(request: NextRequest) {
     const emailRaw = String(body.email || '').trim();
     const gender = String(body.gender || '').trim();
     const city = String(body.city || '').trim();
-    const password = String(body.password || '').trim(); // Optional: user-chosen password
+    const password = String(body.password || '').trim();
     const priceInr = typeof body.priceInr === 'number' ? body.priceInr : Number(body.priceInr || 0) || 0;
 
     if (!workshopId || !workshopName || !name || !mobileRaw || !emailRaw || !gender || !city) {
@@ -123,20 +109,17 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid mobile number');
     }
 
-    await connectDB();
-    const Lead = getLead();
-
-    // Optional warning: duplicate name exists in CRM (public endpoint: do not return PII).
     let warning: any = null;
     try {
       if (name) {
-        const safe = escapeRegexLiteral(name);
-        const total = await Lead.countDocuments({ name: { $regex: `^\\s*${safe}\\s*$`, $options: 'i' } });
-        if (total > 1) {
+        const query = name.toLowerCase();
+        const existingLeads = await listBunnyLeads({ visibleUserIds: null, viewerUserId: 'system', skip: 0, limit: 100, q: query });
+        const exactMatches = existingLeads.leads.filter(l => l.name?.toLowerCase() === query);
+        if (exactMatches.length > 1) {
           warning = {
             code: 'NAME_DUPLICATE',
             message: 'Same name already exists. Please confirm mobile/email is correct before proceeding.',
-            count: total,
+            count: exactMatches.length,
           };
         }
       }
@@ -144,62 +127,47 @@ export async function POST(request: NextRequest) {
       // ignore
     }
 
-    // Find by phone first (primary). If not found, fall back to email.
-    const existing = await Lead.findOne({
-      $or: [{ phoneNumber }, ...(emailRaw ? [{ email: emailRaw.toLowerCase() }] : [])],
-    });
+    let existing = await getBunnyLeadByPhone(phoneNumber);
+    if (!existing) {
+      existing = await getBunnyLeadByEmail(emailRaw);
+    }
 
     if (existing) {
-      // Ensure leadNumber exists.
       if (!existing.leadNumber) {
-        const { leadNumber } = await allocateNextLeadNumber();
+        const { leadNumber } = await allocateNextLeadNumber('system');
         existing.leadNumber = leadNumber;
       }
 
-      // Update fields opportunistically.
       existing.name = existing.name || name;
       existing.email = existing.email || emailRaw.toLowerCase();
       existing.phoneNumber = phoneNumber;
-      existing.city = (existing as any).city || city;
-      (existing as any).gender = (existing as any).gender || gender;
-      (existing as any).source = (existing as any).source || 'website';
-      // Add 'website' label
+      existing.city = existing.city || city;
+      existing.gender = existing.gender || gender;
+      existing.source = existing.source || 'website';
+      
       if (!existing.labels || !existing.labels.includes('website')) {
         existing.labels = Array.from(new Set([...(existing.labels || []), 'website']));
       }
-      (existing as any).workshopId = (existing as any).workshopId || workshopId;
-      (existing as any).workshopName = (existing as any).workshopName || workshopName;
-      (existing as any).lastFormAt = new Date();
-      (existing as any).lastFormMeta = {
-        month,
-        mode,
-        language,
-        priceInr,
-      };
+      existing.workshopId = existing.workshopId || workshopId;
+      existing.workshopName = existing.workshopName || workshopName;
+      existing.lastFormAt = new Date().toISOString();
+      existing.lastFormMeta = { month, mode, language, priceInr };
 
-      await existing.save();
-
-      // Check if this lead has a linked User account
-      const existingUser = await User.findOne({
-        $or: [
-          { email: emailRaw.toLowerCase() },
-          { phone: phoneNumber },
-        ],
-      }).select('_id profileId name email').lean();
+      await saveBunnyLead(existing, existing._id);
 
       return apiSuccess({
         leadNumber: existing.leadNumber,
         leadId: String(existing._id),
         updated: true,
-        userExists: !!existingUser,
-        profileId: (existingUser as any)?.profileId || '',
+        userExists: false, // We don't query User collection anymore
+        profileId: '',
         ...(warning ? { warning } : {}),
       });
     }
 
-    const { leadNumber } = await allocateNextLeadNumber();
+    const { leadNumber } = await allocateNextLeadNumber('system');
 
-    const lead = await Lead.create({
+    const lead = {
       leadNumber,
       name,
       email: emailRaw.toLowerCase(),
@@ -207,78 +175,65 @@ export async function POST(request: NextRequest) {
       source: 'website',
       labels: ['website'],
       status: 'lead',
-      // workshop fields (schema supports these in CRM routes)
       workshopId,
       workshopName,
-      // extra form meta
       city,
       gender,
-      lastFormAt: new Date(),
-      lastFormMeta: {
-        month,
-        mode,
-        language,
-        priceInr,
-      },
-    });
+      lastFormAt: new Date().toISOString(),
+      lastFormMeta: { month, mode, language, priceInr },
+    };
+    
+    await saveBunnyLead(lead);
 
-    // Create User account if password provided (new user)
-    let createdUser: any = null;
     let token: string | undefined;
 
     if (password && password.length >= 6) {
       try {
-        // Double-check no existing user
-        const existingUser = await User.findOne({
-          $or: [
-            { email: emailRaw.toLowerCase() },
-            { phone: phoneNumber },
-          ],
-        }).lean();
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Ensure admin_users_sql exists
+        await bunnyExecute({
+          sql: `CREATE TABLE IF NOT EXISTS admin_users_sql (
+            id TEXT PRIMARY KEY, user_id TEXT NOT NULL, email TEXT NOT NULL,
+            password_hash TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 1,
+            role TEXT, permissions_json TEXT NOT NULL DEFAULT '[]',
+            permissions_v2_json TEXT, managed_user_ids_json TEXT NOT NULL DEFAULT '[]',
+            tenant_slug TEXT, name TEXT, phone TEXT,
+            metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT, updated_at TEXT,
+            last_login_at TEXT, migrated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id), UNIQUE(email)
+          )`
+        });
 
-        if (!existingUser) {
-          const hashedPassword = await bcrypt.hash(password, 10);
-          const newUser = new User({
-            name,
-            email: emailRaw.toLowerCase(),
-            phone: phoneNumber,
-            countryCode: '+91',
-            gender: gender || undefined,
-            password: hashedPassword,
-          });
-          await newUser.save();
-          createdUser = newUser;
+        const userId = crypto.randomUUID();
+        await bunnyExecute({
+          sql: `INSERT INTO admin_users_sql (
+            id, user_id, email, password_hash, is_admin, role, name, phone, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING`,
+          args: [
+            userId, userId, emailRaw.toLowerCase(), hashedPassword, 0, 'user', name, phoneNumber,
+            new Date().toISOString(), new Date().toISOString()
+          ]
+        });
 
-          // Link lead to user
-          await Lead.updateOne(
-            { _id: lead._id },
-            { $set: { linkedUserId: newUser._id, isLinkedToAccount: true } }
-          );
+        token = generateToken({
+          userId: userId,
+          email: emailRaw.toLowerCase(),
+        });
 
-          // Generate auth token
-          token = generateToken({
-            userId: newUser._id.toString(),
-            email: newUser.email,
-          });
-
-          console.log(`✅ User account created for workshop lead: ${emailRaw}`);
-
-          // Send credentials via WhatsApp + Email (async, don't block)
-          sendCredentialsAsync(phoneNumber, name, emailRaw, password, String(leadNumber));
-        }
+        sendCredentialsAsync(phoneNumber, name, emailRaw, password, String(leadNumber));
       } catch (userError) {
         console.error('User creation error (non-fatal):', userError);
-        // Non-fatal: lead is already created
       }
     }
 
     return apiSuccess(
       {
         leadNumber,
-        leadId: String(lead._id),
+        leadId: leadNumber, // Using leadNumber as ID proxy since _id isn't returned here
         created: true,
-        userCreated: !!createdUser,
-        profileId: createdUser?.profileId || '',
+        userCreated: !!token,
+        profileId: '',
         ...(token ? { token } : {}),
         ...(warning ? { warning } : {}),
       },

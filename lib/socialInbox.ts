@@ -1,10 +1,8 @@
 import crypto from 'crypto';
-import mongoose from 'mongoose';
 import { decryptCredential } from '@/lib/encryption';
 import { verifyToken, type TokenPayload } from '@/lib/auth';
 import { resolveSocialMediaScope, type SocialMediaScope } from '@/lib/socialMediaScope';
-import { getSocialInboxConversation, getSocialInboxMessage } from '@/lib/schemas/enterpriseSchemas';
-import { listBunnySocialAccounts } from '@/lib/bunnySocialInboxRepository';
+import { listBunnySocialAccounts, listBunnySocialConversations, upsertBunnySocialConversation, listBunnySocialMessages, upsertBunnySocialMessage } from '@/lib/bunnySocialInboxRepository';
 
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 const META_INBOX_WEBHOOK_VERIFY_TOKEN =
@@ -379,18 +377,19 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
     return null;
   }
 
-  const Conversation = getSocialInboxConversation();
-  const Message = getSocialInboxMessage();
   const conversationKey = getConversationKey(event.platform, event.accountId, event.participantId);
   const now = new Date();
 
   // Get or create conversation (looked up first so we only hit the Graph API for
   // a participant profile when we actually need a name).
-  let conversation = await Conversation.findOne({
-    conversationKey,
-    accountScopeType: resolvedAccount.scope.scopeType,
-    accountScopeKey: resolvedAccount.scope.scopeKey,
+  const conversations = await listBunnySocialConversations({
+    platform: event.platform,
+    scopeType: resolvedAccount.scope.scopeType,
+    scopeKey: resolvedAccount.scope.scopeKey,
+    search: conversationKey,
+    limit: 1000
   });
+  let conversation = conversations.find((c: any) => c.conversationKey === conversationKey);
 
   // Resolve a human-readable participant name. Webhooks usually omit it, so fall
   // back to a best-effort profile lookup — but never clobber a good existing name.
@@ -422,10 +421,10 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
     participantUsername,
     participantProfilePic,
     lastMessage: event.messageText || (event.messageType ? `[${event.messageType}]` : ''),
-    lastMessageAt: event.sentAt || now,
+    lastMessageAt: (event.sentAt || now).toISOString(),
     lastMessageDirection: event.direction,
     lastExternalMessageId: event.messageId || '',
-    updatedAt: now,
+    updatedAt: now.toISOString(),
   };
 
   if (conversation) {
@@ -435,7 +434,7 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
       updates.unreadCount = (conversation.unreadCount || 0) + 1;
     }
     Object.assign(conversation, updates);
-    await conversation.save();
+    conversation = await upsertBunnySocialConversation(conversation);
   } else {
     // Create new conversation
     const conversationData: any = {
@@ -447,61 +446,32 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
       notes: '',
       unreadCount: event.direction === 'inbound' ? 1 : 0,
       isBlocked: false,
-      createdAt: now,
+      createdAt: now.toISOString(),
       ...baseConversationUpdate,
     };
-    conversation = new Conversation(conversationData);
-    await conversation.save();
+    conversation = await upsertBunnySocialConversation(conversationData);
   }
 
-  if (event.messageId) {
-    await Message.updateOne(
-      {
-        platform: event.platform,
-        accountScopeType: resolvedAccount.scope.scopeType,
-        accountScopeKey: resolvedAccount.scope.scopeKey,
-        externalMessageId: event.messageId,
-      },
-      {
-        $setOnInsert: {
-          conversationId: conversation._id,
-          conversationKey,
-          accountId: resolvedAccount.accountId,
-          senderId: event.direction === 'inbound' ? event.participantId : resolvedAccount.accountId,
-          recipientId: event.direction === 'inbound' ? resolvedAccount.accountId : event.participantId,
-          direction: event.direction,
-          messageContent: event.messageText || '',
-          messageType: event.messageType || 'text',
-          mediaUrl: event.mediaUrl || '',
-          mediaType: event.mediaType || '',
-          sentAt: event.sentAt || now,
-          isRead: event.direction === 'outbound',
-          metadata: event.rawEvent || {},
-        },
-      },
-      { upsert: true }
-    );
-  } else {
-    await Message.create({
-      conversationId: conversation._id,
-      conversationKey,
-      platform: event.platform,
-      accountScopeType: resolvedAccount.scope.scopeType,
-      accountScopeKey: resolvedAccount.scope.scopeKey,
-      accountId: resolvedAccount.accountId,
-      externalMessageId: undefined,
-      senderId: event.direction === 'inbound' ? event.participantId : resolvedAccount.accountId,
-      recipientId: event.direction === 'inbound' ? resolvedAccount.accountId : event.participantId,
-      direction: event.direction,
-      messageContent: event.messageText || '',
-      messageType: event.messageType || 'text',
-      mediaUrl: event.mediaUrl || '',
-      mediaType: event.mediaType || '',
-      sentAt: event.sentAt || now,
-      isRead: event.direction === 'outbound',
-      metadata: event.rawEvent || {},
-    });
-  }
+  const messageData = {
+    conversationId: conversation._id,
+    conversationKey,
+    platform: event.platform,
+    accountScopeType: resolvedAccount.scope.scopeType,
+    accountScopeKey: resolvedAccount.scope.scopeKey,
+    accountId: resolvedAccount.accountId,
+    externalMessageId: event.messageId || undefined,
+    senderId: event.direction === 'inbound' ? event.participantId : resolvedAccount.accountId,
+    recipientId: event.direction === 'inbound' ? resolvedAccount.accountId : event.participantId,
+    direction: event.direction,
+    messageContent: event.messageText || '',
+    messageType: event.messageType || 'text',
+    mediaUrl: event.mediaUrl || '',
+    mediaType: event.mediaType || '',
+    sentAt: (event.sentAt || now).toISOString(),
+    isRead: event.direction === 'outbound',
+    metadata: event.rawEvent || {},
+  };
+  await upsertBunnySocialMessage(messageData);
 
   return conversation;
 }
@@ -620,14 +590,10 @@ export async function createOutboundSocialMessage(args: {
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio' | 'file';
 }) {
-  const Conversation = getSocialInboxConversation();
-  const Message = getSocialInboxMessage();
   const now = new Date();
 
-  const conversation = await Conversation.findOne({
-    _id: args.conversationId,
-    ...buildSocialInboxScopeFilter(args.scope, args.platform),
-  });
+  let conversations = await listBunnySocialConversations({ platform: args.platform, scopeType: args.scope.scopeType, scopeKey: args.scope.scopeKey, limit: 1000 });
+  let conversation = conversations.find(c => String(c._id) === args.conversationId);
 
   if (!conversation) {
     throw new Error('Conversation not found');
@@ -652,7 +618,7 @@ export async function createOutboundSocialMessage(args: {
     senderId: args.account.accountId,
     recipientId,
     direction: 'outbound' as const,
-    sentAt: now,
+    sentAt: now.toISOString(),
     isRead: true,
   };
 
@@ -662,7 +628,7 @@ export async function createOutboundSocialMessage(args: {
       ...sendBase,
       attachment: { type: args.mediaType || 'image', url: mediaUrl },
     });
-    await Message.create({
+    await upsertBunnySocialMessage({
       ...messageBase,
       externalMessageId: mediaResult.messageId || undefined,
       messageContent: '',
@@ -678,7 +644,7 @@ export async function createOutboundSocialMessage(args: {
   let createdMessage: any = null;
   if (text) {
     textResult = await sendMetaSocialMessage({ ...sendBase, message: text });
-    createdMessage = await Message.create({
+    createdMessage = await upsertBunnySocialMessage({
       ...messageBase,
       externalMessageId: textResult.messageId || undefined,
       messageContent: text,
@@ -688,43 +654,38 @@ export async function createOutboundSocialMessage(args: {
   }
 
   const lastMessage = text || (mediaUrl ? `[${args.mediaType || 'image'}]` : '');
-  await Conversation.updateOne(
-    { _id: conversation._id },
-    {
-      $set: {
-        lastMessage,
-        lastMessageAt: now,
-        lastMessageDirection: 'outbound',
-        lastExternalMessageId: textResult?.messageId || '',
-        updatedAt: now,
-      },
-    }
-  );
+  
+  conversation.lastMessage = lastMessage;
+  conversation.lastMessageAt = now.toISOString();
+  conversation.lastMessageDirection = 'outbound';
+  conversation.lastExternalMessageId = textResult?.messageId || '';
+  conversation.updatedAt = now.toISOString();
+  await upsertBunnySocialConversation(conversation);
 
   return createdMessage;
 }
 
 export async function markSocialConversationRead(scope: SocialMediaScope, platform: SocialInboxPlatform, conversationId: string) {
-  const Conversation = getSocialInboxConversation();
-  const Message = getSocialInboxMessage();
   const now = new Date();
 
-  await Conversation.updateOne(
-    { _id: conversationId, ...buildSocialInboxScopeFilter(scope, platform) },
-    { $set: { unreadCount: 0, updatedAt: now } }
-  );
+  const filterArgs = { platform, scopeType: scope.scopeType, scopeKey: scope.scopeKey, limit: 1000 };
+  const conversations = await listBunnySocialConversations(filterArgs);
+  const conversation = conversations.find(c => String(c._id) === String(conversationId));
+  if (conversation) {
+    conversation.unreadCount = 0;
+    conversation.updatedAt = now.toISOString();
+    await upsertBunnySocialConversation(conversation);
+  }
 
-  await Message.updateMany(
-    {
-      conversationId: new mongoose.Types.ObjectId(conversationId),
-      platform,
-      accountScopeType: scope.scopeType,
-      accountScopeKey: scope.scopeKey,
-      direction: 'inbound',
-      isRead: { $ne: true },
-    },
-    { $set: { isRead: true, readAt: now, updatedAt: now } }
-  );
+  const messages = await listBunnySocialMessages(conversationId, 500);
+  for (const msg of messages) {
+    if (msg.direction === 'inbound' && !msg.isRead) {
+      msg.isRead = true;
+      msg.readAt = now.toISOString();
+      msg.updatedAt = now.toISOString();
+      await upsertBunnySocialMessage(msg);
+    }
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -879,8 +840,6 @@ export async function importFacebookConversationHistory(
 ): Promise<{ conversations: number; messages: number }> {
   const maxConversations = opts.maxConversations ?? 100;
   const messagesPerConv = opts.messagesPerConv ?? 25;
-  const Conversation = getSocialInboxConversation();
-  const Message = getSocialInboxMessage();
   const now = new Date();
   const ownerId = resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId;
   const scopeFilter = {
@@ -936,22 +895,10 @@ export async function importFacebookConversationHistory(
       const lastDirection: 'inbound' | 'outbound' = lastMsg && selfIds.has(cleanString(lastMsg?.from?.id)) ? 'outbound' : 'inbound';
       const lastAt = lastMsg?.created_time ? new Date(lastMsg.created_time) : (conv?.updated_time ? new Date(conv.updated_time) : now);
 
-      await Conversation.updateOne(
-        { conversationKey, ...scopeFilter },
-        {
-          $set: {
-            platform: resolvedAccount.platform,
-            accountId: resolvedAccount.accountId,
-            accountName: resolvedAccount.accountName,
-            accountHandle: resolvedAccount.accountHandle,
-            participantId,
-            participantName,
-            lastMessage: cleanString(lastMsg?.message) || (sorted.length ? '[media]' : '[Imported conversation]'),
-            lastMessageAt: lastAt,
-            lastMessageDirection: lastDirection,
-            updatedAt: now,
-          },
-          $setOnInsert: {
+      let allConvs = await listBunnySocialConversations({ platform: resolvedAccount.platform, scopeType: scopeFilter.accountScopeType, scopeKey: scopeFilter.accountScopeKey, limit: 1000, search: conversationKey });
+      let convDoc = allConvs.find((c: any) => c.conversationKey === conversationKey);
+      if (!convDoc) {
+        convDoc = {
             conversationKey,
             ...scopeFilter,
             createdByUserId: ownerId,
@@ -961,15 +908,24 @@ export async function importFacebookConversationHistory(
             notes: '',
             unreadCount: 0,
             isBlocked: false,
-            createdAt: now,
-          },
-        },
-        { upsert: true },
-      );
+            createdAt: now.toISOString(),
+        };
+      }
+      convDoc = {
+          ...convDoc,
+          platform: resolvedAccount.platform,
+          accountId: resolvedAccount.accountId,
+          accountName: resolvedAccount.accountName,
+          accountHandle: resolvedAccount.accountHandle,
+          participantId,
+          participantName,
+          lastMessage: cleanString(lastMsg?.message) || (sorted.length ? '[media]' : '[Imported conversation]'),
+          lastMessageAt: lastAt.toISOString(),
+          lastMessageDirection: lastDirection,
+          updatedAt: now.toISOString(),
+      };
+      convDoc = await upsertBunnySocialConversation(convDoc);
       convCount += 1;
-
-      const conversationDoc = await Conversation.findOne({ conversationKey, ...scopeFilter }).select('_id').lean<any>();
-      if (!conversationDoc?._id) continue;
 
       for (const m of sorted) {
         const externalMessageId = cleanString(m?.id);
@@ -983,7 +939,7 @@ export async function importFacebookConversationHistory(
         if (!externalMessageId && !text && !mediaUrl) continue;
 
         const messageDoc: Record<string, any> = {
-          conversationId: conversationDoc._id,
+          conversationId: convDoc._id,
           conversationKey,
           platform: resolvedAccount.platform,
           ...scopeFilter,
@@ -996,20 +952,21 @@ export async function importFacebookConversationHistory(
           messageType: text ? 'text' : mapAttachmentMessageType(mimeType),
           mediaUrl: mediaUrl || '',
           mediaType: mimeType || (firstAttachment ? 'media' : ''),
-          sentAt: m?.created_time ? new Date(m.created_time) : now,
+          sentAt: m?.created_time ? new Date(m.created_time).toISOString() : now.toISOString(),
           isRead: true,
           metadata: m || {},
         };
 
         if (externalMessageId) {
-          const result = await Message.updateOne(
-            { platform: resolvedAccount.platform, ...scopeFilter, externalMessageId },
-            { $setOnInsert: messageDoc },
-            { upsert: true },
-          );
-          if ((result as any).upsertedCount > 0) msgCount += 1;
+          let existingMsg = await listBunnySocialMessages(convDoc._id, 1000).then(msgs => msgs.find(msg => msg.externalMessageId === externalMessageId));
+          if (!existingMsg) {
+             messageDoc.createdAt = messageDoc.sentAt;
+             await upsertBunnySocialMessage(messageDoc);
+             msgCount += 1;
+          }
         } else {
-          await Message.create(messageDoc);
+          messageDoc.createdAt = messageDoc.sentAt;
+          await upsertBunnySocialMessage(messageDoc);
           msgCount += 1;
         }
       }

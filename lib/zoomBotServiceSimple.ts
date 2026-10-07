@@ -56,7 +56,7 @@ async function getZoomToken(): Promise<string> {
     tokenExpireTime = now + response.data.expires_in * 1000;
 
     console.log('[ZoomBot] ✅ Token obtained');
-    return cachedToken;
+    return cachedToken as string;
   } catch (err: any) {
     console.error('[ZoomBot] ❌ Token error:', err.message);
     throw err;

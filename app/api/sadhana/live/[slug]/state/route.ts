@@ -152,10 +152,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const activeParticipants = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_participants_sql WHERE program_slug = ? AND last_seen >= ? ORDER BY joined_at ASC LIMIT 200`,
       args: [params.slug, thresholdIso]
-    })).rows;
+    })).rows || [];
 
     const allPrograms = await listPrograms();
-    let activeSchedule = allPrograms.find(p => p.slug === params.slug);
+    let activeSchedule = allPrograms.find(p => p && p.slug === params.slug);
 
     if (!activeSchedule) {
       console.log(`[Sadhana Live] ${params.slug} - Program not found`);
@@ -258,12 +258,12 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const chatMessages = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_chat_sql WHERE created_at >= ? ORDER BY created_at DESC LIMIT 50`,
       args: [oneDayAgo]
-    })).rows;
+    })).rows || [];
 
     const todaysJoins = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_join_history_sql WHERE program_slug = ? AND joined_at >= ? ORDER BY joined_at ASC LIMIT 500`,
       args: [params.slug, oneDayAgo]
-    })).rows;
+    })).rows || [];
 
     let todayVideo: any = null;
     let upcomingVideos: any[] = [];

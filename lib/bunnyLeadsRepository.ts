@@ -118,9 +118,10 @@ export async function saveBunnyLead(lead: any, documentId?: string) {
     ]
   });
   
-  if (isNew && leadToSave.createdByUserId && leadToSave.createdByUserId !== 'system') {
+  if (isNew) {
+    const contactUserId = leadToSave.createdByUserId || 'system';
     const { pushLeadToGoogleContacts } = await import('@/lib/googleContactsManager');
-    pushLeadToGoogleContacts(leadToSave.createdByUserId, {
+    pushLeadToGoogleContacts(contactUserId, {
       name: leadToSave.name || 'Unknown',
       phone: leadToSave.phoneNumber,
       email: leadToSave.email,

@@ -88,30 +88,29 @@ export async function POST(request: NextRequest) {
       const accessToken = await getZoomAccessToken();
 
       
-      // Always recover trash automatically
-      if (true) {
-        await sendEvent('progress', { type: 'start', percent: 2, message: 'Checking Zoom trash for deleted recordings...' });
+      // We don't recover trash anymore to save space, but we need their dates for correct day numbering
+      let pastDates: string[] = [];
+      try {
+        await sendEvent('progress', { type: 'start', percent: 2, message: 'Checking Zoom trash for day numbering...' });
         const trashRes = await fetch(`${ZOOM_API}/users/me/recordings?trash=true&trash_type=meeting_recordings&meeting_id=${cleanMeetingId}`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         if (trashRes.ok) {
           const trashData = await trashRes.json();
-          // The API returns meetings array, check if our meeting is there
           const isTrashed = trashData.meetings && trashData.meetings.length > 0;
           if (isTrashed) {
-            await sendEvent('progress', { type: 'start', percent: 3, message: 'Found trashed recordings. Recovering...' });
-            const recoverRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings/status`, {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'recover' })
-            });
-            if (!recoverRes.ok) {
-              console.error('[zoom-sync POST] Failed to recover recordings:', await recoverRes.text());
-            } else {
-              await sendEvent('progress', { type: 'start', percent: 4, message: 'Successfully recovered recordings from trash.' });
+            const meetingTrash = trashData.meetings.find((m: any) => String(m.id) === cleanMeetingId) || trashData.meetings[0];
+            if (meetingTrash && meetingTrash.recording_files) {
+               meetingTrash.recording_files.forEach((f: any) => {
+                 if (f.recording_start) {
+                   pastDates.push(f.recording_start.split('T')[0]);
+                 }
+               });
             }
           }
         }
+      } catch (e) {
+        console.error('[zoom-sync POST] Error checking trash:', e);
       }
 
       let recordingsRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings`, {
@@ -167,7 +166,7 @@ export async function POST(request: NextRequest) {
           dayNumber: evt.dayNumber,
           fileSizeMB: evt.fileSizeMB,
         });
-      });
+      }, pastDates);
 
       if (!syncResult.success && syncResult.syncedFiles.length === 0) {
         await sendEvent('error', { message: `Sync failed: ${syncResult.errors.join('; ')}` });
@@ -231,6 +230,52 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // ── Update Workshop CRM Recordings ─────────────────────────────
+      await sendEvent('progress', { type: 'saving', percent: 95, message: 'Updating CRM Workshop records...' });
+      
+      try {
+        const { findCohortByZoom, upsertRecording } = await import('@/lib/workshopBunnyRepository');
+        const cohort = await findCohortByZoom(meetingId);
+        
+        if (cohort) {
+          console.log(`[Zoom Sync] Found CRM cohort ${cohort._id} for meeting ${meetingId}. Updating recordings...`);
+          
+          const dateToUrls = new Map<string, any>();
+          
+          for (const syncedFile of syncResult.syncedFiles) {
+            const dateStr = syncedFile.recordingDate;
+            const isSpeaker = syncedFile.recordingType.includes('speaker');
+            const isGallery = syncedFile.recordingType.includes('gallery');
+            
+            const current = dateToUrls.get(dateStr) || { 
+              cohortId: cohort._id, 
+              classDate: dateStr, 
+              dayNumber: syncedFile.dayNumber, 
+              zoomMeetingId: meetingId 
+            };
+            
+            if (isSpeaker) {
+              if (syncedFile.youtubeVideoId) current.youtubeSpeakerId = syncedFile.youtubeVideoId;
+              if (syncedFile.youtubeUrl) current.youtubeSpeakerUrl = syncedFile.youtubeUrl;
+              if (syncedFile.bunnyEmbedUrl) current.bunnySpeakerUrl = syncedFile.bunnyEmbedUrl;
+            } else if (isGallery) {
+              if (syncedFile.youtubeVideoId) current.youtubeGalleryId = syncedFile.youtubeVideoId;
+              if (syncedFile.youtubeUrl) current.youtubeGalleryUrl = syncedFile.youtubeUrl;
+              if (syncedFile.bunnyEmbedUrl) current.bunnyGalleryUrl = syncedFile.bunnyEmbedUrl;
+            }
+            
+            dateToUrls.set(dateStr, current);
+          }
+          
+          for (const [dateStr, payload] of dateToUrls.entries()) {
+            await upsertRecording(payload);
+            console.log(`[Zoom Sync] Updated CRM recording for ${dateStr} (Day ${payload.dayNumber})`);
+          }
+        }
+      } catch (err: any) {
+        console.error(`[Zoom Sync] Failed to update CRM recordings:`, err.message);
+      }
+
       const uniqueDays = new Set(syncResult.syncedFiles.map(f => f.dayNumber));
       const message = `Synced ${uniqueDays.size} day(s) — ${syncResult.syncedFiles.length} recording(s) to Bunny Stream, created ${createdVideos.length} video entries.`;
 
@@ -247,19 +292,24 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Auto‑delete recordings from Zoom after successful upload to free storage
+      // Auto‑delete specific recordings from Zoom after successful upload to free storage
       try {
-        await sendEvent('progress', { type: 'start', percent: 101, message: 'Deleting recordings from Zoom...' });
-        const delRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings?action=delete`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!delRes.ok) {
-          console.error('[Zoom Sync] Failed to delete recordings after upload:', await delRes.text());
-          await sendEvent('progress', { type: 'info', percent: 101, message: 'Failed to delete recordings from Zoom.' });
-        } else {
-          await sendEvent('progress', { type: 'info', percent: 101, message: 'Zoom recordings deleted after successful upload.' });
+        await sendEvent('progress', { type: 'start', percent: 101, message: 'Deleting synced recordings from Zoom...' });
+        let deletedCount = 0;
+        for (const syncedFile of syncResult.syncedFiles) {
+          if (!syncedFile.zoomFileId) continue;
+          
+          const delRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings/${syncedFile.zoomFileId}?action=trash`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (delRes.ok) {
+            deletedCount++;
+          } else {
+             console.error(`[Zoom Sync] Failed to delete file ${syncedFile.zoomFileId}:`, await delRes.text());
+          }
         }
+        await sendEvent('progress', { type: 'info', percent: 101, message: `Moved ${deletedCount} recording(s) to Zoom trash.` });
       } catch (e) {
         console.error('[Zoom Sync] Error deleting recordings:', e);
       }

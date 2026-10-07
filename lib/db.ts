@@ -1638,6 +1638,8 @@ const playlistVideoSchema = new mongoose.Schema({
   bunnyVideoId: { type: String, trim: true }, // Bunny Stream video GUID
   bunnyEmbedUrl: { type: String, trim: true }, // Bunny iframe embed URL
   thumbnailUrl: { type: String, trim: true },
+  youtubeVideoId: { type: String, trim: true },
+  youtubeUrl: { type: String, trim: true },
   
   // Video type: gallery or speaker view
   videoType: { type: String, enum: ['gallery', 'speaker', 'screen', 'other'], default: 'speaker', index: true },

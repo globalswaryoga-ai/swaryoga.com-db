@@ -5,8 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { MongoClient } from 'mongodb';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +24,6 @@ function verifyWebhookSignature(
 
 // Parse Meta form data and create CRM lead
 async function createLeadFromMetaForm(formData: any) {
-  const db = await connectDB();
-  const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
   // Extract form fields
   const {
     first_name,
@@ -44,7 +39,7 @@ async function createLeadFromMetaForm(formData: any) {
 
   // Create lead object
   const lead = {
-    phone: phone_number ? phone_number.replace(/\D/g, '') : '', // Normalize phone
+    phoneNumber: phone_number ? phone_number.replace(/\D/g, '') : '', // Normalize phone
     name: `${first_name || ''} ${last_name || ''}`.trim(),
     email: email || '',
     source: 'meta_instant_form',
@@ -54,21 +49,22 @@ async function createLeadFromMetaForm(formData: any) {
     campaignName: source_campaign || 'Direct',
     adSet: source_ad_set || '',
     formSource: 'facebook_instagram_ads',
-    createdAt: new Date(timestamp || Date.now()),
+    createdAt: new Date(timestamp || Date.now()).toISOString(),
     notes: `Lead from Meta Instant Form - Campaign: ${source_campaign}, Ad Set: ${source_ad_set}`,
-    tags: ['meta_instant_form', 'facebook_ads', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
+    labels: ['meta_instant_form', 'facebook_ads', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
+    createdByUserId: 'system',
   };
 
   // Create lead in CRM
   try {
-    const leadsCollection = crmDb.collection('leads');
-    const result = await leadsCollection.insertOne(lead);
+    const { saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
+    const result = await saveBunnyLead(lead);
 
-    console.log(`✅ Lead created: ${result.insertedId}`);
+    console.log(`✅ Lead created: ${result._id}`);
 
     return {
       success: true,
-      leadId: result.insertedId,
+      leadId: result._id,
       workshopId: workshop_id,
     };
   } catch (error) {

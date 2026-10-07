@@ -32,11 +32,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Google Forms scopes
+    // Google Forms + Contacts scopes
     const scopes = [
       'https://www.googleapis.com/auth/forms.responses.readonly',
       'https://www.googleapis.com/auth/forms.body.readonly',
-      'https://www.googleapis.com/auth/drive.readonly'
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/contacts'
     ];
 
     const authUrl = new URL(GOOGLE_AUTH_URL);

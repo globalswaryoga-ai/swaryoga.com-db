@@ -19,8 +19,7 @@ import { buildContactDuplicateQuery } from '@/lib/contactDuplicateCheck';
 import { randomInt } from 'crypto';
 
 export const dynamic = 'force-dynamic';
-
-
+import { pushLeadToGoogleContacts } from '@/lib/googleContactsManager';
 // Rate limiting: 10 submissions per 15 minutes per IP
 const FORM_RATE_LIMIT = {
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -492,6 +491,16 @@ export async function POST(request: NextRequest) {
         );
         leadNumber = String((existingLead as any).leadNumber || '');
         console.log(`✅ Lead updated: ${leadNumber}`);
+        
+        // Push updated lead to Google Contacts
+        pushLeadToGoogleContacts('system', {
+          name: cleanedName,
+          phone: cleanedPhone,
+          email: cleanedEmail,
+          labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
+          city: city,
+          country: country
+        }).catch(err => console.error('[FormSubmit] Google Contacts update error:', err));
       } else {
         // Create new lead
         const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
@@ -515,6 +524,16 @@ export async function POST(request: NextRequest) {
         
         leadNumber = String(allocatedLeadNumber);
         console.log(`✅ New lead created: ${leadNumber}`);
+        
+        // Push new lead to Google Contacts
+        pushLeadToGoogleContacts('system', {
+          name: cleanedName,
+          phone: cleanedPhone,
+          email: cleanedEmail,
+          labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
+          city: city,
+          country: country
+        }).catch(err => console.error('[FormSubmit] Google Contacts create error:', err));
       }
     } catch (leadError) {
       logError('forms/createLead', leadError);

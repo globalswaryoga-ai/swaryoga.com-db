@@ -88,7 +88,7 @@ export async function getZoomAccessToken(): Promise<string> {
     tokenExpireTime = now + (response.data.expires_in * 1000);
 
     console.log('[ZoomBotService] ✅ Bot Framework token obtained, expires in', response.data.expires_in, 'seconds');
-    return cachedToken;
+    return cachedToken as string;
   } catch (err: any) {
     const errorDetail = err.response?.data || err.message || String(err);
     const statusCode = err.response?.status || 'N/A';
@@ -409,6 +409,7 @@ The next 40 minutes are for YOUR well-being.
 export async function sendVideoEndingMessage(meetingId: string, minutesLeft: number): Promise<void> {
   try {
     const token = await getZoomAccessToken();
+    const message = `⚠️ **Notice:** The video session will automatically end in ${minutesLeft} minute(s).`;
     
     await axios.post(
       `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,

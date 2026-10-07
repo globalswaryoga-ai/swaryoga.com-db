@@ -37,7 +37,7 @@ export async function GET(
     const [year, month, day] = dateStr.split('-').map(Number);
 
     // Helper: convert local date to UTC range
-    function getUtcRangeForLocalDate(localDateStr: string, tz: string) {
+    const getUtcRangeForLocalDate = (localDateStr: string, tz: string) => {
       const startIso = `${localDateStr}T00:00:00`;
       const asUtc = new Date(startIso + 'Z');
       const dtf = new Intl.DateTimeFormat('en-US', {

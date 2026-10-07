@@ -50,7 +50,7 @@ export async function PUT(
 
     await connectDB();
 
-    let user = null;
+    let user: any = null;
 
     // Try 1: Find by ObjectId
     if (Types.ObjectId.isValid(id)) {
@@ -58,7 +58,7 @@ export async function PUT(
       try {
         user = await User.findById(new Types.ObjectId(id));
         if (user) {
-          console.log('[Reset Password] ✓ Found by ObjectId:', user.email);
+          console.log('[Reset Password] ✓ Found by ObjectId:', (user as any).email);
         }
       } catch (err) {
         console.log('[Reset Password] ObjectId lookup failed:', err);
@@ -70,7 +70,7 @@ export async function PUT(
       console.log('[Reset Password] Attempt 2: Searching by email');
       user = await User.findOne({ email: id });
       if (user) {
-        console.log('[Reset Password] ✓ Found by email:', user.email);
+        console.log('[Reset Password] ✓ Found by email:', (user as any).email);
       }
     }
 
@@ -79,7 +79,7 @@ export async function PUT(
       console.log('[Reset Password] Attempt 3: Searching by _id string');
       user = await User.findOne({ _id: id });
       if (user) {
-        console.log('[Reset Password] ✓ Found by _id string:', user.email);
+        console.log('[Reset Password] ✓ Found by _id string:', (user as any).email);
       }
     }
 
