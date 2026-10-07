@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 interface CanvaStudioTabProps {
@@ -75,6 +75,41 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
     }
   }, [chatMessages]);
+
+  const copyImageToClipboard = async (url: string) => {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.src = url;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('No 2d context');
+      ctx.drawImage(img, 0, 0);
+      
+      canvas.toBlob(async (blob) => {
+        if (!blob) throw new Error('No blob created');
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          toast.addToast('success', 'Image copied to clipboard!');
+        } catch (err) {
+          console.error(err);
+          alert('Failed to copy image. Please right click and copy.');
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load image for copying.');
+    }
+  };
 
   const openCanvaPopup = (url: string) => {
     window.open(url, '_blank');
@@ -748,45 +783,24 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  <div className="mb-4">
                                    <img src={msg.imageUrl} alt="Generated" className="rounded-xl max-w-sm w-full border border-slate-200 shadow-sm" />
                                    <div className="mt-3 flex gap-2">
-                                     <button 
-                                       onClick={async () => {
-                                         if (msg.designUrl) {
-                                            openCanvaPopup(msg.designUrl);
-                                            return;
-                                         }
-                                         
-                                         // Fallback if design generation failed but image generated
-                                         try {
-                                           let blob: Blob;
-                                           if (msg.imageUrl!.startsWith('data:')) {
-                                             const parts = msg.imageUrl!.split(',');
-                                             const byteString = atob(parts[1]);
-                                             const mimeString = parts[0].split(':')[1].split(';')[0];
-                                             const ab = new ArrayBuffer(byteString.length);
-                                             const ia = new Uint8Array(ab);
-                                             for (let i = 0; i < byteString.length; i++) {
-                                               ia[i] = byteString.charCodeAt(i);
-                                             }
-                                             blob = new Blob([ab], { type: mimeString });
-                                           } else {
-                                             const response = await fetch(msg.imageUrl!);
-                                             blob = await response.blob();
-                                           }
-                                           await navigator.clipboard.write([
-                                             new ClipboardItem({ [blob.type]: blob })
-                                           ]);
-                                           if(confirm("Image copied to clipboard! Ready to paste (Ctrl+V) into Canva?")) {
-                                             openCanvaPopup('https://www.canva.com/');
-                                           }
-                                         } catch(e) {
-                                           alert("Could not copy automatically. Please right-click the image to copy it, then paste it in Canva.");
-                                           openCanvaPopup('https://www.canva.com/');
-                                         }
-                                       }}
-                                       className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
-                                     >
-                                       <Share2 size={14} /> {msg.designUrl ? 'Edit in Canva' : 'Open in Canva'}
-                                     </button>
+                                      <button 
+                                        onClick={() => {
+                                          if (msg.designUrl) openCanvaPopup(msg.designUrl);
+                                          else openCanvaPopup("https://www.canva.com/");
+                                        }}
+                                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
+                                      >
+                                        <Share2 size={14} /> {msg.designUrl ? "Edit in Canva" : "Open in Canva"}
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          if (msg.imageUrl) copyImageToClipboard(msg.imageUrl);
+                                        }}
+                                        className="flex-1 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                      >
+                                        <Copy size={14} /> Copy Image
+                                      </button>
+
                                      <button 
                                        onClick={() => {
                                          const a = document.createElement('a');
@@ -1418,6 +1432,14 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                              <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{ad.platform}</span>
                                              <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{ad.language}</span>
                                            </div>
+                                             <button
+                                               onClick={() => {
+                                                 if (ad.imageUrl) copyImageToClipboard(ad.imageUrl);
+                                               }}
+                                               className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm"
+                                             >
+                                               <Copy size={14} /> Copy
+                                             </button>
                                            <a 
                                              href={`https://www.canva.com/design/${ad.designId}/view`} 
                                              target="_blank" 
