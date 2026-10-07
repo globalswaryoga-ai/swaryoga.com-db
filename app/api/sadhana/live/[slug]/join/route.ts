@@ -22,9 +22,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     });
 
     await bunnyExecute({
-      sql: `INSERT INTO sadhana_join_history_sql (session_id, program_slug, name, joined_at, last_seen)
+      sql: `INSERT INTO sadhana_join_history_sql (session_id, program_slug, name, joined_at, left_at)
             VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(session_id, program_slug) DO UPDATE SET name = excluded.name, last_seen = excluded.last_seen`,
+            ON CONFLICT(session_id, program_slug) DO UPDATE SET name = excluded.name, left_at = excluded.left_at`,
       args: [sessionId, params.slug, cleanName, now, now]
     });
 

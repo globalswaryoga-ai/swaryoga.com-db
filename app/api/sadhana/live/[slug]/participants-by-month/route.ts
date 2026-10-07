@@ -28,11 +28,11 @@ export async function GET(
       args: [params.slug]
     });
     
-    if (!programData || programData.length === 0) {
+    if (!programData.rows || programData.rows.length === 0) {
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
 
-    const timezone = programData[0].timezone || 'Asia/Kolkata';
+    const timezone = programData.rows[0].timezone || 'Asia/Kolkata';
 
     // Calculate UTC range for the entire month in the program's timezone
     const daysInMonth = new Date(year, month, 0).getDate(); // month is 1-indexed, trick to get days
@@ -49,11 +49,11 @@ export async function GET(
     const startIso = startUtc.toISOString();
     const endIso = endUtc.toISOString();
 
-    const joinLogs = await bunnyExecute({
+    const joinLogs = (await bunnyExecute({
       sql: `SELECT joined_at FROM sadhana_join_history_sql 
             WHERE program_slug = ? AND joined_at >= ? AND joined_at <= ?`,
       args: [params.slug, startIso, endIso]
-    });
+    })).rows;
 
     // Group by local date using the program timezone
     const countsByDate: Record<string, number> = {};

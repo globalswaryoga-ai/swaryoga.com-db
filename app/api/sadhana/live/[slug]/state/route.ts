@@ -139,7 +139,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         args: [nowIso, sessionId, params.slug]
       });
       await bunnyExecute({
-        sql: `UPDATE sadhana_join_history_sql SET last_seen = ? WHERE session_id = ? AND program_slug = ?`,
+        sql: `UPDATE sadhana_join_history_sql SET left_at = ? WHERE session_id = ? AND program_slug = ?`,
         args: [nowIso, sessionId, params.slug]
       });
     }
@@ -149,10 +149,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       args: [params.slug, thresholdIso]
     });
 
-    const activeParticipants = await bunnyExecute({
+    const activeParticipants = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_participants_sql WHERE program_slug = ? AND last_seen >= ? ORDER BY joined_at ASC LIMIT 200`,
       args: [params.slug, thresholdIso]
-    });
+    })).rows;
 
     const allPrograms = await listPrograms();
     let activeSchedule = allPrograms.find(p => p.slug === params.slug);
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         sql: `SELECT 1 FROM sadhana_live_participants_sql WHERE program_slug = ? AND name = ?`,
         args: [params.slug, botName]
       });
-      const botExists = botExistsRes.length > 0;
+      const botExists = botExistsRes.rows.length > 0;
 
       if (shouldBotBeActive && !botExists) {
         await bunnyExecute({
@@ -255,15 +255,15 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const chatMessages = await bunnyExecute({
+    const chatMessages = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_chat_sql WHERE created_at >= ? ORDER BY created_at DESC LIMIT 50`,
       args: [oneDayAgo]
-    });
+    })).rows;
 
-    const todaysJoins = await bunnyExecute({
+    const todaysJoins = (await bunnyExecute({
       sql: `SELECT * FROM sadhana_join_history_sql WHERE program_slug = ? AND joined_at >= ? ORDER BY joined_at ASC LIMIT 500`,
       args: [params.slug, oneDayAgo]
-    });
+    })).rows;
 
     let todayVideo: any = null;
     let upcomingVideos: any[] = [];
