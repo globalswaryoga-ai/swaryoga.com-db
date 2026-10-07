@@ -57,7 +57,7 @@ export interface AiVideoJob {
 
 export async function getAiVideoJobById(jobId: string): Promise<AiVideoJob | null> {
   await initBunnyAiVideoJobsSchema();
-  const result = await bunnyExecute('SELECT * FROM ai_video_jobs_sql WHERE job_id = ?', [jobId]);
+  const result = await bunnyExecute({ sql: 'SELECT * FROM ai_video_jobs_sql WHERE job_id = ?', args: [jobId] });
   if (!result.rows || result.rows.length === 0) return null;
   const row = result.rows[0];
   return {
@@ -159,12 +159,12 @@ export async function updateAiVideoJob(jobId: string, updates: Partial<AiVideoJo
 
 export async function deleteAiVideoJob(jobId: string): Promise<void> {
   await initBunnyAiVideoJobsSchema();
-  await bunnyExecute('DELETE FROM ai_video_jobs_sql WHERE job_id = ?', [jobId]);
+  await bunnyExecute({ sql: 'DELETE FROM ai_video_jobs_sql WHERE job_id = ?', args: [jobId] });
 }
 
 export async function listAiVideoJobs(): Promise<AiVideoJob[]> {
   await initBunnyAiVideoJobsSchema();
-  const result = await bunnyExecute('SELECT * FROM ai_video_jobs_sql ORDER BY updated_at DESC', []);
+  const result = await bunnyExecute({ sql: 'SELECT * FROM ai_video_jobs_sql ORDER BY updated_at DESC', args: [] });
   if (!result.rows) return [];
   return result.rows.map(row => ({
     _id: String(row.job_id),
