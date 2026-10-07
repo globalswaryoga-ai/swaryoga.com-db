@@ -13,7 +13,7 @@ import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
-import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage, updateBunnyMetaMessageByWaId } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { META_WHATSAPP_OWNER_IDS } from '@/lib/crm-handlers';
 import { broadcastRunMessageUpdateByWaMessageId } from '@/lib/bunnyBroadcastRepository';
@@ -213,7 +213,7 @@ async function handleWebhookPayload(payload: any) {
           const status = String(st?.status || '').toLowerCase();
           
           try {
-            await updateBunnyMetaMessage(waMessageId, {
+            await updateBunnyMetaMessageByWaId(waMessageId, {
               status,
               updatedAt: now.toISOString(),
               ...(status === 'delivered' ? { deliveredAt: now.toISOString() } : {}),

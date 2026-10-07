@@ -32,6 +32,9 @@ export async function initBunnyMetaWhatsAppSchema() {
   await bunnyBatch([
     { sql: 'CREATE TABLE IF NOT EXISTS meta_messages_sql (document_id TEXT PRIMARY KEY,lead_id TEXT,phone_number TEXT NOT NULL DEFAULT \'\',provider TEXT NOT NULL DEFAULT \'meta\',direction TEXT NOT NULL DEFAULT \'outbound\',message_type TEXT NOT NULL DEFAULT \'text\',status TEXT NOT NULL DEFAULT \'queued\',wa_message_id TEXT,sender_number TEXT,sent_by_user_id TEXT,sent_at TEXT,created_at TEXT,updated_at TEXT,data_json TEXT NOT NULL)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_phone_time ON meta_messages_sql(phone_number,sent_at DESC,created_at DESC)', args: [] },
+    { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_coalesce ON meta_messages_sql(phone_number, COALESCE(sent_at, created_at) DESC)', args: [] },
+    { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_provider_phone_coalesce ON meta_messages_sql(provider, phone_number, COALESCE(sent_at, created_at) DESC)', args: [] },
+    { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_unread ON meta_messages_sql(provider, phone_number, direction, status)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_lead_time ON meta_messages_sql(lead_id,sent_at DESC,created_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_provider ON meta_messages_sql(provider,sent_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_wa_id ON meta_messages_sql(wa_message_id)', args: [] },
@@ -355,4 +358,20 @@ export async function deleteBunnyMetaMessage(messageId: string) {
 export async function getBunnyMetaAnalytics(scope: Record<string, any>, startDate: Date, endDate: Date) {
   // This is a complex one, we'll implement it manually in the analytics route or here.
   // For now, exporting a dummy so the route can use it or we implement logic here.
+}
+
+export async function getBunnyMetaMessageByWaId(waMessageId: string) {
+  await initBunnyMetaWhatsAppSchema();
+  const result = await bunnyExecute({ sql: `SELECT document_json FROM meta_messages_sql WHERE wa_message_id = ?`, args: [waMessageId] });
+  if (!result.rows[0]) return null;
+  const msg: any = parse(result.rows[0].document_json, {});
+  return { ...msg, _id: String(msg._id || msg.documentId) };
+}
+
+export async function updateBunnyMetaMessageByWaId(waMessageId: string, updates: Record<string, any>) {
+  const existing = await getBunnyMetaMessageByWaId(waMessageId);
+  if (!existing) return null;
+  const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+  await upsertBunnyMetaMessage(merged);
+  return merged;
 }

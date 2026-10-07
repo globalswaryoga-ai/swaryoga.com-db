@@ -282,6 +282,8 @@ export async function GET(request: NextRequest) {
             formData: responseIdStr, // Store responseId to prevent duplicates
             createdAt: lead.createdAt
           });
+          // Update the array so subsequent identical items in this batch are caught
+          existingSubmissions.push({ formData: responseIdStr, email: lead.email });
         }
 
         // 2. Add to Global CRM Leads

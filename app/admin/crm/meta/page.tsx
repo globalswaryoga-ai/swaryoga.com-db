@@ -1155,6 +1155,7 @@ export default function MetaInboxPage() {
     selectedRef.current = conv;
     setMessageLimit(5);
     setHasMoreHistory(true);
+    setMessages([]); // Clear previous chat messages immediately to prevent visual mixing
     loadMessages(conv.phoneNumber || conv.leadId || conv._id);
     
     // Map legacy status values to new funnel stages

@@ -471,7 +471,7 @@ export async function createSubmission(data: any) {
   await ensureFormTables();
   const id = 'sub_' + nanoid(10);
   await bunnyExecute({
-    sql: `INSERT INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency, form_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+    sql: `INSERT OR IGNORE INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency, form_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     args: [
       id,
       data.formId,
