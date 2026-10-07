@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { listAiVideoJobs, createAiVideoJob, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
 import { transcribeAudio, correctTranscript, ExtractedAudio } from '@/lib/aiVideo/transcribeAndCondense';
 
 export const dynamic = 'force-dynamic';
@@ -21,15 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const jobs = await (AiVideoJob as any)
-      .find({})
-      .select('topicTitle sourceYoutubeUrl sourceLanguage workshopName dayOrder targetLanguages status createdAt updatedAt')
-      .sort({ updatedAt: -1 })
-      .limit(100)
-      .lean();
+    const jobs = await listAiVideoJobs();
 
     return NextResponse.json({ success: true, data: jobs }, { status: 200 });
   } catch (error) {
@@ -74,10 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).create({
+    let job = await createAiVideoJob({
       sourceYoutubeUrl: sourceYoutubeUrl || undefined,
       sourceFileName: audioFile ? audioFile.name : undefined,
       sourceLanguage,
@@ -98,18 +86,19 @@ export async function POST(request: NextRequest) {
           )
         : sourceText;
 
-      job.transcript = rawTranscript;
-      await job.save();
+      job = await updateAiVideoJob(job._id, { transcript: rawTranscript }) as any;
 
       const corrected = await correctTranscript(rawTranscript, sourceLanguage);
-      job.correctedTranscript = corrected;
-      job.status = 'awaiting_correction_review';
-      job.errorMessage = undefined;
-      await job.save();
+      job = await updateAiVideoJob(job._id, { 
+        correctedTranscript: corrected,
+        status: 'awaiting_correction_review',
+        errorMessage: undefined
+      }) as any;
     } catch (pipelineError) {
-      job.status = 'failed';
-      job.errorMessage = pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed';
-      await job.save();
+      job = await updateAiVideoJob(job._id, {
+        status: 'failed',
+        errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
+      }) as any;
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 201 });

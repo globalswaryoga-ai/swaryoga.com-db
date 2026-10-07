@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
 import path from 'path';
-// PDFKit (not pdf-lib, used by the receipt PDFs elsewhere in this codebase)
-// because it does real script shaping via fontkit's Indic shaper — pdf-lib's
-// drawText() draws each Unicode character as its own glyph in sequence,
-// which is wrong for Devanagari: a vowel sign that visually precedes its
-// consonant needs to be reordered, not just substituted. Confirmed via a
-// live spike test (rendered to an image, not just text-extracted) that
-// PDFKit gets this right and pdf-lib does not.
 import PDFDocument from 'pdfkit';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { getAiVideoJobsByWorkshop, initBunnyAiVideoJobsSchema } from '@/lib/bunnyAiVideoJobRepository';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -35,34 +26,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'workshopName and language are required' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const jobs = await (AiVideoJob as any)
-      .find({ workshopName, 'ebookChapters.language': language })
-      .sort({ dayOrder: 1, createdAt: 1 })
-      .lean();
+    await initBunnyAiVideoJobsSchema();
+    const jobs = await getAiVideoJobsByWorkshop(workshopName, language);
 
     if (!jobs.length) {
       return NextResponse.json({ error: `No e-book chapters found for workshop "${workshopName}" in this language` }, { status: 404 });
     }
 
     const pdfBytes = await new Promise<Buffer>((resolve, reject) => {
-      // Passing the font here (rather than calling .font() after
-      // construction) matters: PDFDocument's constructor otherwise tries to
-      // initialize its standard Helvetica font first, which reads an AFM
-      // metrics file from a path Next.js's webpack bundling for server
-      // routes doesn't carry over — confirmed via a live test (ENOENT on
-      // .next/server/vendor-chunks/data/Helvetica.afm). Setting the font up
-      // front skips that default entirely.
       const doc = new PDFDocument({ margin: 56, font: DEVANAGARI_FONT_PATH });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
-
-      // One Unicode font (Noto Sans Devanagari) covers both Devanagari and
-      // Latin, so the same font works for Hindi/Marathi and English chapters.
 
       jobs.forEach((job: any, i: number) => {
         const chapter = job.ebookChapters.find((c: any) => c.language === language);

@@ -148,23 +148,77 @@ async function callOpenAI(params: GenerateTextParams): Promise<string> {
   return text;
 }
 
+async function callReplicate(params: GenerateTextParams): Promise<string> {
+  const apiKey = process.env.REPLICATE_API_TOKEN;
+  if (!apiKey) throw new Error('REPLICATE_API_TOKEN is not configured');
+
+  const historyText = (params.history || []).map((m: any) =>
+    `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+  ).join('\n');
+
+  // Llama 3 8B Instruct
+  const LLAMA3_VERSION = '5a6809ca6288247d06daf6365557e5e429063f32a21146b2a807c682652136b8';
+
+  const res = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'wait=60'
+    },
+    body: JSON.stringify({
+      version: LLAMA3_VERSION,
+      input: {
+        prompt: `${historyText}\nUser: ${params.message}\nAssistant:`,
+        system_prompt: params.systemPrompt || '',
+        max_new_tokens: params.maxOutputTokens ?? 2000,
+        temperature: params.temperature ?? 0.3,
+      }
+    })
+  });
+
+  const prediction = await res.json();
+  if (!res.ok) throw new Error(`Replicate error: ${prediction?.detail || res.statusText}`);
+  
+  if (prediction.status === 'succeeded') {
+    const text = Array.isArray(prediction.output) ? prediction.output.join('') : String(prediction.output);
+    return text;
+  }
+
+  // Poll
+  const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const pollRes = await fetch(pollUrl, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+    const data = await pollRes.json();
+    if (data.status === 'succeeded') {
+      return Array.isArray(data.output) ? data.output.join('') : String(data.output);
+    }
+    if (data.status === 'failed') throw new Error(data.error || 'Replicate prediction failed');
+  }
+  throw new Error('Replicate timed out');
+}
+
 // Tries Gemini first (free tier); on ANY Gemini failure — not just a
 // missing key — falls back to Anthropic, then OpenAI, for whichever of
 // those have a configured key. Throws only if every configured provider
 // fails (or none are configured at all).
 export async function generateAIText(params: GenerateTextParams): Promise<string> {
   const allProviders: Record<string, { configured: boolean; call: () => Promise<string> }> = {
+    Replicate: { configured: Boolean(process.env.REPLICATE_API_TOKEN), call: () => callReplicate(params) },
     Gemini: { configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
     Anthropic: { configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
     OpenAI: { configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
   };
-  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['OpenAI', 'Anthropic', 'Gemini'];
+  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['Replicate', 'OpenAI', 'Anthropic', 'Gemini'];
   const providers = order
     .map((name) => ({ name, ...allProviders[name] }))
     .filter((p) => p.configured);
 
   if (!providers.length) {
-    throw new Error('AI is not configured — add GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to your environment variables.');
+    throw new Error('AI is not configured — add REPLICATE_API_TOKEN, GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to your environment variables.');
   }
 
   const errors: string[] = [];

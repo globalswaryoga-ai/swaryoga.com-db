@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
 import { condenseAndTranslate } from '@/lib/aiVideo/transcribeAndCondense';
 
 export const dynamic = 'force-dynamic';
@@ -26,22 +24,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     if (!job.correctedTranscript) {
       return NextResponse.json({ error: 'No corrected transcript to condense yet' }, { status: 400 });
     }
 
-    job.status = 'condensing';
-    await job.save();
+    job = (await updateAiVideoJob(id, { status: 'condensing' }))!;
 
     try {
       const scripts: { language: string; text: string; approved: boolean }[] = [];
@@ -49,14 +40,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const text = await condenseAndTranslate(job.correctedTranscript, job.sourceLanguage, language, job.topicTitle);
         scripts.push({ language, text, approved: false });
       }
-      job.scripts = scripts;
-      job.status = 'awaiting_review';
-      job.errorMessage = undefined;
-      await job.save();
+      job = (await updateAiVideoJob(id, {
+        scripts,
+        status: 'awaiting_review',
+        errorMessage: undefined
+      }))!;
     } catch (condenseError) {
-      job.status = 'failed';
-      job.errorMessage = condenseError instanceof Error ? condenseError.message : 'Condensing/translation failed';
-      await job.save();
+      job = (await updateAiVideoJob(id, {
+        status: 'failed',
+        errorMessage: condenseError instanceof Error ? condenseError.message : 'Condensing/translation failed'
+      }))!;
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
 import { rewriteForReading } from '@/lib/aiVideo/transcribeAndCondense';
 
 export const dynamic = 'force-dynamic';
@@ -26,18 +24,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
     const body = await request.json().catch(() => ({} as any));
     const language = String(body?.language || '').trim();
     if (!language) return NextResponse.json({ error: 'language is required' }, { status: 400 });
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     if (!job.correctedTranscript) {
       return NextResponse.json({ error: 'No corrected transcript yet — finish the correction review first' }, { status: 400 });
@@ -45,12 +37,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const text = await rewriteForReading(job.correctedTranscript, job.sourceLanguage, language, job.topicTitle);
 
-    job.ebookChapters = job.ebookChapters || [];
-    const existing = job.ebookChapters.find((c: any) => c.language === language);
-    if (existing) existing.text = text;
-    else job.ebookChapters.push({ language, text });
-    job.errorMessage = undefined;
-    await job.save();
+    const newEbookChapters = [...(job.ebookChapters || [])];
+    const existingIndex = newEbookChapters.findIndex((c: any) => c.language === language);
+    if (existingIndex >= 0) {
+      newEbookChapters[existingIndex] = { ...newEbookChapters[existingIndex], text };
+    } else {
+      newEbookChapters.push({ language, text });
+    }
+
+    job = (await updateAiVideoJob(id, {
+      ebookChapters: newEbookChapters,
+      errorMessage: undefined
+    }))!;
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });
   } catch (err) {

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
-import { checkVideoStatus } from '@/lib/aiVideo/heygen';
+import { getAiVideoJobById, updateAiVideoJob, deleteAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
+import { checkCustomVideoStatus as checkVideoStatus } from '@/lib/aiVideo/customAvatar'; // Switched from heygen.ts to customAvatar.ts
 import { uploadToBunnyStream } from '@/lib/bunny-stream';
 
 export const dynamic = 'force-dynamic';
@@ -33,22 +31,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (error) return error;
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
-
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     let anyPending = false;
-    for (const render of job.renders || []) {
+    let rendersChanged = false;
+    const newRenders = [...(job.renders || [])];
+
+    for (const render of newRenders) {
       if (render.status !== 'rendering' || !render.heygenVideoId) continue;
       try {
         const heygenStatus = await checkVideoStatus(render.heygenVideoId);
         render.heygenStatus = heygenStatus.status;
+        rendersChanged = true;
 
         if (heygenStatus.status === 'completed' && heygenStatus.videoUrl) {
           render.status = 'uploading';
@@ -71,15 +66,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       } catch (renderError) {
         render.status = 'failed';
         render.errorMessage = renderError instanceof Error ? renderError.message : 'Render check failed';
+        rendersChanged = true;
       }
     }
 
+    let jobStatus = job.status;
     if (job.status === 'rendering' && !anyPending) {
-      const anyFailed = (job.renders || []).some((r: any) => r.status === 'failed');
-      job.status = anyFailed ? 'failed' : 'completed';
+      const anyFailed = newRenders.some((r: any) => r.status === 'failed');
+      jobStatus = anyFailed ? 'failed' : 'completed';
     }
 
-    await job.save();
+    if (rendersChanged || jobStatus !== job.status) {
+      job = (await updateAiVideoJob(id, { renders: newRenders, status: jobStatus }))!;
+    }
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });
   } catch (err) {
@@ -97,33 +96,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (error) return error;
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
     const body = await request.json().catch(() => ({} as any));
     const language = String(body?.language || '').trim();
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     if (language) {
-      const script = (job.scripts || []).find((s: any) => s.language === language);
-      if (!script) return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
+      const newScripts = [...(job.scripts || [])];
+      const scriptIndex = newScripts.findIndex((s: any) => s.language === language);
+      if (scriptIndex === -1) return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
 
+      const script = { ...newScripts[scriptIndex] };
       if (typeof body?.text === 'string') script.text = body.text;
       if (typeof body?.approved === 'boolean') script.approved = body.approved;
+      newScripts[scriptIndex] = script;
 
-      await job.save();
+      job = (await updateAiVideoJob(id, { scripts: newScripts }))!;
       return NextResponse.json({ success: true, data: job }, { status: 200 });
     }
 
     if (typeof body?.correctedTranscript === 'string') {
-      job.correctedTranscript = body.correctedTranscript;
-      await job.save();
+      job = (await updateAiVideoJob(id, { correctedTranscript: body.correctedTranscript }))!;
       return NextResponse.json({ success: true, data: job }, { status: 200 });
     }
 
@@ -133,13 +128,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const metaFields = ['topicTitle', 'workshopName', 'dayOrder', 'sourceLanguage', 'sourceYoutubeUrl'] as const;
     const hasMetaUpdate = metaFields.some((f) => body?.[f] !== undefined);
     if (hasMetaUpdate) {
-      if (typeof body.topicTitle === 'string') job.topicTitle = body.topicTitle.trim();
-      if (typeof body.workshopName === 'string') job.workshopName = body.workshopName.trim() || undefined;
-      if (body.dayOrder !== undefined) job.dayOrder = body.dayOrder === '' || body.dayOrder === null ? undefined : Number(body.dayOrder);
-      if (typeof body.sourceLanguage === 'string') job.sourceLanguage = body.sourceLanguage.trim();
-      if (typeof body.sourceYoutubeUrl === 'string') job.sourceYoutubeUrl = body.sourceYoutubeUrl.trim() || undefined;
+      const updates: any = {};
+      if (typeof body.topicTitle === 'string') updates.topicTitle = body.topicTitle.trim();
+      if (typeof body.workshopName === 'string') updates.workshopName = body.workshopName.trim() || undefined;
+      if (body.dayOrder !== undefined) updates.dayOrder = body.dayOrder === '' || body.dayOrder === null ? undefined : Number(body.dayOrder);
+      if (typeof body.sourceLanguage === 'string') updates.sourceLanguage = body.sourceLanguage.trim();
+      if (typeof body.sourceYoutubeUrl === 'string') updates.sourceYoutubeUrl = body.sourceYoutubeUrl.trim() || undefined;
 
-      await job.save();
+      job = (await updateAiVideoJob(id, updates))!;
       return NextResponse.json({ success: true, data: job }, { status: 200 });
     }
 
@@ -156,15 +152,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (error) return error;
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
-    await connectDB();
+    const job = await getAiVideoJobById(id);
+    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-    const AiVideoJob = getAiVideoJob();
-    const deleted = await (AiVideoJob as any).findByIdAndDelete(id).lean();
-    if (!deleted) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    await deleteAiVideoJob(id);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {

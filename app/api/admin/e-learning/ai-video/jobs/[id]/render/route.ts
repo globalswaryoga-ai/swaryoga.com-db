@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
-import { submitAvatarVideo } from '@/lib/aiVideo/heygen';
+import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
+import { submitAvatarVideo } from '@/lib/aiVideo/customAvatar'; // Switched from heygen.ts to customAvatar.ts
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +10,9 @@ function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
-// Submits every approved-but-not-yet-rendered script to HeyGen. Returns
-// immediately once each render is queued — HeyGen does the actual work async,
-// the frontend polls GET /jobs/[id] to find out when it's done.
+// Submits every approved-but-not-yet-rendered script to our custom Avatar system. 
+// Returns immediately once each render is queued. The frontend polls GET /jobs/[id] 
+// to find out when it's done.
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -25,18 +23,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
     const body = await request.json().catch(() => ({} as any));
-    // avatarByLanguage: { hi: { avatarId, voiceId }, en: { avatarId, voiceId } }
-    const avatarByLanguage: Record<string, { avatarId: string; voiceId: string }> = body?.avatarByLanguage || {};
+    // avatarByLanguage: { hi: { avatarPrompt, voiceId }, en: { avatarPrompt, voiceId } }
+    const avatarByLanguage: Record<string, { avatarPrompt?: string; avatarId?: string; voiceId: string }> = body?.avatarByLanguage || {};
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    const job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     const approvedScripts = (job.scripts || []).filter((s: any) => s.approved);
@@ -44,43 +36,56 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'No approved scripts to render' }, { status: 400 });
     }
 
-    job.renders = job.renders || [];
+    const newRenders = [...(job.renders || [])];
     let anySubmitted = false;
     const errors: string[] = [];
 
     for (const script of approvedScripts) {
-      const already = job.renders.find((r: any) => r.language === script.language);
+      const alreadyIndex = newRenders.findIndex((r: any) => r.language === script.language);
+      const already = alreadyIndex >= 0 ? newRenders[alreadyIndex] : undefined;
+      
       if (already && already.status !== 'failed') continue; // don't resubmit a render in progress or done
 
       const avatar = avatarByLanguage[script.language];
-      if (!avatar?.avatarId || !avatar?.voiceId) {
-        errors.push(`Missing avatarId/voiceId for language "${script.language}"`);
+      if (!avatar?.voiceId) {
+        errors.push(`Missing voiceId for language "${script.language}"`);
         continue;
       }
 
       try {
-        const heygenVideoId = await submitAvatarVideo({
+        const providerJobId = await submitAvatarVideo({
+          avatarPrompt: avatar.avatarPrompt,
           avatarId: avatar.avatarId,
           voiceId: avatar.voiceId,
           script: script.text,
         });
-        const renderEntry = { language: script.language, heygenVideoId, status: 'rendering' as const };
+        
+        // We keep the key named 'heygenVideoId' for frontend backwards compatibility 
+        // during polling, even though it's now a Replicate/Fal job ID.
+        const renderEntry = { language: script.language, heygenVideoId: providerJobId, status: 'rendering' as const };
         if (already) {
-          Object.assign(already, renderEntry);
+          newRenders[alreadyIndex] = { ...already, ...renderEntry };
         } else {
-          job.renders.push(renderEntry);
+          newRenders.push(renderEntry);
         }
         anySubmitted = true;
       } catch (submitError) {
-        errors.push(submitError instanceof Error ? submitError.message : `HeyGen submit failed for "${script.language}"`);
+        errors.push(submitError instanceof Error ? submitError.message : `Custom Avatar submit failed for "${script.language}"`);
       }
     }
 
-    if (anySubmitted) job.status = 'rendering';
-    if (errors.length) job.errorMessage = errors.join('; ');
-    await job.save();
+    let jobStatus = job.status;
+    let errorMessage = job.errorMessage;
+    if (anySubmitted) jobStatus = 'rendering';
+    if (errors.length) errorMessage = errors.join('; ');
 
-    return NextResponse.json({ success: anySubmitted, data: job, errors }, { status: anySubmitted ? 200 : 400 });
+    const updatedJob = await updateAiVideoJob(id, { 
+      renders: newRenders, 
+      status: jobStatus,
+      errorMessage
+    });
+
+    return NextResponse.json({ success: anySubmitted, data: updatedJob, errors }, { status: anySubmitted ? 200 : 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to start render';
     return NextResponse.json({ error: message }, { status: 500 });

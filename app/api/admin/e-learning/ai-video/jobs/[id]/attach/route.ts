@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import connectDB, { getCourseVideo, getRecordedCourse } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +26,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
-    }
 
     const body = await request.json().catch(() => ({} as any));
     const language = String(body?.language || '').trim();
@@ -40,16 +36,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'language and courseId are required' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const AiVideoJob = getAiVideoJob();
-    const job = await (AiVideoJob as any).findById(id);
+    const job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-    const render = (job.renders || []).find((r: any) => r.language === language);
+    const newRenders = [...(job.renders || [])];
+    const renderIndex = newRenders.findIndex((r: any) => r.language === language);
+    const render = renderIndex >= 0 ? newRenders[renderIndex] : undefined;
+
     if (!render || render.status !== 'completed' || !render.bunnyVideoId) {
       return NextResponse.json({ error: `No completed render for language "${language}"` }, { status: 400 });
     }
+
+    await connectDB();
 
     const RecordedCourse = getRecordedCourse();
     const course = await (RecordedCourse as any).findById(courseId);
@@ -78,8 +76,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     await (RecordedCourse as any).findByIdAndUpdate(courseId, { $inc: { totalVideos: 1 } });
 
-    render.courseVideoId = videoDoc._id;
-    await job.save();
+    newRenders[renderIndex] = { ...render, courseVideoId: videoDoc._id.toString() };
+    await updateAiVideoJob(id, { renders: newRenders });
 
     return NextResponse.json({ success: true, data: { courseVideoId: videoDoc._id } }, { status: 201 });
   } catch (err) {

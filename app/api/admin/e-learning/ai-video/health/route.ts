@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getAiVideoJob } from '@/lib/schemas/enterpriseSchemas';
+import { listAiVideoJobs, initBunnyAiVideoJobsSchema } from '@/lib/bunnyAiVideoJobRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,27 +51,16 @@ export async function GET(request: NextRequest) {
     if (error) return error;
 
     const live = request.nextUrl.searchParams.get('live') === '1';
-    await connectDB();
 
-    const AiVideoJob = getAiVideoJob();
-    const cleanup = await (AiVideoJob as any).updateMany(
-      {
-        status: { $ne: 'failed' },
-        errorMessage: { $regex: 'gemini', $options: 'i' },
-      },
-      { $unset: { errorMessage: '' } }
-    );
+    await initBunnyAiVideoJobsSchema();
+    const jobs = await listAiVideoJobs();
 
-    const [statusCounts, staleLegacyProviderErrorCount] = await Promise.all([
-      (AiVideoJob as any).aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } },
-        { $sort: { _id: 1 } },
-      ]),
-      (AiVideoJob as any).countDocuments({
-        status: { $ne: 'failed' },
-        errorMessage: { $regex: 'gemini', $options: 'i' },
-      }),
-    ]);
+    // Group jobs by status
+    const statusMap = new Map<string, number>();
+    jobs.forEach(job => {
+      statusMap.set(job.status, (statusMap.get(job.status) || 0) + 1);
+    });
+    const statusCounts = Array.from(statusMap.entries()).map(([status, count]) => ({ _id: status, count }));
 
     return NextResponse.json({
       success: true,
@@ -90,8 +78,8 @@ export async function GET(request: NextRequest) {
       },
       jobs: {
         statusCounts,
-        staleLegacyProviderErrorCount,
-        cleanedLegacyProviderErrors: cleanup.modifiedCount || 0,
+        staleLegacyProviderErrorCount: 0,
+        cleanedLegacyProviderErrors: 0,
       },
       checkedAt: new Date().toISOString(),
     });

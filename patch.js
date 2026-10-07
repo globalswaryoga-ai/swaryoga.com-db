@@ -1,40 +1,81 @@
 const fs = require('fs');
+const file = 'app/admin/crm/broadcast/page.tsx';
+let content = fs.readFileSync(file, 'utf8');
 
-function patchFile(file) {
-  let content = fs.readFileSync(file, 'utf8');
+content = content.replace('const [searchQuery, setSearchQuery] = useState(\'\');', `const [searchQuery, setSearchQuery] = useState('');\n  const [debugStats, setDebugStats] = useState<any>({});`);
 
-  // Update updateLeadStatus
-  content = content.replace(
-    /const newDecisions = \{\s*\.\.\.prev,\s*\[leadId\]: \{ \.\.\.\(prev\[leadId\] \|\| \{\}\), status: newStatus, isRegistered, isRejected \}\s*\};/,
-    `const oldDec = prev[leadId] || {};
-      const oldStatus = oldDec.status || 'new_leads';
-      const history = Array.from(new Set([...(oldDec.history || []), oldStatus, newStatus]));
-      const newDecisions = {
-        ...prev,
-        [leadId]: { ...oldDec, status: newStatus, isRegistered, isRejected, history }
-      };`
-  );
+content = content.replace('return mappedLeads.filter((lead: any) => {', `
+      const finalLeads = mappedLeads.filter((lead: any) => {
+        const matchesSearch = !searchQuery ||
+          lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          lead.phoneNumber?.includes(searchQuery);
 
-  // Update saveAiFilter in new-registration
-  content = content.replace(
-    /const currentDec = batchDecisions\[lead\.id\] \|\| \{\};\s*newDecisions\[lead\.id\] = \{ \.\.\.currentDec, status: finalCategory, reason: finalReason, processedBy: type \};/,
-    `const currentDec = batchDecisions[lead.id] || {};
-        const oldStatus = currentDec.status || 'new_leads';
-        const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
-        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason, processedBy: type, history };`
-  );
+        const leadStatusNorm = (lead.status || '').toLowerCase();
+        let matchesStatus = filterStatuses.length === 0;
+        if (!matchesStatus) {
+          matchesStatus = filterStatuses.some(status => {
+            const filterStatusNorm = status.toLowerCase();
+            if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
+              return ['new', 'new_leads', 'lead', 'new_registration', 'new_lead', 'csv'].includes(leadStatusNorm);
+            } else if (filterStatusNorm.includes('pending')) {
+              return leadStatusNorm.includes('pending');
+            } else if (filterStatusNorm.includes('registered')) {
+              return leadStatusNorm.includes('register');
+            } else if (filterStatusNorm.includes('approval')) {
+              return leadStatusNorm.includes('approval');
+            } else if (filterStatusNorm.includes('rejected')) {
+              return leadStatusNorm.includes('reject');
+            } else {
+              return leadStatusNorm === filterStatusNorm;
+            }
+          });
+        }
 
-  // Update saveAiFilter in workshop-offer AI-4
-  content = content.replace(
-    /newDecisions\[lead\.id\] = \{ \.\.\.\(batchDecisions\[lead\.id\] \|\| \{\}\), status: targetApprove, reason: 'Passed filters' \};/g,
-    `const oldDec = batchDecisions[lead.id] || {};
-          const oldStatus = oldDec.status || 'new_leads';
-          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, targetApprove]));
-          newDecisions[lead.id] = { ...oldDec, status: targetApprove, reason: 'Passed filters', history };`
-  );
+        const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
+        
+        const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
+        const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
+        const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
+        
+        const matchesLanguage = filterLanguage === 'all' || 
+          lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+          (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
+        
+        const matchesMultiWorkshop = filterWorkshops.length === 0 || activeBatches.length > 0;
+        const finalLanguageMatch = activeBatches.length > 0 ? true : matchesLanguage;
 
-  fs.writeFileSync(file, content);
+        return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
+      });
+      
+      setTimeout(() => setDebugStats({
+        sourceLeads: sourceLeads.length,
+        allowedBatchNames: allowedBatchNames,
+        activeBatches: activeBatches.length,
+        activeBatchLeads: activeBatchLeads.length,
+        tabLeads: tabLeads.length,
+        mappedLeads: mappedLeads.length,
+        finalLeads: finalLeads.length,
+      }), 0);
+      
+      return finalLeads;
+`);
+
+// Delete the old return block
+const startIdx = content.indexOf('return mappedLeads.filter((lead: any) => {');
+if(startIdx !== -1) {
+  const endIdx = content.indexOf('  }, [leads, csvContacts');
+  content = content.slice(0, startIdx) + content.slice(endIdx);
 }
 
-patchFile('app/admin/crm/new-registration/_LeadsManagementTab.tsx');
-patchFile('app/admin/crm/workshop-offer/_LeadsManagementTab.tsx');
+
+const debugUI = `
+            {filteredLeads.length === 0 && (
+              <div className="p-4 bg-red-50 text-red-600 text-xs font-mono mb-4 rounded overflow-auto max-h-40">
+                DEBUG INFO:
+                <pre>{JSON.stringify(debugStats, null, 2)}</pre>
+              </div>
+            )}
+`;
+content = content.replace('{filteredLeads.length === 0 ? (', debugUI + '\n            {filteredLeads.length === 0 ? (');
+
+fs.writeFileSync(file, content);
