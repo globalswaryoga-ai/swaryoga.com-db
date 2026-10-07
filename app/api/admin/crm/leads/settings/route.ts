@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getCrmLeadSettings, getCrmCounter } from '@/lib/schemas/enterpriseSchemas';
@@ -32,8 +32,15 @@ export async function GET(request: NextRequest) {
     const settings = await CrmLeadSettings.findOne({ userId }).lean();
 
     // Also get current lead number counter
-    const counter = await CrmCounter.findOne({ _id: LEAD_NUMBER_COUNTER_ID }).lean();
-    const currentSeq = (counter as any)?.seq || 0;
+    let currentSeq = 0;
+    if (!USE_BUNNY_DATABASE_ONLY) {
+      try {
+        const counter = await CrmCounter.findOne({ _id: LEAD_NUMBER_COUNTER_ID }).lean();
+        currentSeq = (counter as any)?.seq || 0;
+      } catch (e) {
+        // ignore
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -99,6 +106,7 @@ export async function PUT(request: NextRequest) {
         update.leadNumberStart = start;
 
         // Also update the counter if the new start is higher
+      if (!USE_BUNNY_DATABASE_ONLY) {
         const CrmCounter = getCrmCounter();
         const currentCounter = await CrmCounter.findOne({ _id: LEAD_NUMBER_COUNTER_ID }).lean();
         const currentSeq = Number((currentCounter as any)?.seq || 0);
@@ -110,6 +118,7 @@ export async function PUT(request: NextRequest) {
             { upsert: true }
           );
         }
+      }
       }
     }
 

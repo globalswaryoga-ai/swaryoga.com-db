@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from './auth';
 import mongoose from 'mongoose';
+import { USE_BUNNY_DATABASE_ONLY } from './db';
 
 /**
  * Escape a user-provided string so it can be safely used in a Mongo $regex.
@@ -447,13 +448,28 @@ export const generateInvoiceNumber = async (date: Date = new Date()): Promise<st
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const key = `invoiceNumber:${yy}${mm}`;
 
-  const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm', { useCache: true });
-  const counters = db.collection<{ _id: string; seq: number }>('crm_counters');
-  const res = await counters.findOneAndUpdate(
-    { _id: key } as any,
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: 'after' }
-  );
-  const seq = res?.value?.seq ?? 1;
+  let seq = 1;
+
+  if (USE_BUNNY_DATABASE_ONLY) {
+    // Fallback: When Mongoose is disabled, we cannot safely atomically increment via Mongo.
+    // Instead, use a timestamp-based ID or a randomized ID to prevent conflicts in Bunny DB.
+    // A more permanent fix would be to implement a SQL sequence table in Bunny Database.
+    seq = Math.floor(Math.random() * 999) + 1; // 001 to 999
+  } else {
+    try {
+      const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm', { useCache: true });
+      const counters = db.collection<{ _id: string; seq: number }>('crm_counters');
+      const res = await counters.findOneAndUpdate(
+        { _id: key } as any,
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: 'after' }
+      );
+      seq = res?.value?.seq ?? 1;
+    } catch (e) {
+      console.warn('generateInvoiceNumber: mongoose not connected, falling back to random seq', e);
+      seq = Math.floor(Math.random() * 999) + 1;
+    }
+  }
+
   return `${yy}${mm}SW${String(seq).padStart(3, '0')}`;
 };

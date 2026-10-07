@@ -137,12 +137,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Get next ticket number
-    const counter = await countersCol.findOneAndUpdate(
-      { _id: `tickets_${tenantId}` } as any,
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: 'after' }
-    ) as any;
-    const ticketNumber = generateTicketNumber(counter?.seq || 1);
+    let ticketNumber = generateTicketNumber(1);
+    if (USE_BUNNY_DATABASE_ONLY) {
+       ticketNumber = generateTicketNumber(Math.floor(Math.random() * 9999) + 1);
+    } else {
+       const counter = await countersCol.findOneAndUpdate(
+         { _id: `tickets_${tenantId}` } as any,
+         { $inc: { seq: 1 } },
+         { upsert: true, returnDocument: 'after' }
+       ) as any;
+       ticketNumber = generateTicketNumber(counter?.seq || 1);
+    }
 
     // Find category config
     const categoryConfig = DEFAULT_CATEGORIES.find(c => c.id === category) || DEFAULT_CATEGORIES[0];

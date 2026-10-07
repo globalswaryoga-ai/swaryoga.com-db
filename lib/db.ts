@@ -15,7 +15,7 @@ const MONGODB_URI = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
 // Override when needed (e.g. staging) via MONGODB_MAIN_DB_NAME.
 const MAIN_DB_NAME = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
-const USE_BUNNY_DATABASE_ONLY = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
+export const USE_BUNNY_DATABASE_ONLY = process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true';
 
 // Log for debugging - but don't expose the full URI
 if (USE_BUNNY_DATABASE_ONLY) {

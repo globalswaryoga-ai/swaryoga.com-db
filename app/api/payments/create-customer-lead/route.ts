@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
+import { USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 
 /**
  * Create or Update Lead from Payment Order
@@ -121,19 +122,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get next lead number
-    const CrmCounter = crmDb.model('CrmCounter', new mongoose.Schema({
-      _id: { type: String, required: true },
-      seq: { type: Number, required: true },
-    }, { collection: 'crm_counters' }), 'CrmCounter');
+    let leadNumber = String(Math.floor(Math.random() * 999999)).padStart(6, '0');
+    if (!USE_BUNNY_DATABASE_ONLY) {
+      // Get next lead number
+      const CrmCounter = crmDb.model('CrmCounter', new mongoose.Schema({
+        _id: { type: String, required: true },
+        seq: { type: Number, required: true },
+      }, { collection: 'crm_counters' }), 'CrmCounter');
 
-    const counter = await CrmCounter.findByIdAndUpdate(
-      'leadNumber',
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-
-    const leadNumber = String(counter.seq).padStart(6, '0');
+      const counter = await CrmCounter.findByIdAndUpdate(
+        'leadNumber',
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      leadNumber = String(counter.seq).padStart(6, '0');
+    }
 
     // Create new customer lead
     const newLead = new Lead({
