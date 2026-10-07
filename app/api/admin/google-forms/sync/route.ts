@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 import { decryptCredential, encryptCredential } from '@/lib/auth';
 import { saveBunnyLead, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
-import { ensureFormTables, getFormById, createForm, createQuestion } from '@/lib/bunny-forms-db';
+import { ensureFormTables, getFormById, createForm, createQuestion, createSubmission, listSubmissions } from '@/lib/bunny-forms-db';
 import { nanoid } from 'nanoid';
 
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const rawFormUrl = url.searchParams.get('url');
+    const customName = url.searchParams.get('name');
 
     if (!rawFormUrl) {
       return NextResponse.json({ error: 'Missing form URL' }, { status: 400 });
@@ -181,7 +182,7 @@ export async function GET(request: NextRequest) {
       const dynamicAnswers: Record<string, string> = {};
       Object.keys(record).forEach(k => {
         const val = record[k];
-        if (val && !['name', 'email', 'mobile', 'phone', 'whatsapp', 'country', 'city', 'gender'].some(kw => k.toLowerCase().includes(kw))) {
+        if (val) {
           dynamicAnswers[k] = val;
         }
       });
@@ -201,7 +202,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const formTitle = formData.info?.title || 'Google Form';
+    const formTitle = customName || formData.info?.title || 'Google Form';
 
     // Resilient Form Tables & Questions Setup
     try {
@@ -219,17 +220,38 @@ export async function GET(request: NextRequest) {
           let sortOrder = 1;
           for (const item of formData.items) {
             if (item.questionItem && item.questionItem.question) {
+              const q = item.questionItem.question;
+              let qType = 'text';
+              let options: any[] = [];
+              if (q.choiceQuestion) {
+                if (q.choiceQuestion.type === 'RADIO') qType = 'radio';
+                else if (q.choiceQuestion.type === 'CHECKBOX') qType = 'checkbox';
+                else if (q.choiceQuestion.type === 'DROP_DOWN') qType = 'dropdown';
+                if (q.choiceQuestion.options) {
+                  options = q.choiceQuestion.options.map((opt: any) => ({ value: opt.value, label: { en: opt.value } }));
+                }
+              } else if (q.textQuestion && q.textQuestion.paragraph) {
+                qType = 'paragraph';
+              }
+              
               await createQuestion({
                 formId: formId,
-                fieldKey: `q_${item.questionItem.question.questionId}`,
-                questionType: 'text',
-                labelEn: item.title || 'Question',
-                required: Boolean(item.questionItem.question.required),
+                fieldKey: `q_${q.questionId}`,
+                questionType: qType,
+                label_en: item.title || 'Question',
+                options: options.length > 0 ? options : undefined,
+                required: Boolean(q.required),
                 sortOrder: sortOrder++
               });
             }
           }
         }
+      } else if (customName) {
+        // If the form exists and a custom name is explicitly provided, update it.
+        await bunnyExecute({
+          sql: `UPDATE enquiry_forms SET workshop_name = ? WHERE form_id = ?`,
+          args: [customName, formId]
+        });
       }
     } catch (formDbErr) {
       console.warn('[Google Forms Sync] Form DB setup warning:', formDbErr);
@@ -238,12 +260,36 @@ export async function GET(request: NextRequest) {
     // Resilient Lead Auto-Import into CRM
     try {
       const allLeads = await loadBunnyLeads();
+      const existingSubmissions = await listSubmissions(formId);
+      
       for (const lead of leads) {
+        // 1. Add to Form Submissions (if not exists by responseId)
+        const responseIdStr = lead.id.replace('oauth-form-', '').split('-')[0];
+        const isDuplicateSubmission = existingSubmissions.some((s: any) => 
+          (s.formData && s.formData === responseIdStr) || 
+          (lead.email && s.email && s.email.toLowerCase() === lead.email.toLowerCase())
+        );
+        
+        if (!isDuplicateSubmission) {
+          await createSubmission({
+            formId: formId,
+            name: lead.name,
+            email: lead.email,
+            mobile: lead.mobile,
+            gender: lead.gender,
+            city: lead.city,
+            answers: lead.dynamicAnswers,
+            formData: responseIdStr, // Store responseId to prevent duplicates
+            createdAt: lead.createdAt
+          });
+        }
+
+        // 2. Add to Global CRM Leads
         const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
         if (phone.length < 10) continue;
 
-        const existing = allLeads.find((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10) === phone.slice(-10));
-        if (!existing) {
+        const existingLead = allLeads.find((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10) === phone.slice(-10));
+        if (!existingLead) {
           await saveBunnyLead({
             name: lead.name,
             phoneNumber: phone,
@@ -260,8 +306,16 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (importErr) {
-      console.warn('[Google Forms Sync] CRM lead auto-import warning:', importErr);
+      console.warn('[Google Forms Sync] CRM lead/submission auto-import warning:', importErr);
     }
+
+    // Self-heal the submission count to ensure it stays accurate
+    try {
+      await bunnyExecute({
+        sql: `UPDATE enquiry_forms SET submission_count = (SELECT COUNT(*) FROM form_submissions WHERE form_id = ?) WHERE form_id = ?`,
+        args: [formId, formId]
+      });
+    } catch(e) {}
 
     return NextResponse.json({
       data: leads,

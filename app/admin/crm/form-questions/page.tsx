@@ -8,8 +8,9 @@ import {
   Plus, Trash2, Edit3, Save, X, GripVertical,
   Image as ImageIcon, QrCode, Link as LinkIcon, CreditCard,
   ArrowUp, ArrowDown, ToggleLeft, ToggleRight,
-  Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, Settings,
-  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users, Loader, Calendar, Clock, Timer
+  Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, ChevronDown, ChevronUp, Settings,
+  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users, Loader, Calendar, Clock, Timer, RefreshCw,
+  Type, AlignLeft, CircleDot, CheckSquare, List
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,14 +78,14 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: string }[] = [
 
 const HAS_OPTIONS: QuestionType[] = ['dropdown', 'radio', 'checkbox'];
 
-function emptyQuestion(formId: string): Partial<Question> {
+function emptyQuestion(formId: string, qType: QuestionType = 'text'): Partial<Question> {
   return {
     fieldKey: '',
     formId,
-    questionType: 'text',
+    questionType: qType,
     label: { en: '', hi: '', mr: '' },
     placeholder: { en: '' },
-    options: [],
+    options: ['dropdown', 'radio', 'checkbox'].includes(qType) ? [{ value: 'Option 1', label: { en: 'Option 1', hi: '', mr: '' } }] : [],
     imageUrl: '',
     qrCodeUrl: '',
     linkUrl: '',
@@ -138,6 +139,26 @@ export default function GoogleFormBuilderPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
   const [importSourceType, setImportSourceType] = useState<'file' | 'googlesheet'>('file');
+
+  // Language Cards state
+  const [showLanguageConfig, setShowLanguageConfig] = useState(false);
+  const [langLinks, setLangLinks] = useState<{
+    [key: string]: { workshop: string; offer: string; }
+  }>({
+    English: { workshop: '', offer: '' },
+    Hindi: { workshop: '', offer: '' },
+    Marathi: { workshop: '', offer: '' },
+    Kannada: { workshop: '', offer: '' },
+  });
+
+  const [expandedGoogleForms, setExpandedGoogleForms] = useState<{
+    [key: string]: { workshop: boolean; offer: boolean; }
+  }>({
+    English: { workshop: false, offer: false },
+    Hindi: { workshop: false, offer: false },
+    Marathi: { workshop: false, offer: false },
+    Kannada: { workshop: false, offer: false },
+  });
 
   const openSubmissionsModal = async (form: EnquiryForm) => {
     setSelectedFormForSubmissions(form);
@@ -449,6 +470,10 @@ export default function GoogleFormBuilderPage() {
 
   const authHeaders = () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' });
 
+  const [googleFormsList, setGoogleFormsList] = useState<any[]>([]);
+  const [isLoadingGoogleForms, setIsLoadingGoogleForms] = useState(false);
+  const [manualFormToggles, setManualFormToggles] = useState<Record<string, boolean>>({});
+
   // ── Load forms ──
   useEffect(() => {
     if (!token) return;
@@ -458,6 +483,36 @@ export default function GoogleFormBuilderPage() {
       .then(d => setForms(d.data || []))
       .catch(() => showToast('Failed to load forms', 'error'))
       .finally(() => setLoadingForms(false));
+
+    // Also load Google Form Sync Config
+    fetch('/api/admin/crm/google-form-config', { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.config) {
+          setLangLinks(d.config);
+          // Set expanded forms to false if they have a value
+          const initialExpanded = {
+            English: { workshop: false, offer: false },
+            Hindi: { workshop: false, offer: false },
+            Marathi: { workshop: false, offer: false },
+            Kannada: { workshop: false, offer: false },
+          };
+          setExpandedGoogleForms(initialExpanded);
+        }
+      })
+      .catch(e => console.error('Failed to load Google form config:', e));
+
+    // Load Google Forms List for Dropdown
+    setIsLoadingGoogleForms(true);
+    fetch('/api/admin/google-forms/list', { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => {
+        if (d.forms) {
+          setGoogleFormsList(d.forms);
+        }
+      })
+      .catch(e => console.error('Failed to load Google forms:', e))
+      .finally(() => setIsLoadingGoogleForms(false));
   }, [token]);
 
   // ── Load questions when active form changes ──
@@ -622,15 +677,15 @@ export default function GoogleFormBuilderPage() {
 
     try {
       // Update backend for both
-      await fetch('/api/admin/form-questions', {
+      await fetch(`/api/admin/form-questions?id=${currentQ._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ id: currentQ._id, formId: activeForm?.formId, order: currentQ.order })
+        body: JSON.stringify({ formId: activeForm?.formId, order: currentQ.order })
       });
-      await fetch('/api/admin/form-questions', {
+      await fetch(`/api/admin/form-questions?id=${swapQ._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ id: swapQ._id, formId: activeForm?.formId, order: swapQ.order })
+        body: JSON.stringify({ formId: activeForm?.formId, order: swapQ.order })
       });
       showToast('Order updated');
     } catch (e: any) {
@@ -774,6 +829,347 @@ export default function GoogleFormBuilderPage() {
         {/* VIEW 1: Dashboard (List of Forms) */}
         {!activeForm && (
           <div className="space-y-6">
+            
+            {/* Language Config Cards Toggle */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+              <div 
+                className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                onClick={() => setShowLanguageConfig(!showLanguageConfig)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                    <LinkIcon size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-800 text-lg">Google Form Sync Configurations</h2>
+                    <p className="text-sm text-slate-500">Connect Google Forms to automatically create and sync CRM forms.</p>
+                  </div>
+                </div>
+                <button className="text-slate-400 hover:text-slate-600 p-2">
+                  {showLanguageConfig ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                </button>
+              </div>
+
+              {showLanguageConfig && (
+                <div className="p-5 border-t border-slate-100 bg-slate-50/50 space-y-6">
+                  {['English', 'Hindi', 'Marathi', 'Kannada'].map(lang => (
+                    <div key={lang} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                      <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <LinkIcon size={18} className="text-indigo-500" /> {lang}
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Workshop Form Section (Left) */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col h-full relative">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                              <span className="text-lg">📝</span> Workshop Form
+                            </label>
+                          </div>
+                          
+                          {!expandedGoogleForms[lang as keyof typeof expandedGoogleForms].workshop ? (
+                            <div className="flex flex-col items-center justify-center py-6 mt-auto">
+                              {langLinks[lang as keyof typeof langLinks].workshop ? (
+                                <div className="flex flex-col items-center gap-3 w-full">
+                                  <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-200 flex items-center gap-1 w-full truncate">
+                                    <CheckCircle size={14} className="flex-shrink-0" />
+                                    <span className="truncate">Connected: {langLinks[lang as keyof typeof langLinks].workshop}</span>
+                                  </div>
+                                  
+                                  <div className="flex flex-col w-full gap-2">
+                                    <button 
+                                      className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                                      onClick={async () => {
+                                        const formUrl = langLinks[lang as keyof typeof langLinks].workshop;
+                                        const matchedForm = googleFormsList.find(f => `https://docs.google.com/forms/d/${f.id}/edit` === formUrl);
+                                        const nameParam = matchedForm ? `&name=${encodeURIComponent(matchedForm.name)}` : '';
+                                        
+                                        showToast('Creating CRM Form from Google Form...', 'success');
+                                        const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(formUrl)}${nameParam}`, { headers: authHeaders() });
+                                        if (syncRes.ok) {
+                                          showToast(`${lang} CRM Form created successfully!`, 'success');
+                                          fetch('/api/admin/enquiry-forms', { headers: authHeaders() })
+                                            .then(r => r.json())
+                                            .then(d => setForms(d.data || []));
+                                        } else {
+                                          showToast('Failed to create form. Please check URL.', 'error');
+                                        }
+                                      }}
+                                    >
+                                      <Upload size={14} /> Create/Update CRM Form
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-2 w-full">
+                                      <input 
+                                        type="number" 
+                                        defaultValue={10} 
+                                        min={1}
+                                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-400" 
+                                        title="Sync interval in minutes"
+                                      />
+                                      <span className="text-xs text-slate-500 font-bold">mins</span>
+                                      <button 
+                                        className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-colors"
+                                        onClick={() => showToast('Auto-sync started!', 'success')}
+                                      >
+                                        <Timer size={14} /> Auto-Sync
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <button 
+                                    className="text-slate-500 hover:text-slate-800 text-xs font-bold flex items-center gap-1 mt-1"
+                                    onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], workshop: true}})}
+                                  >
+                                    <Edit3 size={12} /> Edit Connection Link
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  className="bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 font-medium py-2 px-4 rounded-lg text-sm transition-all flex items-center gap-2 shadow-sm"
+                                  onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], workshop: true}})}
+                                >
+                                  <LinkIcon size={16} /> Connect Google Form
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-xs text-slate-500 mb-3">Connect a Google Form or create a new CRM form for workshops.</p>
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 mt-2">
+                                <h3 className="text-sm font-bold text-slate-800 mb-4">Select Google Form</h3>
+                                
+                                <div className="flex items-center justify-between bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 mb-4">
+                                  <div className="flex items-center gap-4">
+                                    <span className="text-sm font-bold text-indigo-900">Quick Switch:</span>
+                                    <button
+                                      onClick={() => setManualFormToggles({...manualFormToggles, [`workshop_${lang}`]: !manualFormToggles[`workshop_${lang}`]})}
+                                      className="flex items-center gap-2 bg-white hover:bg-slate-50 text-indigo-600 font-bold py-1.5 px-3 rounded text-sm border border-indigo-200 transition-colors"
+                                    >
+                                      {manualFormToggles[`workshop_${lang}`] ? (
+                                        <><span className="text-lg">📋</span> Select from List</>
+                                      ) : (
+                                        <><span className="text-lg">📝</span> Paste Form URL</>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-3">
+                                  {manualFormToggles[`workshop_${lang}`] ? (
+                                    <input 
+                                      type="text" 
+                                      placeholder="Paste Google Form / Sheet URL here..." 
+                                      className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                      value={langLinks[lang as keyof typeof langLinks].workshop}
+                                      onChange={(e) => setLangLinks({...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], workshop: e.target.value}})}
+                                    />
+                                  ) : (
+                                    <select
+                                      className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
+                                      value={langLinks[lang as keyof typeof langLinks].workshop}
+                                      onChange={(e) => setLangLinks({...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], workshop: e.target.value}})}
+                                    >
+                                      <option value="">Select a form from your Google account...</option>
+                                      {googleFormsList?.map((f: any) => (
+                                        <option key={f.id} value={`https://docs.google.com/forms/d/${f.id}/edit`}>
+                                          {f.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  <div className="flex gap-2 mt-2">
+                                    <button 
+                                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                                      onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], workshop: false}})}
+                                    >
+                                      <X size={16} /> Cancel
+                                    </button>
+                                    <button 
+                                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                                      onClick={async () => {
+                                        const newConfig = {...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], workshop: langLinks[lang as keyof typeof langLinks].workshop}};
+                                        try {
+                                          await fetch('/api/admin/crm/google-form-config', {
+                                            method: 'POST',
+                                            headers: authHeaders(),
+                                            body: JSON.stringify({ config: newConfig })
+                                          });
+                                          showToast(`${lang} Workshop Form connection saved!`, 'success');
+                                          setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], workshop: false}});
+                                        } catch {
+                                          showToast('Failed to save config', 'error');
+                                        }
+                                      }}
+                                    >
+                                      <Save size={16} /> Save & Connect
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Offer Form Section (Right) */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col h-full relative">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                              <span className="text-lg">🏷️</span> Offer Form
+                            </label>
+                          </div>
+
+                          {!expandedGoogleForms[lang as keyof typeof expandedGoogleForms].offer ? (
+                            <div className="flex flex-col items-center justify-center py-6 mt-auto">
+                              {langLinks[lang as keyof typeof langLinks].offer ? (
+                                <div className="flex flex-col items-center gap-3 w-full">
+                                  <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-200 flex items-center gap-1 w-full truncate">
+                                    <CheckCircle size={14} className="flex-shrink-0" />
+                                    <span className="truncate">Connected: {langLinks[lang as keyof typeof langLinks].offer}</span>
+                                  </div>
+
+                                  <div className="flex flex-col w-full gap-2">
+                                    <button 
+                                      className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                                      onClick={async () => {
+                                        const formUrl = langLinks[lang as keyof typeof langLinks].offer;
+                                        const matchedForm = googleFormsList.find(f => `https://docs.google.com/forms/d/${f.id}/edit` === formUrl);
+                                        const nameParam = matchedForm ? `&name=${encodeURIComponent(matchedForm.name)}` : '';
+                                        
+                                        showToast('Creating CRM Form from Google Form...', 'success');
+                                        const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(formUrl)}${nameParam}`, { headers: authHeaders() });
+                                        if (syncRes.ok) {
+                                          showToast(`${lang} CRM Form created successfully!`, 'success');
+                                          fetch('/api/admin/enquiry-forms', { headers: authHeaders() })
+                                            .then(r => r.json())
+                                            .then(d => setForms(d.data || []));
+                                        } else {
+                                          showToast('Failed to create form. Please check URL.', 'error');
+                                        }
+                                      }}
+                                    >
+                                      <Upload size={14} /> Create/Update CRM Form
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-2 w-full">
+                                      <input 
+                                        type="number" 
+                                        defaultValue={10} 
+                                        min={1}
+                                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-400" 
+                                        title="Sync interval in minutes"
+                                      />
+                                      <span className="text-xs text-slate-500 font-bold">mins</span>
+                                      <button 
+                                        className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-colors"
+                                        onClick={() => showToast('Auto-sync started!', 'success')}
+                                      >
+                                        <Timer size={14} /> Auto-Sync
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <button 
+                                    className="text-slate-500 hover:text-slate-800 text-xs font-bold flex items-center gap-1 mt-1"
+                                    onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], offer: true}})}
+                                  >
+                                    <Edit3 size={12} /> Edit Connection Link
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  className="bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-200 font-medium py-2 px-4 rounded-lg text-sm transition-all flex items-center gap-2 shadow-sm"
+                                  onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], offer: true}})}
+                                >
+                                  <LinkIcon size={16} /> Connect Google Form
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-xs text-slate-500 mb-3">Connect a Google Form or create a new CRM form for special offers.</p>
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 mt-2">
+                                <h3 className="text-sm font-bold text-slate-800 mb-4">Select Google Form</h3>
+                                
+                                <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 mb-4">
+                                  <div className="flex items-center gap-4">
+                                    <span className="text-sm font-bold text-emerald-900">Quick Switch:</span>
+                                    <button
+                                      onClick={() => setManualFormToggles({...manualFormToggles, [`offer_${lang}`]: !manualFormToggles[`offer_${lang}`]})}
+                                      className="flex items-center gap-2 bg-white hover:bg-slate-50 text-emerald-600 font-bold py-1.5 px-3 rounded text-sm border border-emerald-200 transition-colors"
+                                    >
+                                      {manualFormToggles[`offer_${lang}`] ? (
+                                        <><span className="text-lg">📋</span> Select from List</>
+                                      ) : (
+                                        <><span className="text-lg">📝</span> Paste Form URL</>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-3">
+                                  {manualFormToggles[`offer_${lang}`] ? (
+                                    <input 
+                                      type="text" 
+                                      placeholder="Paste Google Form / Sheet URL here..." 
+                                      className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                      value={langLinks[lang as keyof typeof langLinks].offer}
+                                      onChange={(e) => setLangLinks({...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], offer: e.target.value}})}
+                                    />
+                                  ) : (
+                                    <select
+                                      className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white"
+                                      value={langLinks[lang as keyof typeof langLinks].offer}
+                                      onChange={(e) => setLangLinks({...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], offer: e.target.value}})}
+                                    >
+                                      <option value="">Select a form from your Google account...</option>
+                                      {googleFormsList?.map((f: any) => (
+                                        <option key={f.id} value={`https://docs.google.com/forms/d/${f.id}/edit`}>
+                                          {f.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  <div className="flex gap-2 mt-2">
+                                    <button 
+                                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                                      onClick={() => setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], offer: false}})}
+                                    >
+                                      <X size={16} /> Cancel
+                                    </button>
+                                    <button 
+                                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                                      onClick={async () => {
+                                        const newConfig = {...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], offer: langLinks[lang as keyof typeof langLinks].offer}};
+                                        try {
+                                          await fetch('/api/admin/crm/google-form-config', {
+                                            method: 'POST',
+                                            headers: authHeaders(),
+                                            body: JSON.stringify({ config: newConfig })
+                                          });
+                                          showToast(`${lang} Offer Form connection saved!`, 'success');
+                                          setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], offer: false}});
+                                        } catch {
+                                          showToast('Failed to save config', 'error');
+                                        }
+                                      }}
+                                    >
+                                      <Save size={16} /> Save & Connect
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             {loadingForms ? (
               <div className="text-center py-20 text-slate-500">Loading forms...</div>
             ) : forms.length === 0 ? (
@@ -815,10 +1211,51 @@ export default function GoogleFormBuilderPage() {
                           >
                             <Trash2 size={14} />
                           </button>
+                          {f.formId.length > 20 && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const btn = e.currentTarget;
+                                btn.innerHTML = '<svg class="animate-spin h-3.5 w-3.5 mr-1" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Syncing...';
+                                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                                try {
+                                  const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(`https://docs.google.com/forms/d/${f.formId}/edit`)}`, { headers: authHeaders() });
+                                  if (syncRes.ok) {
+                                    showToast('Google Form data synced successfully!', 'success');
+                                    // Refresh the forms list to update submission count
+                                    fetch('/api/admin/enquiry-forms', { headers: authHeaders() }).then(r => r.json()).then(d => setForms(d.data || []));
+                                  } else {
+                                    showToast('Failed to sync Google Form data', 'error');
+                                  }
+                                } catch {
+                                  showToast('Failed to sync Google Form data', 'error');
+                                } finally {
+                                  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
+                                  btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                                }
+                              }}
+                              className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-all text-xs font-semibold flex items-center justify-center"
+                              title="Sync Google Form Data"
+                            >
+                              <RefreshCw size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                       <h3 className="font-bold text-slate-900 text-lg truncate">{f.workshopName}</h3>
-                      <p className="text-sm text-slate-500 mt-1">ID: <span className="font-mono font-semibold text-indigo-600">{f.formId}</span> · {f.isActive ? 'Active' : 'Inactive'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-slate-500 font-medium">
+                          {f.isActive ? <span className="text-emerald-600 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Active</span> : <span className="text-slate-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span> Inactive</span>}
+                        </span>
+                        <span className="text-slate-300">·</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(f.formId); showToast('Form ID copied!', 'success'); }}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded flex items-center gap-1 transition-colors font-bold"
+                          title={`Copy ID: ${f.formId}`}
+                        >
+                          <ClipboardCopy size={12} /> Copy ID
+                        </button>
+                      </div>
                       {f.workshopDate && <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">📅 {f.workshopDate}</p>}
                     </div>
 
@@ -881,55 +1318,83 @@ export default function GoogleFormBuilderPage() {
               </div>
             </div>
 
-            {/* Questions List */}
-            <div className="space-y-4">
-              {loadingQuestions ? (
-                <div className="text-center py-10">Loading questions...</div>
-              ) : questions.sort((a,b)=>a.order-b.order).map((q, idx, sortedArr) => (
-                <div key={q._id} className="bg-white rounded-2xl border border-slate-200 p-6 flex items-start gap-4 hover:shadow-md transition-shadow group relative">
-                  <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 mt-1 cursor-grab">
-                    <GripVertical size={16} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-slate-800 text-base mb-1">{q.label.en} {q.required && <span className="text-red-500">*</span>}</h3>
-                    <p className="text-sm text-slate-500 capitalize">{q.questionType} Question · <code className="bg-slate-100 px-1 rounded">{q.fieldKey}</code></p>
-                  </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity absolute right-6 top-6">
-                    <div className="flex flex-col gap-1 mr-2">
-                      <button 
-                        onClick={() => handleMoveQuestion(q._id, 'up')} 
-                        disabled={idx === 0}
-                        className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
-                        title="Move Up"
-                      >
-                        <ArrowUp size={12} />
+            {/* Main Content Area */}
+            <div className="flex items-start gap-6">
+              
+              {/* Questions List */}
+              <div className="flex-1 space-y-4">
+                {loadingQuestions ? (
+                  <div className="text-center py-10">Loading questions...</div>
+                ) : questions.sort((a,b)=>a.order-b.order).map((q, idx, sortedArr) => (
+                  <div key={q._id} className="bg-white rounded-2xl border border-slate-200 p-6 flex items-start gap-4 hover:shadow-md transition-shadow group relative">
+                    <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 mt-1 cursor-grab">
+                      <GripVertical size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-slate-800 text-base mb-1">{q.label.en || 'Untitled Question'} {q.required && <span className="text-red-500">*</span>}</h3>
+                      <p className="text-sm text-slate-500 capitalize">{q.questionType} Question · <code className="bg-slate-100 px-1 rounded">{q.fieldKey}</code></p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity absolute right-6 top-6">
+                      <div className="flex flex-col gap-1 mr-2">
+                        <button 
+                          onClick={() => handleMoveQuestion(q._id, 'up')} 
+                          disabled={idx === 0}
+                          className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                          title="Move Up"
+                        >
+                          <ArrowUp size={12} />
+                        </button>
+                        <button 
+                          onClick={() => handleMoveQuestion(q._id, 'down')} 
+                          disabled={idx === sortedArr.length - 1}
+                          className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                          title="Move Down"
+                        >
+                          <ArrowDown size={12} />
+                        </button>
+                      </div>
+                      <button onClick={() => { setQData(q); setEditingQId(q._id); setShowQBuilder(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+                        <Edit3 size={16} />
                       </button>
-                      <button 
-                        onClick={() => handleMoveQuestion(q._id, 'down')} 
-                        disabled={idx === sortedArr.length - 1}
-                        className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
-                        title="Move Down"
-                      >
-                        <ArrowDown size={12} />
+                      <button onClick={() => handleDeleteQ(q._id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100">
+                        <Trash2 size={16} />
                       </button>
                     </div>
-                    <button onClick={() => { setQData(q); setEditingQId(q._id); setShowQBuilder(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
-                      <Edit3 size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteQ(q._id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100">
-                      <Trash2 size={16} />
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {/* Add Question Button */}
-              <button
-                onClick={() => { setQData(emptyQuestion(activeForm.formId)); setEditingQId(null); setShowQBuilder(true); }}
-                className="w-full h-14 border-2 border-dashed border-indigo-200 rounded-2xl flex items-center justify-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 transition-colors"
-              >
-                <Plus size={20} /> Add Question
-              </button>
+                {/* Add Question Button */}
+                <button
+                  onClick={() => { setQData(emptyQuestion(activeForm.formId)); setEditingQId(null); setShowQBuilder(true); }}
+                  className="w-full h-14 border-2 border-dashed border-indigo-200 rounded-2xl flex items-center justify-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 transition-colors"
+                >
+                  <Plus size={20} /> Add Question
+                </button>
+              </div>
+
+              {/* Floating Toolbar Sidebar */}
+              <div className="w-14 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center py-3 gap-2 sticky top-8 shrink-0">
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'text')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Text">
+                  <Type size={18} />
+                </button>
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'paragraph')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Paragraph">
+                  <AlignLeft size={18} />
+                </button>
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'radio')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Multiple Choice">
+                  <CircleDot size={18} />
+                </button>
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'checkbox')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Checkboxes">
+                  <CheckSquare size={18} />
+                </button>
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'dropdown')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Dropdown">
+                  <List size={18} />
+                </button>
+                <div className="w-8 h-px bg-slate-100 my-1"></div>
+                <button onClick={() => { setQData(emptyQuestion(activeForm.formId, 'info')); setEditingQId(null); setShowQBuilder(true); }} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Add Info/Image Block">
+                  <ImageIcon size={18} />
+                </button>
+              </div>
+
             </div>
           </div>
         )}
@@ -1370,20 +1835,17 @@ export default function GoogleFormBuilderPage() {
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white">
-                  <div className="overflow-x-auto max-h-[58vh]">
+                  <div className="overflow-auto max-h-[58vh]">
                     <table className="w-full text-left text-xs text-slate-700 border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-slate-100 border-b border-slate-200 text-slate-800 font-bold uppercase tracking-wider text-[11px]">
                           <th className="p-3.5 border-r border-slate-200 text-center w-12 bg-slate-100">#</th>
                           <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[140px] bg-slate-100">Date & Time</th>
-                          <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[150px] bg-slate-100">Full Name</th>
-                          <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[130px] bg-slate-100">Mobile / Phone</th>
-                          <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[150px] bg-slate-100">Email</th>
-                          <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[90px] bg-slate-100">Gender</th>
-                          <th className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[110px] bg-slate-100">City</th>
                           {submissionQuestions.map(q => (
-                            <th key={q._id} className="p-3.5 border-r border-slate-200 whitespace-nowrap min-w-[160px] bg-indigo-50/50 text-indigo-900">
-                              {q.label?.en || q.fieldKey}
+                            <th key={q._id} className="p-3.5 border-r border-slate-200 min-w-[160px] max-w-xs bg-indigo-50/50 text-indigo-900 align-top">
+                              <div className="resize-x overflow-auto min-w-[160px] max-w-[500px] whitespace-normal" title={q.label?.en || q.fieldKey}>
+                                {q.label?.en || q.fieldKey}
+                              </div>
                             </th>
                           ))}
                         </tr>
@@ -1395,39 +1857,26 @@ export default function GoogleFormBuilderPage() {
                             <td className="p-3.5 border-r border-slate-100 whitespace-nowrap text-slate-500 font-medium">
                               {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '-'}
                             </td>
-                            <td className="p-3.5 border-r border-slate-100 font-bold text-slate-900 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'name', sub.name || '')}>
-                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'name' ? (
-                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'name')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'name')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                              ) : (sub.name || '')}
-                            </td>
-                            <td className="p-3.5 border-r border-slate-100 font-mono text-slate-700 whitespace-nowrap font-medium cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'mobile', sub.mobile || '')}>
-                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'mobile' ? (
-                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'mobile')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'mobile')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                              ) : (sub.mobile || '')}
-                            </td>
-                            <td className="p-3.5 border-r border-slate-100 text-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'email', sub.email || '')}>
-                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'email' ? (
-                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'email')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'email')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                              ) : (sub.email || '')}
-                            </td>
-                            <td className="p-3.5 border-r border-slate-100 capitalize whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'gender', sub.gender || '')}>
-                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'gender' ? (
-                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'gender')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'gender')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                              ) : (sub.gender || '')}
-                            </td>
-                            <td className="p-3.5 border-r border-slate-100 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'city', sub.city || '')}>
-                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'city' ? (
-                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'city')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'city')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                              ) : (sub.city || '')}
-                            </td>
                             {submissionQuestions.map(q => {
-                              const val = sub.dynamicAnswers ? sub.dynamicAnswers[q.fieldKey] : sub[q.fieldKey];
+                              let val = sub.dynamicAnswers ? (sub.dynamicAnswers[q.fieldKey] ?? sub.dynamicAnswers[q.label?.en] ?? sub.dynamicAnswers[q.label_en]) : sub[q.fieldKey];
+                              if (!val && q.label?.en) {
+                                const lbl = q.label.en.toLowerCase();
+                                if (lbl.includes('name') || lbl.includes('first')) val = sub.name;
+                                else if (lbl.includes('mail')) val = sub.email;
+                                else if (lbl.includes('phone') || lbl.includes('mobile') || lbl.includes('whatsapp')) val = sub.mobile;
+                                else if (lbl.includes('gender') || lbl.includes('sex')) val = sub.gender;
+                                else if (lbl.includes('city') || lbl.includes('town')) val = sub.city;
+                              }
                               const displayVal = Array.isArray(val) ? val.join(', ') : (val ?? '');
                               return (
-                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] text-slate-700 cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey, displayVal)}>
+                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] max-w-xs text-slate-700 cursor-pointer hover:bg-slate-50 align-top" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey, displayVal)}>
                                   {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === q.fieldKey ? (
-                                    <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
-                                  ) : displayVal}
+                                    <textarea autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} className="w-full bg-transparent border-b border-indigo-500 outline-none resize-none" rows={3} />
+                                  ) : (
+                                    <div className="resize-y overflow-auto max-h-[4.5rem] whitespace-normal break-words" title={displayVal}>
+                                      {displayVal}
+                                    </div>
+                                  )}
                                 </td>
                               );
                             })}

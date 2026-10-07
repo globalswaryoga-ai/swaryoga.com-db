@@ -43,6 +43,7 @@ interface EnquiryFormDetails {
 function EnquiryForm() {
   const searchParams = useSearchParams();
   const formId = searchParams.get('workshopId') || searchParams.get('w') || '';
+  const isGoogleForm = formId.length > 30; // Google Form IDs are ~44 chars
 
   const [formDetails, setFormDetails] = useState<EnquiryFormDetails | null>(null);
   const [dynamicQuestions, setDynamicQuestions] = useState<DynamicQuestion[]>([]);
@@ -189,7 +190,7 @@ function EnquiryForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gender) { setError('Please select your gender.'); return; }
+    if (!isGoogleForm && !gender) { setError('Please select your gender.'); return; }
     if (!formDetails) return;
 
     for (const q of dynamicQuestions) {
@@ -216,16 +217,28 @@ function EnquiryForm() {
       }
     });
 
+    const getAns = (keywords: string[]) => {
+      const q = dynamicQuestions.find(q => keywords.some(kw => q.label.en.toLowerCase().includes(kw)));
+      return q ? String(dynamicAnswers[q.fieldKey] || '') : '';
+    };
+
+    const finalName = isGoogleForm ? getAns(['name', 'first']) : name;
+    const finalEmail = isGoogleForm ? getAns(['email', 'mail']) : email;
+    const finalMobile = isGoogleForm ? getAns(['mobile', 'phone', 'whatsapp']) : ((COUNTRY_PHONE_CODES[country]?.code || '+91') + mobile);
+    const finalGender = isGoogleForm ? getAns(['gender', 'sex']) : gender;
+    const finalCity = isGoogleForm ? getAns(['city', 'town', 'location']) : '';
+
     try {
       const res = await fetch('/api/admin/enquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          mobile: (COUNTRY_PHONE_CODES[country]?.code || '+91') + mobile,
-          email,
-          gender,
+          name: finalName,
+          mobile: finalMobile,
+          email: finalEmail,
+          gender: finalGender,
           country,
+          city: finalCity,
           workshopId: formDetails.formId,
           workshopName: formDetails.workshopName,
           dynamicAnswers,
@@ -386,46 +399,50 @@ function EnquiryForm() {
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
           )}
 
-          {/* Standard Fields */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
-            <div className="grid grid-cols-3 gap-3">
-              {['Male', 'Female', 'Other'].map(g => (
-                <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}>
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
-            <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
-              {Object.keys(COUNTRY_PHONE_CODES).map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
-            <div className="flex gap-2">
-              <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
-                {COUNTRY_PHONE_CODES[country]?.code || '+91'}
+          {/* Standard Fields (Hidden for Google Forms) */}
+          {!isGoogleForm && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               </div>
-              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
-            </div>
-          </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {['Male', 'Female', 'Other'].map(g => (
+                    <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
+                <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+                  {Object.keys(COUNTRY_PHONE_CODES).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
+                <div className="flex gap-2">
+                  <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
+                    {COUNTRY_PHONE_CODES[country]?.code || '+91'}
+                  </div>
+                  <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Dynamic Questions */}
           {dynamicQuestions.map((q, idx) => (

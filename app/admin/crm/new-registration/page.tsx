@@ -1345,19 +1345,20 @@ export default function NewRegistrationPage() {
       setPendingAiInsights(loadObj('crm_pending_insights'));
       setRegisteredAiInsights(loadObj('crm_registered_insights'));
     } else {
-      // Do not wipe linkedFormId or leadsData when no specific batch is selected.
-      // This preserves all loaded leads for "All Leads Data" and "My Data" views.
+      // CLEAR linkedFormId to enforce strict data isolation between languages/workshops.
+      // If a workshop is not mapped to a form, it must not show another workshop's leads.
+      setLinkedFormId('');
+      setSelectedFormId('');
+      setGoogleFormUrl('');
+      setFormSource('crm');
+      setLeadsData([]);
+      setFieldMapping({});
       setLeadsFilter('');
       setLeadsSubFilter('');
       setLeadsSubSubFilter('');
 
-      // If linkedFormId is completely empty, restore the default Google Form URL
-      if (!linkedFormId) {
-        const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
-        setLinkedFormId(defaultUrl);
-        setGoogleFormUrl(defaultUrl);
-        setFormSource('google');
-      }
+      // We no longer fall back to the English default form URL if linkedFormId is empty.
+      // This ensures 100% data privacy between different language workshops.
 
       // Reset selection and insights when switching away from a batch
       setCrmLeadIds([]);
@@ -2025,22 +2026,41 @@ export default function NewRegistrationPage() {
               </div>
             </div>
 
-            {!isSidebarCollapsed ? (
-              <button
-                onClick={() => setIsAddBatchModalOpen(true)}
-                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
-              >
-                <Plus size={16} /> Add Folder +
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsAddBatchModalOpen(true)}
-                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
-                title="Add Folder +"
-              >
-                <Plus size={16} />
-              </button>
-            )}
+            <div className="flex flex-col gap-2 w-full">
+              {!isSidebarCollapsed ? (
+                <>
+                  <button
+                    onClick={() => setIsAddBatchModalOpen(true)}
+                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
+                  >
+                    <Plus size={16} /> Add Folder +
+                  </button>
+                  <a
+                    href="/admin/crm/form-questions"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full transition-colors border border-slate-200"
+                  >
+                    <Database size={16} /> CRM Form
+                  </a>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsAddBatchModalOpen(true)}
+                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
+                    title="Add Folder +"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <a
+                    href="/admin/crm/form-questions"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full transition-colors border border-slate-200"
+                    title="CRM Form"
+                  >
+                    <Database size={16} />
+                  </a>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">

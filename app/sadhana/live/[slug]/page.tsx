@@ -150,7 +150,7 @@ export default function ProgramLivePage() {
   const [nowTick, setNowTick] = useState<Date>(new Date());
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [fullscreenMode, setFullscreenMode] = useState(true);
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
@@ -668,7 +668,7 @@ export default function ProgramLivePage() {
           {!showSidebar && (
             <button
               onClick={() => setShowSidebar(true)}
-              className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 md:hidden bg-gradient-to-r from-pink-500 to-violet-500 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold hover:opacity-90 transition z-40 text-sm sm:text-base"
+              className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold hover:opacity-90 transition z-40 text-sm sm:text-base shadow-xl border border-white/20"
               title="Show sidebar"
             >
               💬 Chat & Info
