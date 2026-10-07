@@ -5,15 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
-
-async function getDb() {
-  await connectDB();
-  return mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-}
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export async function GET(
   request: NextRequest,
@@ -28,15 +21,17 @@ export async function GET(
       return NextResponse.json({ error: 'date parameter required' }, { status: 400 });
     }
 
-    const db = await getDb();
-    const programsDb = await getProgramsDb();
-    const chatCol = db.collection('sadhana_live_chat');
-    const programsCol = programsDb.collection('sadhana_programs');
+    const programData = await bunnyExecute({
+      sql: `SELECT timezone, video_duration FROM sadhana_programs_sql WHERE slug = ?`,
+      args: [params.slug]
+    });
+    
+    if (!programData.rows || programData.rows.length === 0) {
+      return NextResponse.json({ error: 'Program not found' }, { status: 404 });
+    }
 
-    // Get program for timezone and duration info
-    const program = await programsCol.findOne({ slug: params.slug });
-    const timezone = program?.timezone || 'Asia/Kolkata';
-    const videoDuration = program?.videoDuration || 40;
+    const timezone = programData.rows[0].timezone || 'Asia/Kolkata';
+    const videoDuration = programData.rows[0].video_duration || 40;
 
     // Parse the requested date
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -79,21 +74,12 @@ export async function GET(
     }
 
     const dateRange = getUtcRangeForLocalDate(dateStr, timezone);
-    let messageFilter: any = {
-      programSlug: params.slug,
-      createdAt: {
-        $gte: dateRange.start,
-        $lte: dateRange.end,
-      },
-    };
-
-    // If timeSlot specified, filter to that session's time window
+    let messages: any[] = [];
     if (timeSlot) {
       const [hours, minutes] = timeSlot.split(':').map(Number);
       const sessionStartLocal = new Date(year, month - 1, day, hours, minutes, 0);
       const sessionEndLocal = new Date(year, month - 1, day, hours, minutes + videoDuration, 0);
 
-      // Convert session times to UTC
       const sessionStartIso = sessionStartLocal.toISOString().slice(0, 19);
       const sessionEndIso = sessionEndLocal.toISOString().slice(0, 19);
 
@@ -119,41 +105,24 @@ export async function GET(
       startParts.forEach((p) => { startMap[p.type] = p.value; });
       endParts.forEach((p) => { endMap[p.type] = p.value; });
 
-      const startTzUtc = Date.UTC(
-        parseInt(startMap.year),
-        parseInt(startMap.month) - 1,
-        parseInt(startMap.day),
-        parseInt(startMap.hour),
-        parseInt(startMap.minute),
-        parseInt(startMap.second)
-      );
+      const startTzUtc = Date.UTC(parseInt(startMap.year), parseInt(startMap.month) - 1, parseInt(startMap.day), parseInt(startMap.hour), parseInt(startMap.minute), parseInt(startMap.second));
+      const endTzUtc = Date.UTC(parseInt(endMap.year), parseInt(endMap.month) - 1, parseInt(endMap.day), parseInt(endMap.hour), parseInt(endMap.minute), parseInt(endMap.second));
 
-      const endTzUtc = Date.UTC(
-        parseInt(endMap.year),
-        parseInt(endMap.month) - 1,
-        parseInt(endMap.day),
-        parseInt(endMap.hour),
-        parseInt(endMap.minute),
-        parseInt(endMap.second)
-      );
+      const sessionStartUtc = new Date(startAsUtc.getTime() - (startTzUtc - startAsUtc.getTime()));
+      const sessionEndUtc = new Date(endAsUtc.getTime() - (endTzUtc - endAsUtc.getTime()));
 
-      const startOffset = startTzUtc - startAsUtc.getTime();
-      const endOffset = endTzUtc - endAsUtc.getTime();
-
-      const sessionStartUtc = new Date(startAsUtc.getTime() - startOffset);
-      const sessionEndUtc = new Date(endAsUtc.getTime() - endOffset);
-
-      // Filter to chat within this session's time window
-      messageFilter.createdAt = {
-        $gte: sessionStartUtc,
-        $lte: sessionEndUtc,
-      };
+      const chatRes = await bunnyExecute({
+        sql: `SELECT * FROM sadhana_live_chat_sql WHERE program_slug = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC`,
+        args: [params.slug, sessionStartUtc.toISOString(), sessionEndUtc.toISOString()]
+      });
+      messages = chatRes.rows || [];
+    } else {
+      const chatRes = await bunnyExecute({
+        sql: `SELECT * FROM sadhana_live_chat_sql WHERE program_slug = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC`,
+        args: [params.slug, dateRange.start.toISOString(), dateRange.end.toISOString()]
+      });
+      messages = chatRes.rows || [];
     }
-
-    const messages = await chatCol
-      .find(messageFilter)
-      .sort({ createdAt: 1 })
-      .toArray();
 
     return NextResponse.json({
       success: true,
@@ -162,10 +131,10 @@ export async function GET(
       programSlug: params.slug,
       totalMessages: messages.length,
       messages: messages.map(msg => ({
-        id: msg._id?.toString() || '',
-        name: msg.name || 'Unknown',
+        id: msg.id || '',
+        name: msg.sender || 'Unknown',
         message: msg.message || '',
-        createdAt: msg.createdAt,
+        createdAt: msg.created_at,
       })),
     });
   } catch (error) {

@@ -5,15 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
-
-async function getDb() {
-  await connectDB();
-  return mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-}
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export async function GET(
   request: NextRequest,
@@ -27,20 +20,21 @@ export async function GET(
       return NextResponse.json({ error: 'date parameter required' }, { status: 400 });
     }
 
-    // Parse date and get the timezone from program
-    const db = await getDb();
-    const programsDb = await getProgramsDb();
-    const programsCol = programsDb.collection('sadhana_programs');
-    const program = await programsCol.findOne({ slug: params.slug });
+    const programDataRes = await bunnyExecute({
+      sql: `SELECT name, timezone, time_slots_json, video_duration, countdown_minutes FROM sadhana_programs_sql WHERE slug = ?`,
+      args: [params.slug]
+    });
 
-    if (!program) {
+    if (!programDataRes.rows || programDataRes.rows.length === 0) {
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
 
-    const timezone = program.timezone || 'Asia/Kolkata';
-    const timeSlots = program.timeSlots || [];
-    const videoDuration = program.videoDuration || 40;
-    const countdownMinutes = program.countdownMinutes || 3;
+    const programData = programDataRes.rows[0];
+    const programName = programData.name || '';
+    const timezone = programData.timezone || 'Asia/Kolkata';
+    const timeSlots = JSON.parse(programData.time_slots_json || '[]');
+    const videoDuration = programData.video_duration || 40;
+    const countdownMinutes = programData.countdown_minutes || 3;
     const MIN_ATTENDANCE_MINUTES = 3;
 
     // Helper: convert a local wall-clock time (in tz) to a UTC Date
@@ -128,20 +122,15 @@ export async function GET(
     }
 
     const range = getUtcRangeForLocalDate(dateStr, timezone);
-    const startMs = range.start.getTime();
-    const endMs = range.end.getTime();
+    const startIsoStr = range.start.toISOString();
+    const endIsoStr = range.end.toISOString();
 
-    const joinHistoryCol = db.collection('sadhana_join_history');
-    const participants = await joinHistoryCol
-      .find({
-        programSlug: params.slug,
-        joinedAt: {
-          $gte: new Date(startMs),
-          $lte: new Date(endMs),
-        },
-      })
-      .sort({ joinedAt: 1 })
-      .toArray();
+    const participantsRes = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_join_history_sql WHERE program_slug = ? AND joined_at >= ? AND joined_at <= ? ORDER BY joined_at ASC`,
+      args: [params.slug, startIsoStr, endIsoStr]
+    });
+    
+    const participants = participantsRes.rows || [];
 
     // Group by time slot
     const participantsBySlot: Record<string, any[]> = {};
@@ -150,15 +139,10 @@ export async function GET(
     const timeFmt: Intl.DateTimeFormatOptions = { timeZone: timezone, hour: '2-digit', minute: '2-digit' };
 
     participants.forEach((p: any) => {
-      const joinTime = new Date(p.joinedAt);
+      const joinTime = new Date(p.joined_at);
 
-      // lastSeen is heartbeated every ~3s while the viewer is polling /state, so it
-      // doubles as an effective "left at" time. If someone closes the tab before their
-      // first heartbeat lands, lastSeen never advances past joinedAt — that's not proof
-      // they stayed, so treat it as 0 minutes rather than "unknown" (a click alone must
-      // not count as attendance).
-      const hasConfirmedStay = !!p.lastSeen && new Date(p.lastSeen).getTime() > joinTime.getTime();
-      const leaveTime = hasConfirmedStay ? new Date(p.lastSeen) : null;
+      const hasConfirmedStay = !!p.left_at && new Date(p.left_at).getTime() > joinTime.getTime();
+      const leaveTime = hasConfirmedStay ? new Date(p.left_at) : null;
       const duration = leaveTime ? Math.round((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60)) : 0;
 
       // Must have a confirmed stay of more than 3 minutes to be listed at all.
@@ -170,7 +154,7 @@ export async function GET(
 
       const participantData = {
         name: p.name,
-        joinedAt: p.joinedAt,
+        joinedAt: p.joined_at,
         leftAt: leaveTime!.toISOString(),
         joinTime: joinTime.toLocaleTimeString('en-IN', timeFmt),
         leaveTime: leaveTime!.toLocaleTimeString('en-IN', timeFmt),
@@ -191,7 +175,7 @@ export async function GET(
       success: true,
       date: dateStr,
       programSlug: params.slug,
-      programName: program.name,
+      programName: programName,
       totalParticipants: participants.length,
       participantsBySlot,
       unlistedParticipants,
