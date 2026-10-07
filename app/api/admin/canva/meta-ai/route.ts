@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { uploadToBunnyStorage } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -172,6 +173,14 @@ export async function POST(request: Request) {
     const shouldGenerateImage = wantsImage(prompt);
     const shouldGenerateAdCopy = wantsAdCopy(prompt);
 
+    let aspectRatio = "1:1";
+    if (prompt.includes("Platform: YouTube(16:9)") || prompt.includes("Platform: FB(16:9)") || prompt.includes("Platform: LinkedIn(16:9)")) { aspectRatio = "16:9"; }
+    else if (prompt.includes("Platform: Insta(size)") || prompt.includes("Platform: FB(size)")) { aspectRatio = "1:1"; }
+    else if (prompt.includes("Platform: TikTok") || prompt.includes("Platform: Reels")) { aspectRatio = "9:16"; }
+    const lowerPrompt = prompt.toLowerCase();
+    if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) { aspectRatio = "16:9"; } 
+    else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) { aspectRatio = "9:16"; }
+
     // Build conversation history
     const historyText = (messages || []).map((m: any) =>
       `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
@@ -236,18 +245,6 @@ IMPORTANT INSTRUCTIONS:
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
           : `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled.`;
 
-        let aspectRatio = "1:1";
-        // Default sizes based on platform selection passed in the prompt
-        if (prompt.includes("Platform: YouTube(16:9)") || prompt.includes("Platform: FB(16:9)") || prompt.includes("Platform: LinkedIn(16:9)")) { aspectRatio = "16:9"; }
-        else if (prompt.includes("Platform: Insta(size)") || prompt.includes("Platform: FB(size)")) { aspectRatio = "1:1"; }
-        else if (prompt.includes("Platform: TikTok") || prompt.includes("Platform: Reels")) { aspectRatio = "9:16"; }
-        const lowerPrompt = prompt.toLowerCase();
-        if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) {
-          aspectRatio = "16:9";
-        } else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) {
-          aspectRatio = "9:16";
-        }
-
         const output = await runReplicate({
           model: 'black-forest-labs/flux-1.1-pro',
           input: {
@@ -259,6 +256,18 @@ IMPORTANT INSTRUCTIONS:
         });
 
         imageUrl = Array.isArray(output) ? output[0] : output;
+        
+        if (imageUrl) {
+           console.log("Uploading generated image to Bunny Storage...");
+           try {
+             const imgRes = await fetch(imageUrl);
+             const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+             imageUrl = await uploadToBunnyStorage(imgBuffer, 'meta-ai-image-' + Date.now() + '.webp', { contentType: 'image/webp' });
+             console.log("Bunny Storage Image URL:", imageUrl);
+           } catch(e) {
+             console.error("Failed to upload image to Bunny Storage:", e);
+           }
+        }
 
         // 3. Generate Video if requested
         if (shouldGenerateVideo && imageUrl) {
@@ -279,6 +288,18 @@ IMPORTANT INSTRUCTIONS:
            // If it returns a string URL directly (some models return just the URL, some return an array)
            if (typeof videoOutput === 'string' && videoOutput.endsWith('.mp4')) {
                videoUrl = videoOutput;
+           }
+           
+           if (videoUrl) {
+             console.log("Uploading generated video to Bunny Storage...");
+             try {
+               const vidRes = await fetch(videoUrl);
+               const vidBuffer = Buffer.from(await vidRes.arrayBuffer());
+               videoUrl = await uploadToBunnyStorage(vidBuffer, 'meta-ai-video-' + Date.now() + '.mp4', { contentType: 'video/mp4' });
+               console.log("Bunny Storage Video URL:", videoUrl);
+             } catch(e) {
+               console.error("Failed to upload video to Bunny Storage:", e);
+             }
            }
         }
         
