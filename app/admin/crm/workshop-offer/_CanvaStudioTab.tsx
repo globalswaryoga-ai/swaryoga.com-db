@@ -1170,8 +1170,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                        </div>
 
                         <div className="flex gap-3 mt-6">
-                          <button 
-                            onClick={async () => {
+                          {activeSection === 'receipts' && (
+                            <button 
+                              onClick={async () => {
                               const btn = document.getElementById('btn-generate-pdf');
                               if (btn) btn.innerText = 'Generating...';
                               try {
@@ -1213,6 +1214,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           >
                             Generate PDF
                           </button>
+                          )}
                           <button 
                             onClick={async () => {
                               const btn = document.getElementById('btn-generate-canva');
