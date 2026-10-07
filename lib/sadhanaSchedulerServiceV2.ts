@@ -4,7 +4,7 @@
  * USES OBS FOR REAL VIDEO PLAYBACK (not just chat links)
  */
 
-import mongoose from 'mongoose';
+
 import {
   sendMessageToMeeting,
   autoCloseMeeting,
@@ -244,46 +244,29 @@ async function runSchedulerLoop(): Promise<void> {
         `[SadhanaScheduler] ⏰ Scheduler check at ${now.toISOString()}`
       );
 
-      // Get all active Sadhana schedules
-      const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-      const SadhanaSchedule =
-        db.models.SadhanaSchedule ||
-        db.model(
-          'SadhanaSchedule',
-          new mongoose.Schema(
-            {
-              name: String,
-              botName: String,
-              chatMessages: [{ message: String, delayMinutes: Number }],
-              enableAiChatReplies: Boolean,
-              videoUrl: String,
-              videoDuration: Number,
-              botJoinMinutes: Number,
-              autoCloseMinutes: Number,
-              enableBotAutomation: Boolean,
-              zoomLink: String,
-              zoomId: String,
-              zoomPassword: String,
-              schedule: {
-                times: [String],
-                days: [Number],
-                timezone: String,
-              },
-              status: String,
-              participantEmails: [String], // Max 299 emails
-              participantPhones: [String], // Max 299 WhatsApp numbers
-              enableEmailReminders: Boolean,
-              enableWhatsAppReminders: Boolean,
-              whatsappProvider: { type: String, enum: ['qr', 'meta', 'both'], default: 'qr' },
-            },
-            { collection: 'sadhana_schedules' }
-          )
-        );
-
-      const schedules = await SadhanaSchedule.find({
-        status: 'active',
-        enableBotAutomation: { $ne: false },
-      });
+      // Get all active Sadhana schedules from BunnyDB
+      const { listPrograms } = require('@/lib/bunnySadhanaRepository');
+      let programs = await listPrograms({ active: true });
+      
+      const schedules = programs
+        .filter((p: any) => p.enableBotAutomation !== false)
+        .map((p: any) => ({
+          _id: p.id,
+          name: p.name,
+          botName: p.botName || '🤖 Swar Yoga Bot',
+          videoUrl: p.playerUrl,
+          videoDuration: p.videoDuration,
+          botJoinMinutes: p.botJoinMinutes || 5,
+          zoomLink: p.zoomLink,
+          zoomId: p.zoomId,
+          zoomPassword: p.zoomPassword,
+          status: p.active ? 'active' : 'paused',
+          schedule: {
+            times: p.timeSlots,
+            days: p.days || [0, 1, 2, 3, 4, 5, 6],
+            timezone: p.timezone || 'Asia/Kolkata',
+          }
+        }));
 
       console.log(`[SadhanaScheduler] 📋 Found ${schedules.length} active schedule(s)`);
 

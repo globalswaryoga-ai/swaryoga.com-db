@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { getProgramsCollection, slugify } from '@/lib/sadhanaPrograms';
+import { listPrograms, insertProgram, getProgram } from '@/lib/bunnySadhanaRepository';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+
+function slugify(s: string): string {
+  return String(s)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,32 +27,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const col = await getProgramsCollection();
-    // Tenant isolation (SaaS): super admin sees ALL programs (existing data
-    // preserved); every other tenant sees only the programs they created.
     const filter = isSuperAdmin(decoded) ? {} : { createdByUserId: getViewerUserId(decoded) };
-    const programs = await col.find(filter).sort({ createdAt: -1 }).toArray();
+    const programs = await listPrograms(filter);
+    
     return NextResponse.json({
       success: true,
-      programs: programs.map((p: any) => ({
-        id: p._id.toString(),
-        slug: p.slug,
-        name: p.name,
-        description: p.description,
-        timeSlots: p.timeSlots || (p.scheduleTime ? [p.scheduleTime] : []),
-        timezone: p.timezone,
-        videoDuration: p.videoDuration,
-        countdownMinutes: p.countdownMinutes,
-        days: p.days || [0, 1, 2, 3, 4, 5, 6],
-        repeatFrequency: p.repeatFrequency || 'daily',
-        startDate: p.startDate,
-        botName: p.botName || '🤖 Swar Yoga Bot',
-        botJoinMinutes: p.botJoinMinutes || 5,
-        enableBotAutomation: p.enableBotAutomation !== false,
-        videoCalendar: p.videoCalendar || {},
-        active: p.active,
-        createdAt: p.createdAt,
-      })),
+      programs,
     });
   } catch (error) {
     return handleCrmError(error, 'GET sadhana-programs');
@@ -67,23 +56,21 @@ export async function POST(request: NextRequest) {
     const {
       name, description, timeSlots, timezone, videoDuration, countdownMinutes,
       days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation,
-      videoCalendar, playerMode, playerUrl
+      videoCalendar, playerMode, playerUrl, zoomLink, zoomId, zoomPassword
     } = body;
 
     if (!name || !timeSlots || timeSlots.length === 0) {
       return NextResponse.json({ error: 'name and timeSlots required' }, { status: 400 });
     }
 
-    const col = await getProgramsCollection();
     let slug = slugify(name);
-    let slugCheck = await col.findOne({ slug });
+    let slugCheck = await getProgram(slug);
     let suffix = 1;
     while (slugCheck) {
       slug = `${slugify(name)}-${suffix++}`;
-      slugCheck = await col.findOne({ slug });
+      slugCheck = await getProgram(slug);
     }
 
-    const now = new Date();
     const doc = {
       slug,
       name: String(name).slice(0, 100),
@@ -101,16 +88,17 @@ export async function POST(request: NextRequest) {
       videoCalendar: videoCalendar || {},
       playerMode: playerMode || 'player',
       playerUrl: playerUrl || '',
+      zoomLink: zoomLink || '',
+      zoomId: zoomId || '',
+      zoomPassword: zoomPassword || '',
       active: true,
-      createdByUserId: getViewerUserId(decoded), // tenant owner (SaaS isolation)
-      createdAt: now,
-      updatedAt: now,
+      createdByUserId: getViewerUserId(decoded),
     };
 
-    const result = await col.insertOne(doc);
+    const result = await insertProgram(doc);
     return NextResponse.json({
       success: true,
-      program: { id: result.insertedId.toString(), ...doc },
+      program: result,
     });
   } catch (error) {
     return handleCrmError(error, 'POST sadhana-programs');

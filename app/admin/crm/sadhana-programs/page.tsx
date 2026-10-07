@@ -21,6 +21,9 @@ interface Program {
   botName?: string;
   botJoinMinutes?: number;
   enableBotAutomation?: boolean;
+  zoomLink?: string;
+  zoomId?: string;
+  zoomPassword?: string;
   active: boolean;
   createdAt: string;
 }
@@ -51,6 +54,9 @@ export default function SadhanaProgramsPage() {
     botName: '🤖 Swar Yoga Bot',
     botJoinMinutes: 5,
     enableBotAutomation: true,
+    zoomLink: '',
+    zoomId: '',
+    zoomPassword: '',
   });
 
   const [editProgram, setEditProgram] = useState({
@@ -65,6 +71,9 @@ export default function SadhanaProgramsPage() {
     botName: '🤖 Swar Yoga Bot',
     botJoinMinutes: 5,
     enableBotAutomation: true,
+    zoomLink: '',
+    zoomId: '',
+    zoomPassword: '',
   });
 
   const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -129,6 +138,9 @@ export default function SadhanaProgramsPage() {
       botName: p.botName || '🤖 Swar Yoga Bot',
       botJoinMinutes: p.botJoinMinutes || 5,
       enableBotAutomation: p.enableBotAutomation !== false,
+      zoomLink: p.zoomLink || '',
+      zoomId: p.zoomId || '',
+      zoomPassword: p.zoomPassword || '',
     });
   };
 
@@ -407,6 +419,44 @@ export default function SadhanaProgramsPage() {
               />
             </div>
 
+            <div className="pt-2 pb-2 border-t border-gray-800">
+              <label className="block text-sm font-semibold text-gray-200 mb-3">Zoom Bot Configuration</label>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Zoom Meeting Link</label>
+                  <input
+                    type="text"
+                    value={newProgram.zoomLink || ''}
+                    onChange={(e) => setNewProgram({ ...newProgram, zoomLink: e.target.value })}
+                    placeholder="https://us06web.zoom.us/j/..."
+                    className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Meeting ID</label>
+                    <input
+                      type="text"
+                      value={newProgram.zoomId || ''}
+                      onChange={(e) => setNewProgram({ ...newProgram, zoomId: e.target.value })}
+                      placeholder="123 4567 8901"
+                      className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Password</label>
+                    <input
+                      type="text"
+                      value={newProgram.zoomPassword || ''}
+                      onChange={(e) => setNewProgram({ ...newProgram, zoomPassword: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm text-gray-300 mb-2">Bot Joins (min before session)</label>
               <div className="grid grid-cols-3 gap-2">
@@ -581,6 +631,44 @@ export default function SadhanaProgramsPage() {
                 placeholder="🤖 Swar Yoga Bot"
                 className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
               />
+            </div>
+
+            <div className="pt-2 pb-2 border-t border-gray-800">
+              <label className="block text-sm font-semibold text-gray-200 mb-3">Zoom Bot Configuration</label>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Zoom Meeting Link</label>
+                  <input
+                    type="text"
+                    value={editProgram.zoomLink || ''}
+                    onChange={(e) => setEditProgram({ ...editProgram, zoomLink: e.target.value })}
+                    placeholder="https://us06web.zoom.us/j/..."
+                    className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Meeting ID</label>
+                    <input
+                      type="text"
+                      value={editProgram.zoomId || ''}
+                      onChange={(e) => setEditProgram({ ...editProgram, zoomId: e.target.value })}
+                      placeholder="123 4567 8901"
+                      className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Password</label>
+                    <input
+                      type="text"
+                      value={editProgram.zoomPassword || ''}
+                      onChange={(e) => setEditProgram({ ...editProgram, zoomPassword: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div>
