@@ -1356,24 +1356,22 @@ export default function BroadcastPage(props: any) {
       const virtualContacts: { name?: string; phoneNumber: string; email?: string }[] = [];
 
       allIds.forEach(id => {
-        if (id.startsWith('csv_')) {
+        // ALWAYS push to realLeadIds as a fallback
+        realLeadIds.push(id);
+        
+        // ALWAYS pass the contact data via virtualContacts so the backend can auto-create missing batch leads!
+        const l = filteredLeads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
+        if (l && l.phoneNumber) {
+          virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
+        } else if (id.startsWith('csv_')) {
           const idx = parseInt(id.split('_')[1], 10);
           const c = csvContacts[idx];
-          if (c) {
-            virtualContacts.push({ name: c.name || '', phoneNumber: c.phoneNumber, email: c.email });
+          if (c && c.phoneNumber) {
+             virtualContacts.push({ name: c.name || '', phoneNumber: c.phoneNumber, email: c.email });
           } else {
-            const parts = id.split('_');
-            virtualContacts.push({ phoneNumber: parts.slice(2).join('_') });
+             const parts = id.split('_');
+             virtualContacts.push({ phoneNumber: parts.slice(2).join('_') });
           }
-        } else if (id.startsWith('google-csv-') || id.startsWith('oauth-form-')) {
-          // Unsaved lead from Google Forms/Sheets integration
-          const allPossibleLeads = [...leads, ...(propLeadsData || [])];
-          const l = allPossibleLeads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
-          if (l && l.phoneNumber) {
-            virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
-          }
-        } else {
-          realLeadIds.push(id);
         }
       });
 

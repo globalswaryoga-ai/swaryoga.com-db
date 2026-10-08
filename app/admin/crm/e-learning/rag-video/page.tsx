@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import Mp4ToMp3Converter from './_components/Mp4ToMp3Converter';
 
 const LANGUAGE_OPTIONS = [
   { code: 'hi', name: 'Hindi' },
@@ -533,6 +534,10 @@ export default function RagAndVideoPage() {
           <SettingsIcon size={16} />
           Avatar Settings
         </button>
+      </div>
+
+      <div className="mb-8">
+        <Mp4ToMp3Converter />
       </div>
 
       {showSettings && (

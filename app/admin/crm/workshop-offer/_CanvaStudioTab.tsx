@@ -72,7 +72,22 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       return;
     }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
+      try {
+        localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
+      } catch (e: any) {
+        if (e.name === 'QuotaExceededError') {
+          // If storage is full, keep only the most recent 10 messages to free up space
+          if (chatMessages.length > 10) {
+            try {
+              const pruned = chatMessages.slice(-10);
+              localStorage.setItem('meta_chat_messages', JSON.stringify(pruned));
+              console.warn('[CRM Warning] Local storage quota exceeded. Pruned chat messages to free space.');
+            } catch (innerError) {
+               console.error('Failed to save even pruned messages:', innerError);
+            }
+          }
+        }
+      }
     }
   }, [chatMessages]);
 

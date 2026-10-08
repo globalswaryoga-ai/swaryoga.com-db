@@ -1284,27 +1284,36 @@ export default function BroadcastPage(props: BroadcastPageProps) {
         delayMins = delayMinutes;
       }
 
-      // Split real leadIds from CSV virtual IDs
+      // Split real leadIds from CSV virtual IDs and unsaved virtual IDs
       const allIds = Array.from(selectedLeads);
-      const realLeadIds = allIds.filter(id => !id.startsWith('csv_'));
-      const csvIds = allIds.filter(id => id.startsWith('csv_'));
-      const csvPhoneNumbers = csvIds.map(id => {
-        // csv_${idx}_${last10digits} — extract the full phone from csvContacts
-        const parts = id.split('_');
-        const idx = parseInt(parts[1], 10);
-        return csvContacts[idx]?.phoneNumber || parts.slice(2).join('_');
-      }).filter(Boolean);
+      const realLeadIds: string[] = [];
+      const virtualContacts: { name?: string; phoneNumber: string; email?: string }[] = [];
+
+      allIds.forEach(id => {
+        // ALWAYS push to realLeadIds as a fallback
+        realLeadIds.push(id);
+        
+        // ALWAYS pass the contact data via virtualContacts so the backend can auto-create missing batch leads!
+        const l = filteredLeads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
+        if (l && l.phoneNumber) {
+          virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
+        } else if (id.startsWith('csv_')) {
+          const idx = parseInt(id.split('_')[1], 10);
+          const c = csvContacts[idx];
+          if (c && c.phoneNumber) {
+             virtualContacts.push({ name: c.name || '', phoneNumber: c.phoneNumber, email: c.email });
+          } else {
+             const parts = id.split('_');
+             virtualContacts.push({ phoneNumber: parts.slice(2).join('_') });
+          }
+        }
+      });
 
       // Build target — include both leadIds and csvPhoneNumbers
       const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
-      if (csvPhoneNumbers.length > 0) {
-        target.csvPhoneNumbers = csvPhoneNumbers;
-        // Include CSV contact details for lead creation
-        target.csvContacts = csvIds.map(id => {
-          const idx = parseInt(id.split('_')[1], 10);
-          const c = csvContacts[idx];
-          return c ? { name: c.name, phoneNumber: c.phoneNumber, email: c.email } : null;
-        }).filter(Boolean);
+      if (virtualContacts.length > 0) {
+        target.csvPhoneNumbers = virtualContacts.map(c => c.phoneNumber);
+        target.csvContacts = virtualContacts;
       }
 
       const payload: Record<string, unknown> = {
