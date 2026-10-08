@@ -76,7 +76,7 @@ export default function WorkshopOfferPage() {
     return getBaseLanguage(wLang) === getBaseLanguage(tLang);
   };
 
-  const masterViewLanguageFilteredLeads = useMemo(() => {
+  const displayLeads = useMemo(() => {
     const currentBaseLang = getBaseLanguage(selectedDashboardLang);
     return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
   }, [leadsData, selectedDashboardLang]);
@@ -87,7 +87,7 @@ export default function WorkshopOfferPage() {
     
     const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim());
     
-    return masterViewLanguageFilteredLeads.filter((l: any) => {
+    return displayLeads.filter((l: any) => {
       const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
       const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
       const allVals = [...rawVals, ...dynVals];
@@ -1932,7 +1932,7 @@ export default function WorkshopOfferPage() {
       setIsLoadingGoogleForms={setIsLoadingGoogleForms} setGoogleFormsList={setGoogleFormsList}
       setNeedsGoogleAuth={setNeedsGoogleAuth} setActiveTab={setActiveTab}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
-      Users={Users} leadsData={masterViewLanguageFilteredLeads} isLoadingLeads={isLoadingLeads}
+      Users={Users} leadsData={displayLeads} isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
       handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
       handleApproveBulk={handleApproveBulk} filterOptions={filterOptions}
@@ -2056,7 +2056,7 @@ export default function WorkshopOfferPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                          {masterViewLanguageFilteredLeads.length} Leads
+                          {displayLeads.length} Leads
                         </span>
                         {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
                           <button
@@ -2327,7 +2327,7 @@ export default function WorkshopOfferPage() {
           {activeTab === 'offer_details' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in h-full w-full">
               <OfferDetailsTab 
-                leads={selectedWorkshop?.isMovedToLeadsManagement ? masterViewLanguageFilteredLeads : masterViewLanguageFilteredLeads}
+                leads={selectedWorkshop?.isMovedToLeadsManagement ? displayLeads : displayLeads}
                 selectedWorkshop={selectedWorkshop}
                 saveWorkshopSettings={saveWorkshopSettings}
                 selectedDashboardLang={selectedDashboardLang}
@@ -2340,7 +2340,7 @@ export default function WorkshopOfferPage() {
           {activeTab === 'received_amount' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in h-full w-full">
               <ReceivedAmountTab 
-                leads={masterViewLanguageFilteredLeads}
+                leads={displayLeads}
                 selectedDashboardLang={selectedDashboardLang}
               />
             </div>
