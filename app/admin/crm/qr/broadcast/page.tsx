@@ -731,8 +731,7 @@ export default function BroadcastPage(props: BroadcastPageProps) {
 
     const filtered = (sourceWorkshops || []).filter((w: any) => 
       w && w.id && w.id.startsWith('batch_') &&
-      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase()) &&
-      w.isMovedToLeadsManagement
+      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase())
     );
     
     return filtered.map((w: any) => w.name);

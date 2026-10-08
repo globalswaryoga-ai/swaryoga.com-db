@@ -507,7 +507,7 @@ export function LeadsManagementTab({
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
-    (w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement
+    (w) => w && w.id && matchesLanguage(w, selectedLanguage)
   );
 
   const handleSubmit = () => {
