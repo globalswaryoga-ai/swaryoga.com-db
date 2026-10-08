@@ -62,6 +62,11 @@ function extractTextMessageBody(msg: any): string {
   if (type === 'location') {
       return `[Location: ${msg.location?.latitude}, ${msg.location?.longitude}]`;
   }
+  
+  if (type === 'reaction') {
+      const emoji = msg?.reaction?.emoji;
+      return emoji ? `[Reaction: ${emoji}]` : `[Reaction removed]`;
+  }
 
   return type ? `[${type} message]` : '';
 }
