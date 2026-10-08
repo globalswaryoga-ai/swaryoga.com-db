@@ -144,7 +144,14 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           name="formSource"
                           value="internal"
                           checked={formSource === 'internal'}
-                          onChange={() => setFormSource('internal')}
+                          onChange={() => {
+                            setFormSource('internal');
+                            if (selectedWorkshop) {
+                              const updated = { ...selectedWorkshop, metadata: { ...selectedWorkshop.metadata, formSource: 'internal' } };
+                              setSelectedWorkshop(updated);
+                              saveWorkshopSettings(updated);
+                            }
+                          }}
                           className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                         />
                         <span className="text-sm font-bold text-slate-700">Add leads form - CRM</span>
@@ -155,7 +162,14 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           name="formSource"
                           value="google"
                           checked={formSource === 'google'}
-                          onChange={() => setFormSource('google')}
+                          onChange={() => {
+                            setFormSource('google');
+                            if (selectedWorkshop) {
+                              const updated = { ...selectedWorkshop, metadata: { ...selectedWorkshop.metadata, formSource: 'google' } };
+                              setSelectedWorkshop(updated);
+                              saveWorkshopSettings(updated);
+                            }
+                          }}
                           className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                         />
                         <span className="text-sm font-bold text-slate-700">Upload leads form - Google Form</span>
@@ -374,10 +388,22 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           <div className="flex justify-end mt-4">
                             <button
                               onClick={() => {
-                                if (formSource === 'google') {
-                                  setLinkedFormId(googleFormUrl);
-                                } else {
-                                  setLinkedFormId(selectedFormId);
+                                const newFormId = formSource === 'google' ? googleFormUrl : selectedFormId;
+                                setLinkedFormId(newFormId);
+                                
+                                if (selectedWorkshop) {
+                                  const updated = {
+                                    ...selectedWorkshop,
+                                    formId: newFormId,
+                                    metadata: {
+                                      ...selectedWorkshop.metadata,
+                                      formSource,
+                                      mainFilter: leadsFilter,
+                                      subFilter: leadsSubFilter
+                                    }
+                                  };
+                                  setSelectedWorkshop(updated);
+                                  saveWorkshopSettings(updated);
                                 }
 
                                 toast.success('Form configuration saved & mapped!');
