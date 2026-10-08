@@ -880,6 +880,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       syncFullHistory: true,
       shouldSyncHistoryMessage: () => true,
       markOnlineThrottleMs: 15000,
+      markOnlineOnConnect: false,
+      browser: ['Mac OS', 'Chrome', '121.0.6167.160'],
       // Resend message content when a recipient's device asks for a retry
       // (otherwise their WhatsApp is stuck on "Waiting for this message").
       getMessage: async (key) => {

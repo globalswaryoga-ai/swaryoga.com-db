@@ -386,6 +386,31 @@ async function ingestQRPayload(payload: any) {
           // stomp a previously harvested contact name with bare phone digits.
           const leadName = typeof lead.name === 'string' ? lead.name.trim() : '';
           const hasRealLeadName = !!leadName && !/^\d+$/.test(leadName);
+          
+          if (process.env.SAVE_QR_CHATS_TO_BUNNY === 'true') {
+            try {
+              const { saveQrMessageToBunny, saveQrChatToBunny } = await import('@/lib/bunnyQrWhatsAppRepository');
+              await saveQrMessageToBunny({
+                messageId: m.messageId, userId: bridgeUserId, connectedPhone, chatJid,
+                direction: m.fromMe ? 'outbound' : 'inbound', fromMe: !!m.fromMe,
+                text: messageContent, type: m.media?.kind || m.type || 'text',
+                participant: m.participant || '', pushName: typeof lead.name === 'string' ? lead.name : '',
+                timestamp: timestampSeconds, status: m.fromMe ? QR_MESSAGE_STATUS.SENT : QR_MESSAGE_STATUS.PENDING,
+                hasMedia: !!hasMedia, mediaUrl: doc.media?.url || '', mediaMimetype: doc.media?.mimeType || '',
+                mediaFileName: doc.media?.fileName || '', rawMessage: stripInlineMedia(payload)
+              });
+              
+              await saveQrChatToBunny({
+                userId: bridgeUserId, connectedPhone, chatJid,
+                name: hasRealLeadName ? leadName : normalizedPhone, isGroup: chatJid.endsWith('@g.us'),
+                lastMessage: messageContent, lastMessageTime: timestampMs, lastMessageFromMe: !!m.fromMe,
+                unreadCount: m.fromMe ? 0 : 1, conversationTimestamp: timestampSeconds
+              });
+            } catch (err: any) {
+              console.error('[QR WEBHOOK] BunnyDB save failed:', err.message);
+            }
+          }
+
           await QrWhatsAppChat.findOneAndUpdate(
             { userId: bridgeUserId, connectedPhone, chatJid },
             {
