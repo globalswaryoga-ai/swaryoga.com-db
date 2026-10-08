@@ -1252,7 +1252,7 @@ export default function NewRegistrationPage() {
   useEffect(() => {
     if (!isLoaded) return;
     
-    
+    const langSuffix = `_${selectedDashboardLang}`;
     const savedFormSource = localStorage.getItem('crm_form_source' + langSuffix) || localStorage.getItem('crm_form_source');
     if (savedFormSource === 'internal' || savedFormSource === 'google') {
       setFormSource(savedFormSource as 'internal' | 'google');
