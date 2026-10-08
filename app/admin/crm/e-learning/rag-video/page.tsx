@@ -599,7 +599,7 @@ export default function RagAndVideoPage() {
                 <label className="block text-xs text-gray-500 mb-1">Audio file (export from Final Cut or any tool)</label>
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept="audio/*,video/mp4,video/quicktime,video/webm"
                   onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
                   className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
                 />
@@ -800,7 +800,7 @@ export default function RagAndVideoPage() {
                 )}
               </div>
 
-              {selectedJob.correctedTranscript !== undefined && (
+              {(selectedJob.correctedTranscript !== undefined || selectedJob.status === 'awaiting_correction_review') && (
                 <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
                   <h3 className="text-white font-semibold mb-1">Corrected transcript ({LANGUAGE_OPTIONS.find((l) => l.code === selectedJob.sourceLanguage)?.name || selectedJob.sourceLanguage})</h3>
                   <p className="text-xs text-gray-500 mb-3">

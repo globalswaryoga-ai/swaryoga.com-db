@@ -422,8 +422,17 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         </div>
 
                         {/* Mapping UI will be rendered below when a form is selected and its fields are fetched */}
-                        {(Object.keys(googleFormQuestionMap).length > 0 || isManualFormId) && formSource === 'google' && (
+                        {((Object.keys(googleFormQuestionMap).length > 0 || (leadsData && leadsData.length > 0 && leadsData[0]._rawRecord)) || isManualFormId) && formSource === 'google' && (
                           <div className="mt-6 pt-4 border-t border-slate-200">
+                            {(() => {
+                              if (Object.keys(googleFormQuestionMap).length === 0 && leadsData && leadsData.length > 0 && leadsData[0]._rawRecord) {
+                                const rawKeys = Object.keys(leadsData[0]._rawRecord);
+                                rawKeys.forEach(k => {
+                                  googleFormQuestionMap[k] = k;
+                                });
+                              }
+                              return null;
+                            })()}
 
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
@@ -697,6 +706,18 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 {p.activeTab !== 'my_batches' && p.activeTab !== 'our_workshops' && (
                   <>
                     {/* AI-7 and AI-1A sync buttons hidden as they now run automatically from the backend */}
+                    
+                    <button
+                      onClick={() => {
+                        if (p.toast) p.toast.info('Syncing leads from Google Forms...');
+                        if (p.setRefreshLeadsCounter) p.setRefreshLeadsCounter((prev: number) => prev + 1);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 shrink-0 mr-2"
+                      title="Manually fetch latest leads from Google Forms"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                      Sync Leads
+                    </button>
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2 shrink-0">
                       <span className="text-xs font-bold text-indigo-700 whitespace-nowrap">AI-1</span>
                       <input
@@ -941,7 +962,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                                 <div className="truncate w-full" title={lead.name}>{lead.name || '-'}</div>
                               </td>
                               <td style={{ width: `${waWidth}px`, minWidth: `${waWidth}px`, maxWidth: `${waWidth}px`, left: `${waLeft}px` }} className={`px-4 py-3 whitespace-nowrap sticky z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
-                                <div className="truncate w-full" title={lead.mobile || lead.phoneNumber}>{lead.mobile || lead.phoneNumber || '-'}</div>
+                                <div className="truncate w-full" title={lead.mobile || lead.phoneNumber || lead.whatsapp || lead.WhatsApp || lead.Contact}>{lead.mobile || lead.phoneNumber || lead.whatsapp || lead.WhatsApp || lead.Contact || '-'}</div>
                               </td>
                               {showDynamicColumns && dynamicColumns.map(col => {
                                 const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
@@ -1109,7 +1130,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     setWorkshops(newWorkshops);
                     
                     if (typeof window !== 'undefined') {
-                      localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                      const langMatch = (p.selectedDashboardLang || '').match(/^(English|Hindi|Marathi|Kannada)/i);
+                      const langPrefix = langMatch ? langMatch[1].toLowerCase() : 'english';
+                      localStorage.setItem(`crm_${langPrefix}_workshops`, JSON.stringify(newWorkshops));
                       const t = localStorage.getItem('crm_token');
                       if (t) {
                         fetch('/api/admin/crm/new-registration/state', {

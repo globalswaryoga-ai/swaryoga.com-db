@@ -59,3 +59,5 @@ production
 .env*.local
 !ANDROID_APP_STATUS.md
 !ANDROID_APP_TESTING_GUIDE.md
+bunny.db
+scratch/

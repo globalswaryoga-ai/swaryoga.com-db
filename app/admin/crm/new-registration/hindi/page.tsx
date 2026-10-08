@@ -62,7 +62,7 @@ export default function NewRegistrationPage() {
   const [isLoadingForms, setIsLoadingForms] = useState(false);
 
   const [selectedFormId, setSelectedFormId] = useState<string>('');
-  const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+  const [linkedFormId, setLinkedFormId] = useState<string>('');
   const [activeLinkedSheetId, setActiveLinkedSheetId] = useState<string>('');
   const [leadsData, setLeadsData] = useState<any[]>([]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
@@ -140,7 +140,7 @@ export default function NewRegistrationPage() {
   const [leadsFilter, setLeadsFilter] = useState('');
   const [leadsSubFilter, setLeadsSubFilter] = useState('');
   const [leadsSubSubFilter, setLeadsSubSubFilter] = useState('');
-  const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+  const [googleFormUrl, setGoogleFormUrl] = useState('');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
   const [isAi7Active, setIsAi7Active] = useState(true);
@@ -366,7 +366,7 @@ export default function NewRegistrationPage() {
 
         if (hasChanges) {
           setWorkshops(newWorkshops);
-          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+          localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -567,7 +567,7 @@ export default function NewRegistrationPage() {
         });
 
         if (addedCount > 0) {
-          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+          localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
           // Sync to backend
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
@@ -1141,15 +1141,15 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     const defaultBatch = {
-      id: 'w_english_swar_yoga',
-      name: 'English swar yoga',
-      formId: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
-      googleFormUrl: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
+      id: 'w_hindi_swar_yoga',
+      name: 'Hindi swar yoga',
+      formId: '',
+      googleFormUrl: '',
       leads: 0,
-      language: 'English'
+      language: 'Hindi'
     };
 
-    const saved = localStorage.getItem('crm_workshops');
+    const saved = localStorage.getItem('crm_hindi_workshops');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -1166,7 +1166,7 @@ export default function NewRegistrationPage() {
     }
 
     // Restore last selected workshop/form
-    const savedWorkshop = localStorage.getItem('crm_selected_workshop');
+    const savedWorkshop = localStorage.getItem('crm_hindi_selected_workshop');
     if (savedWorkshop) {
       try {
         const sw = JSON.parse(savedWorkshop);
@@ -1175,16 +1175,16 @@ export default function NewRegistrationPage() {
     }
     // Form settings are now handled in a separate useEffect reacting to selectedDashboardLang
 
-    const savedAiState = localStorage.getItem('crm_ai_worker_active');
+    const savedAiState = localStorage.getItem('crm_hindi_ai_worker_active');
     if (savedAiState) setIsAiWorkerActive(savedAiState === 'true');
 
-    const savedApprovedAiState = localStorage.getItem('crm_approved_ai_active');
+    const savedApprovedAiState = localStorage.getItem('crm_hindi_approved_ai_active');
     if (savedApprovedAiState) setIsApprovedAiWorkerActive(savedApprovedAiState === 'true');
 
-    const savedRegisteredAiState = localStorage.getItem('crm_registered_ai_active');
+    const savedRegisteredAiState = localStorage.getItem('crm_hindi_registered_ai_active');
     if (savedRegisteredAiState) setIsRegisteredAiWorkerActive(savedRegisteredAiState === 'true');
 
-    const savedAi7State = localStorage.getItem('crm_ai_7_active');
+    const savedAi7State = localStorage.getItem('crm_hindi_ai_7_active');
     if (savedAi7State !== null) setIsAi7Active(savedAi7State === 'true');
     else setIsAi7Active(true);
 
@@ -1236,7 +1236,7 @@ export default function NewRegistrationPage() {
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
         if (searchParams?.get('success') === 'google_forms_connected') {
-          const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
+          const defaultUrl = '';
           toast.success('🎉 Google Account connected! Swar Yoga Form saved & data loaded automatically.');
           setFormSource('google');
           setGoogleFormUrl(defaultUrl);
@@ -1258,14 +1258,14 @@ export default function NewRegistrationPage() {
     if (!isLoaded) return;
     
     const langSuffix = `_${selectedDashboardLang}`;
-    const savedFormSource = localStorage.getItem('crm_form_source' + langSuffix) || localStorage.getItem('crm_form_source');
+    const savedFormSource = localStorage.getItem('crm_hindi_form_source' + langSuffix) ;
     if (savedFormSource === 'internal' || savedFormSource === 'google') {
       setFormSource(savedFormSource as 'internal' | 'google');
     } else {
       setFormSource('google');
     }
 
-    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url' + langSuffix);
+    const savedGoogleFormUrl = localStorage.getItem('crm_hindi_google_form_url' + langSuffix);
     if (savedGoogleFormUrl) {
       setGoogleFormUrl(savedGoogleFormUrl);
       setLinkedFormId(savedGoogleFormUrl);
@@ -1274,12 +1274,12 @@ export default function NewRegistrationPage() {
       const baseLang = selectedDashboardLang.replace(' Workshop', '').replace(' Offer', '').trim();
       const mappedUrl = globalLangLinks?.[baseLang]?.[isOffer ? 'offer' : 'workshop'];
       
-      const defaultUrl = mappedUrl || localStorage.getItem('crm_google_form_url') || 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
+      const defaultUrl = mappedUrl  || '';
       setGoogleFormUrl(defaultUrl);
       setLinkedFormId(defaultUrl);
     }
 
-    const savedSelectedFormId = localStorage.getItem('crm_selected_form_id' + langSuffix) || localStorage.getItem('crm_selected_form_id');
+    const savedSelectedFormId = localStorage.getItem('crm_hindi_selected_form_id' + langSuffix) ;
     if (savedSelectedFormId) {
       setSelectedFormId(savedSelectedFormId);
     } else {
@@ -1297,38 +1297,38 @@ export default function NewRegistrationPage() {
         stateObj[k] = v;
       };
 
-      setAndCollect('crm_workshops', safeStringify(workshops));
-      setAndCollect('crm_ai_worker_active', String(isAiWorkerActive));
-      setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
-      setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
+      setAndCollect('crm_hindi_workshops', safeStringify(workshops));
+      setAndCollect('crm_hindi_ai_worker_active', String(isAiWorkerActive));
+      setAndCollect('crm_hindi_approved_ai_active', String(isApprovedAiWorkerActive));
+      setAndCollect('crm_hindi_registered_ai_active', String(isRegisteredAiWorkerActive));
       // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
-      if (selectedWorkshop) setAndCollect('crm_selected_workshop' + langSuffix, safeStringify(selectedWorkshop));
+      if (selectedWorkshop) setAndCollect('crm_hindi_selected_workshop' + langSuffix, safeStringify(selectedWorkshop));
       
-      if (googleFormUrl) setAndCollect('crm_google_form_url' + langSuffix, googleFormUrl);
-      if (formSource) setAndCollect('crm_form_source' + langSuffix, formSource);
-      if (selectedFormId) setAndCollect('crm_selected_form_id' + langSuffix, selectedFormId);
+      if (googleFormUrl) setAndCollect('crm_hindi_google_form_url' + langSuffix, googleFormUrl);
+      if (formSource) setAndCollect('crm_hindi_form_source' + langSuffix, formSource);
+      if (selectedFormId) setAndCollect('crm_hindi_selected_form_id' + langSuffix, selectedFormId);
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
-        setAndCollect('crm_lead_ids' + suffix, safeStringify(crmLeadIds));
-        setAndCollect('crm_approved_ids' + suffix, safeStringify(approvedLeadIds));
-        setAndCollect('crm_pending_ids' + suffix, safeStringify(pendingLeadIds));
-        setAndCollect('crm_pending2_ids' + suffix, safeStringify(pending2LeadIds));
-        setAndCollect('crm_registered_ids' + suffix, safeStringify(registeredLeadIds));
-        setAndCollect('crm_rejected_ids' + suffix, safeStringify(rejectedLeadIds));
-        setAndCollect('crm_student_kota_ids' + suffix, safeStringify(studentKotaLeadIds));
-        setAndCollect('crm_closed_ids' + suffix, safeStringify(closedLeadIds));
-        setAndCollect('crm_sent_congrats_ids' + suffix, safeStringify(sentCongratsLeadIds));
-        setAndCollect('crm_approval_insights' + suffix, safeStringify(approvalAiInsights));
-        setAndCollect('crm_pending_insights' + suffix, safeStringify(pendingAiInsights));
-        setAndCollect('crm_registered_insights' + suffix, safeStringify(registeredAiInsights));
+        setAndCollect('crm_hindi_lead_ids' + suffix, safeStringify(crmLeadIds));
+        setAndCollect('crm_hindi_approved_ids' + suffix, safeStringify(approvedLeadIds));
+        setAndCollect('crm_hindi_pending_ids' + suffix, safeStringify(pendingLeadIds));
+        setAndCollect('crm_hindi_pending2_ids' + suffix, safeStringify(pending2LeadIds));
+        setAndCollect('crm_hindi_registered_ids' + suffix, safeStringify(registeredLeadIds));
+        setAndCollect('crm_hindi_rejected_ids' + suffix, safeStringify(rejectedLeadIds));
+        setAndCollect('crm_hindi_student_kota_ids' + suffix, safeStringify(studentKotaLeadIds));
+        setAndCollect('crm_hindi_closed_ids' + suffix, safeStringify(closedLeadIds));
+        setAndCollect('crm_hindi_sent_congrats_ids' + suffix, safeStringify(sentCongratsLeadIds));
+        setAndCollect('crm_hindi_approval_insights' + suffix, safeStringify(approvalAiInsights));
+        setAndCollect('crm_hindi_pending_insights' + suffix, safeStringify(pendingAiInsights));
+        setAndCollect('crm_hindi_registered_insights' + suffix, safeStringify(registeredAiInsights));
       }
 
       const timeoutId = setTimeout(() => {
         // Collect any other crm_ keys from localStorage that weren't just set
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.startsWith('crm_') && !stateObj[key]) {
+          if (key && key.startsWith('crm_hindi_') && !stateObj[key]) {
             stateObj[key] = localStorage.getItem(key) || '';
           }
         }
@@ -1380,18 +1380,18 @@ export default function NewRegistrationPage() {
         return str ? JSON.parse(str) : {};
       };
 
-      setCrmLeadIds(loadList('crm_lead_ids'));
-      setApprovedLeadIds(loadList('crm_approved_ids'));
-      setPendingLeadIds(loadList('crm_pending_ids'));
-      setRegisteredLeadIds(loadList('crm_registered_ids'));
-      setRejectedLeadIds(loadList('crm_rejected_ids'));
-      setStudentKotaLeadIds(loadList('crm_student_kota_ids'));
-      setClosedLeadIds(loadList('crm_closed_ids'));
-      setSentCongratsLeadIds(loadList('crm_sent_congrats_ids'));
+      setCrmLeadIds(loadList('crm_hindi_lead_ids'));
+      setApprovedLeadIds(loadList('crm_hindi_approved_ids'));
+      setPendingLeadIds(loadList('crm_hindi_pending_ids'));
+      setRegisteredLeadIds(loadList('crm_hindi_registered_ids'));
+      setRejectedLeadIds(loadList('crm_hindi_rejected_ids'));
+      setStudentKotaLeadIds(loadList('crm_hindi_student_kota_ids'));
+      setClosedLeadIds(loadList('crm_hindi_closed_ids'));
+      setSentCongratsLeadIds(loadList('crm_hindi_sent_congrats_ids'));
 
-      setApprovalAiInsights(loadObj('crm_approval_insights'));
-      setPendingAiInsights(loadObj('crm_pending_insights'));
-      setRegisteredAiInsights(loadObj('crm_registered_insights'));
+      setApprovalAiInsights(loadObj('crm_hindi_approval_insights'));
+      setPendingAiInsights(loadObj('crm_hindi_pending_insights'));
+      setRegisteredAiInsights(loadObj('crm_hindi_registered_insights'));
     } else {
       // CLEAR linkedFormId to enforce strict data isolation between languages/workshops.
       // If a workshop is not mapped to a form, it must not show another workshop's leads.
@@ -1463,7 +1463,7 @@ export default function NewRegistrationPage() {
     setSelectedWorkshop(updatedWorkshop);
     setLinkedFormId(updatedWorkshop.formId);
 
-    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+    localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
     fetch('/api/admin/crm/new-registration/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1500,7 +1500,7 @@ export default function NewRegistrationPage() {
     setWorkshops(newWorkshops);
     
     if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+      localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
       if (token) {
         fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
@@ -1539,7 +1539,7 @@ export default function NewRegistrationPage() {
     newWorkshops[index - 1] = temp;
     setWorkshops(newWorkshops);
 
-    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+    localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
@@ -1558,7 +1558,7 @@ export default function NewRegistrationPage() {
     newWorkshops[index + 1] = temp;
     setWorkshops(newWorkshops);
 
-    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+    localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
@@ -1748,7 +1748,7 @@ export default function NewRegistrationPage() {
 
   const saveAi1Column = () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_ai1_column', ai1ColumnInput);
+      localStorage.setItem('crm_hindi_ai1_column', ai1ColumnInput);
       fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1764,7 +1764,7 @@ export default function NewRegistrationPage() {
       setWorkshops(prev => {
         const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+          localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1959,7 +1959,7 @@ export default function NewRegistrationPage() {
 
       if (addedCount > 0) {
         setWorkshops(newWorkshops);
-        localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+        localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
 
         // Sync to backend
         await fetch('/api/admin/crm/new-registration/state', {
@@ -2168,7 +2168,7 @@ export default function NewRegistrationPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                          {masterViewLanguageFilteredLeads.length} Leads
+                          {displayLeads.length} Leads
                         </span>
                         {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
                           <button
@@ -2177,7 +2177,7 @@ export default function NewRegistrationPage() {
                               if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
                                 const newWorkshops = workshops.filter((w: any) => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_'));
                                 setWorkshops(newWorkshops);
-                                localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+                                localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
                                 fetch('/api/admin/crm/new-registration/state', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
@@ -2278,7 +2278,7 @@ export default function NewRegistrationPage() {
 
                                       setWorkshops(newWorkshops);
                                       if (typeof window !== 'undefined') {
-                                        localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+                                        localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
                                         const t = localStorage.getItem('crm_token');
                                         if (t) {
                                           fetch('/api/admin/crm/new-registration/state', {
@@ -2309,7 +2309,7 @@ export default function NewRegistrationPage() {
                                 if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
                                   const newWorkshops = workshops.filter((w: any) => w.id !== batch.id);
                                   setWorkshops(newWorkshops);
-                                  localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
+                                  localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
                                   fetch('/api/admin/crm/new-registration/state', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
@@ -2408,7 +2408,7 @@ export default function NewRegistrationPage() {
               workshops={workshops}
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
-              leadsData={masterViewLanguageFilteredLeads}
+              leadsData={displayLeads}
             />
           )}
           {activeTab === 'whatsapp_messenger' && (
