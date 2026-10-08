@@ -133,3 +133,27 @@ export async function saveBunnyLead(lead: any, documentId?: string) {
   
   return leadToSave;
 }
+
+export async function getBunnyLeadsByPhones(phones: string[], viewerUserId: string, superAdmin: boolean = false) {
+  if (!phones.length) return [];
+  const inClause = phones.map(() => '?').join(',');
+  const result = await bunnyExecute({
+    sql: `SELECT data_json FROM leads_sql`,
+    args: []
+  });
+  
+  const leads = [];
+  for (const row of result.rows) {
+    const lead = parse(row.data_json);
+    if (!lead) continue;
+    
+    // Check if phone matches
+    if (phones.includes(lead.phoneNumber)) {
+      // Check ownership
+      if (superAdmin || lead.createdByUserId === viewerUserId || lead.assignedToUserId === viewerUserId) {
+        leads.push({ ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id) });
+      }
+    }
+  }
+  return leads;
+}

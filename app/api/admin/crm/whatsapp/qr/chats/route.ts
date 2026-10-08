@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
+import { getBunnyQrChats } from '@/lib/bunnyQrWhatsAppRepository';
+import { getBunnyLeadsByPhones } from '@/lib/bunnyLeadsRepository';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
@@ -25,22 +28,18 @@ export async function GET(req: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = isSuperAdmin(decoded);
 
-    await connectDB();
+    // await connectDB();
 
     // ── CANONICAL SESSION RESOLUTION ──
     // Every QR user (super admin included) is isolated by a single stable session
     // key = their permanentTenantId (same logic as the send & qr-bridge routes).
     // We must NOT scan live bridge sessions and fall back to "any connected
     // session" — that leaked one account's chats/groups into another's inbox.
-    const CRMUserSettings = getCRMUserSettings();
-    const userSettings = await CRMUserSettings.findOne(
-      { userId: viewerUserId },
-      { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
-    ).lean() as any;
+    const userSettings = await getBunnyCrmUserSettings(viewerUserId);
 
     const ownerSessionKey = superAdmin ? null : await resolveOwnerSessionKey({ userId: viewerUserId, tenantSlug: decoded?.tenantSlug });
-    const ownerSettings: any = ownerSessionKey
-      ? await CRMUserSettings.findOne({ permanentTenantId: ownerSessionKey }, { userId: 1, qrConnectedPhoneNumber: 1 }).lean()
+    const ownerSettings = ownerSessionKey
+      ? await getBunnyCrmUserSettings(ownerSessionKey)
       : null;
     const sessionOwnerUserId = String(ownerSettings?.userId || viewerUserId);
 
@@ -291,15 +290,8 @@ export async function GET(req: NextRequest) {
       console.warn(`[QR Chats API] connectedPhone unknown for user ${viewerUserId} — skipping DB chat history merge to avoid cross-number leak`);
     } else {
     try {
-      const QrChat = getQrWhatsAppChat();
-
       // Isolation: scoped to THIS user's THIS connected number only.
-      const query: any = { userId: viewerUserId, connectedPhone };
-
-      const dbChatDocs = await QrChat.find(query)
-        .sort({ lastMessageTime: -1, conversationTimestamp: -1, createdAt: -1 })
-        .limit(1000)  // Increased from 500 to include more historical
-        .lean();
+      const dbChatDocs = await getBunnyQrChats(viewerUserId, connectedPhone, 1000);
 
       const bridgeIds = data.chats.map((c: any) => (typeof c.id === 'string' ? c.id : (c.id?._serialized || '')));
       const bridgeJidSet = new Set<string>(bridgeIds);
@@ -385,27 +377,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Find leads for these numbers in one batch query — scoped to the viewer's
-    // own leads (super admin additionally matches unowned/global leads). The
-    // query MUST be ownership-scoped: an unscoped phone lookup could surface
-    // another tenant's lead for the same number.
-    const leadScope: any[] = [
-      { assignedToUserId: viewerUserId },
-      { createdByUserId: viewerUserId },
-    ];
-    if (superAdmin) {
-      leadScope.push({
-        $and: [
-          { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
-          { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
-        ],
-      });
-    }
     const leadMap = new Map();
     if (phoneNumbers.size > 0) {
-      const leads = await Lead.find({
-        phoneNumber: { $in: Array.from(phoneNumbers) },
-        $or: leadScope,
-      }).select('phoneNumber assignedToUserId createdByUserId displayName name').lean();
+      const leads = await getBunnyLeadsByPhones(Array.from(phoneNumbers), viewerUserId, superAdmin);
 
       leads.forEach((l: any) => leadMap.set(l.phoneNumber, {
         assignedToUserId: l.assignedToUserId,
@@ -447,7 +421,6 @@ export async function GET(req: NextRequest) {
         .slice(0, 12);
 
       if (candidates.length) {
-        const QrChat = getQrWhatsAppChat();
         await Promise.allSettled(candidates.map(async (c) => {
           const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
           let resolved = '';
@@ -469,36 +442,6 @@ export async function GET(req: NextRequest) {
           } catch { /* bridge slow/unreachable — no marker, retry on a later poll */ }
 
           if (resolved) c.name = resolved;
-          // Persist the name (or just the checked-marker) — but only write the
-          // marker when the bridge actually answered, so transient bridge
-          // failures don't suppress retries for 24h.
-          if (connectedPhone && (resolved || fetchOk)) {
-            await QrChat.updateOne(
-              { userId: viewerUserId, connectedPhone, chatJid: idStr },
-              {
-                $set: { ...(resolved ? { name: resolved } : {}), 'metadata.nameCheckedAt': new Date() },
-                $setOnInsert: { isGroup: false },
-              },
-              { upsert: true }
-            ).catch(() => {});
-          }
-          // Propagate to the viewer's own lead when it still has the bare number as name.
-          if (resolved) {
-            const realPhone = String(
-              c.resolvedPhone ||
-              ((idStr.endsWith('@s.whatsapp.net') || idStr.endsWith('@c.us')) ? idStr.split('@')[0] : '')
-            ).replace(/\D/g, '');
-            if (realPhone) {
-              await Lead.updateOne(
-                {
-                  phoneNumber: realPhone,
-                  $and: [{ $or: [{ name: realPhone }, { name: '' }, { name: null }] }],
-                  $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }],
-                },
-                { $set: { name: resolved } }
-              ).catch(() => {});
-            }
-          }
         }));
         console.log(`[QR Chats API] Push-name harvest attempted for ${candidates.length} unnamed chat(s)`);
       }

@@ -74,7 +74,7 @@ export async function saveQrMessageToBunny(msg: any) {
 
 export async function saveQrChatToBunny(chat: any) {
   await initBunnyQrWhatsAppSchema();
-  const chatId = \`\${chat.userId}:\${chat.connectedPhone}:\${chat.chatJid}\`;
+  const chatId = chat.userId + ':' + chat.connectedPhone + ':' + chat.chatJid;
   await bunnyExecute(
     `INSERT INTO qr_whatsapp_chats_sql (
       chat_id, user_id, connected_phone, chat_jid, name, is_group,
@@ -95,4 +95,31 @@ export async function saveQrChatToBunny(chat: any) {
       chat.pinned ? 1 : 0, chat.archived ? 1 : 0, chat.profilePicUrl || '', new Date().toISOString()
     ]
   );
+}
+
+export async function getBunnyQrChats(userId: string, connectedPhone: string, limit: number = 1000) {
+  const result = await bunnyExecute({
+    sql: `SELECT * FROM qr_whatsapp_chats_sql 
+          WHERE user_id = ? AND connected_phone = ? 
+          ORDER BY conversation_timestamp DESC, created_at DESC 
+          LIMIT ?`,
+    args: [userId, connectedPhone, limit]
+  });
+  return result.rows.map((r: any) => ({
+    chatId: r.chat_id,
+    userId: r.user_id,
+    connectedPhone: r.connected_phone,
+    chatJid: r.chat_jid,
+    name: r.name,
+    isGroup: r.is_group === 1,
+    lastMessage: r.last_message,
+    lastMessageTime: r.last_message_time ? new Date(r.last_message_time) : null,
+    lastMessageFromMe: r.last_message_from_me === 1,
+    unreadCount: r.unread_count,
+    conversationTimestamp: r.conversation_timestamp,
+    pinned: r.pinned === 1,
+    archived: r.archived === 1,
+    profilePicUrl: r.profile_pic_url,
+    createdAt: r.created_at ? new Date(r.created_at) : null
+  }));
 }
