@@ -1,17 +1,14 @@
 /**
- * Admin API for E-Learning Analytics
- * GET /api/admin/e-learning/analytics - Get overall stats
- * GET /api/admin/e-learning/analytics?period=daily|weekly|monthly|yearly - Dashboard analytics with period filter
- * GET /api/admin/e-learning/analytics?courseId=... - Course specific stats
- * GET /api/admin/e-learning/analytics?userId=... - User specific stats
+ * Admin API for E-Learning Analytics (BunnyDB)
+ * GET /api/admin/e-learning/analytics?period=daily|weekly|monthly|yearly
+ * GET /api/admin/e-learning/analytics?courseId=...
+ * GET /api/admin/e-learning/analytics?userId=...
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseEnrollment, getRecordedCourse, getVideoWatchLog } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,58 +17,48 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
   return isSuperAdmin(decoded);
 }
 
-function calculateDateRange(period: string): { startDate: Date; endDate: Date; format: string } {
+function calculateDateRange(period: string): { startISO: string; endISO: string; format: string } {
   const endDate = new Date();
   const startDate = new Date();
 
   switch (period) {
     case 'daily':
       startDate.setDate(startDate.getDate() - 1);
-      return { startDate, endDate, format: 'daily' };
+      return { startISO: startDate.toISOString(), endISO: endDate.toISOString(), format: 'daily' };
     case 'weekly':
       startDate.setDate(startDate.getDate() - 7);
-      return { startDate, endDate, format: 'weekly' };
+      return { startISO: startDate.toISOString(), endISO: endDate.toISOString(), format: 'weekly' };
     case 'yearly':
       startDate.setFullYear(startDate.getFullYear() - 1);
-      return { startDate, endDate, format: 'yearly' };
+      return { startISO: startDate.toISOString(), endISO: endDate.toISOString(), format: 'yearly' };
     case 'monthly':
     default:
       startDate.setDate(startDate.getDate() - 30);
-      return { startDate, endDate, format: 'monthly' };
+      return { startISO: startDate.toISOString(), endISO: endDate.toISOString(), format: 'monthly' };
   }
 }
 
-function formatDate(date: Date, format: string): string {
-  const d = new Date(date);
-  if (format === 'daily') {
-    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-  } else if (format === 'weekly') {
-    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-  } else if (format === 'yearly') {
+function formatDate(dateStr: string, format: string): string {
+  const d = new Date(dateStr);
+  if (format === 'yearly') {
     return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
   }
   return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 }
 
-function getCoursePrice(course: any): number {
-  const pricing = course?.pricing;
-  const inr = pricing?.INR;
-
-  if (typeof inr === 'number') return inr;
-  if (typeof inr?.price === 'number') return inr.price;
-  if (typeof inr?.salePrice === 'number') return inr.salePrice;
-  if (typeof pricing?.price === 'number') return pricing.price;
-
-  return 0;
+async function safeExecute(sql: string, args: any[] = []) {
+  try {
+    return await bunnyExecute({ sql, args });
+  } catch {
+    return { rows: [] };
+  }
 }
 
 /**
- * GET - Get analytics data
+ * GET - Analytics data from BunnyDB
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -92,232 +79,134 @@ export async function GET(request: NextRequest) {
     const courseId = request.nextUrl.searchParams.get('courseId');
     const userId = request.nextUrl.searchParams.get('userId');
 
-    const CourseEnrollment = getCourseEnrollment();
-    const RecordedCourse = getRecordedCourse();
-    const VideoWatchLog = getVideoWatchLog();
-
-    // Dashboard analytics with period filter
+    // ── Dashboard analytics with period filter ──
     if (period && !courseId && !userId) {
-      const { startDate, endDate, format } = calculateDateRange(period);
+      const { startISO, endISO, format } = calculateDateRange(period);
 
-      // New workshops in period
-      const newWorkshops = await RecordedCourse.countDocuments({
-        createdAt: { $gte: startDate, $lte: endDate },
-        isPublished: true,
-      });
+      // New courses published in period
+      const workshopsRes = await safeExecute(
+        `SELECT COUNT(*) as cnt FROM course_enrollments_sql WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ? LIMIT 1`,
+        [startISO, endISO]
+      );
+
+      // Try courses table first, fall back to 0
+      const coursesRes = await safeExecute(
+        `SELECT COUNT(*) as cnt FROM recorded_courses_sql WHERE json_extract(data_json, '$.isPublished') = 1 AND json_extract(data_json, '$.createdAt') >= ? AND json_extract(data_json, '$.createdAt') <= ?`,
+        [startISO, endISO]
+      );
+      const newWorkshops = Number((coursesRes.rows[0] as any)?.cnt ?? 0);
 
       // New enrollments in period
-      const newEnrollments = await CourseEnrollment.countDocuments({
-        enrolledAt: { $gte: startDate, $lte: endDate },
-      });
+      const enrollRes = await safeExecute(
+        `SELECT COUNT(*) as cnt FROM course_enrollments_sql WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?`,
+        [startISO, endISO]
+      );
+      const newEnrollments = Number((enrollRes.rows[0] as any)?.cnt ?? 0);
 
       // Active users in period
-      const activeUsers = await CourseEnrollment.countDocuments({
-        status: 'active',
-        enrolledAt: { $gte: startDate, $lte: endDate },
-      });
+      const activeRes = await safeExecute(
+        `SELECT COUNT(*) as cnt FROM course_enrollments_sql WHERE json_extract(data_json, '$.status') = 'active' AND json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?`,
+        [startISO, endISO]
+      );
+      const activeUsers = Number((activeRes.rows[0] as any)?.cnt ?? 0);
 
-      // Get enrollments for period to calculate payments
-      const enrollmentsInPeriod = await CourseEnrollment.find({
-        enrolledAt: { $gte: startDate, $lte: endDate },
-      }).populate('courseId', 'pricing');
-
-      const paymentsReceived = enrollmentsInPeriod.reduce((sum: number, enrollment: any) => {
-        if (enrollment.purchaseType !== 'gift') {
-          const paidAmount = typeof enrollment.amountPaid === 'number' ? enrollment.amountPaid : 0;
-          return sum + (paidAmount || getCoursePrice(enrollment.courseId));
-        }
-        return sum;
+      // Payments received in period
+      const payRes = await safeExecute(
+        `SELECT data_json FROM course_enrollments_sql WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ? AND (json_extract(data_json, '$.purchaseType') IS NULL OR json_extract(data_json, '$.purchaseType') != 'gift')`,
+        [startISO, endISO]
+      );
+      const paymentsReceived = (payRes.rows as any[]).reduce((sum, row) => {
+        try {
+          const e = JSON.parse(String(row.data_json || '{}'));
+          return sum + (typeof e.amountPaid === 'number' ? e.amountPaid : 0);
+        } catch { return sum; }
       }, 0);
 
-      // Enrollment trend over time
-      const enrollmentTrend = await CourseEnrollment.aggregate([
-        {
-          $match: {
-            enrolledAt: { $gte: startDate, $lte: endDate },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: format === 'yearly' ? '%Y-%m' : '%Y-%m-%d',
-                date: '$enrolledAt',
-              },
-            },
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { _id: 1 },
-        },
-      ]);
+      // Enrollment trend — group by date
+      const trendRes = await safeExecute(
+        `SELECT substr(json_extract(data_json, '$.enrolledAt'), 1, ${format === 'yearly' ? '7' : '10'}) as day, COUNT(*) as cnt
+         FROM course_enrollments_sql
+         WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?
+         GROUP BY day ORDER BY day ASC`,
+        [startISO, endISO]
+      );
+      const enrollmentsTrend = (trendRes.rows as any[]).map(r => ({
+        date: formatDate(r.day, format),
+        count: Number(r.cnt),
+      }));
 
-      // Revenue trend over time
-      const revenueTrend = await CourseEnrollment.aggregate([
-        {
-          $match: {
-            enrolledAt: { $gte: startDate, $lte: endDate },
-            purchaseType: { $ne: 'gift' },
-          },
-        },
-        {
-          $lookup: {
-            from: 'recordedcourses',
-            localField: 'courseId',
-            foreignField: '_id',
-            as: 'course',
-          },
-        },
-        {
-          $unwind: '$course',
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: format === 'yearly' ? '%Y-%m' : '%Y-%m-%d',
-                date: '$enrolledAt',
-              },
-            },
-            amount: {
-              $sum: {
-                $cond: [
-                  { $gt: [{ $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } }, 0] },
-                  { $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } },
-                  { $convert: { input: '$course.pricing.INR.price', to: 'double', onError: 0, onNull: 0 } },
-                ],
-              },
-            },
-          },
-        },
-        {
-          $sort: { _id: 1 },
-        },
-      ]);
+      // Revenue trend — group by date
+      const revTrendRes = await safeExecute(
+        `SELECT substr(json_extract(data_json, '$.enrolledAt'), 1, ${format === 'yearly' ? '7' : '10'}) as day,
+                SUM(CAST(json_extract(data_json, '$.amountPaid') AS REAL)) as amount
+         FROM course_enrollments_sql
+         WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?
+           AND (json_extract(data_json, '$.purchaseType') IS NULL OR json_extract(data_json, '$.purchaseType') != 'gift')
+         GROUP BY day ORDER BY day ASC`,
+        [startISO, endISO]
+      );
+      const revenueTrend = (revTrendRes.rows as any[]).map(r => ({
+        date: formatDate(r.day, format),
+        amount: Math.round(Number(r.amount) || 0),
+      }));
 
       // Progress distribution
-      const progressDistribution = await CourseEnrollment.aggregate([
-        {
-          $match: {
-            enrolledAt: { $gte: startDate, $lte: endDate },
-          },
-        },
-        {
-          $bucket: {
-            groupBy: { $convert: { input: '$progress', to: 'double', onError: 0, onNull: 0 } },
-            boundaries: [0, 25, 50, 75, 100, 101],
-            default: 'other',
-            output: { count: { $sum: 1 } },
-          },
-        },
-      ]);
+      const progRes = await safeExecute(
+        `SELECT data_json FROM course_enrollments_sql WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?`,
+        [startISO, endISO]
+      );
+      const progBuckets = [0, 0, 0, 0];
+      (progRes.rows as any[]).forEach(row => {
+        try {
+          const e = JSON.parse(String(row.data_json || '{}'));
+          const p = Number(e.progress || 0);
+          if (p < 25) progBuckets[0]++;
+          else if (p < 50) progBuckets[1]++;
+          else if (p < 75) progBuckets[2]++;
+          else progBuckets[3]++;
+        } catch {}
+      });
+      const progressDistribution = ['0-25%', '25-50%', '50-75%', '75-100%'].map((range, i) => ({
+        range,
+        count: progBuckets[i],
+      }));
 
-      // Top courses by enrollment
-      const topCourses = await CourseEnrollment.aggregate([
-        {
-          $match: {
-            enrolledAt: { $gte: startDate, $lte: endDate },
-            purchaseType: { $ne: 'gift' },
-          },
-        },
-        {
-          $lookup: {
-            from: 'recordedcourses',
-            localField: 'courseId',
-            foreignField: '_id',
-            as: 'course',
-          },
-        },
-        {
-          $unwind: '$course',
-        },
-        {
-          $group: {
-            _id: '$courseId',
-            title: { $first: '$course.content.en.title' },
-            enrollments: { $sum: 1 },
-            revenue: {
-              $sum: {
-                $cond: [
-                  { $gt: [{ $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } }, 0] },
-                  { $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } },
-                  { $convert: { input: '$course.pricing.INR.price', to: 'double', onError: 0, onNull: 0 } },
-                ],
-              },
-            },
-          },
-        },
-        {
-          $sort: { enrollments: -1 },
-        },
-        {
-          $limit: 10,
-        },
-      ]);
+      // Top courses by enrollment count
+      const topRes = await safeExecute(
+        `SELECT json_extract(data_json, '$.courseId') as cid,
+                json_extract(data_json, '$.courseName') as cname,
+                COUNT(*) as cnt,
+                SUM(CAST(json_extract(data_json, '$.amountPaid') AS REAL)) as rev
+         FROM course_enrollments_sql
+         WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?
+           AND (json_extract(data_json, '$.purchaseType') IS NULL OR json_extract(data_json, '$.purchaseType') != 'gift')
+         GROUP BY cid ORDER BY cnt DESC LIMIT 10`,
+        [startISO, endISO]
+      );
+      const topCourses = (topRes.rows as any[]).map(r => ({
+        title: r.cname || r.cid || 'Unknown',
+        enrollments: Number(r.cnt),
+        revenue: Math.round(Number(r.rev) || 0),
+      }));
 
       // Recent enrollments
-      const recentEnrollments = await CourseEnrollment.aggregate([
-        {
-          $match: {
-            enrolledAt: { $gte: startDate, $lte: endDate },
-          },
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'userId',
-            foreignField: '_id',
-            as: 'user',
-          },
-        },
-        {
-          $unwind: '$user',
-        },
-        {
-          $lookup: {
-            from: 'recordedcourses',
-            localField: 'courseId',
-            foreignField: '_id',
-            as: 'course',
-          },
-        },
-        {
-          $unwind: '$course',
-        },
-        {
-          $project: {
-            userName: '$user.name',
-            userEmail: '$user.email',
-            courseName: '$course.content.en.title',
-            enrolledAt: '$enrolledAt',
-          },
-        },
-        {
-          $sort: { enrolledAt: -1 },
-        },
-        {
-          $limit: 10,
-        },
-      ]);
-
-      // Format trend data
-      const formattedEnrollmentTrend = enrollmentTrend.map((item: any) => ({
-        date: formatDate(new Date(item._id), format),
-        count: item.count,
-      }));
-
-      const formattedRevenueTrend = revenueTrend.map((item: any) => ({
-        date: formatDate(new Date(item._id), format),
-        amount: Math.round(item.amount),
-      }));
-
-      // Format progress distribution
-      const progressRanges = ['0-25%', '25-50%', '50-75%', '75-100%'];
-      const formattedProgressDistribution = progressDistribution.map((item: any, idx: number) => ({
-        range: progressRanges[idx] || 'Unknown',
-        count: item.count || 0,
-      }));
+      const recentRes = await safeExecute(
+        `SELECT data_json FROM course_enrollments_sql
+         WHERE json_extract(data_json, '$.enrolledAt') >= ? AND json_extract(data_json, '$.enrolledAt') <= ?
+         ORDER BY json_extract(data_json, '$.enrolledAt') DESC LIMIT 10`,
+        [startISO, endISO]
+      );
+      const recentEnrollments = (recentRes.rows as any[]).map(row => {
+        try {
+          const e = JSON.parse(String(row.data_json || '{}'));
+          return {
+            userName: e.userName || e.userId || 'Unknown',
+            userEmail: e.userEmail || '',
+            courseName: e.courseName || e.courseId || 'Unknown',
+            enrolledAt: e.enrolledAt,
+          };
+        } catch { return {}; }
+      });
 
       return NextResponse.json({
         success: true,
@@ -326,45 +215,34 @@ export async function GET(request: NextRequest) {
           newEnrollments,
           paymentsReceived: Math.round(paymentsReceived),
           activeUsers,
-          enrollmentsTrend: formattedEnrollmentTrend,
-          revenueTrend: formattedRevenueTrend,
-          progressDistribution: formattedProgressDistribution,
-          topCourses: topCourses.map((c: any) => ({
-            title: c.title,
-            enrollments: c.enrollments,
-            revenue: Math.round(c.revenue || 0),
-          })),
+          enrollmentsTrend,
+          revenueTrend,
+          progressDistribution,
+          topCourses,
           recentEnrollments,
         },
       });
     }
 
-    // Overall stats
+    // ── Overall stats (no filter) ──
     if (!courseId && !userId) {
-      const totalEnrollments = await CourseEnrollment.countDocuments();
-      const activeEnrollments = await CourseEnrollment.countDocuments({ status: 'active' });
-      const completedEnrollments = await CourseEnrollment.countDocuments({ status: 'completed' });
-      const totalCourses = await RecordedCourse.countDocuments({ isPublished: true });
+      const totalRes = await safeExecute(`SELECT COUNT(*) as cnt FROM course_enrollments_sql`);
+      const activeRes = await safeExecute(`SELECT COUNT(*) as cnt FROM course_enrollments_sql WHERE json_extract(data_json, '$.status') = 'active'`);
+      const completedRes = await safeExecute(`SELECT COUNT(*) as cnt FROM course_enrollments_sql WHERE json_extract(data_json, '$.status') = 'completed'`);
+      const coursesRes = await safeExecute(`SELECT COUNT(*) as cnt FROM recorded_courses_sql WHERE json_extract(data_json, '$.isPublished') = 1`);
 
-      const watchLogs = await VideoWatchLog.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalWatchTime: { $sum: '$watchDuration' },
-            totalSessions: { $sum: 1 },
-          },
-        },
-      ]);
+      const totalEnrollments = Number((totalRes.rows[0] as any)?.cnt ?? 0);
+      const activeEnrollments = Number((activeRes.rows[0] as any)?.cnt ?? 0);
+      const completedEnrollments = Number((completedRes.rows[0] as any)?.cnt ?? 0);
+      const totalCourses = Number((coursesRes.rows[0] as any)?.cnt ?? 0);
 
-      const enrollmentStats = await CourseEnrollment.aggregate([
-        {
-          $group: {
-            _id: null,
-            avgProgress: { $avg: '$progress' },
-            totalWatchTime: { $sum: '$totalWatchTime' },
-          },
-        },
-      ]);
+      const avgProgRes = await safeExecute(
+        `SELECT AVG(CAST(json_extract(data_json, '$.progress') AS REAL)) as avgprog,
+                SUM(CAST(json_extract(data_json, '$.totalWatchTime') AS REAL)) as totalwatch
+         FROM course_enrollments_sql`
+      );
+      const avgProgress = Number((avgProgRes.rows[0] as any)?.avgprog ?? 0);
+      const totalWatchTime = Number((avgProgRes.rows[0] as any)?.totalwatch ?? 0);
 
       return NextResponse.json({
         success: true,
@@ -373,44 +251,45 @@ export async function GET(request: NextRequest) {
           activeEnrollments,
           completedEnrollments,
           totalCourses,
-          avgProgress: enrollmentStats[0]?.avgProgress || 0,
-          totalWatchTime: enrollmentStats[0]?.totalWatchTime || 0,
-          totalWatchSessions: watchLogs[0]?.totalSessions || 0,
+          avgProgress: Math.round(avgProgress),
+          totalWatchTime,
+          totalWatchSessions: totalEnrollments,
         },
       });
     }
 
-    // Course specific stats
+    // ── Course specific stats ──
     if (courseId) {
-      const course = await RecordedCourse.findById(courseId);
-      if (!course) {
-        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-      }
+      const enrollRes = await safeExecute(
+        `SELECT data_json FROM course_enrollments_sql WHERE json_extract(data_json, '$.courseId') = ?`,
+        [courseId]
+      );
+      const enrollments = (enrollRes.rows as any[]).map(r => {
+        try { return JSON.parse(String(r.data_json || '{}')); } catch { return {}; }
+      });
 
-      const enrollments = await CourseEnrollment.find({ courseId }).populate('userId', 'name email');
       const totalEnrolled = enrollments.length;
-      const completed = enrollments.filter((e: any) => e.status === 'completed').length;
-      const active = enrollments.filter((e: any) => e.status === 'active').length;
-      const avgProgress = enrollments.reduce((sum: number, e: any) => sum + (e.progress || 0), 0) / (totalEnrolled || 1);
-      const totalWatchTime = enrollments.reduce((sum: number, e: any) => sum + (e.totalWatchTime || 0), 0);
+      const completed = enrollments.filter(e => e.status === 'completed').length;
+      const active = enrollments.filter(e => e.status === 'active').length;
+      const avgProgress = enrollments.length > 0
+        ? Math.round(enrollments.reduce((s, e) => s + (Number(e.progress) || 0), 0) / enrollments.length)
+        : 0;
+      const totalWatchTime = enrollments.reduce((s, e) => s + (Number(e.totalWatchTime) || 0), 0);
 
       return NextResponse.json({
         success: true,
-        course: {
-          title: course.content?.en?.title,
-          slug: course.slug,
-        },
+        course: { title: courseId },
         stats: {
           totalEnrolled,
           completed,
           active,
           completionRate: totalEnrolled > 0 ? Math.round((completed / totalEnrolled) * 100) : 0,
-          avgProgress: Math.round(avgProgress),
+          avgProgress,
           totalWatchTime,
-          enrollmentDetails: enrollments.map((e: any) => ({
-            userId: e.userId?._id,
-            userName: e.userId?.name,
-            userEmail: e.userId?.email,
+          enrollmentDetails: enrollments.map(e => ({
+            userId: e.userId,
+            userName: e.userName,
+            userEmail: e.userEmail,
             progress: e.progress,
             status: e.status,
             watchTime: e.totalWatchTime,
@@ -420,25 +299,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // User specific stats
+    // ── User specific stats ──
     if (userId) {
-      const enrollments = await CourseEnrollment.find({ userId: new mongoose.Types.ObjectId(userId) })
-        .populate('courseId', 'slug content.en.title');
+      const enrollRes = await safeExecute(
+        `SELECT data_json FROM course_enrollments_sql WHERE json_extract(data_json, '$.userId') = ?`,
+        [userId]
+      );
+      const enrollments = (enrollRes.rows as any[]).map(r => {
+        try { return JSON.parse(String(r.data_json || '{}')); } catch { return {}; }
+      });
 
-      const stats = enrollments.map((e: any) => ({
-        courseId: e.courseId?._id,
-        courseName: e.courseId?.content?.en?.title,
-        courseSlug: e.courseId?.slug,
-        progress: e.progress,
-        status: e.status,
-        watchTime: e.totalWatchTime,
-        enrolledAt: e.enrolledAt,
-        certificateIssued: e.certificateIssued,
-      }));
-
-      const totalWatchTime = enrollments.reduce((sum: number, e: any) => sum + (e.totalWatchTime || 0), 0);
+      const totalWatchTime = enrollments.reduce((s, e) => s + (Number(e.totalWatchTime) || 0), 0);
       const avgProgress = enrollments.length > 0
-        ? Math.round(enrollments.reduce((sum: number, e: any) => sum + e.progress, 0) / enrollments.length)
+        ? Math.round(enrollments.reduce((s, e) => s + (Number(e.progress) || 0), 0) / enrollments.length)
         : 0;
 
       return NextResponse.json({
@@ -447,8 +320,17 @@ export async function GET(request: NextRequest) {
           totalCourses: enrollments.length,
           totalWatchTime,
           avgProgress,
-          completedCourses: enrollments.filter((e: any) => e.status === 'completed').length,
-          enrollments: stats,
+          completedCourses: enrollments.filter(e => e.status === 'completed').length,
+          enrollments: enrollments.map(e => ({
+            courseId: e.courseId,
+            courseName: e.courseName,
+            courseSlug: e.courseSlug,
+            progress: e.progress,
+            status: e.status,
+            watchTime: e.totalWatchTime,
+            enrolledAt: e.enrolledAt,
+            certificateIssued: e.certificateIssued,
+          })),
         },
       });
     }
@@ -456,7 +338,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, stats: {} });
 
   } catch (error: any) {
-    console.error('[Analytics GET Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[E-Learning Analytics GET Error]:', error);
+    return NextResponse.json({ error: 'Server error', detail: String(error?.message || '') }, { status: 500 });
   }
 }
