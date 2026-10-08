@@ -116,13 +116,18 @@ export default function NewRegistrationPage() {
     
     const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
     
-    return (leadsData || []).filter((l: any) => {
+    const ai7MappedQuestion = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.['ai7'];
+    
+    const matchedCount = (leadsData || []).filter((l: any) => {
       if (!l) return false;
-      const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v ?? '').toLowerCase().trim()) : [];
-      const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v ?? '').toLowerCase().trim()) : [];
-      const allVals = [...rawVals, ...dynVals];
-      return keywords.some(k => allVals.some(v => v.includes(k)));
+      if (l._rawRecord && ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
+        return keywords.some((k: string) => isLeadMatchingKeyword(l._rawRecord[ai7MappedQuestion], k));
+      }
+      return false;
     }).length;
+    
+    const totalCount = batch.leads || 0;
+    return `${matchedCount} / ${totalCount}`;
   };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -1206,9 +1211,10 @@ export default function NewRegistrationPage() {
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
               if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
               // Restore selected form/workshop from DB (overrides localStorage if present)
-              if (data.crm_selected_workshop) {
+              const langSuffixStr = `_${selectedDashboardLang}`;
+              if (data['crm_marathi_selected_workshop' + langSuffixStr]) {
                 try {
-                  const sw = JSON.parse(data.crm_selected_workshop);
+                  const sw = JSON.parse(data['crm_marathi_selected_workshop' + langSuffixStr]);
                   if (sw?.id) setSelectedWorkshop(sw);
                 } catch (_) {}
               }

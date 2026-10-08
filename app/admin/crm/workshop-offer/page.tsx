@@ -87,12 +87,18 @@ export default function WorkshopOfferPage() {
     
     const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim());
     
-    return displayLeads.filter((l: any) => {
-      const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
-      const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
-      const allVals = [...rawVals, ...dynVals];
-      return keywords.some(k => allVals.some(v => v.includes(k)));
+    const ai7MappedQuestion = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.['ai7'];
+    
+    const matchedCount = (leadsData || []).filter((l: any) => {
+      if (!l) return false;
+      if (l._rawRecord && ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
+        return keywords.some((k: string) => isLeadMatchingKeyword(l._rawRecord[ai7MappedQuestion], k));
+      }
+      return false;
     }).length;
+    
+    const totalCount = batch.leads || 0;
+    return `${matchedCount} / ${totalCount}`;
   };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -1200,9 +1206,10 @@ export default function WorkshopOfferPage() {
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
               if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
               // Restore selected form/workshop from DB (overrides localStorage if present)
-              if (data.crm_selected_workshop) {
+              const langSuffixStr = `_${selectedDashboardLang}`;
+              if (data['crm_offer_selected_workshop' + langSuffixStr]) {
                 try {
-                  const sw = JSON.parse(data.crm_selected_workshop);
+                  const sw = JSON.parse(data['crm_offer_selected_workshop' + langSuffixStr]);
                   if (sw?.id) setSelectedWorkshop(sw);
                 } catch (_) {}
               }
@@ -1268,10 +1275,11 @@ export default function WorkshopOfferPage() {
       setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
       // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
-      if (selectedWorkshop) setAndCollect('crm_selected_workshop', JSON.stringify(selectedWorkshop));
-      if (googleFormUrl) setAndCollect('crm_google_form_url', googleFormUrl);
-      if (formSource) setAndCollect('crm_form_source', formSource);
-      if (selectedFormId) setAndCollect('crm_selected_form_id', selectedFormId);
+      const langSuffixStr = `_${selectedDashboardLang}`;
+      if (selectedWorkshop) setAndCollect('crm_offer_selected_workshop' + langSuffixStr, JSON.stringify(selectedWorkshop));
+      if (googleFormUrl) setAndCollect('crm_offer_google_form_url' + langSuffixStr, googleFormUrl);
+      if (formSource) setAndCollect('crm_offer_form_source' + langSuffixStr, formSource);
+      if (selectedFormId) setAndCollect('crm_offer_selected_form_id' + langSuffixStr, selectedFormId);
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
