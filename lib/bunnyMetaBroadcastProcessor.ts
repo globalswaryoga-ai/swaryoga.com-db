@@ -80,7 +80,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           // Prevent duplicate template sending within 24 hours
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const existingCheck = await bunnyExecute({
-            sql: `SELECT document_id FROM meta_messages_sql WHERE phone_number = ? AND data_json LIKE ? AND COALESCE(sent_at, created_at) >= ? LIMIT 1`,
+            sql: `SELECT document_id FROM meta_messages_sql WHERE phone_number = ? AND data_json LIKE ? AND status != 'failed' AND COALESCE(sent_at, created_at) >= ? LIMIT 1`,
             args: [item.phoneNumber, `%"templateId":"${run.templateId}"%`, twentyFourHoursAgo]
           });
 
