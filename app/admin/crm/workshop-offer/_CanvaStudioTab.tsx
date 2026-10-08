@@ -73,13 +73,23 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
+        // Strip massive base64 images before saving to local storage
+        const storageMessages = chatMessages.map(m => {
+          if (m.imageUrl && m.imageUrl.startsWith('data:image')) {
+            return { ...m, imageUrl: '[User uploaded image]' };
+          }
+          return m;
+        });
+        localStorage.setItem('meta_chat_messages', JSON.stringify(storageMessages));
       } catch (e: any) {
         if (e.name === 'QuotaExceededError' || e.message?.toLowerCase().includes('quota')) {
           // If storage is full, keep only the most recent 5 messages to free up space
           if (chatMessages.length > 5) {
             try {
-              const pruned = chatMessages.slice(-5);
+              const pruned = chatMessages.slice(-5).map(m => {
+                if (m.imageUrl && m.imageUrl.startsWith('data:image')) return { ...m, imageUrl: '[User uploaded image]' };
+                return m;
+              });
               localStorage.setItem('meta_chat_messages', JSON.stringify(pruned));
               console.warn('[CRM Warning] Local storage quota exceeded. Pruned chat messages to 5.');
             } catch (innerError) {
@@ -207,11 +217,18 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       }
       const fullPrompt = `Target Language: ${metaLanguage}\nPlatform: ${metaPlatform}\n\n${currentPrompt}`;
       
+      // Strip massive base64 image data from history to prevent 413 Payload Too Large errors
+      const strippedMessages = chatMessages.map(m => {
+          if (m.imageUrl && m.imageUrl.startsWith('data:image')) {
+              return { ...m, imageUrl: '[User uploaded image]' };
+          }
+          return m;
+      });
 
       const res = await fetch('/api/admin/canva/meta-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
-        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: chatMessages })
+        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: strippedMessages })
       });
 
       
