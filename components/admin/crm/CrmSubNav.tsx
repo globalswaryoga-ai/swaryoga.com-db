@@ -522,9 +522,9 @@ export default function CrmSubNav({
             Workshop Students
           </Link>
           <Link
-            href="/admin/crm/new-registration"
+            href="/admin/crm/new-registration/english"
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 text-white shadow-sm ${
-              pathname === '/admin/crm/new-registration'
+              pathname.includes('/admin/crm/new-registration')
                 ? 'bg-blue-600 hover:bg-blue-700'
                 : 'bg-emerald-600 hover:bg-emerald-700'
             }`}
