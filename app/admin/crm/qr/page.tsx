@@ -1569,7 +1569,7 @@ export default function QRWhatsAppPage() {
           }))
         : [];
 
-      // Map MongoDB messages (persistent, survives bridge restarts)
+      // Map MongoDB/BunnyDB messages (persistent, survives bridge restarts)
       const dbMessages: MessageItem[] = dbData?.messages
         ? dbData.messages.map((m: any) => ({
             id: m.id || '',
@@ -1586,7 +1586,7 @@ export default function QRWhatsAppPage() {
             mediaMimetype: m.mediaMimetype || null,
             mediaFileName: m.mediaFileName || null,
             quoted: m.quoted || null,
-            reactions: {},
+            reactions: m.reactions || {},
             quotedId: m.quotedId || null,
           }))
         : [];
@@ -1614,6 +1614,34 @@ export default function QRWhatsAppPage() {
       const merged = Array.from(byId.values())
         .filter(m => m.id)
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      // ── Collapse reaction-type messages into their target's reactions map ──
+      // Reaction messages (type === 'reaction') should not appear as standalone bubbles.
+      // Instead, apply their emoji to the reactions map of the target message so
+      // the UI renders them as emoji badges on the correct bubble.
+      const reactionMsgs = merged.filter(m => m.type === 'reaction');
+      const displayMsgs = merged.filter(m => m.type !== 'reaction');
+
+      if (reactionMsgs.length > 0) {
+        const displayById = new Map(displayMsgs.map(m => [m.id, m]));
+        for (const rm of reactionMsgs) {
+          const targetId = (rm as any).reactionTargetId || (rm as any).quotedId;
+          const emoji = rm.text || (rm as any).reactionEmoji || '👍';
+          const reactorKey = rm.from || rm.participant || 'user';
+          if (targetId && displayById.has(targetId)) {
+            const target = displayById.get(targetId)!;
+            displayById.set(targetId, {
+              ...target,
+              reactions: { ...(target.reactions || {}), [reactorKey]: emoji },
+            });
+          }
+        }
+        // Replace merged with reaction-applied display messages
+        const finalMsgs = Array.from(displayById.values())
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        // reassign for downstream use
+        (merged as any[]).splice(0, merged.length, ...finalMsgs);
+      }
 
       // For unsaved contacts the chat list only carries the bare number, but
       // inbound messages carry the sender's own WhatsApp display name
@@ -3851,7 +3879,7 @@ export default function QRWhatsAppPage() {
                         )}
 
                         {/* Type indicator for media without preview URL and no binary (stickers, etc.) */}
-                        {msg.type && msg.type !== 'text' && msg.type !== 'conversation' && !hasMediaPreview && !(msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document')) && (
+                        {msg.type && msg.type !== 'text' && msg.type !== 'conversation' && msg.type !== 'reaction' && !hasMediaPreview && !(msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document')) && (
                           <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                             {msg.type === 'image' && <ImageIcon className="w-3 h-3" />}
                             {msg.type === 'video' && <Video className="w-3 h-3" />}

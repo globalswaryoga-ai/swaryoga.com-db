@@ -175,8 +175,8 @@ async function ingestQRPayload(payload: any) {
     const text = (m.text || '').trim();
     const hasMedia = m.hasMedia && m.media;
     
-    // Allow messages with media even if no text
-    if (!text && !hasMedia) continue;
+    // Allow messages with media even if no text; allow reactions always
+    if (!text && !hasMedia && m.type !== 'reaction') continue;
 
     const sourceJid = m.chatJid || (m.fromMe ? (m.to || m.from) : m.from);
     // `sourceJid` identifies the conversation, but an @lid value is not a
@@ -205,12 +205,16 @@ async function ingestQRPayload(payload: any) {
     }
 
     // Determine message type
-    const messageType = hasMedia ? 'media' : 'text';
-    const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
+    const isReaction = m.type === 'reaction';
+    const messageType = isReaction ? 'reaction' : (hasMedia ? 'media' : 'text');
+    // For reactions: use the emoji as content; for media: use placeholder if no text
+    const messageContent = isReaction
+      ? (m.reactionEmoji || m.text || '🔔')
+      : (text || (hasMedia ? '[' + (m.media?.kind || 'media') + ' message]' : ''));
 
     const messageTimestamp = m.timestamp || new Date();
     const doc: any = {
-      provider: 'whatsapp_web_bridge', // Unified provider for all QR/Bridge messages
+      provider: 'whatsapp_web_bridge',
       direction: m.fromMe ? 'outbound' : 'inbound',
       phoneNumber: normalizedPhone,
       messageContent,
@@ -219,9 +223,8 @@ async function ingestQRPayload(payload: any) {
       waMessageId: m.messageId,
       sentAt: messageTimestamp,
       timestamp: messageTimestamp,
-      // Tag with bridge user for multi-user session isolation
+      ...(m.reactionEmoji && { reactionEmoji: m.reactionEmoji, reactionTargetId: m.reactionTargetId }),
       ...(payload.bridgeUserId && { bridgeUserId: payload.bridgeUserId, ownerId: payload.bridgeUserId }),
-      // Keep raw/provider details in metadata.
       metadata: {
         channel: 'qr',
         rawProvider: 'waofficialapi',
@@ -333,6 +336,31 @@ async function ingestQRPayload(payload: any) {
 
     const newMessage = await WhatsAppMessage.create(doc);
     created++;
+
+    // ── Reaction: update target message's reactions map ──
+    // Instead of showing as a standalone message, we patch the reactions field
+    // on the target message so the UI renders it as an emoji badge.
+    if (m.type === 'reaction' && m.reactionTargetId) {
+      const reactionEmoji = m.reactionEmoji || m.text || '';
+      const reactorKey = normalizedPhone;
+      try {
+        // Update QrWhatsAppMessage (live/bridge messages)
+        if (reactionEmoji) {
+          await QrWhatsAppMessage.updateOne(
+            { messageId: m.reactionTargetId, userId: bridgeUserId, connectedPhone },
+            { $set: { ['reactions.' + reactorKey]: reactionEmoji } }
+          );
+        } else {
+          // Empty emoji = reaction removed
+          await QrWhatsAppMessage.updateOne(
+            { messageId: m.reactionTargetId, userId: bridgeUserId, connectedPhone },
+            { $unset: { ['reactions.' + reactorKey]: '' } }
+          );
+        }
+      } catch (reactionErr: any) {
+        console.warn('[QR WEBHOOK] Reaction target update failed (non-fatal):', reactionErr.message);
+      }
+    }
 
     if (bridgeUserId && connectedPhone) {
       const chatJid = normalizeQRChatJid(sourceJid);

@@ -15,10 +15,13 @@ export type NormalizedQRMessage = {
   fromMe?: boolean;
   hasMedia?: boolean;
   media?: NormalizedQRMedia;
-  type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
+  type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'reaction'
   pushName?: string; // WhatsApp display name of the sender
   chatJid?: string;
   participant?: string;
+  // Reaction fields (only present when type === 'reaction')
+  reactionEmoji?: string;     // e.g. '❤️'
+  reactionTargetId?: string;  // messageId of the message being reacted to
 };
 
 function asString(v: unknown): string | undefined {
@@ -150,6 +153,42 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
 
   return list
     .map((m) => {
+      // ── Reaction messages ──
+      // Baileys sends: { type: 'reaction', reaction: { key: { id }, text: '❤️' }, from, ... }
+      // whatsapp-web.js sends: { type: 'reaction', body: '❤️', _data: { reactionMessage: { key: { id } } }, ... }
+      const isReaction =
+        m.type === 'reaction' ||
+        m.messageType === 'reactionMessage' ||
+        !!m.reaction?.text;
+
+      if (isReaction) {
+        const emoji =
+          asString(m.reaction?.text) ||
+          asString(m.body) ||
+          asString(m.text) ||
+          '🔔';
+        const targetId =
+          asString(m.reaction?.key?.id) ||
+          asString(m._data?.reactionMessage?.key?.id) ||
+          asString(m.reactionMessage?.key?.id);
+        const pushName = asString(m.pushName || m.notifyName || m.senderName || m.contactName || m.name || m.contact?.name);
+        return {
+          from: asString(m.from || m.sender || m.phone || m?.contact?.id || m?.chatId) || '',
+          to: asString(m.to || m.receiver),
+          text: emoji,                     // store the emoji as text so it renders
+          messageId: asString(m.id?._serialized || m.id || m.messageId || m.msgId || m?.key?.id),
+          timestamp: asTimestamp(m.timestamp ?? m.ts ?? m.time ?? m.createdAt),
+          fromMe: !!m.fromMe,
+          hasMedia: false,
+          type: 'reaction',
+          reactionEmoji: emoji,
+          reactionTargetId: targetId,
+          ...(pushName ? { pushName } : {}),
+          chatJid: asString(m.originalJid || m.chatJid || m?.key?.remoteJid),
+          participant: asString(m.participant || m?.key?.participant),
+        } as NormalizedQRMessage;
+      }
+
       const text =
         asString(m.text) ||
         asString(m.body) ||
@@ -177,6 +216,6 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         participant: asString(m.participant || m?.key?.participant),
       } as NormalizedQRMessage;
     })
-    // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId (fallback for incoming messages without from)
+    // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId
     .filter((m) => !!m.from || m.fromMe || !!m.messageId);
 }
