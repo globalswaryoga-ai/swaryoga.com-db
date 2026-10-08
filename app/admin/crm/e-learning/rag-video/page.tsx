@@ -96,7 +96,7 @@ export default function RagAndVideoPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
-  const [sourceMode, setSourceMode] = useState<'audio' | 'text'>('audio');
+  const [sourceMode, setSourceMode] = useState<'audio' | 'text' | 'url'>('audio');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [sourceText, setSourceText] = useState('');
   const [referenceLink, setReferenceLink] = useState('');
@@ -155,9 +155,14 @@ export default function RagAndVideoPage() {
 
   const fetchCourses = useCallback(async () => {
     if (!token) return;
-    const res = await fetch('/api/admin/recorded-courses', { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    if (data.success) setCourses(data.courses || data.data || []);
+    try {
+      const res = await fetch('/api/admin/recorded-courses', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) setCourses(data.courses || data.data || []);
+    } catch (e) {
+      console.warn('Could not fetch courses (MongoDB deprecated)');
+    }
   }, [token]);
 
   useEffect(() => {
@@ -207,15 +212,16 @@ export default function RagAndVideoPage() {
   };
 
   const handleCreateJob = async () => {
-    const hasSource = sourceMode === 'audio' ? Boolean(audioFile) : Boolean(sourceText.trim());
+    const hasSource = sourceMode === 'audio' ? Boolean(audioFile) : sourceMode === 'text' ? Boolean(sourceText.trim()) : Boolean(referenceLink.trim());
     if (!token || !hasSource || !topicTitle.trim() || !selectedLanguages.length) return;
     setCreating(true);
     setCreateError('');
     try {
       const formData = new FormData();
+      formData.append('sourceMode', sourceMode);
       if (sourceMode === 'audio' && audioFile) {
         formData.append('audioFile', audioFile);
-      } else {
+      } else if (sourceMode === 'text') {
         formData.append('sourceText', sourceText.trim());
       }
       formData.append('topicTitle', topicTitle.trim());
@@ -579,6 +585,14 @@ export default function RagAndVideoPage() {
               >
                 Paste text
               </button>
+              <button
+                onClick={() => setSourceMode('url')}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  sourceMode === 'url' ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-black border-gray-700 text-gray-400'
+                }`}
+              >
+                Bunny URL
+              </button>
             </div>
             {sourceMode === 'audio' ? (
               <>
@@ -590,7 +604,7 @@ export default function RagAndVideoPage() {
                   className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
                 />
               </>
-            ) : (
+            ) : sourceMode === 'text' ? (
               <>
                 <label className="block text-xs text-gray-500 mb-1">Source text (already-transcribed or written content — skips audio transcription, goes straight to correction)</label>
                 <textarea
@@ -600,6 +614,10 @@ export default function RagAndVideoPage() {
                   placeholder="Paste raw transcript or draft text here…"
                   className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
                 />
+              </>
+            ) : (
+              <>
+                <label className="block text-xs text-gray-500 mb-1">Video URL (Bunny, YouTube, Zoom). You MUST manually transcribe and paste text later.</label>
               </>
             )}
             <label className="block text-xs text-gray-500 mb-1">Source language (what was actually spoken/written)</label>
@@ -657,7 +675,7 @@ export default function RagAndVideoPage() {
             {createError && <p className="text-xs text-red-400 mb-3">{createError}</p>}
             <button
               onClick={handleCreateJob}
-              disabled={creating || !(sourceMode === 'audio' ? audioFile : sourceText.trim()) || !topicTitle.trim() || !selectedLanguages.length}
+              disabled={creating || !(sourceMode === 'audio' ? audioFile : sourceMode === 'text' ? sourceText.trim() : referenceLink.trim()) || !topicTitle.trim() || !selectedLanguages.length}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white font-semibold rounded-lg transition-colors text-sm"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

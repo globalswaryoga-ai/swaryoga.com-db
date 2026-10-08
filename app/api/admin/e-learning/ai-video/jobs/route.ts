@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    if ((!audioFile && !sourceText) || !topicTitle || !targetLanguages.length) {
+    const sourceMode = String(formData.get('sourceMode') || '').trim();
+
+    if ((sourceMode !== 'url' && !audioFile && !sourceText) || !topicTitle || !targetLanguages.length) {
       return NextResponse.json(
-        { error: 'audioFile or sourceText, topicTitle, and at least one targetLanguage are required' },
+        { error: 'audioFile or sourceText (or URL mode), topicTitle, and at least one targetLanguage are required' },
         { status: 400 }
       );
     }
@@ -77,28 +79,37 @@ export async function POST(request: NextRequest) {
       createdByUserId: viewerUserId,
     });
 
-    try {
-      // Pasted text skips transcription entirely — it's already the raw
-      // transcript, so go straight to the correction stage.
-      const rawTranscript = audioFile
-        ? await transcribeAudio(
-            { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
-          )
-        : sourceText;
-
-      job = await updateAiVideoJob(job._id, { transcript: rawTranscript }) as any;
-
-      const corrected = await correctTranscript(rawTranscript, sourceLanguage);
+    if (sourceMode === 'url') {
       job = await updateAiVideoJob(job._id, { 
-        correctedTranscript: corrected,
+        transcript: '',
+        correctedTranscript: '',
         status: 'awaiting_correction_review',
         errorMessage: undefined
       }) as any;
-    } catch (pipelineError) {
-      job = await updateAiVideoJob(job._id, {
-        status: 'failed',
-        errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
-      }) as any;
+    } else {
+      try {
+        // Pasted text skips transcription entirely — it's already the raw
+        // transcript, so go straight to the correction stage.
+        const rawTranscript = audioFile
+          ? await transcribeAudio(
+              { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
+            )
+          : sourceText;
+
+        job = await updateAiVideoJob(job._id, { transcript: rawTranscript }) as any;
+
+        const corrected = await correctTranscript(rawTranscript, sourceLanguage);
+        job = await updateAiVideoJob(job._id, { 
+          correctedTranscript: corrected,
+          status: 'awaiting_correction_review',
+          errorMessage: undefined
+        }) as any;
+      } catch (pipelineError) {
+        job = await updateAiVideoJob(job._id, {
+          status: 'failed',
+          errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
+        }) as any;
+      }
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 201 });
