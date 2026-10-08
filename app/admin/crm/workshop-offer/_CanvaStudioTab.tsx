@@ -75,16 +75,19 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       try {
         localStorage.setItem('meta_chat_messages', JSON.stringify(chatMessages));
       } catch (e: any) {
-        if (e.name === 'QuotaExceededError') {
-          // If storage is full, keep only the most recent 10 messages to free up space
-          if (chatMessages.length > 10) {
+        if (e.name === 'QuotaExceededError' || e.message?.toLowerCase().includes('quota')) {
+          // If storage is full, keep only the most recent 5 messages to free up space
+          if (chatMessages.length > 5) {
             try {
-              const pruned = chatMessages.slice(-10);
+              const pruned = chatMessages.slice(-5);
               localStorage.setItem('meta_chat_messages', JSON.stringify(pruned));
-              console.warn('[CRM Warning] Local storage quota exceeded. Pruned chat messages to free space.');
+              console.warn('[CRM Warning] Local storage quota exceeded. Pruned chat messages to 5.');
             } catch (innerError) {
-               console.error('Failed to save even pruned messages:', innerError);
+               console.error('Failed to save even pruned messages, clearing entirely:', innerError);
+               try { localStorage.removeItem('meta_chat_messages'); } catch (err) {}
             }
+          } else {
+             try { localStorage.removeItem('meta_chat_messages'); } catch (err) {}
           }
         }
       }
