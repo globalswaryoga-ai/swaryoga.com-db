@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
 
     return formatCrmSuccess({ messages: paginatedMessages, total: bunnyTotal }, buildMetadata(bunnyTotal, limit, skip));
   } catch (error) {
+    console.error('CRASH IN MESSAGES API:', error);
     return handleCrmError(error, 'GET messages');
   }
 }

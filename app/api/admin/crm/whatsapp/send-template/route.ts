@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getTemplateById } from '@/lib/bunnyTemplatesRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,9 +99,27 @@ export async function POST(request: NextRequest) {
         : parseFloat(process.env.META_MARKETING_COST_INR || process.env.META_TEMPLATE_COST_INR || '0.78');
 
     const to = normalizedPhone;
+    
+    // Prevent duplicate template sending within 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const existingCheck = await bunnyExecute({
+      sql: `SELECT document_id FROM meta_messages_sql WHERE phone_number = ? AND data_json LIKE ? AND COALESCE(sent_at, created_at) >= ? LIMIT 1`,
+      args: [to, `%"templateId":"${t._id}"%`, twentyFourHoursAgo]
+    });
+    
+    if (existingCheck.rows && existingCheck.rows.length > 0) {
+      return NextResponse.json({ 
+        success: true, 
+        skipped: true, 
+        note: 'Skipped: Same template already sent to this user in the last 24 hours.',
+        data: { status: 'skipped', messageId: existingCheck.rows[0].document_id }
+      }, { status: 200 });
+    }
+
     const cloudInput = buildCloudTemplateSendInput(t, to);
 
     const messageRecordId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
 
     await upsertBunnyMetaMessage({
       _id: messageRecordId,
