@@ -707,31 +707,39 @@ export default function BroadcastPage(props: BroadcastPageProps) {
   const uniqueStatuses = useMemo(() => {
     return [
       'new_leads',
-      'pending_leads',
       'pending_leads_1',
-      'pending_leads_2',
-      'pending_leads_3',
       'approval_1',
+      'pending_leads_2',
       'approval_2',
+      'pending_leads_3',
+      'approval_3',
+      'pending_leads_4',
+      'approval_4',
+      'rejected_leads',
       'registered_leads',
       'set_zoom_meeting',
       'take_zoom_meeting',
-      'rejected_leads'
+      'ai_triggers'
     ];
   }, []);
 
   const uniqueWorkshops = useMemo(() => {
     let sourceWorkshops = props?.workshops || [];
     if (sourceWorkshops.length === 0 && typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_workshops');
-      if (saved) {
-        try { sourceWorkshops = JSON.parse(saved); } catch (e) {}
-      }
+      let combined: any[] = [];
+      const keys = ['crm_workshops', 'crm_offers', 'crm_marathi_workshops', 'crm_hindi_workshops', 'crm_kannada_workshops', 'crm_english_workshops'];
+      keys.forEach(key => {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          try { combined = combined.concat(JSON.parse(saved)); } catch (e) {}
+        }
+      });
+      sourceWorkshops = combined;
     }
 
     const filtered = (sourceWorkshops || []).filter((w: any) => 
       w && w.id && w.id.startsWith('batch_') &&
-      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase())
+      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase().includes(filterLanguage.toLowerCase()))
     );
     
     return filtered.map((w: any) => w.name);
@@ -831,18 +839,27 @@ export default function BroadcastPage(props: BroadcastPageProps) {
       // Map back to Lead type required by BroadcastPage
       return tabLeads.map((l: any) => {
         let phone = String(l.phoneNumber || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
+        let name = String(l.name || l.Name || '');
+        let email = String(l.email || l.Email || '');
         if (l._rawRecord) {
            for (const [k, v] of Object.entries(l._rawRecord)) {
-              if (k.toLowerCase().includes('whatsapp') || k.toLowerCase().includes('phone')) {
-                 if (v) phone = String(v);
+              const lowerKey = k.toLowerCase();
+              if ((lowerKey.includes('whatsapp') || lowerKey.includes('phone') || lowerKey.includes('mobile')) && v) {
+                 phone = String(v);
+              }
+              if ((lowerKey === 'name' || lowerKey.includes('full name') || lowerKey.includes('first name') || lowerKey === 'first') && v && !name) {
+                 name = String(v);
+              }
+              if ((lowerKey.includes('email') || lowerKey === 'mail') && v && !email) {
+                 email = String(v);
               }
            }
         }
         return {
           _id: l.id || l._id || Math.random().toString(),
-          name: l.name || l.Name || 'Unknown',
+          name: name || 'Unknown',
           phoneNumber: phone,
-          email: l.email || l.Email || '',
+          email: email,
           status: filterStatus,
           workshopName: filterWorkshop,
           assignedToUserId: l.assignedToUserId,
@@ -923,16 +940,19 @@ export default function BroadcastPage(props: BroadcastPageProps) {
   const STATUS_LABELS: Record<string, string> = {
     'lead': 'New Leads',
     'new_leads': 'New Leads',
-    'pending_leads': 'Pending Leads',
-    'pending_leads_1': 'Pending Leads-1',
-    'pending_leads_2': 'Pending Leads-2',
-    'pending_leads_3': 'Pending Leads-3',
-    'approval_1': 'Aprovel-1',
-    'approval_2': 'Aprovel-2',
+    'pending_leads_1': 'Pending-1',
+    'approval_1': 'Approvel-1',
+    'pending_leads_2': 'Pending-2',
+    'approval_2': 'Approvel-2',
+    'pending_leads_3': 'Pending-3',
+    'approval_3': 'Approvel-3',
+    'pending_leads_4': 'Pending-4',
+    'approval_4': 'Approvel-4',
+    'rejected_leads': 'Rejected leads',
     'registered_leads': 'Registerd leads',
     'set_zoom_meeting': 'Set zoom meeting',
     'take_zoom_meeting': 'Take Zoom Meeting',
-    'rejected_leads': 'Rejected leads'
+    'ai_triggers': 'AI Triggers-WT'
   };
 
 
