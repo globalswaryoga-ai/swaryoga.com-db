@@ -86,14 +86,14 @@ export async function createAiVideoJob(data: Partial<AiVideoJob>): Promise<AiVid
   await initBunnyAiVideoJobsSchema();
   const jobId = crypto.randomUUID();
   const now = new Date().toISOString();
-  await bunnyExecute(
-    `INSERT INTO ai_video_jobs_sql (
+  await bunnyExecute({
+    sql: `INSERT INTO ai_video_jobs_sql (
       job_id, source_youtube_url, source_file_name, source_language, topic_title,
       target_languages, workshop_name, day_order, status, transcript,
       corrected_transcript, scripts_json, ebook_chapters_json, renders_json,
       error_message, created_by_user_id, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
+    args: [
       jobId,
       data.sourceYoutubeUrl || null,
       data.sourceFileName || null,
@@ -113,7 +113,7 @@ export async function createAiVideoJob(data: Partial<AiVideoJob>): Promise<AiVid
       now,
       now
     ]
-  );
+  });
   return (await getAiVideoJobById(jobId))!;
 }
 
@@ -128,14 +128,14 @@ export async function updateAiVideoJob(jobId: string, updates: Partial<AiVideoJo
   const ebookChaptersJson = updates.ebookChapters !== undefined ? JSON.stringify(updates.ebookChapters) : JSON.stringify(current.ebookChapters);
   const rendersJson = updates.renders !== undefined ? JSON.stringify(updates.renders) : JSON.stringify(current.renders);
   
-  await bunnyExecute(
-    `UPDATE ai_video_jobs_sql SET
+  await bunnyExecute({
+    sql: `UPDATE ai_video_jobs_sql SET
       source_youtube_url = ?, source_file_name = ?, source_language = ?, topic_title = ?,
       target_languages = ?, workshop_name = ?, day_order = ?, status = ?, transcript = ?,
       corrected_transcript = ?, scripts_json = ?, ebook_chapters_json = ?, renders_json = ?,
       error_message = ?, updated_at = ?
     WHERE job_id = ?`,
-    [
+    args: [
       updates.sourceYoutubeUrl !== undefined ? updates.sourceYoutubeUrl : current.sourceYoutubeUrl || null,
       updates.sourceFileName !== undefined ? updates.sourceFileName : current.sourceFileName || null,
       updates.sourceLanguage !== undefined ? updates.sourceLanguage : current.sourceLanguage,
@@ -153,7 +153,7 @@ export async function updateAiVideoJob(jobId: string, updates: Partial<AiVideoJo
       now,
       jobId
     ]
-  );
+  });
   return await getAiVideoJobById(jobId);
 }
 
@@ -189,10 +189,10 @@ export async function listAiVideoJobs(): Promise<AiVideoJob[]> {
 }
 
 export async function getAiVideoJobsByWorkshop(workshopName: string, language: string): Promise<AiVideoJob[]> {
-  const result = await bunnyExecute(
-    "SELECT * FROM ai_video_jobs_sql WHERE workshop_name = ? ORDER BY day_order ASC, created_at ASC",
-    [workshopName]
-  );
+  const result = await bunnyExecute({
+    sql: "SELECT * FROM ai_video_jobs_sql WHERE workshop_name = ? ORDER BY day_order ASC, created_at ASC",
+    args: [workshopName]
+  });
   if (!result.rows) return [];
   const jobs = result.rows.map(row => ({
     _id: String(row.job_id),

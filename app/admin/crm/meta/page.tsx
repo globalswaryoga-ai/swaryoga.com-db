@@ -3192,16 +3192,16 @@ export default function MetaInboxPage() {
                             {msg.direction === 'outbound' && (
                               <div className="flex items-center ml-1" title={msg.status}>
                                 {msg.status === 'failed' ? (
-                                  <i className="ph ph-x text-xs text-red-500"></i>
+                                  <i className="ph ph-x text-[15px] text-red-500"></i>
                                 ) : msg.status === 'queued' || (msg.status as string) === 'sending' ? (
-                                  <i className="ph ph-clock text-xs text-gray-400"></i>
+                                  <i className="ph ph-clock text-[15px] text-gray-400"></i>
                                 ) : msg.status === 'sent' ? (
-                                  <i className="ph ph-check text-xs text-gray-400"></i>
+                                  <i className="ph ph-check text-[15px] text-gray-400"></i>
                                 ) : msg.status === 'read' ? (
-                                  <i className="ph ph-checks text-xs text-blue-500"></i>
+                                  <i className="ph ph-checks text-[15px] text-blue-700"></i>
                                 ) : (
                                   /* delivered or other */ 
-                                  <i className="ph ph-checks text-xs text-gray-400"></i>
+                                  <i className="ph ph-checks text-[15px] text-gray-400"></i>
                                 )}
                               </div>
                             )}
