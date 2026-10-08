@@ -23,6 +23,19 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
+
+const safeStringify = (obj: any) => {
+  try {
+    return JSON.stringify(obj, (key, value) => {
+      // Avoid stringifying DOM elements or circular React internal objects
+      if (value instanceof Element || value instanceof Event) return undefined;
+      return value;
+    });
+  } catch (e) {
+    return "[]";
+  }
+};
+
 export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
@@ -72,15 +85,30 @@ export default function NewRegistrationPage() {
     return getBaseLanguage(wLang) === getBaseLanguage(tLang);
   };
 
-  const masterViewLanguageFilteredLeads = useMemo(() => {
-    const currentBaseLang = getBaseLanguage(selectedDashboardLang);
-    return (leadsData || []).filter(l => {
-      if (!l) return false;
-      const leadLang = l.language || l.workshopName || l.formName;
-      if (!leadLang) return true;
-      return getBaseLanguage(leadLang) === currentBaseLang;
-    });
-  }, [leadsData, selectedDashboardLang]);
+  const displayLeads = useMemo(() => {
+    if (!selectedWorkshop) {
+      const currentBaseLang = getBaseLanguage(selectedDashboardLang);
+      return (leadsData || []).filter(l => {
+        if (!l) return false;
+        const leadLang = l.language || l.workshopName || l.formName;
+        if (!leadLang) return true;
+        return getBaseLanguage(leadLang) === currentBaseLang;
+      });
+    }
+
+    if (selectedWorkshop.formFilterKeyword) {
+      const keywords = String(selectedWorkshop.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
+      const ai7MappedQuestion = selectedWorkshop.metadata?.googleFormMapping?.['AI-7'] || selectedWorkshop.metadata?.googleFormMapping?.['ai7'];
+      return (leadsData || []).filter((lead: any) => {
+        if (lead._rawRecord && ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+          return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
+        }
+        return false;
+      });
+    }
+
+    return leadsData || [];
+  }, [leadsData, selectedDashboardLang, selectedWorkshop]);
 
   const getDynamicBatchLeads = (batch: any) => {
     if (!batch) return 0;
@@ -88,7 +116,7 @@ export default function NewRegistrationPage() {
     
     const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
     
-    return (masterViewLanguageFilteredLeads || []).filter((l: any) => {
+    return (leadsData || []).filter((l: any) => {
       if (!l) return false;
       const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v ?? '').toLowerCase().trim()) : [];
       const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v ?? '').toLowerCase().trim()) : [];
@@ -239,7 +267,7 @@ export default function NewRegistrationPage() {
     let activeLeads = leadsData;
     if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
       activeLeads = activeLeads.filter(lead => {
-        const str = JSON.stringify(lead).toLowerCase();
+        const str = safeStringify(lead).toLowerCase();
         const f1 = !leadsFilter || str.includes(leadsFilter.toLowerCase());
         const f2 = !leadsSubFilter || str.includes(leadsSubFilter.toLowerCase());
         const f3 = !leadsSubSubFilter || str.includes(leadsSubSubFilter.toLowerCase());
@@ -262,7 +290,7 @@ export default function NewRegistrationPage() {
       setLeadsData(prev => prev.map(lead => {
         if (!lead || !targetLeads.includes(lead.id)) return lead;
 
-        const str = JSON.stringify(lead).toLowerCase();
+        const str = safeStringify(lead).toLowerCase();
 
         let batch = '';
         if (str.includes('morning') || str.includes('mor') || str.includes('morn')) batch = 'Morning';
@@ -332,11 +360,11 @@ export default function NewRegistrationPage() {
 
         if (hasChanges) {
           setWorkshops(newWorkshops);
-          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
           }).catch(console.error);
         }
       }
@@ -533,12 +561,12 @@ export default function NewRegistrationPage() {
         });
 
         if (addedCount > 0) {
-          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
           // Sync to backend
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
           }).catch(err => console.error('Auto-sync error:', err));
           
           toast.success(`🤖 AI-1A Auto-Worker: Created or updated batches from new leads!`);
@@ -1222,7 +1250,7 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    const langSuffix = `_${selectedDashboardLang}`;
+    
     
     const savedFormSource = localStorage.getItem('crm_form_source' + langSuffix) || localStorage.getItem('crm_form_source');
     if (savedFormSource === 'internal' || savedFormSource === 'google') {
@@ -1252,36 +1280,37 @@ export default function NewRegistrationPage() {
     if (isLoaded) {
       const stateObj: Record<string, string> = {};
 
+      const langSuffix = `_${selectedDashboardLang}`;
       const setAndCollect = (k: string, v: string) => {
         localStorage.setItem(k, v);
         stateObj[k] = v;
       };
 
-      setAndCollect('crm_workshops', JSON.stringify(workshops));
+      setAndCollect('crm_workshops', safeStringify(workshops));
       setAndCollect('crm_ai_worker_active', String(isAiWorkerActive));
       setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
       // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
-      if (selectedWorkshop) setAndCollect('crm_selected_workshop', JSON.stringify(selectedWorkshop));
-      const langSuffix = `_${selectedDashboardLang}`;
+      if (selectedWorkshop) setAndCollect('crm_selected_workshop' + langSuffix, safeStringify(selectedWorkshop));
+      
       if (googleFormUrl) setAndCollect('crm_google_form_url' + langSuffix, googleFormUrl);
       if (formSource) setAndCollect('crm_form_source' + langSuffix, formSource);
       if (selectedFormId) setAndCollect('crm_selected_form_id' + langSuffix, selectedFormId);
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
-        setAndCollect('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
-        setAndCollect('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
-        setAndCollect('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
-        setAndCollect('crm_pending2_ids' + suffix, JSON.stringify(pending2LeadIds));
-        setAndCollect('crm_registered_ids' + suffix, JSON.stringify(registeredLeadIds));
-        setAndCollect('crm_rejected_ids' + suffix, JSON.stringify(rejectedLeadIds));
-        setAndCollect('crm_student_kota_ids' + suffix, JSON.stringify(studentKotaLeadIds));
-        setAndCollect('crm_closed_ids' + suffix, JSON.stringify(closedLeadIds));
-        setAndCollect('crm_sent_congrats_ids' + suffix, JSON.stringify(sentCongratsLeadIds));
-        setAndCollect('crm_approval_insights' + suffix, JSON.stringify(approvalAiInsights));
-        setAndCollect('crm_pending_insights' + suffix, JSON.stringify(pendingAiInsights));
-        setAndCollect('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
+        setAndCollect('crm_lead_ids' + suffix, safeStringify(crmLeadIds));
+        setAndCollect('crm_approved_ids' + suffix, safeStringify(approvedLeadIds));
+        setAndCollect('crm_pending_ids' + suffix, safeStringify(pendingLeadIds));
+        setAndCollect('crm_pending2_ids' + suffix, safeStringify(pending2LeadIds));
+        setAndCollect('crm_registered_ids' + suffix, safeStringify(registeredLeadIds));
+        setAndCollect('crm_rejected_ids' + suffix, safeStringify(rejectedLeadIds));
+        setAndCollect('crm_student_kota_ids' + suffix, safeStringify(studentKotaLeadIds));
+        setAndCollect('crm_closed_ids' + suffix, safeStringify(closedLeadIds));
+        setAndCollect('crm_sent_congrats_ids' + suffix, safeStringify(sentCongratsLeadIds));
+        setAndCollect('crm_approval_insights' + suffix, safeStringify(approvalAiInsights));
+        setAndCollect('crm_pending_insights' + suffix, safeStringify(pendingAiInsights));
+        setAndCollect('crm_registered_insights' + suffix, safeStringify(registeredAiInsights));
       }
 
       const timeoutId = setTimeout(() => {
@@ -1296,7 +1325,7 @@ export default function NewRegistrationPage() {
         fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(stateObj)
+          body: safeStringify(stateObj)
         }).catch(e => console.error('Failed to sync state to Bunny', e));
       }, 3000);
 
@@ -1423,11 +1452,11 @@ export default function NewRegistrationPage() {
     setSelectedWorkshop(updatedWorkshop);
     setLinkedFormId(updatedWorkshop.formId);
 
-    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
     fetch('/api/admin/crm/new-registration/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+      body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
     }).catch(console.error);
 
     if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
@@ -1435,7 +1464,7 @@ export default function NewRegistrationPage() {
         await fetch('/api/admin/crm/workshop-management', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
+          body: safeStringify({
             cohortId: targetWorkshop.id,
             googleFormLink: googleFormUrl,
             metadata: updatedMetadata
@@ -1460,12 +1489,12 @@ export default function NewRegistrationPage() {
     setWorkshops(newWorkshops);
     
     if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+      localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
       if (token) {
         fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+          body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
         }).catch(console.error);
       }
     }
@@ -1499,12 +1528,12 @@ export default function NewRegistrationPage() {
     newWorkshops[index - 1] = temp;
     setWorkshops(newWorkshops);
 
-    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+        body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
       });
     } catch (err) { }
   };
@@ -1518,12 +1547,12 @@ export default function NewRegistrationPage() {
     newWorkshops[index + 1] = temp;
     setWorkshops(newWorkshops);
 
-    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+        body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
       });
     } catch (err) { }
   };
@@ -1549,7 +1578,7 @@ export default function NewRegistrationPage() {
         const res = await fetch('/api/webhooks/google-forms/zoom-register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: safeStringify({
             meetingId: zoomMeetingId,
             email: lead.email,
             firstName: lead.name?.split(' ')[0] || 'Unknown',
@@ -1712,7 +1741,7 @@ export default function NewRegistrationPage() {
       fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ crm_ai1_column: ai1ColumnInput })
+        body: safeStringify({ crm_ai1_column: ai1ColumnInput })
       }).catch(console.error);
     }
     
@@ -1724,11 +1753,11 @@ export default function NewRegistrationPage() {
       setWorkshops(prev => {
         const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
           }).catch(console.error);
         }
         return newWorkshops;
@@ -1919,13 +1948,13 @@ export default function NewRegistrationPage() {
 
       if (addedCount > 0) {
         setWorkshops(newWorkshops);
-        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+        localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
 
         // Sync to backend
         await fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+          body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
         });
 
         toast.success(`AI-1A created ${addedCount} new batches successfully!`);
@@ -1992,7 +2021,7 @@ export default function NewRegistrationPage() {
       setNeedsGoogleAuth={setNeedsGoogleAuth}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
       Users={Users} 
-      leadsData={masterViewLanguageFilteredLeads.length > 0 ? masterViewLanguageFilteredLeads : leadsData} 
+      leadsData={displayLeads} 
       isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
       handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
@@ -2145,11 +2174,11 @@ export default function NewRegistrationPage() {
                               if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
                                 const newWorkshops = workshops.filter((w: any) => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_'));
                                 setWorkshops(newWorkshops);
-                                localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
                                 fetch('/api/admin/crm/new-registration/state', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                  body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
                                 }).catch(console.error);
                                 
                                 if (selectedWorkshop) setSelectedWorkshop(null);
@@ -2246,13 +2275,13 @@ export default function NewRegistrationPage() {
 
                                       setWorkshops(newWorkshops);
                                       if (typeof window !== 'undefined') {
-                                        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                        localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
                                         const t = localStorage.getItem('crm_token');
                                         if (t) {
                                           fetch('/api/admin/crm/new-registration/state', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                                            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
                                           }).catch(console.error);
                                         }
                                       }
@@ -2277,11 +2306,11 @@ export default function NewRegistrationPage() {
                                 if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
                                   const newWorkshops = workshops.filter((w: any) => w.id !== batch.id);
                                   setWorkshops(newWorkshops);
-                                  localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                  localStorage.setItem('crm_workshops', safeStringify(newWorkshops));
                                   fetch('/api/admin/crm/new-registration/state', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                    body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
                                   }).catch(console.error);
                                   
                                   if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
