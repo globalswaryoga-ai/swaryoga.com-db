@@ -776,7 +776,33 @@ export default function BroadcastPage(props: any) {
 
   const filteredLeads = useMemo(() => {
     // Determine the source leads based on embedded mode
-    const sourceLeads = (isEmbedded && propLeadsData && propLeadsData.length > 0) ? propLeadsData : leads;
+    let sourceLeads = (isEmbedded && propLeadsData && propLeadsData.length > 0) ? propLeadsData : leads;
+    
+    if (!isEmbedded && typeof window !== 'undefined') {
+      const storageKeys = [
+        'crm_marathi_leads_new_v3', 'crm_hindi_leads_new_v3', 
+        'crm_english_leads_new_v3', 'crm_kannada_leads_new_v3',
+        'crm_marathi_leads', 'crm_hindi_leads', 'crm_english_leads', 'crm_kannada_leads'
+      ];
+      let localLeads: any[] = [];
+      storageKeys.forEach(k => {
+        try {
+          const data = localStorage.getItem(k);
+          if (data) localLeads = localLeads.concat(JSON.parse(data));
+        } catch(e) {}
+      });
+      // Deduplicate with DB leads
+      const dbPhones = new Set(sourceLeads.map((l: any) => (l.phoneNumber || '').replace(/\D/g, '').slice(-10)));
+      const newLocalLeads = localLeads.filter(l => {
+         if (!l || !l.phoneNumber) return false;
+         const p = String(l.phoneNumber).replace(/\D/g, '').slice(-10);
+         return p.length >= 10 && !dbPhones.has(p);
+      }).map((l: any) => ({
+         ...l,
+         _id: l._id || l.id || `csv_batch_${Math.random().toString(36).substr(2, 9)}`
+      }));
+      sourceLeads = [...sourceLeads, ...newLocalLeads];
+    }
 
     let batchDecisions: Record<string, any> = {};
     if (typeof window !== 'undefined') {
