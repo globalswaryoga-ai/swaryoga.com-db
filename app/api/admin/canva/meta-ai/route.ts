@@ -241,15 +241,30 @@ IMPORTANT INSTRUCTIONS:
     
     if (shouldGenerateImage || shouldGenerateAdCopy || shouldGenerateVideo || aiDecidedToGenerate) {
       try {
-        const imagePrompt = shouldGenerateAdCopy && aiData
-          ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
-          : `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled. Ensure high-quality, modern design.`;
+        let finalImagePrompt = `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled. Ensure high-quality, modern design.`;
+        
+        if (!shouldGenerateAdCopy || !aiData) {
+           const promptOptimizerOutput = await runReplicate({
+             version: LLAMA3_VERSION,
+             input: {
+               prompt: `Optimize this user request into a highly detailed image generation prompt for a text-to-image AI model (like Midjourney or Flux). \nUser Request: "${prompt}"\n\nCRITICAL RULES:\n1. If the user included any Hindi/Devanagari text, TRANSLATE it to English or write it in Hinglish (English alphabet). The AI model CANNOT generate Hindi fonts.\n2. Keep it under 500 characters.\n3. Emphasize high-quality, professional, and visually stunning modern design. Provide ONLY the final optimized prompt text.`,
+               max_new_tokens: 300,
+               temperature: 0.6,
+             }
+           });
+           const optimized = Array.isArray(promptOptimizerOutput) ? promptOptimizerOutput.join('') : String(promptOptimizerOutput);
+           if (optimized && optimized.length > 20) {
+             finalImagePrompt = optimized;
+           }
+        } else {
+           finalImagePrompt = `A beautiful, clean, modern social media background image. Theme: ${prompt}`;
+        }
 
-        console.log("Generating image with Replicate Flux 1.1 Pro:", imagePrompt);
+        console.log("Generating image with Replicate Flux 1.1 Pro. Optimized Prompt:", finalImagePrompt);
         const output = await runReplicate({
           model: 'black-forest-labs/flux-1.1-pro',
           input: {
-            prompt: imagePrompt,
+            prompt: finalImagePrompt,
             aspect_ratio: aspectRatio,
             output_format: 'webp',
             output_quality: 90,
