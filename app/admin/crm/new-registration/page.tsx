@@ -1139,19 +1139,7 @@ export default function NewRegistrationPage() {
         if (sw?.id) setSelectedWorkshop(sw);
       } catch (_) {}
     }
-    const savedFormSource = localStorage.getItem('crm_form_source');
-    if (savedFormSource === 'internal' || savedFormSource === 'google') {
-      setFormSource(savedFormSource as 'internal' | 'google');
-    }
-    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url');
-    if (savedGoogleFormUrl) {
-      setGoogleFormUrl(savedGoogleFormUrl);
-      setLinkedFormId(savedGoogleFormUrl);
-    }
-    const savedSelectedFormId = localStorage.getItem('crm_selected_form_id');
-    if (savedSelectedFormId) {
-      setSelectedFormId(savedSelectedFormId);
-    }
+    // Form settings are now handled in a separate useEffect reacting to selectedDashboardLang
 
     const savedAiState = localStorage.getItem('crm_ai_worker_active');
     if (savedAiState) setIsAiWorkerActive(savedAiState === 'true');
@@ -1190,16 +1178,7 @@ export default function NewRegistrationPage() {
                   if (sw?.id) setSelectedWorkshop(sw);
                 } catch (_) {}
               }
-              if (data.crm_form_source === 'internal' || data.crm_form_source === 'google') {
-                setFormSource(data.crm_form_source as 'internal' | 'google');
-              }
-              if (data.crm_google_form_url) {
-                setGoogleFormUrl(data.crm_google_form_url);
-                setLinkedFormId(data.crm_google_form_url);
-              }
-              if (data.crm_selected_form_id) {
-                setSelectedFormId(data.crm_selected_form_id);
-              }
+              // Form settings loaded via general loop and then picked up by language-specific useEffect
               if (data.crm_ai1_column) {
                 setAi1ColumnInput(data.crm_ai1_column);
               }
@@ -1242,6 +1221,34 @@ export default function NewRegistrationPage() {
   }, []);
 
   useEffect(() => {
+    if (!isLoaded) return;
+    const langSuffix = `_${selectedDashboardLang}`;
+    
+    const savedFormSource = localStorage.getItem('crm_form_source' + langSuffix) || localStorage.getItem('crm_form_source');
+    if (savedFormSource === 'internal' || savedFormSource === 'google') {
+      setFormSource(savedFormSource as 'internal' | 'google');
+    } else {
+      setFormSource('google');
+    }
+
+    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url' + langSuffix) || localStorage.getItem('crm_google_form_url');
+    if (savedGoogleFormUrl) {
+      setGoogleFormUrl(savedGoogleFormUrl);
+      setLinkedFormId(savedGoogleFormUrl);
+    } else {
+      setGoogleFormUrl('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+      setLinkedFormId('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+    }
+
+    const savedSelectedFormId = localStorage.getItem('crm_selected_form_id' + langSuffix) || localStorage.getItem('crm_selected_form_id');
+    if (savedSelectedFormId) {
+      setSelectedFormId(savedSelectedFormId);
+    } else {
+      setSelectedFormId('');
+    }
+  }, [selectedDashboardLang, isLoaded]);
+
+  useEffect(() => {
     if (isLoaded) {
       const stateObj: Record<string, string> = {};
 
@@ -1256,9 +1263,10 @@ export default function NewRegistrationPage() {
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
       // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
       if (selectedWorkshop) setAndCollect('crm_selected_workshop', JSON.stringify(selectedWorkshop));
-      if (googleFormUrl) setAndCollect('crm_google_form_url', googleFormUrl);
-      if (formSource) setAndCollect('crm_form_source', formSource);
-      if (selectedFormId) setAndCollect('crm_selected_form_id', selectedFormId);
+      const langSuffix = `_${selectedDashboardLang}`;
+      if (googleFormUrl) setAndCollect('crm_google_form_url' + langSuffix, googleFormUrl);
+      if (formSource) setAndCollect('crm_form_source' + langSuffix, formSource);
+      if (selectedFormId) setAndCollect('crm_selected_form_id' + langSuffix, selectedFormId);
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
