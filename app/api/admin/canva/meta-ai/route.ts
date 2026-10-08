@@ -247,7 +247,7 @@ IMPORTANT INSTRUCTIONS:
            const promptOptimizerOutput = await runReplicate({
              version: LLAMA3_VERSION,
              input: {
-               prompt: `Optimize this user request into a highly detailed image generation prompt for a text-to-image AI model (like Midjourney or Flux). \nUser Request: "${prompt}"\n\nCRITICAL RULES:\n1. If the user included any Hindi/Devanagari text, TRANSLATE it to English or write it in Hinglish (English alphabet). The AI model CANNOT generate Hindi fonts.\n2. Keep it under 500 characters.\n3. Emphasize high-quality, professional, and visually stunning modern design. Provide ONLY the final optimized prompt text.`,
+               prompt: `Optimize this user request into a highly detailed image generation prompt for a text-to-image AI model (like Midjourney or Flux). \nUser Request: "${prompt}"\n\nCRITICAL RULES:\n1. If the user included any Hindi/Devanagari text, TRANSLATE it to English or write it in Hinglish (English alphabet). The AI model CANNOT generate Hindi fonts.\n2. Keep it under 500 characters.\n3. Force MAXIMUM PROFESSIONAL quality: add terms like "ultra-realistic, highly detailed, high-end commercial design, cinematic studio lighting, 8k resolution, premium corporate layout". Provide ONLY the final optimized prompt text, nothing else.`,
                max_new_tokens: 300,
                temperature: 0.6,
              }
@@ -267,7 +267,7 @@ IMPORTANT INSTRUCTIONS:
             prompt: finalImagePrompt,
             aspect_ratio: aspectRatio,
             output_format: 'webp',
-            output_quality: 90,
+            output_quality: 100,
           }
         });
 
