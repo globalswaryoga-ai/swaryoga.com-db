@@ -287,21 +287,16 @@ IMPORTANT INSTRUCTIONS:
 
         // 3. Generate Video if requested
         if (shouldGenerateVideo && imageUrl) {
+           console.log("Generating video with Minimax Video-01...");
            const videoOutput = await runReplicate({
-             model: 'prunaai/p-video-2-pro',
+             model: 'minimax/video-01',
              input: {
-               mode: "speed",
-               image: imageUrl,
-               prompt: `Use the provided image as the exact first frame. ${prompt}`,
-               duration: 5,
-               resolution: "768p",
-               aspect_ratio: aspectRatio,
-               prompt_upsampler: "turbo"
+               prompt: `Cinematic, highly detailed, ultra-realistic motion. ${prompt}`,
+               first_frame_image: imageUrl,
              }
            });
            
            videoUrl = Array.isArray(videoOutput) ? videoOutput[0] : videoOutput;
-           // If it returns a string URL directly (some models return just the URL, some return an array)
            if (typeof videoOutput === 'string' && videoOutput.endsWith('.mp4')) {
                videoUrl = videoOutput;
            }
