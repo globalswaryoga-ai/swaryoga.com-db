@@ -241,38 +241,22 @@ IMPORTANT INSTRUCTIONS:
     
     if (shouldGenerateImage || shouldGenerateAdCopy || shouldGenerateVideo || aiDecidedToGenerate) {
       try {
-        let dalleSize = "1024x1024";
-        if (aspectRatio === "16:9") dalleSize = "1792x1024";
-        else if (aspectRatio === "9:16") dalleSize = "1024x1792";
-        
         const imagePrompt = shouldGenerateAdCopy && aiData
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
-          : `Create a highly detailed, professional YouTube thumbnail or poster based on this exact request: "${prompt}". IMPORTANT: Generate exactly what is asked for, including layout and text. Text should be clearly legible. Make it visually stunning.`;
+          : `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled. Ensure high-quality, modern design.`;
 
-        console.log("Generating image with DALL-E 3:", imagePrompt);
-        const openAiRes = await fetch("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: "dall-e-3",
+        console.log("Generating image with Replicate Flux 1.1 Pro:", imagePrompt);
+        const output = await runReplicate({
+          model: 'black-forest-labs/flux-1.1-pro',
+          input: {
             prompt: imagePrompt,
-            size: dalleSize,
-            quality: "standard",
-            n: 1
-          })
+            aspect_ratio: aspectRatio,
+            output_format: 'webp',
+            output_quality: 90,
+          }
         });
 
-        if (!openAiRes.ok) {
-           const errText = await openAiRes.text();
-           console.error("OpenAI DALL-E 3 error:", errText);
-           throw new Error("Failed to generate image with DALL-E 3");
-        }
-
-        const openAiData = await openAiRes.json();
-        imageUrl = openAiData.data?.[0]?.url || null;
+        imageUrl = Array.isArray(output) ? output[0] : output;
         
         if (imageUrl) {
            console.log("Uploading generated image to Bunny Storage...");
