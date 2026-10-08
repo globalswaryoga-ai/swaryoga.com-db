@@ -697,12 +697,12 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 {p.activeTab !== 'my_batches' && p.activeTab !== 'our_workshops' && (
                   <>
                     {/* AI-7 and AI-1A sync buttons hidden as they now run automatically from the backend */}
-                    <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2">
-                      <span className="text-xs font-bold text-indigo-700">AI-1</span>
+                    <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2 shrink-0">
+                      <span className="text-xs font-bold text-indigo-700 whitespace-nowrap">AI-1</span>
                       <input
                         type="text"
                         placeholder="Col # or Name"
-                        className="w-24 text-xs border border-indigo-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="w-28 text-xs border border-indigo-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500 shrink-0"
                         value={p.ai1ColumnInput || ''}
                         onChange={(e) => {
                           if (p.setAi1ColumnInput) p.setAi1ColumnInput(e.target.value);
@@ -712,7 +712,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         onClick={() => {
                           if (p.saveAi1Column) p.saveAi1Column();
                         }}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors px-1"
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors px-1 shrink-0"
                       >
                         Save
                       </button>
@@ -721,7 +721,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           if (p.handleAi1BatchCreate) p.handleAi1BatchCreate();
                         }}
                         disabled={p.isAi1Processing}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-1 rounded text-xs font-bold transition-colors shadow-sm ml-1"
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-1 rounded text-xs font-bold transition-colors shadow-sm ml-1 shrink-0 whitespace-nowrap"
                         title="Automatically create batches from mapped dates"
                       >
                         {p.isAi1Processing ? '⏳ Generating...' : 'Create Batches'}

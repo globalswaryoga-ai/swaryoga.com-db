@@ -1376,8 +1376,8 @@ export default function NewRegistrationPage() {
     }
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
-  const saveWorkshopSettings = async () => {
-    let targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+  const saveWorkshopSettings = async (overrideWorkshop?: any) => {
+    let targetWorkshop = overrideWorkshop || selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
 
     let currentWorkshops = [...workshops];
     if (!targetWorkshop) {
@@ -1392,9 +1392,11 @@ export default function NewRegistrationPage() {
       currentWorkshops = [...currentWorkshops, targetWorkshop];
     }
 
+    const currentFormSource = overrideWorkshop?.metadata?.formSource || formSource;
+
     const updatedMetadata = {
       ...targetWorkshop.metadata,
-      formSource: formSource,
+      formSource: currentFormSource,
       googleFormMapping: fieldMapping,
       crmFields: crmFields,
       formFilterKeyword: targetWorkshop?.formFilterKeyword || '',
@@ -1404,7 +1406,7 @@ export default function NewRegistrationPage() {
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: formSource === 'google' ? googleFormUrl : targetWorkshop.formId,
+      formId: currentFormSource === 'google' ? googleFormUrl : targetWorkshop.formId,
       metadata: updatedMetadata
     };
 
