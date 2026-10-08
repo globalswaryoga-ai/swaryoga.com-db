@@ -151,6 +151,7 @@ export default function NewRegistrationPage() {
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
   const [showDynamicColumns, setShowDynamicColumns] = useState(true);
   const [googleAuthError, setGoogleAuthError] = useState('');
+  const [globalLangLinks, setGlobalLangLinks] = useState<any>(null);
   const [googleFormsList, setGoogleFormsList] = useState<any[]>([]);
   const [isLoadingGoogleForms, setIsLoadingGoogleForms] = useState(false);
   const [googleFormQuestionMap, setGoogleFormQuestionMap] = useState<Record<string, string>>({});
@@ -1259,13 +1260,18 @@ export default function NewRegistrationPage() {
       setFormSource('google');
     }
 
-    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url' + langSuffix) || localStorage.getItem('crm_google_form_url');
+    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url' + langSuffix);
     if (savedGoogleFormUrl) {
       setGoogleFormUrl(savedGoogleFormUrl);
       setLinkedFormId(savedGoogleFormUrl);
     } else {
-      setGoogleFormUrl('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
-      setLinkedFormId('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+      const isOffer = selectedDashboardLang.includes('Offer');
+      const baseLang = selectedDashboardLang.replace(' Workshop', '').replace(' Offer', '').trim();
+      const mappedUrl = globalLangLinks?.[baseLang]?.[isOffer ? 'offer' : 'workshop'];
+      
+      const defaultUrl = mappedUrl || localStorage.getItem('crm_google_form_url') || 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
+      setGoogleFormUrl(defaultUrl);
+      setLinkedFormId(defaultUrl);
     }
 
     const savedSelectedFormId = localStorage.getItem('crm_selected_form_id' + langSuffix) || localStorage.getItem('crm_selected_form_id');
@@ -1274,7 +1280,7 @@ export default function NewRegistrationPage() {
     } else {
       setSelectedFormId('');
     }
-  }, [selectedDashboardLang, isLoaded]);
+  }, [selectedDashboardLang, isLoaded, globalLangLinks]);
 
   useEffect(() => {
     if (isLoaded) {
