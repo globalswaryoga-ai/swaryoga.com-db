@@ -62,25 +62,32 @@ export function MetaLeadsTab({
     const [showDummyPopup, setShowDummyPopup] = useState(false);
     
     // Load from localStorage or use default
-    const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('metaDummyFields');
-            if (saved) return JSON.parse(saved);
+    const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && selectedWorkshop?.id) {
+            const key = `metaDummyFields_${selectedWorkshop.id}`;
+            const saved = localStorage.getItem(key);
+            if (saved) {
+                setDummyFields(JSON.parse(saved));
+            } else {
+                setDummyFields([
+                    { name: 'full_name', values: ['John Doe'] },
+                    { name: 'phone_number', values: ['+919999999999'] },
+                    { name: 'email', values: ['john@example.com'] },
+                    { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
+                ]);
+            }
         }
-        return [
-            { name: 'full_name', values: ['John Doe'] },
-            { name: 'phone_number', values: ['+919999999999'] },
-            { name: 'email', values: ['john@example.com'] },
-            { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
-        ];
-    });
+    }, [selectedWorkshop?.id]);
 
     // Save to localStorage whenever it changes
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('metaDummyFields', JSON.stringify(dummyFields));
+        if (typeof window !== 'undefined' && selectedWorkshop?.id && dummyFields.length > 0) {
+            const key = `metaDummyFields_${selectedWorkshop.id}`;
+            localStorage.setItem(key, JSON.stringify(dummyFields));
         }
-    }, [dummyFields]);
+    }, [dummyFields, selectedWorkshop?.id]);
 
     const [isSubmittingDummy, setIsSubmittingDummy] = useState(false);
 
