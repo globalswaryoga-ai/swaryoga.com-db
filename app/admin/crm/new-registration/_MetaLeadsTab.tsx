@@ -47,6 +47,8 @@ export function MetaLeadsTab({
         approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5 },
         pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
     });
+    const [showAI9Popup, setShowAI9Popup] = useState(false);
+    const [ai9Config, setAi9Config] = useState(selectedWorkshop?.metadata?.ai9Config || { mapping: '' });
 
     const [formIdHistory, setFormIdHistory] = useState<string[]>([]);
 
@@ -292,10 +294,18 @@ export function MetaLeadsTab({
 
                         <button 
                             onClick={() => setIsAutoSync(!isAutoSync)}
-                            className={`px-4 py-2 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
+                            className={`px-3 py-1.5 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
                         >
-                            <Bot size={16} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
-                            AI-9A Auto-Sync (10m)
+                            <Bot size={14} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
+                            AI-9A Auto-Sync {isAutoSync ? '(10m)' : '(Off)'}
+                        </button>
+
+                        <button 
+                            onClick={() => setShowAI9Popup(true)}
+                            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-yellow-500"
+                        >
+                            <Settings2 size={14} />
+                            AI-9 Configured
                         </button>
                     </div>
                 </div>
@@ -626,6 +636,62 @@ export function MetaLeadsTab({
                 </div>
             )}
 
+            {/* AI-9 Config Popup */}
+            {showAI9Popup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-slide-up">
+                        
+                        <div className="bg-yellow-400 p-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-300 rounded-full opacity-50 blur-2xl transform translate-x-10 -translate-y-10"></div>
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md shadow-sm border border-yellow-300/50">
+                                    <Settings2 size={24} className="text-yellow-900" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-yellow-900">AI-9 Configured</h3>
+                                    <p className="text-yellow-800 text-sm opacity-90 mt-1 font-medium">Map questions and expected answers for AI qualification</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowAI9Popup(false)} className="absolute top-4 right-4 text-yellow-800 hover:text-yellow-900 hover:bg-yellow-500 p-2 rounded-full transition-colors z-20">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2 flex justify-between">
+                                <span>AI Mapping Configuration</span>
+                            </label>
+                            <textarea
+                                value={ai9Config.mapping}
+                                onChange={(e) => setAi9Config({ ...ai9Config, mapping: e.target.value })}
+                                placeholder="Example:&#10;Q: Are you comfortable attending the workshop in Hindi?&#10;A: Yes&#10;Action: Approved"
+                                className="w-full h-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:bg-white transition-colors resize-none placeholder-slate-400 font-mono"
+                            ></textarea>
+                            <p className="text-xs text-slate-500 mt-3 font-medium flex items-center gap-1.5 bg-yellow-50 p-2 rounded-lg border border-yellow-100">
+                                <Bot size={14} className="text-yellow-600" />
+                                AI-9 uses this configuration to automatically qualify incoming leads into stages (Approved, Pending, Rejected).
+                            </p>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3">
+                            <button onClick={() => setShowAI9Popup(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                    if(saveWorkshopSettings && selectedWorkshop) {
+                                        await saveWorkshopSettings(selectedWorkshop.id, { ai9Config });
+                                    }
+                                    setShowAI9Popup(false);
+                                }} 
+                                className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-all shadow-sm flex items-center gap-2"
+                            >
+                                <Save size={16} /> Save Configuration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
