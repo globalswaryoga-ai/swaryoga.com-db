@@ -19,12 +19,8 @@ export async function GET(request: NextRequest) {
     }
 
     const url = new URL(request.url);
-    const workshopId = url.searchParams.get('workshopId');
+    const workshopId = url.searchParams.get('workshopId') || '';
     const metaFormId = url.searchParams.get('metaFormId') || '';
-
-    if (!workshopId) {
-      return NextResponse.json({ error: 'workshopId is required' }, { status: 400 });
-    }
 
     // Fetch leads for this workshop
     const bunnyResult = await listBunnyLeads({ 
@@ -40,15 +36,14 @@ export async function GET(request: NextRequest) {
       l.source === 'meta_instant_form' || (l.labels || []).includes('meta_instant_form')
     );
 
-    // First try: exact workshopId match
-    let metaLeads = allMetaLeads.filter((l: any) => l.workshopId === workshopId);
-    
-    // Second try: match by metaFormId saved in metadata
-    if (metaLeads.length === 0 && metaFormId) {
-      metaLeads = allMetaLeads.filter((l: any) => l.metadata?.metaFormId === metaFormId);
-    }
+    // Match leads by either exact workshopId or metaFormId
+    let metaLeads = allMetaLeads.filter((l: any) => {
+      const matchWorkshop = workshopId && (l.workshopId === workshopId || l.metadata?.workshopId === workshopId);
+      const matchForm = metaFormId && l.metadata?.metaFormId === metaFormId;
+      return matchWorkshop || matchForm;
+    });
 
-    // Third try: return ALL meta leads (unassigned leads from webhook have no workshopId)
+    // If still no matches (or no filters provided), return ALL meta leads so they are visible
     if (metaLeads.length === 0) {
       metaLeads = allMetaLeads;
     }

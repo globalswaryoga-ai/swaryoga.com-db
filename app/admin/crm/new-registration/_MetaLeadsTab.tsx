@@ -18,11 +18,11 @@ export function MetaLeadsTab({
     const internalRefresh = () => setRefreshMetaCounter(prev => prev + 1);
 
     useEffect(() => {
-        if (!selectedWorkshop?.id) return;
         const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
         setIsFetchingLeads(true);
-        const metaFormId = selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '';
-        fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(selectedWorkshop.id)}&metaFormId=${encodeURIComponent(metaFormId)}`, {
+        const workshopId = selectedWorkshop?.id || '';
+        const metaFormId = selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || formId || '';
+        fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(workshopId)}&metaFormId=${encodeURIComponent(metaFormId)}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         .then(r => r.json())
@@ -32,7 +32,7 @@ export function MetaLeadsTab({
         })
         .catch(e => console.error('[MetaLeadsTab] Error fetching meta leads:', e))
         .finally(() => setIsFetchingLeads(false));
-    }, [selectedWorkshop?.id, refreshMetaCounter]);
+    }, [selectedWorkshop?.id, formId, refreshMetaCounter]);
 
     // State for Search and Filter
     const [searchQuery, setSearchQuery] = useState('');
@@ -44,6 +44,33 @@ export function MetaLeadsTab({
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+    const [expandedCols, setExpandedCols] = useState<Set<string>>(new Set());
+    const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
+    const toggleCol = (col: string) => setExpandedCols(prev => { const n = new Set(prev); n.has(col) ? n.delete(col) : n.add(col); return n; });
+    const toggleCell = (key: string) => setExpandedCells(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+    // --- Resizable columns ---
+    const [colWidths, setColWidths] = useState<Record<string, number>>({
+        checkbox: 40, stage: 100, datetime: 165, name: 150,
+        email: 180, country: 100, state: 100, phone: 145,
+    });
+    const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+    const startResize = (key: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        resizingRef.current = { key, startX: e.clientX, startWidth: colWidths[key] || 160 };
+        const onMove = (ev: MouseEvent) => {
+            if (!resizingRef.current) return;
+            const newW = Math.max(60, resizingRef.current.startWidth + ev.clientX - resizingRef.current.startX);
+            setColWidths(prev => ({ ...prev, [resizingRef.current!.key]: newW }));
+        };
+        const onUp = () => {
+            resizingRef.current = null;
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
     
     // WhatsApp Manual Trigger Popup State (Bulk Actions)
     const [showManualWTPopup, setShowManualWTPopup] = useState(false);
@@ -66,7 +93,8 @@ export function MetaLeadsTab({
             fallbackCategory: 'pending' 
         }],
         maxMismatches: 2,
-        mismatchFallback: 'rejected'
+        mismatchFallback: 'rejected',
+        hardRejectPairs: []   // [{questionA: '', questionB: ''}] — both mismatched = instant reject
     });
 
     // Dummy Lead State
@@ -85,6 +113,7 @@ export function MetaLeadsTab({
                 { name: 'Are you comfortable attending the workshop in Hindi?', values: ['Yes', 'No', 'English would be better.'] },
                 { name: 'After submitting this form, we will send you the Workshop Details Form on WhatsApp. Are you ready to fill it out?', values: ['Yes', 'No'] },
                 { name: 'There is no fee for this 14 days workshop. At the end of the workshop, are you willing to offer some support?', values: ['Yes', 'No', 'If I like it, I will definitely pay.'] },
+                { name: 'Are you ready to turn on your video?', values: ['Yes', 'No'] },
                 { name: 'full_name', values: ['John Doe'] },
                 { name: 'email', values: ['john@example.com'] },
                 { name: 'country', values: ['India'] },
@@ -96,18 +125,9 @@ export function MetaLeadsTab({
 
     const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
 
-    // Extract dynamic questions from rawFieldData and dummyFields
+    // Extract dynamic questions from actual rawFieldData only (not dummyFields, which uses different key names)
     const allDynamicQuestions = new Set<string>();
     const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state'];
-    
-    // Always include columns defined in the dummy form config
-    if (dummyFields && Array.isArray(dummyFields)) {
-        dummyFields.forEach(field => {
-            if (field.name && !EXCLUDED_COLS.includes(field.name.toLowerCase())) {
-                allDynamicQuestions.add(field.name);
-            }
-        });
-    }
 
     metaLeads.forEach((lead: any) => {
         if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
@@ -120,6 +140,7 @@ export function MetaLeadsTab({
         }
     });
     const dynamicColumns = Array.from(allDynamicQuestions);
+
 
     const toggleDummyQuestionExpansion = (idx: number) => {
         if (expandedDummyFields.includes(idx)) {
@@ -435,7 +456,13 @@ export function MetaLeadsTab({
                 <div className="p-4 border-b border-slate-200 flex flex-col gap-4 bg-slate-50">
                     <div className="flex justify-between items-center">
                         <div>
-                            <h3 className="font-bold text-slate-800 text-lg">Leads Management Database (Stage 3 & 4)</h3>
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                Leads Management Database (Stage 3 &amp; 4)
+                                <span className="bg-blue-100 text-blue-700 text-sm font-black px-2.5 py-0.5 rounded-full border border-blue-200">
+                                    {filteredLeads.length}
+                                    {filteredLeads.length !== totalLeads && <span className="font-normal text-blue-500"> / {totalLeads}</span>}
+                                </span>
+                            </h3>
                         </div>
                         <div className="flex gap-2">
                             <div className="relative">
@@ -497,23 +524,69 @@ export function MetaLeadsTab({
 
                 {/* Table */}
                 <div className="overflow-auto flex-1 relative">
-                    <table className="w-full text-left text-sm text-slate-600">
+                    <table className="text-left text-sm text-slate-600" style={{ tableLayout: 'fixed', minWidth: '100%' }}>
+                        <colgroup>
+                            <col style={{ width: colWidths.checkbox }} />
+                            <col style={{ width: colWidths.stage }} />
+                            <col style={{ width: colWidths.datetime }} />
+                            <col style={{ width: colWidths.name }} />
+                            <col style={{ width: colWidths.email }} />
+                            <col style={{ width: colWidths.country }} />
+                            <col style={{ width: colWidths.state }} />
+                            <col style={{ width: colWidths.phone }} />
+                            {dynamicColumns.map(col => <col key={col} style={{ width: colWidths[col] || 200 }} />)}
+                        </colgroup>
                         <thead className="text-xs uppercase bg-white text-slate-500 font-bold border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-4 py-3 whitespace-nowrap w-10">
+                                <th className="px-4 py-3 relative select-none">
                                     <input type="checkbox" checked={selectedLeads.length > 0 && selectedLeads.length === filteredLeads.length} onChange={toggleAll} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('checkbox', e)} />
                                 </th>
-                                <th className="px-4 py-3 whitespace-nowrap">Stage</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Date & Time</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Email</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Country</th>
-                                <th className="px-4 py-3 whitespace-nowrap">State</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Phone Number</th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Stage
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('stage', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Date &amp; Time
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('datetime', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Name
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('name', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Email
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('email', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Country
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('country', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    State
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('state', e)} />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap relative select-none overflow-hidden">
+                                    Phone Number
+                                    <div className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => startResize('phone', e)} />
+                                </th>
                                 {dynamicColumns.map(col => {
                                     const formattedCol = col.replace(/_/g, ' ')
                                         .replace(/\b\w/g, l => l.toUpperCase());
-                                    return <th key={col} className="px-4 py-3 whitespace-nowrap text-blue-600 bg-blue-50/50" title={col}>{formattedCol}</th>;
+                                    const isExpanded = expandedCols.has(col);
+                                    return (
+                                        <th
+                                            key={col}
+                                            className="px-4 py-3 text-blue-600 bg-blue-50/50 relative select-none cursor-pointer"
+                                            title={isExpanded ? 'Click to collapse' : col}
+                                            onClick={(e) => { if ((e.target as HTMLElement).dataset.resize) return; toggleCol(col); }}
+                                        >
+                                            <span style={isExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>
+                                                {formattedCol}
+                                            </span>
+                                            <div data-resize="1" className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 bg-transparent" onMouseDown={(e) => { e.stopPropagation(); startResize(col, e); }} />
+                                        </th>
+                                    );
                                 })}
                             </tr>
                         </thead>
@@ -553,11 +626,23 @@ export function MetaLeadsTab({
                                         <td className="px-4 py-3 whitespace-nowrap">{lead.country || answers.country || '-'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap">{lead.state || answers.state || '-'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-700">{lead.phoneNumber || answers.phone_number || answers.phone || '-'}</td>
-                                        {dynamicColumns.map(col => (
-                                            <td key={col} className="px-4 py-3 min-w-[150px] bg-blue-50/10">
-                                                {answers[col] || '-'}
-                                            </td>
-                                        ))}
+                                        {dynamicColumns.map(col => {
+                                            const cellKey = `${lead._id || lead.id || idx}-${col}`;
+                                            const isCellExpanded = expandedCells.has(cellKey);
+                                            const val = answers[col] || '-';
+                                            return (
+                                                <td
+                                                    key={col}
+                                                    className="px-4 py-3 bg-blue-50/10 cursor-pointer hover:bg-blue-50/30"
+                                                    onClick={() => toggleCell(cellKey)}
+                                                    title={isCellExpanded ? 'Click to collapse' : val}
+                                                >
+                                                    <span style={isCellExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>
+                                                        {val}
+                                                    </span>
+                                                </td>
+                                            );
+                                        })}
                                     </tr>
                                 );
                             })}
@@ -952,6 +1037,55 @@ export function MetaLeadsTab({
                                         <option value="pending">Pending</option>
                                     </select>
                                 </div>
+                                {/* Hard Reject Combinations */}
+                                <div className="mt-5 pt-4 border-t border-red-100">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div>
+                                            <h5 className="text-sm font-black text-red-700">Hard Reject Combinations</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">If Question X <strong>AND</strong> Question Y are both mismatched → <span className="text-red-600 font-bold">Rejected 100%</span></p>
+                                        </div>
+                                        <button
+                                            onClick={() => setAi9Config({...ai9Config, hardRejectPairs: [...(ai9Config.hardRejectPairs || []), { questionA: '', questionB: '' }]})}
+                                            className="text-xs px-3 py-1.5 bg-red-100 text-red-700 font-bold rounded-lg border border-red-200 hover:bg-red-200 transition-colors flex items-center gap-1"
+                                        >
+                                            + Add Pair
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2 mt-3">
+                                        {(ai9Config.hardRejectPairs || []).length === 0 && (
+                                            <p className="text-xs text-slate-400 italic">No hard reject pairs set. Click "+ Add Pair" to create one.</p>
+                                        )}
+                                        {(ai9Config.hardRejectPairs || []).map((pair: any, i: number) => (
+                                            <div key={i} className="flex items-center gap-2 bg-red-50 border border-red-200 p-2.5 rounded-xl">
+                                                <span className="text-[10px] font-black text-red-500 uppercase tracking-wider whitespace-nowrap">If</span>
+                                                <select
+                                                    value={pair.questionA}
+                                                    onChange={(e) => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p[i].questionA = e.target.value; setAi9Config({...ai9Config, hardRejectPairs: p}); }}
+                                                    className="flex-1 px-2 py-1.5 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
+                                                >
+                                                    <option value="">-- Question X --</option>
+                                                    {dynamicColumns.map(col => <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>)}
+                                                </select>
+                                                <span className="text-[10px] font-black text-red-500 uppercase tracking-wider whitespace-nowrap">AND</span>
+                                                <select
+                                                    value={pair.questionB}
+                                                    onChange={(e) => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p[i].questionB = e.target.value; setAi9Config({...ai9Config, hardRejectPairs: p}); }}
+                                                    className="flex-1 px-2 py-1.5 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
+                                                >
+                                                    <option value="">-- Question Y --</option>
+                                                    {dynamicColumns.map(col => <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>)}
+                                                </select>
+                                                <span className="text-[10px] font-black text-red-600 whitespace-nowrap">→ 🚫 Reject</span>
+                                                <button
+                                                    onClick={() => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p.splice(i, 1); setAi9Config({...ai9Config, hardRejectPairs: p}); }}
+                                                    className="text-red-400 hover:text-red-700 transition-colors ml-1"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1119,6 +1253,7 @@ export function MetaLeadsTab({
                                             { name: 'Are you comfortable attending the workshop in Hindi?', values: ['Yes', 'No', 'English would be better.'] },
                                             { name: 'After submitting this form, we will send you the Workshop Details Form on WhatsApp. Are you ready to fill it out?', values: ['Yes', 'No'] },
                                             { name: 'There is no fee for this 14 days workshop. At the end of the workshop, are you willing to offer some support?', values: ['Yes', 'No', 'If I like it, I will definitely pay.'] },
+                                            { name: 'Are you ready to turn on your video?', values: ['Yes', 'No'] },
                                             { name: 'full_name', values: ['John Doe'] },
                                             { name: 'email', values: ['john@example.com'] },
                                             { name: 'country', values: ['India'] },
