@@ -1,7 +1,7 @@
 /**
  * Meta Instant Forms Webhook Handler
  * Receives form submissions from Facebook/Instagram ads
- * Automatically creates leads in CRM linked to the workshop
+ * Automatically creates leads in CRM
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,6 +14,7 @@ function verifyWebhookSignature(
   signature: string,
   secret: string
 ): boolean {
+  if (!signature) return false;
   const crypto = require('crypto');
   const expectedSignature = crypto
     .createHmac('sha256', secret)
@@ -22,54 +23,91 @@ function verifyWebhookSignature(
   return signature === expectedSignature;
 }
 
-// Parse Meta form data and create CRM lead
-async function createLeadFromMetaForm(formData: any) {
-  // Extract form fields
-  const {
-    first_name,
-    last_name,
-    email,
-    phone_number,
-    workshop_id, // Custom field: workshop ID from ad
-    workshop_name, // Custom field: workshop name from ad
-    source_campaign, // Campaign name for tracking
-    source_ad_set, // Ad set name
-    timestamp,
-  } = formData;
+// Fetch lead data from Meta Graph API
+async function fetchLeadFromMeta(leadgenId: string) {
+  const accessToken = process.env.META_PAGE_ACCESS_TOKEN;
+  const apiVersion = process.env.META_GRAPH_API_VERSION || 'v24.0';
+  
+  if (!accessToken) {
+    throw new Error('META_PAGE_ACCESS_TOKEN is not set');
+  }
 
-  // Create lead object
+  const url = `https://graph.facebook.com/${apiVersion}/${leadgenId}?access_token=${accessToken}`;
+  
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(`Meta API Error: ${data.error?.message || 'Unknown error'}`);
+  }
+  
+  return data;
+}
+
+// Parse Meta form data and create CRM lead
+async function createLeadFromMetaForm(leadData: any, metaContext: any) {
+  const fieldData = leadData.field_data || [];
+  
+  let firstName = '';
+  let lastName = '';
+  let email = '';
+  let phone = '';
+  let workshopName = '';
+  let workshopId = '';
+
+  fieldData.forEach((field: any) => {
+    const name = field.name.toLowerCase();
+    const value = field.values[0] || '';
+    
+    if (name.includes('first_name')) firstName = value;
+    else if (name.includes('last_name')) lastName = value;
+    else if (name.includes('full_name')) {
+      const parts = value.split(' ');
+      firstName = parts[0];
+      lastName = parts.slice(1).join(' ');
+    }
+    else if (name.includes('email')) email = value;
+    else if (name.includes('phone')) phone = value;
+    else if (name.includes('workshop')) {
+      workshopName = value;
+      const idMatch = value.match(/\(([a-f0-9]{24})\)/);
+      if (idMatch) {
+        workshopId = idMatch[1];
+      }
+    }
+  });
+
   const lead = {
-    phoneNumber: phone_number ? phone_number.replace(/\D/g, '') : '', // Normalize phone
-    name: `${first_name || ''} ${last_name || ''}`.trim(),
-    email: email || '',
+    phoneNumber: phone ? phone.replace(/\D/g, '') : '',
+    name: `${firstName} ${lastName}`.trim(),
+    email: email,
     source: 'meta_instant_form',
     status: 'new',
-    workshopId: workshop_id || null,
-    workshopName: workshop_name || 'Unknown Workshop',
-    campaignName: source_campaign || 'Direct',
-    adSet: source_ad_set || '',
-    formSource: 'facebook_instagram_ads',
-    createdAt: new Date(timestamp || Date.now()).toISOString(),
-    notes: `Lead from Meta Instant Form - Campaign: ${source_campaign}, Ad Set: ${source_ad_set}`,
-    labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
+    workshopId: workshopId || null,
+    workshopName: workshopName || 'Unknown Workshop',
+    campaignName: metaContext.campaign_id || 'Meta Ad',
+    adSet: metaContext.adset_id || '',
+    formSource: `form_${metaContext.form_id}`,
+    createdAt: new Date(leadData.created_time || Date.now()).toISOString(),
+    notes: `Lead from Meta Instant Form (Form ID: ${metaContext.form_id}, Ad ID: ${metaContext.ad_id})`,
+    labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : ''].filter(Boolean),
     metadata: {
-      rawFieldData: formData.rawResponses || [],
+      leadgen_id: leadData.id,
+      rawFieldData: fieldData,
     },
     createdByUserId: 'system',
   };
 
-  // Create lead in CRM
   try {
     const { saveBunnyLead, getBunnyLeadByPhone } = await import('@/lib/bunnyLeadsRepository');
     
-    // Check if exists
     let existing = await getBunnyLeadByPhone(lead.phoneNumber, 'system');
     
     let result;
     if (existing) {
       result = await saveBunnyLead({
         ...existing,
-        ...lead, // overwrite with new data (or you might want to selectively merge)
+        ...lead, 
         labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || []), 'enquiry'])),
         notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
       }, existing._id || existing.id);
@@ -82,7 +120,6 @@ async function createLeadFromMetaForm(formData: any) {
     return {
       success: true,
       leadId: result._id,
-      workshopId: workshop_id,
     };
   } catch (error) {
     console.error('❌ Error creating lead:', error);
@@ -95,43 +132,41 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
     const signature = req.headers.get('x-hub-signature-256') || '';
+    const secret = process.env.META_APP_SECRET || '';
 
-    // Verify webhook authenticity from Meta
-    const secret = process.env.META_WEBHOOK_SECRET || process.env.META_APP_SECRET || '';
-    
     if (!verifyWebhookSignature(body, signature.replace('sha256=', ''), secret)) {
       console.warn('⚠️ Invalid webhook signature - but processing anyway (SKIP_WEBHOOK_SIGNATURE=true)');
-      // For development, allow it. In production, reject unsigned requests.
       if (!process.env.SKIP_WEBHOOK_SIGNATURE) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
     }
 
     const data = JSON.parse(body);
-    console.log('📝 Meta Instant Form webhook received:', JSON.stringify(data, null, 2));
+    console.log('📝 Meta Webhook received object:', data.object);
 
-    // Handle different webhook event types
-    if (data.object === 'lead_form') {
-      // Process the form submission
+    // Meta Lead Ads webhooks have object === 'page'
+    if (data.object === 'page') {
       for (const entry of data.entry || []) {
         for (const change of entry.changes || []) {
-          if (change.field === 'leadgen_conditional_questions_responses') {
-            const leadId = change.value.lead_id;
-            const formResponses = change.value.response || [];
+          // Check if this is a lead generation event
+          if (change.field === 'leadgen') {
+            const leadgenId = change.value.leadgen_id;
+            
+            console.log(`✅ Found leadgen event! Leadgen ID: ${leadgenId}`);
 
-            // Map form responses to our lead object
-            const mappedData = mapMetaFormResponses(formResponses, {
-              leadId,
-              campaignName: data.campaign_name,
-              adId: data.ad_id,
-            });
-
-            // Create lead in CRM
-            await createLeadFromMetaForm(mappedData);
+            // Fetch the actual lead data from Meta Graph API
+            try {
+              const leadData = await fetchLeadFromMeta(leadgenId);
+              
+              // Process and save to CRM
+              await createLeadFromMetaForm(leadData, change.value);
+            } catch (err) {
+              console.error('❌ Failed to fetch or process lead from Meta:', err);
+              // Note: We still return 200 to Meta so they don't retry forever and block the webhook
+            }
           }
         }
       }
-
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
@@ -155,7 +190,6 @@ export async function GET(req: NextRequest) {
   const verifyToken = req.nextUrl.searchParams.get('hub.verify_token');
   const challenge = req.nextUrl.searchParams.get('hub.challenge');
 
-  // Check both WhatsApp and Forms verify tokens just to be safe
   if (
     verifyToken === process.env.META_FORMS_WEBHOOK_VERIFY_TOKEN || 
     verifyToken === process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
@@ -165,53 +199,4 @@ export async function GET(req: NextRequest) {
   }
 
   return new NextResponse('Invalid token', { status: 403 });
-}
-
-// Helper: Map Meta form responses to our lead format
-function mapMetaFormResponses(
-  responses: any[],
-  metadata: { leadId?: string; campaignName?: string; adId?: string }
-) {
-  const mapped: any = {
-    timestamp: Date.now(),
-    rawResponses: responses,
-    ...metadata,
-  };
-
-  for (const response of responses) {
-    const question = response.question_text || '';
-    const answer = response.response || '';
-
-    // Map common Meta form fields
-    if (question.toLowerCase().includes('first name') || response.field_key === 'first_name') {
-      mapped.first_name = answer;
-    } else if (question.toLowerCase().includes('last name') || response.field_key === 'last_name') {
-      mapped.last_name = answer;
-    } else if (
-      question.toLowerCase().includes('email') ||
-      question.toLowerCase().includes('e-mail') ||
-      response.field_key === 'email'
-    ) {
-      mapped.email = answer;
-    } else if (
-      question.toLowerCase().includes('phone') ||
-      question.toLowerCase().includes('mobile') ||
-      response.field_key === 'phone_number'
-    ) {
-      mapped.phone_number = answer;
-    } else if (question.toLowerCase().includes('workshop') || response.field_key === 'workshop') {
-      mapped.workshop_name = answer;
-      // Try to extract workshop ID if it's in format "Workshop Name (ID)"
-      const idMatch = answer.match(/\(([a-f0-9]{24})\)/);
-      if (idMatch) {
-        mapped.workshop_id = idMatch[1];
-      }
-    } else if (question.toLowerCase().includes('interested') || response.field_key === 'interest') {
-      mapped.interest = answer;
-    } else if (question.toLowerCase().includes('class') || response.field_key === 'class') {
-      mapped.class_preference = answer;
-    }
-  }
-
-  return mapped;
 }
