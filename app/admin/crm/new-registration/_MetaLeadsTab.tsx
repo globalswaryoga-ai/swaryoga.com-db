@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X, Database } from 'lucide-react';
 
 export function MetaLeadsTab({ 
     selectedWorkshop, 
@@ -286,15 +286,37 @@ export function MetaLeadsTab({
                     </div>
                 </div>
 
-                {/* WT Settings Square Button */}
-                <button 
-                    onClick={() => setShowWTSettingsPopup(true)}
-                    className="w-[100px] bg-[#25D366] hover:bg-[#128C7E] rounded-xl shadow-md flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 group"
-                    title="Meta WhatsApp Trigger Management"
-                >
-                    <div className="text-4xl font-black tracking-tighter drop-shadow-md">W</div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">WT Mgt</div>
-                </button>
+                <div className="flex gap-2">
+                    {/* Data Details Button */}
+                    <button 
+                        onClick={() => {}}
+                        className="w-[100px] bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-xl shadow-sm flex flex-col items-center justify-center text-pink-700 transition-all transform hover:scale-105 group"
+                        title="Data Details"
+                    >
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm"><Settings2 size={28} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mt-1 px-1 text-center">Data Details</div>
+                    </button>
+
+                    {/* Simulate Test Lead Button */}
+                    <button 
+                        onClick={() => setShowDummyPopup(true)}
+                        className="w-[100px] bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-xl shadow-sm flex flex-col items-center justify-center text-pink-700 transition-all transform hover:scale-105 group"
+                        title="Simulate Test Lead"
+                    >
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm"><Bot size={28} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mt-1 px-1 text-center">Simulate</div>
+                    </button>
+
+                    {/* WT Settings Square Button */}
+                    <button 
+                        onClick={() => setShowWTSettingsPopup(true)}
+                        className="w-[100px] bg-[#25D366] hover:bg-[#128C7E] rounded-xl shadow-md flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 group"
+                        title="Meta WhatsApp Trigger Management"
+                    >
+                        <div className="text-4xl font-black tracking-tighter drop-shadow-md">W</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">WT Mgt</div>
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -309,14 +331,6 @@ export function MetaLeadsTab({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button 
-                            onClick={() => setShowDummyPopup(true)}
-                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm"
-                        >
-                            <Bot size={14} />
-                            Simulate Test Lead
-                        </button>
-
                         <button 
                             onClick={() => setShowAI9Popup(true)}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-yellow-500"
