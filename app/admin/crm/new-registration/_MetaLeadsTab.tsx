@@ -61,8 +61,21 @@ export function MetaLeadsTab({
     // Dummy Lead State
     const [showDummyPopup, setShowDummyPopup] = useState(false);
     
-    // Load from localStorage or use default
+    // Load from CRM metadata or use default
     const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([]);
+
+    useEffect(() => {
+        if (selectedWorkshop?.metadata?.dummyFormConfig) {
+            setDummyFields(selectedWorkshop.metadata.dummyFormConfig);
+        } else {
+            setDummyFields([
+                { name: 'full_name', values: ['John Doe'] },
+                { name: 'phone_number', values: ['+919999999999'] },
+                { name: 'email', values: ['john@example.com'] },
+                { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
+            ]);
+        }
+    }, [selectedWorkshop?.metadata?.dummyFormConfig, selectedWorkshop?.id]);
 
     const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
 
@@ -73,31 +86,6 @@ export function MetaLeadsTab({
             setExpandedDummyFields([...expandedDummyFields, idx]);
         }
     };
-
-    useEffect(() => {
-        if (typeof window !== 'undefined' && selectedWorkshop?.id) {
-            const key = `metaDummyFields_${selectedWorkshop.id}`;
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                setDummyFields(JSON.parse(saved));
-            } else {
-                setDummyFields([
-                    { name: 'full_name', values: ['John Doe'] },
-                    { name: 'phone_number', values: ['+919999999999'] },
-                    { name: 'email', values: ['john@example.com'] },
-                    { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
-                ]);
-            }
-        }
-    }, [selectedWorkshop?.id]);
-
-    // Save to localStorage whenever it changes
-    useEffect(() => {
-        if (typeof window !== 'undefined' && selectedWorkshop?.id && dummyFields.length > 0) {
-            const key = `metaDummyFields_${selectedWorkshop.id}`;
-            localStorage.setItem(key, JSON.stringify(dummyFields));
-        }
-    }, [dummyFields, selectedWorkshop?.id]);
 
     const [isSubmittingDummy, setIsSubmittingDummy] = useState(false);
 
@@ -1064,8 +1052,34 @@ export function MetaLeadsTab({
                                 Cancel
                             </button>
                             <button 
+                                onClick={() => {
+                                    if (selectedWorkshop) {
+                                        saveWorkshopSettings({
+                                            ...selectedWorkshop,
+                                            metadata: {
+                                                ...(selectedWorkshop.metadata || {}),
+                                                dummyFormConfig: dummyFields
+                                            }
+                                        });
+                                        alert('Template saved to CRM permanently!');
+                                    }
+                                }}
+                                className="px-4 py-2 font-bold text-blue-600 text-sm hover:bg-blue-50 rounded-lg border border-blue-200"
+                            >
+                                Save Template
+                            </button>
+                            <button 
                                 onClick={async () => {
                                     setIsSubmittingDummy(true);
+                                    if (selectedWorkshop) {
+                                        saveWorkshopSettings({
+                                            ...selectedWorkshop,
+                                            metadata: {
+                                                ...(selectedWorkshop.metadata || {}),
+                                                dummyFormConfig: dummyFields
+                                            }
+                                        });
+                                    }
                                     try {
                                         const res = await fetch('/api/admin/crm/meta-leads/dummy', {
                                             method: 'POST',
