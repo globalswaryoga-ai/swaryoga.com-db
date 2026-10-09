@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X, Database } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X, Database, Activity } from 'lucide-react';
 
 export function MetaLeadsTab({ 
     selectedWorkshop, 
@@ -287,6 +287,16 @@ export function MetaLeadsTab({
                 </div>
 
                 <div className="flex gap-2">
+                    {/* Trigger Report Button */}
+                    <button 
+                        onClick={() => {}}
+                        className="w-[100px] bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-xl shadow-sm flex flex-col items-center justify-center text-[#B02660] transition-all transform hover:scale-105 group"
+                        title="Trigger Report"
+                    >
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm mb-1"><Activity size={24} strokeWidth={2.5} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">TRIGGER<br/>REPORT</div>
+                    </button>
+
                     {/* Data Details Button */}
                     <button 
                         onClick={() => {}}
