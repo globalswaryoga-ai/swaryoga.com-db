@@ -70,14 +70,10 @@ export function MetaLeadsTab({
             setDummyFields(selectedWorkshop.metadata.dummyFormConfig);
         } else {
             setDummyFields([
-                { name: 'Are you ready to attend the complete 14-day live workshop?', values: ['Yes', 'No'] },
-                { name: 'Do you have enough time to attend the daily 1.5-hour live class?', values: ['Yes 100%', 'No', "Don't Know"] },
-                { name: 'Are you comfortable attending the workshop in Hindi?', values: ['Yes', 'No', 'English would be better.'] },
-                { name: 'After submitting this form, we will send you the Workshop Details Form on WhatsApp. Are you ready to fill it out?', values: ['Yes', 'No'] },
-                { name: 'There is no fee for this 14 days workshop. At the end of the workshop, are you willing to offer some support?', values: ['Yes', 'No', 'If I like it, I will definitely pay.'] },
                 { name: 'full_name', values: ['John Doe'] },
                 { name: 'phone_number', values: ['+919999999999'] },
-                { name: 'email', values: ['john@example.com'] }
+                { name: 'email', values: ['john@example.com'] },
+                { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
             ]);
         }
     }, [selectedWorkshop?.metadata?.dummyFormConfig, selectedWorkshop?.id]);
@@ -1052,18 +1048,12 @@ export function MetaLeadsTab({
                         <div className="p-5 border-t border-slate-200 flex justify-between gap-3 bg-slate-50">
                             <button 
                                 onClick={() => {
-                                    if (confirm('Are you sure you want to reset the form to the default custom questions + personal info?')) {
+                                    if (confirm('Are you sure you want to reset the form to the default 4 basic questions?')) {
                                         setDummyFields([
-                                            { name: 'Are you ready to attend the complete 14-day live workshop?', values: ['Yes', 'No'] },
-                                            { name: 'Do you have enough time to attend the daily 1.5-hour live class?', values: ['Yes 100%', 'No', "Don't Know"] },
-                                            { name: 'Are you comfortable attending the workshop in Hindi?', values: ['Yes', 'No', 'English would be better.'] },
-                                            { name: 'After submitting this form, we will send you the Workshop Details Form on WhatsApp. Are you ready to fill it out?', values: ['Yes', 'No'] },
-                                            { name: 'There is no fee for this 14 days workshop. At the end of the workshop, are you willing to offer some support?', values: ['Yes', 'No', 'If I like it, I will definitely pay.'] },
                                             { name: 'full_name', values: ['John Doe'] },
+                                            { name: 'phone_number', values: ['+919999999999'] },
                                             { name: 'email', values: ['john@example.com'] },
-                                            { name: 'country', values: ['India'] },
-                                            { name: 'state', values: ['Maharashtra'] },
-                                            { name: 'phone_number', values: ['+919999999999'] }
+                                            { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
                                         ]);
                                     }
                                 }}
