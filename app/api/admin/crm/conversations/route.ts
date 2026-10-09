@@ -45,16 +45,18 @@ export async function GET(request: NextRequest) {
       return formatCrmSuccess({ conversations: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR conversations.' }, buildMetadata(0, limit, skip));
     }
 
+    const q = url.searchParams.get('q')?.trim().toLowerCase();
+
     // Bunny SQL is the new runtime source.
     const allRows = await listBunnyMetaConversations(Math.min(limit + skip, 500));
     let bunnyRows = allRows;
 
+    const leads = await loadBunnyLeads();
+    let visibleLeads = leads;
+    
     // Meta accounts and message ownership are now tenant-scoped in Bunny SQL.
-    // Do not hide every tenant's inbox merely because the client requested the
-    // normal `meta` provider (the Meta page does not use `provider=all`).
     if (!superAdmin) {
-      const leads = await loadBunnyLeads();
-      const visibleLeads = leads.filter((lead: any) =>
+      visibleLeads = leads.filter((lead: any) =>
         String(lead.assignedToUserId || '') === viewerUserId ||
         String(lead.createdByUserId || '') === viewerUserId
       );
@@ -65,6 +67,52 @@ export async function GET(request: NextRequest) {
         const phone = String(row.phoneNumber || '').replace(/\D/g, '').slice(-10);
         return (leadId && visibleLeadIds.has(leadId)) || (phone && visiblePhones.has(phone));
       });
+    }
+
+    // Merge search results from leads if a query is provided
+    if (q) {
+      // 1. Filter existing conversations
+      bunnyRows = bunnyRows.filter((row: any) => {
+        const name = String(row.leadName || row.name || '').toLowerCase();
+        const phone = String(row.phoneNumber || '').toLowerCase();
+        return name.includes(q) || phone.includes(q);
+      });
+
+      // 2. Search visible CRM leads
+      const matchingLeads = visibleLeads.filter((lead: any) => {
+        const name = String(lead.name || lead.displayName || lead.Name || '').toLowerCase();
+        const phone = String(lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || '').toLowerCase();
+        return name.includes(q) || phone.includes(q);
+      });
+
+      // 3. Append leads without existing conversations
+      const existingLeadIds = new Set(bunnyRows.map((r: any) => String(r.leadId)));
+      const existingPhones = new Set(bunnyRows.map((r: any) => String(r.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean));
+
+      for (const lead of matchingLeads) {
+        const leadId = String(lead._id);
+        const rawPhone = lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || '';
+        const phoneNormal = String(rawPhone).replace(/\D/g, '').slice(-10);
+        
+        if (!existingLeadIds.has(leadId) && (!phoneNormal || !existingPhones.has(phoneNormal))) {
+          bunnyRows.push({
+            _id: `mock_${leadId}`,
+            leadId: leadId,
+            leadName: lead.name || lead.displayName || lead.Name || rawPhone || 'Unknown Lead',
+            phoneNumber: rawPhone,
+            provider: 'meta',
+            unreadCount: 0,
+            lastMessageAt: lead.createdAt || new Date().toISOString(),
+            lastMessagePreview: 'No messages yet (Found in CRM Leads)',
+            isMock: true,
+          });
+          existingLeadIds.add(leadId);
+          if (phoneNormal) existingPhones.add(phoneNormal);
+        }
+      }
+      
+      // Sort by lastMessageAt descending
+      bunnyRows.sort((a: any, b: any) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     }
 
     return formatCrmSuccess(
