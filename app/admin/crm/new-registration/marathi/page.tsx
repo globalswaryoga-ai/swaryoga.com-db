@@ -1637,6 +1637,7 @@ export default function NewRegistrationPage() {
   };
 
   const TopTabs = [
+    { id: 'meta_leads', label: 'Meta Leads', icon: Users },
     { id: 'all_leads', label: 'All Leads Data', icon: Users },
     { id: 'my_data', label: 'My Data', icon: Database },
     { id: 'our_workshops', label: 'Our Workshops', icon: Target },
@@ -1665,7 +1666,7 @@ export default function NewRegistrationPage() {
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
-    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops") return true;
+    if (tabId === "meta_leads" || tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops") return true;
     return !!selectedWorkshop;
   };
 
@@ -2374,6 +2375,10 @@ export default function NewRegistrationPage() {
                   key={tab.id}
                   disabled={!canAccessTab(tab.id)}
                   onClick={() => {
+                    if (tab.id === 'meta_leads') {
+                      router.push('/admin/crm/meta');
+                      return;
+                    }
                     if (tab.id === 'all_leads') {
                       setSelectedWorkshop(null);
                       setIsFormSetupCollapsed(false);
