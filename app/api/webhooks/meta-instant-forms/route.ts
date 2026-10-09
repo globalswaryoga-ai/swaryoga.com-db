@@ -52,6 +52,9 @@ async function createLeadFromMetaForm(formData: any) {
     createdAt: new Date(timestamp || Date.now()).toISOString(),
     notes: `Lead from Meta Instant Form - Campaign: ${source_campaign}, Ad Set: ${source_ad_set}`,
     labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
+    metadata: {
+      rawFieldData: formData.rawResponses || [],
+    },
     createdByUserId: 'system',
   };
 
@@ -166,6 +169,7 @@ function mapMetaFormResponses(
 ) {
   const mapped: any = {
     timestamp: Date.now(),
+    rawResponses: responses,
     ...metadata,
   };
 
