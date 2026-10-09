@@ -66,16 +66,30 @@ export function MetaLeadsTab({
     const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([]);
 
     useEffect(() => {
+        const PERSONAL_FIELDS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name'];
+        let initialFields = [];
+        
         if (selectedWorkshop?.metadata?.dummyFormConfig) {
-            setDummyFields(selectedWorkshop.metadata.dummyFormConfig);
+            initialFields = [...selectedWorkshop.metadata.dummyFormConfig];
         } else {
-            setDummyFields([
+            initialFields = [
                 { name: 'full_name', values: ['John Doe'] },
                 { name: 'phone_number', values: ['+919999999999'] },
                 { name: 'email', values: ['john@example.com'] },
                 { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
-            ]);
+            ];
         }
+
+        // Reorganize so custom questions are first, and personal data is last in the UI
+        initialFields.sort((a, b) => {
+            const aIsPersonal = PERSONAL_FIELDS.includes(a.name.toLowerCase());
+            const bIsPersonal = PERSONAL_FIELDS.includes(b.name.toLowerCase());
+            if (aIsPersonal && !bIsPersonal) return 1;
+            if (!aIsPersonal && bIsPersonal) return -1;
+            return 0;
+        });
+
+        setDummyFields(initialFields);
     }, [selectedWorkshop?.metadata?.dummyFormConfig, selectedWorkshop?.id]);
 
     const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
@@ -1037,8 +1051,15 @@ export function MetaLeadsTab({
                             )})}
                             <button 
                                 onClick={() => {
-                                    setDummyFields([...dummyFields, {name: '', values: ['']}]);
-                                    setExpandedDummyFields([...expandedDummyFields, dummyFields.length]);
+                                    const PERSONAL_FIELDS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name'];
+                                    const firstPersonalIdx = dummyFields.findIndex(f => PERSONAL_FIELDS.includes(f.name.toLowerCase()));
+                                    
+                                    const newFields = [...dummyFields];
+                                    const insertIdx = firstPersonalIdx !== -1 ? firstPersonalIdx : newFields.length;
+                                    
+                                    newFields.splice(insertIdx, 0, {name: '', values: ['']});
+                                    setDummyFields(newFields);
+                                    setExpandedDummyFields([...expandedDummyFields, insertIdx]);
                                 }}
                                 className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-xl text-sm font-bold mt-2 hover:bg-slate-100 transition-colors"
                             >
