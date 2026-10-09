@@ -60,12 +60,28 @@ export function MetaLeadsTab({
 
     // Dummy Lead State
     const [showDummyPopup, setShowDummyPopup] = useState(false);
-    const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([
-        { name: 'full_name', values: ['John Doe'] },
-        { name: 'phone_number', values: ['+919999999999'] },
-        { name: 'email', values: ['john@example.com'] },
-        { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
-    ]);
+    
+    // Load from localStorage or use default
+    const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('metaDummyFields');
+            if (saved) return JSON.parse(saved);
+        }
+        return [
+            { name: 'full_name', values: ['John Doe'] },
+            { name: 'phone_number', values: ['+919999999999'] },
+            { name: 'email', values: ['john@example.com'] },
+            { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
+        ];
+    });
+
+    // Save to localStorage whenever it changes
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('metaDummyFields', JSON.stringify(dummyFields));
+        }
+    }, [dummyFields]);
+
     const [isSubmittingDummy, setIsSubmittingDummy] = useState(false);
 
     const [formIdHistory, setFormIdHistory] = useState<string[]>([]);
@@ -974,15 +990,16 @@ export function MetaLeadsTab({
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ fields: dummyFields, workshopId: selectedWorkshop?.id, workshopName: selectedWorkshop?.name })
                                         });
-                                        if (res.ok) {
+                                        const data = await res.json();
+                                        if (res.ok && data.success) {
                                             alert('Dummy lead simulated! Page will now refresh to show new data.');
                                             setShowDummyPopup(false);
                                             window.location.reload();
                                         } else {
-                                            alert('Failed to simulate lead.');
+                                            alert(`Failed to simulate lead: ${data.error || 'Unknown error'}`);
                                         }
-                                    } catch (e) {
-                                        alert('Error simulating lead.');
+                                    } catch (e: any) {
+                                        alert(`Error simulating lead: ${e.message}`);
                                     } finally {
                                         setIsSubmittingDummy(false);
                                     }
