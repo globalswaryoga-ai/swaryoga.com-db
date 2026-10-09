@@ -477,18 +477,20 @@ export default function BroadcastPage(props: any) {
     if (!token) return;
     setLoading(true);
     try {
-      const [leadsRes, templatesRes, runsRes, bulkRes] = await Promise.all([
-        fetch('/api/admin/crm/leads?limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
+      const [leadsRes, templatesRes, runsRes, bulkRes, stateRes] = await Promise.all([
+        fetch('/api/admin/crm/leads?limit=5000&selectAll=true&excludeSource=manual&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/templates?provider=meta', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/bulk-status', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/new-registration/state'),
       ]);
       
-      const [leadsData, templatesData, runsData, bulkData] = await Promise.all([
+      const [leadsData, templatesData, runsData, bulkData, stateData] = await Promise.all([
         leadsRes.json(),
         templatesRes.json(),
         runsRes.json(),
         bulkRes.json(),
+        stateRes.json().catch(() => ({})),
       ]);
       
       const loadedLeads: Lead[] = leadsData.data?.leads || leadsData.leads || [];
@@ -511,6 +513,20 @@ export default function BroadcastPage(props: any) {
           activeRuns: Number(rawBulk.activeRuns || 0),
           quota: { date: rawQuota.date || new Date().toISOString().slice(0, 10), sent: quotaSent, limit: quotaLimit, remaining: quotaRemaining, percentage: quotaPercentage, status: quotaStatus, canSend: rawQuota.canSend !== false && quotaRemaining > 0 },
         });
+      }
+
+      
+      if (stateData) {
+        if (stateData.crm_ai4_decisions) {
+          try {
+            setBatchDecisions(typeof stateData.crm_ai4_decisions === 'string' ? JSON.parse(stateData.crm_ai4_decisions) : stateData.crm_ai4_decisions);
+          } catch(e) {}
+        }
+        if (stateData.crm_english_workshops) {
+          try {
+            setFormWorkshops(typeof stateData.crm_english_workshops === 'string' ? JSON.parse(stateData.crm_english_workshops) : stateData.crm_english_workshops);
+          } catch(e) {}
+        }
       }
 
       // Delivery status is intentionally lazy. Loading status for thousands of
@@ -944,7 +960,7 @@ export default function BroadcastPage(props: any) {
           name: name || `Lead ${idx + 1}`,
           phoneNumber: phone,
           email: email,
-          status: l._effectiveStatus || l.status || '',
+          status: batchDecisions[l._id || l.id]?.status || (batchDecisions[l._id || l.id]?.isRegistered ? 'registered' : '') || l._effectiveStatus || l.status || '',
           workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
           labels: l.labels || [],
@@ -1019,12 +1035,12 @@ export default function BroadcastPage(props: any) {
           lead.language?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
           (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
         
-        const matchesMultiWorkshop = filterWorkshops.length === 0 || activeBatches.length > 0;
-        const finalLanguageMatch = activeBatches.length > 0 ? true : matchesLanguage;
+        const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.workshopName) || filterWorkshops.includes(lead.workshopId);
+        const finalLanguageMatch = filterWorkshops.length > 0 ? true : matchesLanguage;
 
         return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
       });
-  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
+  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, batchDecisions]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
