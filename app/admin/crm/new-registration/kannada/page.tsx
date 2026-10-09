@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab } from '../_WorkshopFormTab';
+import { MetaLeadsTab } from '../_MetaLeadsTab';
 import { LeadsManagementTab } from '../_LeadsManagementTab';
 import { WhatsAppMessengerTab } from '../_WhatsAppMessengerTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
@@ -2375,10 +2376,6 @@ export default function NewRegistrationPage() {
                   key={tab.id}
                   disabled={!canAccessTab(tab.id)}
                   onClick={() => {
-                    if (tab.id === 'meta_leads') {
-                      router.push('/admin/crm/meta');
-                      return;
-                    }
                     if (tab.id === 'all_leads') {
                       setSelectedWorkshop(null);
                       setIsFormSetupCollapsed(false);
@@ -2413,6 +2410,13 @@ export default function NewRegistrationPage() {
             <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
               {renderWorkshopForm()}
             </div>
+          )}
+          {activeTab === 'meta_leads' && (
+            <MetaLeadsTab
+              selectedWorkshop={selectedWorkshop}
+              saveWorkshopSettings={saveWorkshopSettings}
+              leadsData={displayLeads}
+            />
           )}
           {activeTab === 'leads_management' && (
             <LeadsManagementTab
