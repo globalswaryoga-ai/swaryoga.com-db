@@ -51,7 +51,7 @@ async function createLeadFromMetaForm(formData: any) {
     formSource: 'facebook_instagram_ads',
     createdAt: new Date(timestamp || Date.now()).toISOString(),
     notes: `Lead from Meta Instant Form - Campaign: ${source_campaign}, Ad Set: ${source_ad_set}`,
-    labels: ['meta_instant_form', 'facebook_ads', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
+    labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshop_id ? `workshop_${workshop_id}` : ''].filter(Boolean),
     createdByUserId: 'system',
   };
 
@@ -67,7 +67,7 @@ async function createLeadFromMetaForm(formData: any) {
       result = await saveBunnyLead({
         ...existing,
         ...lead, // overwrite with new data (or you might want to selectively merge)
-        labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || [])])),
+        labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || []), 'enquiry'])),
         notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
       }, existing._id || existing.id);
       console.log(`✅ Lead updated: ${result._id}`);

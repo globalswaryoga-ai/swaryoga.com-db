@@ -148,7 +148,7 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
           metaLeadgenId,
           ...(formId ? { metaFormId: formId } : {}),
         },
-        labels: Array.from(new Set([...existingLabels, 'social media']))
+        labels: Array.from(new Set([...existingLabels, 'social media', 'enquiry']))
       }, existingLead._id || existingLead.id);
       
       console.log(`Updated existing lead: ${existingLead._id || existingLead.id}`);
@@ -165,7 +165,7 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
       status: 'lead',
       source: 'meta_leadgen',
       ...(workshopName ? { workshopName } : {}),
-      labels: ['social media'],
+      labels: ['social media', 'enquiry'],
       metadata: {
         metaLeadgenId,
         ...(formId ? { metaFormId: formId } : {}),
