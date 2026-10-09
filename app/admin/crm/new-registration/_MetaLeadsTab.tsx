@@ -54,6 +54,16 @@ export function MetaLeadsTab({
         mismatchFallback: 'rejected'
     });
 
+    // Dummy Lead State
+    const [showDummyPopup, setShowDummyPopup] = useState(false);
+    const [dummyFields, setDummyFields] = useState<{name: string, value: string}[]>([
+        { name: 'full_name', value: 'John Doe' },
+        { name: 'phone_number', value: '+919999999999' },
+        { name: 'email', value: 'john@example.com' },
+        { name: 'are_you_comfortable_in_hindi', value: 'Yes' }
+    ]);
+    const [isSubmittingDummy, setIsSubmittingDummy] = useState(false);
+
     const [formIdHistory, setFormIdHistory] = useState<string[]>([]);
 
     useEffect(() => {
@@ -294,6 +304,14 @@ export function MetaLeadsTab({
                         >
                             <Save size={16} />
                             Connect Form
+                        </button>
+                        
+                        <button 
+                            onClick={() => setShowDummyPopup(true)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm"
+                        >
+                            <Bot size={14} />
+                            Simulate Test Lead
                         </button>
 
                         <button 
@@ -825,6 +843,108 @@ export function MetaLeadsTab({
                                 className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-all shadow-sm flex items-center gap-2"
                             >
                                 <Save size={16} /> Save Configuration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dummy Lead Popup */}
+            {showDummyPopup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-slide-up">
+                        <div className="bg-slate-800 p-5 relative overflow-hidden flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Bot size={20} className="text-slate-300" />
+                                    Simulate Meta Lead
+                                </h3>
+                                <p className="text-slate-400 text-xs mt-1">Create a test lead to generate mapping columns for AI-9</p>
+                            </div>
+                            <button onClick={() => setShowDummyPopup(false)} className="text-slate-400 hover:text-white transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-5 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
+                            {dummyFields.map((field, idx) => (
+                                <div key={idx} className="flex gap-2 mb-3 items-end">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold text-slate-600 mb-1">Question Key (exact)</label>
+                                        <input 
+                                            type="text" 
+                                            value={field.name}
+                                            onChange={(e) => {
+                                                const newFields = [...dummyFields];
+                                                newFields[idx].name = e.target.value;
+                                                setDummyFields(newFields);
+                                            }}
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold text-slate-600 mb-1">Lead's Answer</label>
+                                        <input 
+                                            type="text" 
+                                            value={field.value}
+                                            onChange={(e) => {
+                                                const newFields = [...dummyFields];
+                                                newFields[idx].value = e.target.value;
+                                                setDummyFields(newFields);
+                                            }}
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            const newFields = [...dummyFields];
+                                            newFields.splice(idx, 1);
+                                            setDummyFields(newFields);
+                                        }}
+                                        className="mb-1 p-2 text-slate-400 hover:text-red-500 rounded bg-white border border-slate-200"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                            <button 
+                                onClick={() => setDummyFields([...dummyFields, {name: '', value: ''}])}
+                                className="w-full py-2 border border-dashed border-slate-300 text-slate-600 rounded text-sm font-bold mt-2 hover:bg-slate-100"
+                            >
+                                + Add Custom Question
+                            </button>
+                        </div>
+                        <div className="p-5 border-t border-slate-200 flex justify-end gap-3 bg-white">
+                            <button 
+                                onClick={() => setShowDummyPopup(false)}
+                                className="px-4 py-2 font-bold text-slate-600 text-sm hover:bg-slate-100 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                    setIsSubmittingDummy(true);
+                                    try {
+                                        const res = await fetch('/api/admin/crm/meta-leads/dummy', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ fields: dummyFields, workshopId: selectedWorkshop?.id, workshopName: selectedWorkshop?.name })
+                                        });
+                                        if (res.ok) {
+                                            alert('Dummy lead simulated! Please refresh the page to see the new columns in AI-9 Configuration.');
+                                            setShowDummyPopup(false);
+                                        } else {
+                                            alert('Failed to simulate lead.');
+                                        }
+                                    } catch (e) {
+                                        alert('Error simulating lead.');
+                                    } finally {
+                                        setIsSubmittingDummy(false);
+                                    }
+                                }}
+                                disabled={isSubmittingDummy}
+                                className="px-5 py-2 font-bold text-white bg-slate-800 hover:bg-slate-900 text-sm rounded-lg flex items-center gap-2"
+                            >
+                                {isSubmittingDummy ? 'Simulating...' : 'Simulate Submission'}
                             </button>
                         </div>
                     </div>
