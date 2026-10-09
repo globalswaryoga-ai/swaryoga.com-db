@@ -26,6 +26,17 @@ export async function POST(req: NextRequest) {
       else if (fieldName.includes('full_name') || fieldName === 'name') name = firstValue;
     }
 
+    const PERSONAL_FIELDS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name'];
+    
+    // Reorganise so custom questions are first, and personal data is last
+    rawFieldData.sort((a, b) => {
+      const aIsPersonal = PERSONAL_FIELDS.includes(a.name.toLowerCase());
+      const bIsPersonal = PERSONAL_FIELDS.includes(b.name.toLowerCase());
+      if (aIsPersonal && !bIsPersonal) return 1;
+      if (!aIsPersonal && bIsPersonal) return -1;
+      return 0;
+    });
+
     const cleanPhone = phone.replace(/\D/g, '');
 
     if (!cleanPhone) {
