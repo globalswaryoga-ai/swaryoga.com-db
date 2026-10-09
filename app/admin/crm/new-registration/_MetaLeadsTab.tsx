@@ -48,8 +48,32 @@ export function MetaLeadsTab({
         pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
     });
 
+    const [formIdHistory, setFormIdHistory] = useState<string[]>([]);
+
+    useEffect(() => {
+        // Load form ID history from local storage
+        const savedHistory = localStorage.getItem('metaFormIdHistory');
+        if (savedHistory) {
+            try {
+                const parsed = JSON.parse(savedHistory);
+                setFormIdHistory(parsed);
+                if (!formId && parsed.length > 0) {
+                    setFormId(parsed[0]);
+                }
+            } catch (e) {}
+        }
+    }, []);
+
+    const addToHistory = (id: string) => {
+        if (!id) return;
+        const newHistory = Array.from(new Set([id, ...formIdHistory])).slice(0, 10);
+        setFormIdHistory(newHistory);
+        localStorage.setItem('metaFormIdHistory', JSON.stringify(newHistory));
+    };
+
     const syncLeads = async () => {
         if (!formId) return;
+        addToHistory(formId);
         setIsSyncing(true);
         try {
             const res = await fetch('/api/admin/crm/meta-leads/sync', {
@@ -244,11 +268,17 @@ export function MetaLeadsTab({
                         <label className="block text-xs font-bold text-slate-500 mb-1">Facebook Form ID</label>
                         <input 
                             type="text" 
+                            list="formIdHistoryList"
                             value={formId}
                             onChange={(e) => setFormId(e.target.value)}
                             placeholder="e.g. 123456789098765"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                         />
+                        <datalist id="formIdHistoryList">
+                            {formIdHistory.map((id, index) => (
+                                <option key={index} value={id} />
+                            ))}
+                        </datalist>
                     </div>
                     
                     <div className="pt-5 flex flex-wrap items-center gap-2">
