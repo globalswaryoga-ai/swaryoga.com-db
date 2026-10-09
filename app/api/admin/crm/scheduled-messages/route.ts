@@ -131,8 +131,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Direct phone schedules require provider=qr' }, { status: 400 });
     }
 
-    if (templateId && !isValidObjectId(String(templateId))) {
-      return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
+    if (templateId && templateId.length < 10) {
+      return NextResponse.json({ error: 'Invalid templateId format' }, { status: 400 });
     }
 
     await connectDB();
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       qrSessionKey: qrSession?.sessionKey,
       messageType: normalizedType,
       messageContent: content,
-      templateId: templateId ? toObjectId(String(templateId)) : undefined,
+      templateId: templateId ? String(templateId) : undefined,
       templateVariables: templateVariables || undefined,
       timezone: typeof timezone === 'string' && timezone.trim() ? timezone.trim() : 'Asia/Kolkata',
       nextRunAt,

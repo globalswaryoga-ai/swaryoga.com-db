@@ -248,6 +248,8 @@ export default function MetaInboxPage() {
   const [showBlocked, setShowBlocked] = useState(false); // Toggle blocked view
   const [actionModal, setActionModal] = useState<null | {
     type: 'quick' | 'schedule' | 'template' | 'delay' | 'repeat' | 'chatbot_flow';
+    templateId?: string;
+    templateName?: string;
   }>(null);
   const [delayConfig, setDelayConfig] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   // Chatbot flow state
@@ -1618,14 +1620,17 @@ export default function MetaInboxPage() {
     try {
       setScheduleBusy(true);
       
+      const isTemplate = !!actionModal?.templateId;
+      
       const body: any = {
         name: mode === 'schedule' 
-          ? 'Scheduled Message' 
+          ? (isTemplate ? 'Scheduled Template' : 'Scheduled Message')
           : mode === 'delay' 
             ? 'Delayed Message' 
             : 'Recurring Message',
-        messageType: 'text',
+        messageType: isTemplate ? 'template' : 'text',
         messageContent: text,
+        templateId: actionModal?.templateId,
         targetType: 'leadIds',
         targetLeadIds: [selected.leadId || selected._id],
         timezone: 'Asia/Kolkata',
@@ -3867,6 +3872,12 @@ export default function MetaInboxPage() {
                               }
                             }}
                             onClose={closeActionModal}
+                            onSchedule={(template) => {
+                              // Switch modal to schedule mode but keep the template selected
+                              setActionModal({ type: 'schedule', templateId: template._id, templateName: template.templateName });
+                              // Ensure scheduleMessage reflects that it's a template
+                              setScheduleMessage(`[Template] ${template.templateName}`);
+                            }}
                             showSearch={true}
                             showFilters={true}
                             showPreview={true}
@@ -3881,11 +3892,12 @@ export default function MetaInboxPage() {
                               <label className="text-xs font-semibold text-slate-600">
                                 <span className="block mb-1">Message</span>
                                 <textarea
-                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] resize-none"
+                                  className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] resize-none ${actionModal.templateId ? 'bg-slate-100 text-slate-500 font-mono' : 'bg-slate-50'}`}
                                   rows={3}
                                   placeholder="Type your message..."
                                   value={scheduleMessage || composerText}
                                   onChange={(e) => setScheduleMessage(e.target.value)}
+                                  readOnly={!!actionModal.templateId}
                                 />
                               </label>
                               <label className="text-xs font-semibold text-slate-600">

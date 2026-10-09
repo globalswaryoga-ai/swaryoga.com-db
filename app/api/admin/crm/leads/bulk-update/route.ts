@@ -9,6 +9,7 @@ import {
   handleCrmError, 
   formatCrmSuccess 
 } from '@/lib/crm-handlers';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,11 @@ export async function POST(request: NextRequest) {
       .filter((id) => isValidObjectId(id))
       .map((id) => toObjectId(id));
 
-    if (objectIds.length === 0) {
+    const stringIds = body.leadIds
+      .map((id) => String(id))
+      .filter((id) => !isValidObjectId(id));
+
+    if (objectIds.length === 0 && stringIds.length === 0) {
       return NextResponse.json({ error: 'No valid leadIds provided' }, { status: 400 });
     }
 
@@ -82,17 +87,50 @@ export async function POST(request: NextRequest) {
       arrayUpdates.$pull = { labels: { $in: removeLabels } };
     }
 
-    const result = await Lead.updateMany(
-      { _id: { $in: objectIds }, ...tf },
-      { 
-        $set: update,
-        ...(Object.keys(arrayUpdates).length > 0 ? arrayUpdates : {})
+    let matchedCount = 0;
+    let modifiedCount = 0;
+
+    if (objectIds.length > 0) {
+      const result = await Lead.updateMany(
+        { _id: { $in: objectIds }, ...tf },
+        { 
+          $set: update,
+          ...(Object.keys(arrayUpdates).length > 0 ? arrayUpdates : {})
+        }
+      );
+      matchedCount += result.matchedCount;
+      modifiedCount += result.modifiedCount;
+    }
+
+    if (stringIds.length > 0) {
+      for (const id of stringIds) {
+        try {
+          const existing = await getBunnyLeadById(id);
+          if (existing) {
+            matchedCount++;
+            const newLead = { ...existing, ...update };
+            
+            if (Array.isArray(addLabels) && addLabels.length > 0) {
+              const currentLabels = new Set(newLead.labels || []);
+              addLabels.forEach((l) => currentLabels.add(l));
+              newLead.labels = Array.from(currentLabels);
+            }
+            if (Array.isArray(removeLabels) && removeLabels.length > 0) {
+              newLead.labels = (newLead.labels || []).filter((l: string) => !removeLabels.includes(l));
+            }
+            
+            await saveBunnyLead(newLead, id);
+            modifiedCount++;
+          }
+        } catch (err) {
+          console.error(`Failed to update Bunny lead ${id}`, err);
+        }
       }
-    );
+    }
 
     return formatCrmSuccess({
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
+      matchedCount,
+      modifiedCount,
     });
   } catch (error) {
     return handleCrmError(error, 'POST /api/admin/crm/leads/bulk-update');

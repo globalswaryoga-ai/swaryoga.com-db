@@ -324,16 +324,30 @@ async function sendOutboundInteractiveButtons(
 }
 
 async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any, creds?: WhatsAppCredentials) {
-  const TemplateModel = getWhatsAppTemplate();
   let template: any = null;
   try {
-    if (templateId && templateId.length === 24) {
-      template = await TemplateModel.findById(templateId).lean();
+    // Try Bunny DB first
+    const { getTemplateById, findMetaTemplate } = require('@/lib/bunnyTemplatesRepository');
+    if (templateId && templateId.length > 10) {
+      template = await getTemplateById(templateId);
     }
     if (!template && templateId) {
-      template = await TemplateModel.findOne({ templateName: templateId }).lean();
+      template = await findMetaTemplate('', templateId, 'en');
     }
-  } catch {}
+    
+    // Fallback to MongoDB
+    if (!template) {
+      const TemplateModel = getWhatsAppTemplate();
+      if (templateId && templateId.length === 24) {
+        template = await TemplateModel.findById(templateId).lean();
+      }
+      if (!template && templateId) {
+        template = await TemplateModel.findOne({ templateName: templateId }).lean();
+      }
+    }
+  } catch (e) {
+    console.error('[sendOutboundTemplate] Error looking up template:', e);
+  }
 
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
@@ -973,21 +987,37 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   
   // TEMPLATE node - send WhatsApp template
   if (nextNode.type === 'template') {
-    // Look up template by name or ID to get the actual template document
-    const WhatsAppTemplateModel = getWhatsAppTemplate();
     let tplDoc: any = null;
-    if (nextNode.templateId) {
-      tplDoc = await WhatsAppTemplateModel.findById(nextNode.templateId).lean();
+    
+    // First try Bunny DB
+    try {
+      const { getTemplateById, findMetaTemplate } = require('@/lib/bunnyTemplatesRepository');
+      if (nextNode.templateId && nextNode.templateId.length > 10) { // Bunny DB uses UUIDs or long IDs
+        tplDoc = await getTemplateById(nextNode.templateId);
+      }
+      if (!tplDoc && nextNode.templateName) {
+        tplDoc = await findMetaTemplate('', nextNode.templateName, 'en'); // Try find by name
+      }
+    } catch (e) {
+      console.error('[Chatbot] Error querying Bunny DB for template:', e);
     }
-    if (!tplDoc && nextNode.templateName) {
-      tplDoc = await WhatsAppTemplateModel.findOne({ templateName: nextNode.templateName }).lean();
+    
+    // Fallback to MongoDB
+    if (!tplDoc) {
+      const WhatsAppTemplateModel = getWhatsAppTemplate();
+      if (nextNode.templateId && nextNode.templateId.length === 24) {
+        tplDoc = await WhatsAppTemplateModel.findById(nextNode.templateId).lean();
+      }
+      if (!tplDoc && nextNode.templateName) {
+        tplDoc = await WhatsAppTemplateModel.findOne({ templateName: nextNode.templateName }).lean();
+      }
     }
     
     if (tplDoc) {
       replyObj = {
         isTemplate: true,
         templateId: String(tplDoc._id),
-        templateName: (tplDoc as any).templateName,
+        templateName: tplDoc.templateName,
       };
     } else {
       console.warn(`[Chatbot] Template not found: ${nextNode.templateName || nextNode.templateId}`);

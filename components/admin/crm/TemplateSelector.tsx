@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Search, FileText, Image, Video, File, Check, ChevronDown, RefreshCw, Send } from 'lucide-react';
+import { X, Search, FileText, Image, Video, File, Check, ChevronDown, RefreshCw, Send, Clock } from 'lucide-react';
 
 // Template type matching the API response
 export type WhatsAppTemplate = {
@@ -35,6 +35,7 @@ export type WhatsAppTemplate = {
 interface TemplateSelectorProps {
   token: string | null;
   onSelect: (template: WhatsAppTemplate) => void;
+  onSchedule?: (template: WhatsAppTemplate) => void;
   selectedTemplateId?: string;
   onClose?: () => void;
   showSearch?: boolean;
@@ -342,6 +343,7 @@ function TemplateCard({
 export default function TemplateSelector({
   token,
   onSelect,
+  onSchedule,
   selectedTemplateId,
   onClose,
   showSearch = true,
@@ -569,20 +571,38 @@ export default function TemplateSelector({
             </div>
             <TemplatePreview template={previewTemplate} token={token} />
             
-            {/* Use Template Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[TemplateSelector] Use This Template clicked:', previewTemplate.templateName);
-                handleUseTemplate(previewTemplate);
-              }}
-              className="w-full mt-4 px-4 py-3 bg-[#00A884] hover:bg-[#008f6f] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
-            >
-              <Check size={18} />
-              Use This Template
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleUseTemplate(previewTemplate);
+                }}
+                className="flex-1 px-4 py-3 bg-[#00A884] hover:bg-[#008f6f] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
+              >
+                <Check size={18} />
+                Send Now
+              </button>
+              
+              {onSchedule && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSchedule(previewTemplate);
+                    if (onClose) onClose();
+                  }}
+                  className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
+                  title="Schedule this template"
+                >
+                  <Clock size={18} />
+                  Schedule
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

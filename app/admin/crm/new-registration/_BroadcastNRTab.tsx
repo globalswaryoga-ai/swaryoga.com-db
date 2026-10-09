@@ -99,7 +99,7 @@ export function BroadcastNRTab({
   const activeBatch = workshops.find(w => w.id === selectedBatchId);
 
   const activeBatchLeads = useMemo(() => {
-    if (!activeBatch?.formFilterKeyword || !leadsData.length) return [];
+    if (!activeBatch?.formFilterKeyword || !leadsData.length) return leadsData;
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7 = activeBatch?.metadata?.googleFormMapping?.['AI-7'];
     return leadsData.filter((lead: any) => {

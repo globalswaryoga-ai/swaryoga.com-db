@@ -860,8 +860,8 @@ export default function BroadcastPage(props: BroadcastPageProps) {
           name: name || 'Unknown',
           phoneNumber: phone,
           email: email,
-          status: filterStatus,
-          workshopName: filterWorkshop,
+          status: l._effectiveStatus || l.status || '',
+          workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
         };
       }).filter((l: any) => {

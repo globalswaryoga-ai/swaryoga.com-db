@@ -788,7 +788,19 @@ export default function BroadcastPage(props: any) {
       storageKeys.forEach(k => {
         try {
           const data = localStorage.getItem(k);
-          if (data) localLeads = localLeads.concat(JSON.parse(data));
+          if (data) {
+            const parsed = JSON.parse(data);
+            let lang = '';
+            if (k.includes('marathi')) lang = 'Marathi';
+            else if (k.includes('hindi')) lang = 'Hindi';
+            else if (k.includes('english')) lang = 'English';
+            else if (k.includes('kannada')) lang = 'Kannada';
+
+            localLeads = localLeads.concat(parsed.map((l: any) => ({
+              ...l,
+              workshopName: l.workshopName || lang
+            })));
+          }
         } catch(e) {}
       });
       // Deduplicate with DB leads
@@ -856,7 +868,7 @@ export default function BroadcastPage(props: any) {
           } else {
             const bName = (activeBatch.name || '').toLowerCase();
             let isMatch = false;
-            const lName = (lead.workshopName || '').toLowerCase();
+            const lName = (lead.workshopName || lead.formName || lead.language || '').toLowerCase();
             const lLabels = Array.isArray(lead.labels) ? lead.labels.join(' ').toLowerCase() : '';
             const leadLangStr = lName + ' ' + lLabels;
             
@@ -932,7 +944,7 @@ export default function BroadcastPage(props: any) {
           name: name || `Lead ${idx + 1}`,
           phoneNumber: phone,
           email: email,
-          status: filterStatuses.join(', '),
+          status: l._effectiveStatus || l.status || '',
           workshopName: l.workshopName || filterWorkshop,
           assignedToUserId: l.assignedToUserId,
           labels: l.labels || [],
@@ -1003,6 +1015,8 @@ export default function BroadcastPage(props: any) {
         
         const matchesLanguage = filterLanguage === 'all' || 
           lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+          lead.formName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+          lead.language?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
           (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
         
         const matchesMultiWorkshop = filterWorkshops.length === 0 || activeBatches.length > 0;

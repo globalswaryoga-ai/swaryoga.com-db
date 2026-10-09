@@ -2418,7 +2418,7 @@ export default function NewRegistrationPage() {
             />
           )}
           {activeTab === 'whatsapp_messenger' && (
-            <WhatsAppMessengerTab workshops={workshops} leadsData={leadsData} />
+            <WhatsAppMessengerTab workshops={workshops} leadsData={displayLeads} />
           )}
         </main>
       </div>
