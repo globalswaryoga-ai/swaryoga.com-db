@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2 } from 'lucide-react';
 
 
 
@@ -31,6 +31,7 @@ export function MetaLeadsTab({
     const [isAutoSync, setIsAutoSync] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+    const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
     const syncLeads = async () => {
         if (!formId) return;
@@ -68,6 +69,27 @@ export function MetaLeadsTab({
         return () => clearInterval(interval);
     }, [isAutoSync, formId]);
 
+    
+    const handleDelete = async (ids: string[]) => {
+        if (!confirm(`Are you sure you want to delete ${ids.length} lead(s)? This cannot be undone.`)) return;
+        try {
+            const res = await fetch('/api/admin/crm/meta-leads/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+            if (res.ok) {
+                alert('Deleted successfully. Please refresh the page to see changes.');
+                setSelectedLeads([]);
+            } else {
+                const data = await res.json();
+                alert('Error: ' + data.error);
+            }
+        } catch (e: any) {
+            alert('Error: ' + e.message);
+        }
+    };
+
     const handleConnect = () => {
         saveWorkshopSettings({
             ...selectedWorkshop,
@@ -103,7 +125,18 @@ export function MetaLeadsTab({
                         />
                     </div>
                     
+                    
                     <div className="pt-5 flex items-center gap-2">
+                        {selectedLeads.length > 0 && (
+                            <button 
+                                onClick={() => handleDelete(selectedLeads)}
+                                className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm border border-red-200"
+                            >
+                                <Trash2 size={16} />
+                                Delete Selected ({selectedLeads.length})
+                            </button>
+                        )}
+
                         <button 
                             onClick={handleConnect}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm"
