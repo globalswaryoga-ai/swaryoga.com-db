@@ -64,6 +64,16 @@ export function MetaLeadsTab({
     // Load from localStorage or use default
     const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([]);
 
+    const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
+
+    const toggleDummyQuestionExpansion = (idx: number) => {
+        if (expandedDummyFields.includes(idx)) {
+            setExpandedDummyFields(expandedDummyFields.filter(i => i !== idx));
+        } else {
+            setExpandedDummyFields([...expandedDummyFields, idx]);
+        }
+    };
+
     useEffect(() => {
         if (typeof window !== 'undefined' && selectedWorkshop?.id) {
             const key = `metaDummyFields_${selectedWorkshop.id}`;
@@ -934,75 +944,113 @@ export function MetaLeadsTab({
                             </button>
                         </div>
                         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
-                            {dummyFields.map((field, idx) => (
-                                <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4 relative">
-                                    <button 
-                                        onClick={() => {
-                                            const newFields = [...dummyFields];
-                                            newFields.splice(idx, 1);
-                                            setDummyFields(newFields);
-                                        }}
-                                        className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                            {dummyFields.map((field, idx) => {
+                                const isExpanded = expandedDummyFields.includes(idx);
+                                return (
+                                <div key={idx} className={`bg-white rounded-xl border shadow-sm mb-4 transition-all ${isExpanded ? 'border-slate-300' : 'border-slate-200 hover:border-slate-300'}`}>
                                     
-                                    <div className="mb-3 pr-8">
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Question Key (exact column name)</label>
-                                        <input 
-                                            type="text" 
-                                            value={field.name}
-                                            onChange={(e) => {
-                                                const newFields = [...dummyFields];
-                                                newFields[idx].name = e.target.value;
-                                                setDummyFields(newFields);
-                                            }}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 focus:outline-none"
-                                            placeholder="e.g. are_you_comfortable_in_hindi"
-                                        />
+                                    {/* Header / Collapsed View */}
+                                    <div 
+                                        className="p-4 flex items-center justify-between cursor-pointer"
+                                        onClick={() => toggleDummyQuestionExpansion(idx)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm">
+                                                {idx + 1}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 text-sm">
+                                                    {field.name || <span className="text-slate-400 italic">Untitled Question</span>}
+                                                </h4>
+                                                {!isExpanded && (
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        {field.values.length} answer(s)
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const newFields = [...dummyFields];
+                                                    newFields.splice(idx, 1);
+                                                    setDummyFields(newFields);
+                                                }}
+                                                className="text-slate-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                            <div className="text-slate-400">
+                                                {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Lead's Answer(s)</label>
-                                        {field.values.map((val, valIdx) => (
-                                            <div key={valIdx} className="flex gap-2 mb-2">
+
+                                    {/* Expanded Content View */}
+                                    {isExpanded && (
+                                        <div className="p-4 pt-0 border-t border-slate-100 mt-2">
+                                            <div className="mb-3 mt-4">
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">Question Key (exact column name)</label>
                                                 <input 
                                                     type="text" 
-                                                    value={val}
+                                                    value={field.name}
                                                     onChange={(e) => {
                                                         const newFields = [...dummyFields];
-                                                        newFields[idx].values[valIdx] = e.target.value;
+                                                        newFields[idx].name = e.target.value;
                                                         setDummyFields(newFields);
                                                     }}
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                                                    placeholder="e.g. Yes"
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 focus:outline-none"
+                                                    placeholder="e.g. are_you_comfortable_in_hindi"
                                                 />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">Lead's Answer(s)</label>
+                                                {field.values.map((val, valIdx) => (
+                                                    <div key={valIdx} className="flex gap-2 mb-2">
+                                                        <input 
+                                                            type="text" 
+                                                            value={val}
+                                                            onChange={(e) => {
+                                                                const newFields = [...dummyFields];
+                                                                newFields[idx].values[valIdx] = e.target.value;
+                                                                setDummyFields(newFields);
+                                                            }}
+                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                                            placeholder="e.g. Yes"
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newFields = [...dummyFields];
+                                                                newFields[idx].values.splice(valIdx, 1);
+                                                                setDummyFields(newFields);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-red-500 rounded border border-slate-200"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                ))}
                                                 <button 
                                                     onClick={() => {
                                                         const newFields = [...dummyFields];
-                                                        newFields[idx].values.splice(valIdx, 1);
+                                                        newFields[idx].values.push('');
                                                         setDummyFields(newFields);
                                                     }}
-                                                    className="p-2 text-slate-400 hover:text-red-500 rounded border border-slate-200"
+                                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
                                                 >
-                                                    <X size={16} />
+                                                    + Add Multiple Choice Option
                                                 </button>
                                             </div>
-                                        ))}
-                                        <button 
-                                            onClick={() => {
-                                                const newFields = [...dummyFields];
-                                                newFields[idx].values.push('');
-                                                setDummyFields(newFields);
-                                            }}
-                                            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
-                                        >
-                                            + Add Multiple Choice Option
-                                        </button>
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
+                            )})}
                             <button 
-                                onClick={() => setDummyFields([...dummyFields, {name: '', values: ['']}])}
+                                onClick={() => {
+                                    setDummyFields([...dummyFields, {name: '', values: ['']}]);
+                                    setExpandedDummyFields([...expandedDummyFields, dummyFields.length]);
+                                }}
                                 className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-xl text-sm font-bold mt-2 hover:bg-slate-100 transition-colors"
                             >
                                 + Add Custom Question
