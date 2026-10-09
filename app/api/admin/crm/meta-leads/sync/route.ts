@@ -14,8 +14,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'META_PAGE_ACCESS_TOKEN is missing' }, { status: 500 });
     }
 
+    const appSecret = process.env.META_APP_SECRET;
+    let proofParam = '';
+    if (appSecret) {
+      const crypto = require('crypto');
+      const appsecret_proof = crypto.createHmac('sha256', appSecret).update(token).digest('hex');
+      proofParam = `&appsecret_proof=${appsecret_proof}`;
+    }
+
     // Fetch leads from Meta
-    const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}`);
+    const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}${proofParam}`);
+
     const data = await res.json();
 
     if (data.error) {
