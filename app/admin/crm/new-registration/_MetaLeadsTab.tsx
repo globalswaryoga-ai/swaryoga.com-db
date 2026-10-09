@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play } from 'lucide-react';
 
 export function MetaLeadsTab({ 
     selectedWorkshop, 
@@ -34,9 +34,19 @@ export function MetaLeadsTab({
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
     
-    // WhatsApp Trigger Popup State
-    const [showWTPopup, setShowWTPopup] = useState(false);
-    const [selectedTemplate, setSelectedTemplate] = useState('');
+    // WhatsApp Manual Trigger Popup State (Bulk Actions)
+    const [showManualWTPopup, setShowManualWTPopup] = useState(false);
+    const [manualTemplate, setManualTemplate] = useState('');
+
+    // WhatsApp Auto-Trigger Management Popup State
+    const [showWTSettingsPopup, setShowWTSettingsPopup] = useState(false);
+    const [activeTab, setActiveTab] = useState<'approved' | 'pending'>('approved');
+    
+    // Load existing WT settings or defaults
+    const [wtSettings, setWtSettings] = useState({
+        approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5 },
+        pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
+    });
 
     const syncLeads = async () => {
         if (!formId) return;
@@ -123,10 +133,22 @@ export function MetaLeadsTab({
         alert('Facebook Form ID connected successfully! Webhooks will automatically populate data below.');
     };
 
-    const triggerWhatsApp = async () => {
-        if (!selectedTemplate) return alert("Please select a template!");
-        alert(`Successfully triggered template "${selectedTemplate}" to ${selectedLeads.length} leads!`);
-        setShowWTPopup(false);
+    const saveWTSettings = () => {
+        saveWorkshopSettings({
+            ...selectedWorkshop,
+            metadata: {
+                ...(selectedWorkshop?.metadata || {}),
+                wtSettings: wtSettings
+            }
+        });
+        alert('WhatsApp Trigger Settings saved successfully! The AI-9 engine will now schedule these automatically.');
+        setShowWTSettingsPopup(false);
+    };
+
+    const triggerManualWhatsApp = async () => {
+        if (!manualTemplate) return alert("Please select a template!");
+        alert(`Successfully triggered template "${manualTemplate}" to ${selectedLeads.length} leads!`);
+        setShowManualWTPopup(false);
         setSelectedLeads([]);
     };
 
@@ -175,24 +197,36 @@ export function MetaLeadsTab({
     return (
         <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in p-6 bg-slate-50 h-full relative">
             
-            {/* Header Report Cards */}
-            <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                    <h4 className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Leads</h4>
-                    <p className="text-3xl font-black text-blue-600">{totalLeads}</p>
+            {/* Header Report Cards & Settings Trigger */}
+            <div className="flex gap-4">
+                <div className="grid grid-cols-4 gap-4 flex-1">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                        <h4 className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Leads</h4>
+                        <p className="text-3xl font-black text-blue-600">{totalLeads}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm text-center bg-emerald-50/30">
+                        <h4 className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Approved</h4>
+                        <p className="text-3xl font-black text-emerald-600">{approvedLeads}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm text-center bg-amber-50/30">
+                        <h4 className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-1">Pending</h4>
+                        <p className="text-3xl font-black text-amber-500">{pendingLeads}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm text-center bg-red-50/30">
+                        <h4 className="text-xs text-red-600 font-bold uppercase tracking-wider mb-1">Rejected</h4>
+                        <p className="text-3xl font-black text-red-600">{rejectedLeads}</p>
+                    </div>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm text-center bg-emerald-50/30">
-                    <h4 className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Approved</h4>
-                    <p className="text-3xl font-black text-emerald-600">{approvedLeads}</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm text-center bg-amber-50/30">
-                    <h4 className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-1">Pending</h4>
-                    <p className="text-3xl font-black text-amber-500">{pendingLeads}</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm text-center bg-red-50/30">
-                    <h4 className="text-xs text-red-600 font-bold uppercase tracking-wider mb-1">Rejected</h4>
-                    <p className="text-3xl font-black text-red-600">{rejectedLeads}</p>
-                </div>
+
+                {/* WT Settings Square Button */}
+                <button 
+                    onClick={() => setShowWTSettingsPopup(true)}
+                    className="w-[100px] bg-[#25D366] hover:bg-[#128C7E] rounded-xl shadow-md flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 group"
+                    title="Meta WhatsApp Trigger Management"
+                >
+                    <div className="text-4xl font-black tracking-tighter drop-shadow-md">W</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">WT Mgt</div>
+                </button>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -293,8 +327,8 @@ export function MetaLeadsTab({
                                 <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'old_data')} className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-slate-300">
                                     <Archive size={14} /> Save as Old Data
                                 </button>
-                                <button onClick={() => setShowWTPopup(true)} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm">
-                                    <MessageCircle size={14} /> Trigger WT
+                                <button onClick={() => setShowManualWTPopup(true)} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm">
+                                    <Play size={14} className="fill-white" /> Trigger WT
                                 </button>
                                 <button onClick={() => handleDelete(selectedLeads)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm ml-2">
                                     <Trash2 size={14} /> Delete
@@ -375,16 +409,16 @@ export function MetaLeadsTab({
                 </div>
             </div>
 
-            {/* WT Trigger Popup */}
-            {showWTPopup && (
+            {/* Manual WT Trigger Popup (for bulk action) */}
+            {showManualWTPopup && (
                 <div className="absolute inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                <MessageCircle size={18} className="text-green-600" />
-                                Trigger WhatsApp (WT)
+                                <Play size={18} className="text-[#25D366] fill-[#25D366]" />
+                                Trigger Manual WT
                             </h3>
-                            <button onClick={() => setShowWTPopup(false)} className="text-slate-400 hover:text-slate-600">
+                            <button onClick={() => setShowManualWTPopup(false)} className="text-slate-400 hover:text-slate-600">
                                 <XCircle size={20} />
                             </button>
                         </div>
@@ -395,28 +429,171 @@ export function MetaLeadsTab({
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-2">Select Meta Template</label>
                                 <select 
-                                    value={selectedTemplate}
-                                    onChange={(e) => setSelectedTemplate(e.target.value)}
-                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 bg-white"
+                                    value={manualTemplate}
+                                    onChange={(e) => setManualTemplate(e.target.value)}
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#25D366]/20 focus:border-[#25D366] bg-white"
                                 >
                                     <option value="" disabled>-- Choose a template --</option>
-                                    <option value="welcome_approved">Welcome (For Approved Leads) - Stage 5</option>
-                                    <option value="followup_pending">Follow Up (For Pending Leads) - Stage 6</option>
-                                    <option value="general_offer">General Offer / Notification</option>
+                                    <option value="welcome_message">Welcome Message</option>
+                                    <option value="followup_message">Follow Up Reminder</option>
+                                    <option value="custom_offer">Custom Offer Notification</option>
                                 </select>
                             </div>
                         </div>
                         <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                            <button onClick={() => setShowWTPopup(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                            <button onClick={() => setShowManualWTPopup(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
                                 Cancel
                             </button>
-                            <button onClick={triggerWhatsApp} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2">
-                                <MessageCircle size={16} /> Send WT Now
+                            <button onClick={triggerManualWhatsApp} className="px-4 py-2 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2">
+                                <Play size={16} className="fill-white" /> Send WT Now
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* WT Auto-Trigger Settings Popup */}
+            {showWTSettingsPopup && (
+                <div className="absolute inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
+                        
+                        {/* Header */}
+                        <div className="p-6 bg-[#25D366]/10 border-b border-[#25D366]/20 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg">
+                                    W
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-slate-800 text-xl tracking-tight">WT Management</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Automated WhatsApp Triggers (Stage 5 & 6)</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowWTSettingsPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex bg-slate-50 p-2 gap-2 border-b border-slate-200">
+                            <button 
+                                onClick={() => setActiveTab('approved')} 
+                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'approved' ? 'bg-white text-emerald-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                            >
+                                Stage 5: Approved Leads
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('pending')} 
+                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-white text-amber-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                            >
+                                Stage 6: Pending Leads
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-8 bg-white space-y-6">
+                            
+                            {activeTab === 'approved' && (
+                                <div className="animate-fade-in space-y-6">
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800 shadow-inner">
+                                        <strong className="block mb-1 text-emerald-900">Approved Lead Trigger:</strong>
+                                        This template will be scheduled to send automatically when a lead's stage is marked as 'Approved'.
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Approved Template</label>
+                                        <select 
+                                            value={wtSettings.approved.template}
+                                            onChange={(e) => setWtSettings({ ...wtSettings, approved: { ...wtSettings.approved, template: e.target.value } })}
+                                            className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all"
+                                        >
+                                            <option value="">-- No template selected --</option>
+                                            <option value="welcome_approved">Welcome Approved (Template 1)</option>
+                                            <option value="onboarding_series">Onboarding Series (Template 2)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="flex justify-between block text-sm font-bold text-slate-700 mb-3">
+                                            <span>Schedule Trigger (Delay)</span>
+                                            <span className="text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">{wtSettings.approved.delay} Minutes</span>
+                                        </label>
+                                        <input 
+                                            type="range" 
+                                            min="0" max="600" step="5"
+                                            value={wtSettings.approved.delay}
+                                            onChange={(e) => setWtSettings({ ...wtSettings, approved: { ...wtSettings.approved, delay: parseInt(e.target.value) } })}
+                                            className="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase mt-2">
+                                            <span>0 min (Instant)</span>
+                                            <span>600 min (10 hours)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'pending' && (
+                                <div className="animate-fade-in space-y-6">
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 shadow-inner">
+                                        <strong className="block mb-1 text-amber-900">Pending Lead Trigger:</strong>
+                                        This template will be scheduled to send automatically to follow-up on leads sitting in 'Pending' stage.
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Pending Template</label>
+                                        <select 
+                                            value={wtSettings.pending.template}
+                                            onChange={(e) => setWtSettings({ ...wtSettings, pending: { ...wtSettings.pending, template: e.target.value } })}
+                                            className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all"
+                                        >
+                                            <option value="">-- No template selected --</option>
+                                            <option value="followup_reminder">Follow Up Reminder (Template A)</option>
+                                            <option value="pending_offer">Special Pending Offer (Template B)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="flex justify-between block text-sm font-bold text-slate-700 mb-3">
+                                            <span>Schedule Trigger (Delay)</span>
+                                            <span className="text-amber-600 bg-amber-100 px-3 py-1 rounded-full">{wtSettings.pending.delay} Minutes</span>
+                                        </label>
+                                        <input 
+                                            type="range" 
+                                            min="0" max="600" step="5"
+                                            value={wtSettings.pending.delay}
+                                            onChange={(e) => setWtSettings({ ...wtSettings, pending: { ...wtSettings.pending, delay: parseInt(e.target.value) } })}
+                                            className="w-full accent-amber-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase mt-2">
+                                            <span>0 min (Instant)</span>
+                                            <span>600 min (10 hours)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                            <span className="text-xs text-slate-500 font-bold flex items-center bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                                <Bot size={14} className="text-blue-500 mr-2" />
+                                AI-9 Engine Automated
+                            </span>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowWTSettingsPopup(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">
+                                    Cancel
+                                </button>
+                                <button onClick={saveWTSettings} className="px-6 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all transform hover:-translate-y-0.5 shadow-md hover:shadow-lg flex items-center gap-2">
+                                    <Save size={16} /> Save & Enable
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
