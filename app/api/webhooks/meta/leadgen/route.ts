@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
-import { connectDB } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+
+import { getBunnyLeadByPhone, saveBunnyLead, getBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone, generateAppSecretProof } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -92,7 +92,7 @@ function buildLeadName(fieldData: any[]): string {
  */
 async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
   try {
-    const Lead = getLead();
+    // Removed MongoDB getLead()
     const fieldData = leadgenData.field_data || [];
 
     const leadgenId = leadgenData.id;
@@ -119,49 +119,48 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
     }
 
     // Check for duplicates (by phone, email, or metaLeadgenId)
-    const orFilters: Record<string, unknown>[] = [];
-    if (phone) orFilters.push({ phoneNumber: phone });
-    if (email) orFilters.push({ email });
-    orFilters.push({ 'metadata.metaLeadgenId': metaLeadgenId });
+    // Removed MongoDB orFilters
+    
+    
+    
 
-    const existingLead = await Lead.findOne({ $or: orFilters });
+    let existingLead: any = null;
+    if (phone) {
+      existingLead = await getBunnyLeadByPhone(phone, null);
+    }
+    
+    // If not found by phone, try by metaLeadgenId
+    if (!existingLead) {
+      const allLeadsData = await getBunnyLeads({ limit: 5000, selectAll: true, excludeSource: '' }, null);
+      const allLeads = allLeadsData.leads || [];
+      existingLead = allLeads.find((l: any) => l.metadata?.metaLeadgenId === metaLeadgenId);
+    }
+    // Note: Not doing email fallback for BunnyDB right now since getBunnyLeadByPhone is standard.
 
     if (existingLead) {
-      // Update existing lead with Meta metadata
-      existingLead.metadata = existingLead.metadata || {};
-      existingLead.metadata.metaLeadgenId = metaLeadgenId;
-      existingLead.source = 'meta_leadgen';
+      const existingLabels = Array.isArray(existingLead.labels) ? existingLead.labels : [];
+      const updatedLead = await saveBunnyLead({
+        ...existingLead,
+        source: existingLead.source || 'meta_leadgen',
+        workshopName: (workshopName && !existingLead.workshopName) ? workshopName : existingLead.workshopName,
+        metadata: {
+          ...(existingLead.metadata || {}),
+          metaLeadgenId,
+          ...(formId ? { metaFormId: formId } : {}),
+        },
+        labels: Array.from(new Set([...existingLabels, 'social media']))
+      }, existingLead._id || existingLead.id);
       
-      // Set workshop name if mapped and not already set
-      if (workshopName && !existingLead.workshopName) {
-        existingLead.workshopName = workshopName;
-      }
-
-      // Store form_id in metadata
-      if (formId) existingLead.metadata.metaFormId = formId;
-
-      // Add 'social media' label
-      if (!existingLead.labels || !existingLead.labels.includes('social media')) {
-        existingLead.labels = Array.from(new Set([...(existingLead.labels || []), 'social media']));
-      }
-
-      // Ensure leadNumber exists (legacy/older leads)
-      if (!existingLead.leadNumber) {
-        const { leadNumber } = await allocateNextLeadNumber();
-        existingLead.leadNumber = leadNumber;
-      }
-
-      await existingLead.save();
-      console.log(`Updated existing lead: ${existingLead._id}`);
-      return { success: true, leadId: existingLead._id, action: 'updated' };
+      console.log(`Updated existing lead: ${existingLead._id || existingLead.id}`);
+      return { success: true, leadId: existingLead._id || existingLead.id, action: 'updated' };
     }
 
     // Create new lead
-    const { leadNumber } = await allocateNextLeadNumber();
-    const newLead = await Lead.create({
+    const { leadNumber } = await allocateNextLeadNumber(null);
+    const newLead = await saveBunnyLead({
       leadNumber,
-      phoneNumber: phone || undefined,
-      email: email || undefined,
+      phoneNumber: phone || '',
+      email: email || '',
       name: name || 'Instagram Lead',
       status: 'lead',
       source: 'meta_leadgen',
@@ -172,6 +171,8 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
         ...(formId ? { metaFormId: formId } : {}),
         rawFieldData: fieldData,
       },
+      createdByUserId: 'system',
+      assignedToUserId: 'system',
     });
 
     // Auto-add to main broadcast list
@@ -228,7 +229,7 @@ export async function POST(req: Request) {
     console.log('META WEBHOOK:', JSON.stringify(payload, null, 2));
 
     // Connect to database
-    await connectDB();
+    
 
     // Process leadgen entries
     if (payload.object === 'page' && payload.entry) {

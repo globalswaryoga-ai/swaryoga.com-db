@@ -57,10 +57,24 @@ async function createLeadFromMetaForm(formData: any) {
 
   // Create lead in CRM
   try {
-    const { saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
-    const result = await saveBunnyLead(lead);
-
-    console.log(`✅ Lead created: ${result._id}`);
+    const { saveBunnyLead, getBunnyLeadByPhone } = await import('@/lib/bunnyLeadsRepository');
+    
+    // Check if exists
+    let existing = await getBunnyLeadByPhone(lead.phoneNumber, 'system');
+    
+    let result;
+    if (existing) {
+      result = await saveBunnyLead({
+        ...existing,
+        ...lead, // overwrite with new data (or you might want to selectively merge)
+        labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || [])])),
+        notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
+      }, existing._id || existing.id);
+      console.log(`✅ Lead updated: ${result._id}`);
+    } else {
+      result = await saveBunnyLead(lead);
+      console.log(`✅ Lead created: ${result._id}`);
+    }
 
     return {
       success: true,
