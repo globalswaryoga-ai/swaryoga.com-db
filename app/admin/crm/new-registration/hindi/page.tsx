@@ -820,10 +820,10 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     async function loadLeads() {
-      if (!linkedFormId) return;
+      if (!linkedFormId && !selectedWorkshop?.id) return;
       setIsLoadingLeads(true);
       try {
-        if (linkedFormId.includes('docs.google.com/spreadsheets')) {
+        if (linkedFormId && linkedFormId.includes('docs.google.com/spreadsheets')) {
           const res = await fetch(`/api/admin/google-form-csv?url=${encodeURIComponent(linkedFormId)}`);
           if (res.ok) {
             const json = await res.json();
@@ -835,7 +835,7 @@ export default function NewRegistrationPage() {
             const errorData = await res.json().catch(() => null);
             toast.error(errorData?.error || 'Failed to load Google Sheets CSV');
           }
-        } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms') || linkedFormId) {
+        } else if (linkedFormId && (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms'))) {
           let fetchedLeads = [];
           setNeedsGoogleAuth(false);
 
@@ -928,8 +928,8 @@ export default function NewRegistrationPage() {
             }
             return updated;
           });
-        } else {
-          const res = await fetch(`/api/admin/enquiries?workshopId=${linkedFormId}`, {
+        } else if (selectedWorkshop?.id) {
+          const res = await fetch(`/api/admin/enquiries?workshopId=${selectedWorkshop.id}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
@@ -947,7 +947,7 @@ export default function NewRegistrationPage() {
       }
     }
     loadLeads();
-  }, [linkedFormId, token, refreshLeadsCounter]);
+  }, [linkedFormId, selectedWorkshop?.id, token, refreshLeadsCounter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);

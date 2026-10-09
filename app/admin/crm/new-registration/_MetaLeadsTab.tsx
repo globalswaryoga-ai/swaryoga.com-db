@@ -29,7 +29,7 @@ export function MetaLeadsTab({
     });
     const dynamicColumns = Array.from(allDynamicQuestions);
 
-    const [isAutoSync, setIsAutoSync] = useState(false);
+    const [isAutoSync, setIsAutoSync] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
