@@ -6,7 +6,8 @@ import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, X
 export function MetaLeadsTab({ 
     selectedWorkshop, 
     saveWorkshopSettings, 
-    leadsData 
+    leadsData,
+    refreshLeads
 }: any) {
     const [formId, setFormId] = useState(selectedWorkshop?.metadata?.facebookFormId || '');
     
@@ -125,9 +126,9 @@ export function MetaLeadsTab({
             const data = await res.json();
             if (data.success) {
                 setLastSyncTime(new Date());
-                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Page will now refresh.`);
+                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Table will now refresh.`);
                 if (!isAutoSync) setIsAutoSync(false);
-                window.location.reload();
+                refreshLeads?.();
             } else {
                 alert(`Sync Failed: ${data.error}`);
                 setIsAutoSync(false);
@@ -1088,9 +1089,9 @@ export function MetaLeadsTab({
                                         });
                                         const data = await res.json();
                                         if (res.ok && data.success) {
-                                            alert('Dummy lead simulated! Page will now refresh to show new data.');
+                                            alert('Dummy lead simulated! Table will now refresh to show new data.');
                                             setShowDummyPopup(false);
-                                            window.location.reload();
+                                            refreshLeads?.();
                                         } else {
                                             alert(`Failed to simulate lead: ${data.error || 'Unknown error'}`);
                                         }

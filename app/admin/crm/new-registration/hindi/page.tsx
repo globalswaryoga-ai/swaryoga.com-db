@@ -2416,6 +2416,7 @@ export default function NewRegistrationPage() {
               selectedWorkshop={selectedWorkshop}
               saveWorkshopSettings={saveWorkshopSettings}
               leadsData={displayLeads}
+              refreshLeads={() => setRefreshLeadsCounter(prev => prev + 1)}
             />
           )}
           {activeTab === 'leads_management' && (
