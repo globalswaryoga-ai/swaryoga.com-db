@@ -351,9 +351,11 @@ export function MetaLeadsTab({
                                 <th className="px-4 py-3 whitespace-nowrap">Name</th>
                                 <th className="px-4 py-3 whitespace-nowrap">WhatsApp</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Email</th>
-                                {dynamicColumns.map(col => (
-                                    <th key={col} className="px-4 py-3 whitespace-nowrap text-blue-600 bg-blue-50/50">{col}</th>
-                                ))}
+                                {dynamicColumns.map(col => {
+                                    const formattedCol = col.replace(/_/g, ' ')
+                                        .replace(/\b\w/g, l => l.toUpperCase());
+                                    return <th key={col} className="px-4 py-3 whitespace-nowrap text-blue-600 bg-blue-50/50" title={col}>{formattedCol}</th>;
+                                })}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">

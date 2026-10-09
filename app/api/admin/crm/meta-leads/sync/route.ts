@@ -88,17 +88,22 @@ export async function POST(req: NextRequest) {
         });
         syncedCount++;
       } else {
-        // Update if missing metaLeadId
-        if (!existing.metadata?.metaLeadId) {
+        // Update if missing metaLeadId OR missing workshopId
+        const needsMetaLeadId = !existing.metadata?.metaLeadId;
+        const needsWorkshopId = workshopId && !existing.workshopId;
+        
+        if (needsMetaLeadId || needsWorkshopId) {
           await saveBunnyLead({
             ...existing,
+            workshopId: existing.workshopId || workshopId,
+            workshopName: existing.workshopName || workshopName,
             metadata: {
               ...(existing.metadata || {}),
               metaFormId: formId,
               rawFieldData: rawFieldData,
               metaLeadId: item.id
             },
-            labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry']))
+            labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : '']))
           }, existing._id || existing.id);
           syncedCount++;
         }
