@@ -20,11 +20,14 @@ export function MetaLeadsTab({
 
     // Extract dynamic questions from rawFieldData
     const allDynamicQuestions = new Set<string>();
+    const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state'];
     metaLeads.forEach((lead: any) => {
         if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
             lead.metadata.rawFieldData.forEach((item: any) => {
-                if (item.question_text) allDynamicQuestions.add(item.question_text);
-                if (item.name) allDynamicQuestions.add(item.name);
+                const key = item.question_text || item.name;
+                if (key && !EXCLUDED_COLS.includes(key.toLowerCase())) {
+                    allDynamicQuestions.add(key);
+                }
             });
         }
     });
@@ -71,9 +74,10 @@ export function MetaLeadsTab({
         } else {
             setDummyFields([
                 { name: 'full_name', values: ['John Doe'] },
-                { name: 'phone_number', values: ['+919999999999'] },
                 { name: 'email', values: ['john@example.com'] },
-                { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
+                { name: 'country', values: ['India'] },
+                { name: 'state', values: ['Maharashtra'] },
+                { name: 'phone_number', values: ['+919999999999'] }
             ]);
         }
     }, [selectedWorkshop?.metadata?.dummyFormConfig, selectedWorkshop?.id]);
@@ -465,8 +469,10 @@ export function MetaLeadsTab({
                                 <th className="px-4 py-3 whitespace-nowrap">Stage</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Date & Time</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                                <th className="px-4 py-3 whitespace-nowrap">WhatsApp</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Email</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Country</th>
+                                <th className="px-4 py-3 whitespace-nowrap">State</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Phone Number</th>
                                 {dynamicColumns.map(col => {
                                     const formattedCol = col.replace(/_/g, ' ')
                                         .replace(/\b\w/g, l => l.toUpperCase());
@@ -504,9 +510,11 @@ export function MetaLeadsTab({
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(lead.createdAt).toLocaleString()}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-800">{lead.name || '-'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap">{lead.phoneNumber || '-'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap">{lead.email || '-'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-800">{lead.name || answers.full_name || answers.name || '-'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap">{lead.email || answers.email || '-'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap">{lead.country || answers.country || '-'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap">{lead.state || answers.state || '-'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-700">{lead.phoneNumber || answers.phone_number || answers.phone || '-'}</td>
                                         {dynamicColumns.map(col => (
                                             <td key={col} className="px-4 py-3 min-w-[150px] bg-blue-50/10">
                                                 {answers[col] || '-'}
@@ -1037,8 +1045,13 @@ export function MetaLeadsTab({
                             )})}
                             <button 
                                 onClick={() => {
-                                    setDummyFields([...dummyFields, {name: '', values: ['']}]);
-                                    setExpandedDummyFields([...expandedDummyFields, dummyFields.length]);
+                                    const basicFields = ['full_name', 'email', 'country', 'state', 'phone_number'];
+                                    const firstBasicIndex = dummyFields.findIndex(f => basicFields.includes(f.name));
+                                    const newFields = [...dummyFields];
+                                    const insertIndex = firstBasicIndex === -1 ? newFields.length : firstBasicIndex;
+                                    newFields.splice(insertIndex, 0, {name: '', values: ['']});
+                                    setDummyFields(newFields);
+                                    setExpandedDummyFields([...expandedDummyFields, insertIndex]);
                                 }}
                                 className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-xl text-sm font-bold mt-2 hover:bg-slate-100 transition-colors"
                             >
@@ -1048,12 +1061,13 @@ export function MetaLeadsTab({
                         <div className="p-5 border-t border-slate-200 flex justify-between gap-3 bg-slate-50">
                             <button 
                                 onClick={() => {
-                                    if (confirm('Are you sure you want to reset the form to the default 4 basic questions?')) {
+                                    if (confirm('Are you sure you want to reset the form to the default basic questions?')) {
                                         setDummyFields([
                                             { name: 'full_name', values: ['John Doe'] },
-                                            { name: 'phone_number', values: ['+919999999999'] },
                                             { name: 'email', values: ['john@example.com'] },
-                                            { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
+                                            { name: 'country', values: ['India'] },
+                                            { name: 'state', values: ['Maharashtra'] },
+                                            { name: 'phone_number', values: ['+919999999999'] }
                                         ]);
                                     }
                                 }}
