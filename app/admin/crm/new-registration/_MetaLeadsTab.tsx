@@ -46,6 +46,7 @@ export function MetaLeadsTab({
     const [wtSettings, setWtSettings] = useState({
         approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5 },
         pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
+    });
     const [showAI9Popup, setShowAI9Popup] = useState(false);
     const [ai9Config, setAi9Config] = useState<any>(selectedWorkshop?.metadata?.ai9Config || { 
         filters: [{ question: '', expectedAnswer: '', matchCategory: 'approved', mismatchCategory: 'pending', directMove: '' }],
