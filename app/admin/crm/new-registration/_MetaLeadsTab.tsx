@@ -517,8 +517,11 @@ export function MetaLeadsTab({
                                 const answers: Record<string, string> = {};
                                 if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
                                     lead.metadata.rawFieldData.forEach((item: any) => {
-                                        if (item.question_text) answers[item.question_text] = item.response || '';
-                                        if (item.name) answers[item.name] = item.values?.[0] || '';
+                                        const val = item.values?.[0] ?? item.response ?? '';
+                                        // Index by name (API key)
+                                        if (item.name) answers[item.name] = val;
+                                        // Index by question_text (human readable)
+                                        if (item.question_text) answers[item.question_text] = val;
                                     });
                                 }
 
