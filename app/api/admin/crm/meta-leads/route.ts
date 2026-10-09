@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const workshopId = url.searchParams.get('workshopId');
+    const metaFormId = url.searchParams.get('metaFormId') || '';
 
     if (!workshopId) {
       return NextResponse.json({ error: 'workshopId is required' }, { status: 400 });
@@ -35,15 +36,24 @@ export async function GET(request: NextRequest) {
     
     // We want to return raw Meta leads (source: meta_instant_form)
     const leadsList = Array.isArray(bunnyResult) ? bunnyResult : (bunnyResult?.leads || []);
-    const metaLeads = leadsList.filter((l: any) => 
-      (l.workshopId === workshopId) && 
-      (l.source === 'meta_instant_form' || (l.labels || []).includes('meta_instant_form'))
+    const allMetaLeads = leadsList.filter((l: any) => 
+      l.source === 'meta_instant_form' || (l.labels || []).includes('meta_instant_form')
     );
+
+    // First try: exact workshopId match
+    let metaLeads = allMetaLeads.filter((l: any) => l.workshopId === workshopId);
     
-    console.log(`[MetaLeads API] Fetched ${leadsList.length} total leads. Filtered for workshopId ${workshopId} -> ${metaLeads.length} leads.`);
-    if (metaLeads.length === 0 && leadsList.length > 0) {
-       console.log("Sample lead:", leadsList[0].workshopId, leadsList[0].source);
+    // Second try: match by metaFormId saved in metadata
+    if (metaLeads.length === 0 && metaFormId) {
+      metaLeads = allMetaLeads.filter((l: any) => l.metadata?.metaFormId === metaFormId);
     }
+
+    // Third try: return ALL meta leads (unassigned leads from webhook have no workshopId)
+    if (metaLeads.length === 0) {
+      metaLeads = allMetaLeads;
+    }
+    
+    console.log(`[MetaLeads API] workshopId=${workshopId}, total meta leads=${allMetaLeads.length}, filtered=${metaLeads.length}`);
 
     // We don't mangle them so that _MetaLeadsTab.tsx can access l.metadata.rawFieldData
     return NextResponse.json({ success: true, data: metaLeads });

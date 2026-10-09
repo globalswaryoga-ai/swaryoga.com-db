@@ -21,7 +21,8 @@ export function MetaLeadsTab({
         if (!selectedWorkshop?.id) return;
         const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
         setIsFetchingLeads(true);
-        fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(selectedWorkshop.id)}`, {
+        const metaFormId = selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '';
+        fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(selectedWorkshop.id)}&metaFormId=${encodeURIComponent(metaFormId)}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         .then(r => r.json())
