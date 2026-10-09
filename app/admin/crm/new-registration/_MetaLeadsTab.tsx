@@ -104,8 +104,9 @@ export function MetaLeadsTab({
             const data = await res.json();
             if (data.success) {
                 setLastSyncTime(new Date());
-                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Please refresh the page to see them.`);
+                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Page will now refresh.`);
                 if (!isAutoSync) setIsAutoSync(false);
+                window.location.reload();
             } else {
                 alert(`Sync Failed: ${data.error}`);
                 setIsAutoSync(false);
@@ -947,8 +948,9 @@ export function MetaLeadsTab({
                                             body: JSON.stringify({ fields: dummyFields, workshopId: selectedWorkshop?.id, workshopName: selectedWorkshop?.name })
                                         });
                                         if (res.ok) {
-                                            alert('Dummy lead simulated! Please refresh the page to see the new columns in AI-9 Configuration.');
+                                            alert('Dummy lead simulated! Page will now refresh to show new data.');
                                             setShowDummyPopup(false);
+                                            window.location.reload();
                                         } else {
                                             alert('Failed to simulate lead.');
                                         }
