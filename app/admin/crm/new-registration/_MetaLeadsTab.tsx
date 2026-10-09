@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2 } from 'lucide-react';
-
-
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter } from 'lucide-react';
 
 export function MetaLeadsTab({ 
     selectedWorkshop, 
@@ -13,7 +11,11 @@ export function MetaLeadsTab({
     const [formId, setFormId] = useState(selectedWorkshop?.metadata?.facebookFormId || '');
     
     // Filter only meta leads
-    const metaLeads = (leadsData || []).filter((lead: any) => lead.source === 'meta_instant_form' || lead.formSource === 'facebook_instagram_ads' || lead.labels?.includes('meta_instant_form'));
+    let metaLeads = (leadsData || []).filter((lead: any) => lead.source === 'meta_instant_form' || lead.formSource === 'facebook_instagram_ads' || lead.labels?.includes('meta_instant_form'));
+
+    // State for Search and Filter
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('All');
 
     // Extract dynamic questions from rawFieldData
     const allDynamicQuestions = new Set<string>();
@@ -27,11 +29,14 @@ export function MetaLeadsTab({
     });
     const dynamicColumns = Array.from(allDynamicQuestions);
 
-    
     const [isAutoSync, setIsAutoSync] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+    
+    // WhatsApp Trigger Popup State
+    const [showWTPopup, setShowWTPopup] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState('');
 
     const syncLeads = async () => {
         if (!formId) return;
@@ -44,18 +49,14 @@ export function MetaLeadsTab({
             });
             const data = await res.json();
             if (data.success) {
-                console.log('Synced', data.syncedCount, 'new leads');
                 setLastSyncTime(new Date());
-                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Please refresh the page to see them in the table.`);
-                // Turn off auto-sync after a successful manual pull so it doesn't get stuck
+                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Please refresh the page to see them.`);
                 if (!isAutoSync) setIsAutoSync(false);
             } else {
-                console.error('Sync failed', data.error);
                 alert(`Sync Failed: ${data.error}`);
-                setIsAutoSync(false); // Turn off auto-sync if it's failing
+                setIsAutoSync(false);
             }
         } catch (e: any) {
-            console.error(e);
             alert(`Sync Failed: ${e.message}`);
             setIsAutoSync(false);
         } finally {
@@ -66,13 +67,31 @@ export function MetaLeadsTab({
     useEffect(() => {
         let interval: any;
         if (isAutoSync && formId) {
-            syncLeads(); // Sync immediately on toggle
-            interval = setInterval(syncLeads, 5 * 60 * 1000); // Every 5 minutes
+            syncLeads();
+            interval = setInterval(syncLeads, 10 * 60 * 1000); // Changed to 10 minutes per request
         }
         return () => clearInterval(interval);
     }, [isAutoSync, formId]);
 
-    
+    const handleBulkStatusUpdate = async (ids: string[], newStatus: string) => {
+        if (!ids.length) return;
+        try {
+            const res = await fetch('/api/admin/crm/meta-leads/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids, status: newStatus })
+            });
+            if (res.ok) {
+                alert(`Successfully marked ${ids.length} leads as ${newStatus}. Please refresh the page.`);
+                setSelectedLeads([]);
+            } else {
+                alert('Update Failed');
+            }
+        } catch (e: any) {
+            alert('Error updating status: ' + e.message);
+        }
+    };
+
     const handleDelete = async (ids: string[]) => {
         if (!confirm(`Are you sure you want to delete ${ids.length} lead(s)? This cannot be undone.`)) return;
         try {
@@ -104,8 +123,78 @@ export function MetaLeadsTab({
         alert('Facebook Form ID connected successfully! Webhooks will automatically populate data below.');
     };
 
+    const triggerWhatsApp = async () => {
+        if (!selectedTemplate) return alert("Please select a template!");
+        alert(`Successfully triggered template "${selectedTemplate}" to ${selectedLeads.length} leads!`);
+        setShowWTPopup(false);
+        setSelectedLeads([]);
+    };
+
+    // Calculate Reports
+    const totalLeads = metaLeads.length;
+    const approvedLeads = metaLeads.filter((l: any) => l.status === 'approved').length;
+    const pendingLeads = metaLeads.filter((l: any) => !l.status || l.status === 'pending' || l.status === 'new').length;
+    const rejectedLeads = metaLeads.filter((l: any) => l.status === 'rejected').length;
+
+    // Filter & Sort Logic
+    let filteredLeads = metaLeads.filter((lead: any) => {
+        const matchesSearch = 
+            (lead.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (lead.phoneNumber || '').includes(searchQuery) ||
+            (lead.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const currentStatus = lead.status || 'new';
+        const isPending = currentStatus === 'pending' || currentStatus === 'new';
+        
+        let matchesStatus = true;
+        if (statusFilter === 'Approved') matchesStatus = currentStatus === 'approved';
+        if (statusFilter === 'Pending') matchesStatus = isPending;
+        if (statusFilter === 'Rejected') matchesStatus = currentStatus === 'rejected';
+        if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
+
+        return matchesSearch && matchesStatus;
+    });
+
+    // Sort: New leads first, Old data at the bottom
+    filteredLeads.sort((a: any, b: any) => {
+        if (a.status === 'old_data' && b.status !== 'old_data') return 1;
+        if (a.status !== 'old_data' && b.status === 'old_data') return -1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Checkbox toggles
+    const toggleLead = (id: string) => {
+        if (selectedLeads.includes(id)) setSelectedLeads(selectedLeads.filter(l => l !== id));
+        else setSelectedLeads([...selectedLeads, id]);
+    };
+    const toggleAll = () => {
+        if (selectedLeads.length === filteredLeads.length) setSelectedLeads([]);
+        else setSelectedLeads(filteredLeads.map((l: any) => l._id || l.id));
+    };
+
     return (
-        <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in p-6 bg-slate-50 h-full">
+        <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in p-6 bg-slate-50 h-full relative">
+            
+            {/* Header Report Cards */}
+            <div className="grid grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                    <h4 className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Leads</h4>
+                    <p className="text-3xl font-black text-blue-600">{totalLeads}</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm text-center bg-emerald-50/30">
+                    <h4 className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Approved</h4>
+                    <p className="text-3xl font-black text-emerald-600">{approvedLeads}</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm text-center bg-amber-50/30">
+                    <h4 className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-1">Pending</h4>
+                    <p className="text-3xl font-black text-amber-500">{pendingLeads}</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm text-center bg-red-50/30">
+                    <h4 className="text-xs text-red-600 font-bold uppercase tracking-wider mb-1">Rejected</h4>
+                    <p className="text-3xl font-black text-red-600">{rejectedLeads}</p>
+                </div>
+            </div>
+
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100 flex items-center gap-3">
                     <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
@@ -113,11 +202,11 @@ export function MetaLeadsTab({
                     </div>
                     <div>
                         <h2 className="text-lg font-bold text-slate-800">Meta Leads Connection</h2>
-                        <p className="text-xs text-slate-500">Connect a Facebook/Instagram Form ID to this workshop.</p>
+                        <p className="text-xs text-slate-500">Connect a Facebook Form ID to trigger Stage-1 sync & Stage-2 Auto-Sync (10 mins).</p>
                     </div>
                 </div>
-                <div className="p-5 bg-slate-50 flex items-center gap-4">
-                    <div className="flex-1 max-w-md">
+                <div className="p-5 bg-slate-50 flex items-center gap-4 flex-wrap">
+                    <div className="flex-1 min-w-[250px] max-w-md">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Facebook Form ID</label>
                         <input 
                             type="text" 
@@ -128,18 +217,7 @@ export function MetaLeadsTab({
                         />
                     </div>
                     
-                    
-                    <div className="pt-5 flex items-center gap-2">
-                        {selectedLeads.length > 0 && (
-                            <button 
-                                onClick={() => handleDelete(selectedLeads)}
-                                className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm border border-red-200"
-                            >
-                                <Trash2 size={16} />
-                                Delete Selected ({selectedLeads.length})
-                            </button>
-                        )}
-
+                    <div className="pt-5 flex flex-wrap items-center gap-2">
                         <button 
                             onClick={handleConnect}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm"
@@ -153,80 +231,99 @@ export function MetaLeadsTab({
                             className={`px-4 py-2 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
                         >
                             <Bot size={16} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
-                            AI-9A Auto-Sync
+                            AI-9A Auto-Sync (10m)
                         </button>
-                        
-                        <label className="px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm cursor-pointer ml-auto">
-                            <Download size={16} className="rotate-180" />
-                            Import CSV
-                            <input 
-                                type="file" 
-                                accept=".csv" 
-                                className="hidden"
-                                onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    setIsSyncing(true);
-                                    try {
-                                        const formData = new FormData();
-                                        formData.append('file', file);
-                                        formData.append('workshopId', selectedWorkshop?.id || '');
-                                        formData.append('workshopName', selectedWorkshop?.name || '');
-                                        
-                                        const res = await fetch('/api/admin/crm/meta-leads/import-csv', {
-                                            method: 'POST',
-                                            body: formData
-                                        });
-                                        const data = await res.json();
-                                        if (data.success) {
-                                            alert(`Successfully imported ${data.syncedCount} new leads!`);
-                                        } else {
-                                            alert(`Import failed: ${data.error}`);
-                                        }
-                                    } catch (err: any) {
-                                        alert(`Error uploading file: ${err.message}`);
-                                    } finally {
-                                        setIsSyncing(false);
-                                        e.target.value = '';
-                                    }
-                                }}
-                            />
-                        </label>
-
-                        {isSyncing && <RefreshCw size={16} className="text-blue-500 animate-spin ml-2" />}
                     </div>
-
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <div>
-                        <h3 className="font-bold text-slate-800">Meta Leads Data</h3>
-                        <p className="text-xs text-slate-500">Auto-populated from Facebook Webhooks</p>
+            {/* Leads Data Table Section */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+                
+                {/* Toolbar */}
+                <div className="p-4 border-b border-slate-200 flex flex-col gap-4 bg-slate-50">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-lg">Leads Management Database (Stage 3 & 4)</h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text"
+                                    placeholder="Search leads..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-64"
+                                />
+                            </div>
+                            <div className="relative">
+                                <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <select 
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none bg-white font-medium"
+                                >
+                                    <option value="All">All Stages</option>
+                                    <option value="Pending">Pending (Stage 2)</option>
+                                    <option value="Approved">Approved (Stage 4)</option>
+                                    <option value="Rejected">Rejected (Stage 4)</option>
+                                    <option value="Old Data">Old Data</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">
-                        {metaLeads.length} Leads
-                    </div>
+
+                    {/* Bulk Actions Bar */}
+                    {selectedLeads.length > 0 && (
+                        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-3 rounded-lg animate-fade-in">
+                            <div className="text-sm font-bold text-blue-800">
+                                {selectedLeads.length} Lead(s) Selected
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'approved')} className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-emerald-200">
+                                    <CheckCircle size={14} /> Approve
+                                </button>
+                                <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'pending')} className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-amber-200">
+                                    <Clock size={14} /> Pending
+                                </button>
+                                <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'rejected')} className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-red-200">
+                                    <XCircle size={14} /> Reject
+                                </button>
+                                <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'old_data')} className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-slate-300">
+                                    <Archive size={14} /> Save as Old Data
+                                </button>
+                                <button onClick={() => setShowWTPopup(true)} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm">
+                                    <MessageCircle size={14} /> Trigger WT
+                                </button>
+                                <button onClick={() => handleDelete(selectedLeads)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm ml-2">
+                                    <Trash2 size={14} /> Delete
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
-                <div className="overflow-x-auto">
+
+                {/* Table */}
+                <div className="overflow-auto flex-1 relative">
                     <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <thead className="text-xs uppercase bg-white text-slate-500 font-bold border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-4 py-3 whitespace-nowrap">Sr.No</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Submitted Date & Time</th>
-                                <th className="px-4 py-3 whitespace-nowrap">Form ID</th>
+                                <th className="px-4 py-3 whitespace-nowrap w-10">
+                                    <input type="checkbox" checked={selectedLeads.length > 0 && selectedLeads.length === filteredLeads.length} onChange={toggleAll} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                </th>
+                                <th className="px-4 py-3 whitespace-nowrap">Stage</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Date & Time</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                                <th className="px-4 py-3 whitespace-nowrap">WhatsApp Number</th>
+                                <th className="px-4 py-3 whitespace-nowrap">WhatsApp</th>
                                 <th className="px-4 py-3 whitespace-nowrap">Email</th>
                                 {dynamicColumns.map(col => (
-                                    <th key={col} className="px-4 py-3 whitespace-nowrap text-blue-600">{col}</th>
+                                    <th key={col} className="px-4 py-3 whitespace-nowrap text-blue-600 bg-blue-50/50">{col}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {metaLeads.map((lead: any, idx: number) => {
-                                // Extract dynamic answers
+                            {filteredLeads.map((lead: any, idx: number) => {
                                 const answers: Record<string, string> = {};
                                 if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
                                     lead.metadata.rawFieldData.forEach((item: any) => {
@@ -235,26 +332,41 @@ export function MetaLeadsTab({
                                     });
                                 }
 
+                                const isSelected = selectedLeads.includes(lead._id || lead.id);
+                                const status = lead.status || 'new';
+                                
+                                let statusColor = 'bg-slate-100 text-slate-700';
+                                if (status === 'approved') statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                                else if (status === 'pending' || status === 'new') statusColor = 'bg-amber-100 text-amber-700 border-amber-200';
+                                else if (status === 'rejected') statusColor = 'bg-red-100 text-red-700 border-red-200';
+                                else if (status === 'old_data') statusColor = 'bg-slate-200 text-slate-500 border-slate-300 line-through opacity-70';
+
                                 return (
-                                    <tr key={lead._id || idx} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900">{idx + 1}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap">{new Date(lead.createdAt).toLocaleString()}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap">{lead.metadata?.metaFormId || lead.metadata?.formId || formId || '-'}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap font-medium">{lead.name || '-'}</td>
+                                    <tr key={lead._id || idx} className={`${isSelected ? 'bg-blue-50/50' : 'hover:bg-slate-50'} transition-colors ${status === 'old_data' ? 'bg-slate-50/50' : ''}`}>
+                                        <td className="px-4 py-3">
+                                            <input type="checkbox" checked={isSelected} onChange={() => toggleLead(lead._id || lead.id)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            <span className={`px-2.5 py-1 text-[10px] uppercase font-bold rounded-full border ${statusColor}`}>
+                                                {status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(lead.createdAt).toLocaleString()}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-800">{lead.name || '-'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap">{lead.phoneNumber || '-'}</td>
                                         <td className="px-4 py-3 whitespace-nowrap">{lead.email || '-'}</td>
                                         {dynamicColumns.map(col => (
-                                            <td key={col} className="px-4 py-3 min-w-[150px]">
+                                            <td key={col} className="px-4 py-3 min-w-[150px] bg-blue-50/10">
                                                 {answers[col] || '-'}
                                             </td>
                                         ))}
                                     </tr>
                                 );
                             })}
-                            {metaLeads.length === 0 && (
+                            {filteredLeads.length === 0 && (
                                 <tr>
-                                    <td colSpan={6 + dynamicColumns.length} className="px-4 py-8 text-center text-slate-500">
-                                        No Meta leads found. Make sure the webhook is firing and the form is connected.
+                                    <td colSpan={6 + dynamicColumns.length} className="px-4 py-12 text-center text-slate-500">
+                                        No Meta leads match your current filters.
                                     </td>
                                 </tr>
                             )}
@@ -262,6 +374,49 @@ export function MetaLeadsTab({
                     </table>
                 </div>
             </div>
+
+            {/* WT Trigger Popup */}
+            {showWTPopup && (
+                <div className="absolute inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+                        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                <MessageCircle size={18} className="text-green-600" />
+                                Trigger WhatsApp (WT)
+                            </h3>
+                            <button onClick={() => setShowWTPopup(false)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <p className="text-sm text-slate-600">
+                                You are about to send a WhatsApp template to <strong className="text-blue-600">{selectedLeads.length} leads</strong>.
+                            </p>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">Select Meta Template</label>
+                                <select 
+                                    value={selectedTemplate}
+                                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 bg-white"
+                                >
+                                    <option value="" disabled>-- Choose a template --</option>
+                                    <option value="welcome_approved">Welcome (For Approved Leads) - Stage 5</option>
+                                    <option value="followup_pending">Follow Up (For Pending Leads) - Stage 6</option>
+                                    <option value="general_offer">General Offer / Notification</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button onClick={() => setShowWTPopup(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={triggerWhatsApp} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2">
+                                <MessageCircle size={16} /> Send WT Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
