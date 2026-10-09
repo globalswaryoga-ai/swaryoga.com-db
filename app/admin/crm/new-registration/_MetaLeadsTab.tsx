@@ -18,20 +18,7 @@ export function MetaLeadsTab({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
 
-    // Extract dynamic questions from rawFieldData
-    const allDynamicQuestions = new Set<string>();
-    const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state'];
-    metaLeads.forEach((lead: any) => {
-        if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
-            lead.metadata.rawFieldData.forEach((item: any) => {
-                const key = item.question_text || item.name;
-                if (key && !EXCLUDED_COLS.includes(key.toLowerCase())) {
-                    allDynamicQuestions.add(key);
-                }
-            });
-        }
-    });
-    const dynamicColumns = Array.from(allDynamicQuestions);
+
 
     const [isAutoSync, setIsAutoSync] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -83,6 +70,31 @@ export function MetaLeadsTab({
     }, [selectedWorkshop?.metadata?.dummyFormConfig, selectedWorkshop?.id]);
 
     const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
+
+    // Extract dynamic questions from rawFieldData and dummyFields
+    const allDynamicQuestions = new Set<string>();
+    const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state'];
+    
+    // Always include columns defined in the dummy form config
+    if (dummyFields && Array.isArray(dummyFields)) {
+        dummyFields.forEach(field => {
+            if (field.name && !EXCLUDED_COLS.includes(field.name.toLowerCase())) {
+                allDynamicQuestions.add(field.name);
+            }
+        });
+    }
+
+    metaLeads.forEach((lead: any) => {
+        if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
+            lead.metadata.rawFieldData.forEach((item: any) => {
+                const key = item.question_text || item.name;
+                if (key && !EXCLUDED_COLS.includes(key.toLowerCase())) {
+                    allDynamicQuestions.add(key);
+                }
+            });
+        }
+    });
+    const dynamicColumns = Array.from(allDynamicQuestions);
 
     const toggleDummyQuestionExpansion = (idx: number) => {
         if (expandedDummyFields.includes(idx)) {
