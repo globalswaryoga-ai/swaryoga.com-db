@@ -60,11 +60,11 @@ export function MetaLeadsTab({
 
     // Dummy Lead State
     const [showDummyPopup, setShowDummyPopup] = useState(false);
-    const [dummyFields, setDummyFields] = useState<{name: string, value: string}[]>([
-        { name: 'full_name', value: 'John Doe' },
-        { name: 'phone_number', value: '+919999999999' },
-        { name: 'email', value: 'john@example.com' },
-        { name: 'are_you_comfortable_in_hindi', value: 'Yes' }
+    const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([
+        { name: 'full_name', values: ['John Doe'] },
+        { name: 'phone_number', values: ['+919999999999'] },
+        { name: 'email', values: ['john@example.com'] },
+        { name: 'are_you_comfortable_in_hindi', values: ['Yes', 'No'] }
     ]);
     const [isSubmittingDummy, setIsSubmittingDummy] = useState(false);
 
@@ -912,23 +912,47 @@ export function MetaLeadsTab({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Lead's Answer</label>
-                                        <input 
-                                            type="text" 
-                                            value={field.value}
-                                            onChange={(e) => {
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Lead's Answer(s)</label>
+                                        {field.values.map((val, valIdx) => (
+                                            <div key={valIdx} className="flex gap-2 mb-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={val}
+                                                    onChange={(e) => {
+                                                        const newFields = [...dummyFields];
+                                                        newFields[idx].values[valIdx] = e.target.value;
+                                                        setDummyFields(newFields);
+                                                    }}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                                    placeholder="e.g. Yes"
+                                                />
+                                                <button 
+                                                    onClick={() => {
+                                                        const newFields = [...dummyFields];
+                                                        newFields[idx].values.splice(valIdx, 1);
+                                                        setDummyFields(newFields);
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-red-500 rounded border border-slate-200"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={() => {
                                                 const newFields = [...dummyFields];
-                                                newFields[idx].value = e.target.value;
+                                                newFields[idx].values.push('');
                                                 setDummyFields(newFields);
                                             }}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                                            placeholder="e.g. Yes"
-                                        />
+                                            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                                        >
+                                            + Add Multiple Choice Option
+                                        </button>
                                     </div>
                                 </div>
                             ))}
                             <button 
-                                onClick={() => setDummyFields([...dummyFields, {name: '', value: ''}])}
+                                onClick={() => setDummyFields([...dummyFields, {name: '', values: ['']}])}
                                 className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-xl text-sm font-bold mt-2 hover:bg-slate-100 transition-colors"
                             >
                                 + Add Custom Question

@@ -16,13 +16,14 @@ export async function POST(req: NextRequest) {
 
     for (const field of fields) {
       const fieldName = field.name.toLowerCase();
-      const value = field.value || '';
+      const values = field.values || [];
       
-      rawFieldData.push({ name: field.name, values: [value] });
+      rawFieldData.push({ name: field.name, values: values });
 
-      if (fieldName.includes('phone')) phone = value;
-      else if (fieldName.includes('email')) email = value;
-      else if (fieldName.includes('full_name') || fieldName === 'name') name = value;
+      const firstValue = values[0] || '';
+      if (fieldName.includes('phone')) phone = firstValue;
+      else if (fieldName.includes('email')) email = firstValue;
+      else if (fieldName.includes('full_name') || fieldName === 'name') name = firstValue;
     }
 
     const cleanPhone = phone.replace(/\D/g, '');
