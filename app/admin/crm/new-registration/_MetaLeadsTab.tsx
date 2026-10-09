@@ -47,9 +47,13 @@ export function MetaLeadsTab({
                 setLastSyncTime(new Date());
             } else {
                 console.error('Sync failed', data.error);
+                alert(`Sync Failed: ${data.error}`);
+                setIsAutoSync(false); // Turn off auto-sync if it's failing
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Sync Failed: ${e.message}`);
+            setIsAutoSync(false);
         } finally {
             setIsSyncing(false);
         }
@@ -107,6 +111,7 @@ export function MetaLeadsTab({
                             <Save size={16} />
                             Connect Form
                         </button>
+
                         <button 
                             onClick={() => setIsAutoSync(!isAutoSync)}
                             className={`px-4 py-2 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
@@ -114,6 +119,44 @@ export function MetaLeadsTab({
                             <Bot size={16} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
                             AI-9A Auto-Sync
                         </button>
+                        
+                        <label className="px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 font-bold rounded-lg transition-colors flex items-center gap-2 text-sm shadow-sm cursor-pointer ml-auto">
+                            <Download size={16} className="rotate-180" />
+                            Import CSV
+                            <input 
+                                type="file" 
+                                accept=".csv" 
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setIsSyncing(true);
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        formData.append('workshopId', selectedWorkshop?.id || '');
+                                        formData.append('workshopName', selectedWorkshop?.name || '');
+                                        
+                                        const res = await fetch('/api/admin/crm/meta-leads/import-csv', {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            alert(`Successfully imported ${data.syncedCount} new leads!`);
+                                        } else {
+                                            alert(`Import failed: ${data.error}`);
+                                        }
+                                    } catch (err: any) {
+                                        alert(`Error uploading file: ${err.message}`);
+                                    } finally {
+                                        setIsSyncing(false);
+                                        e.target.value = '';
+                                    }
+                                }}
+                            />
+                        </label>
+
                         {isSyncing && <RefreshCw size={16} className="text-blue-500 animate-spin ml-2" />}
                     </div>
 
