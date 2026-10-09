@@ -46,9 +46,12 @@ export function MetaLeadsTab({
     const [wtSettings, setWtSettings] = useState({
         approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5 },
         pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
-    });
     const [showAI9Popup, setShowAI9Popup] = useState(false);
-    const [ai9Config, setAi9Config] = useState(selectedWorkshop?.metadata?.ai9Config || { mapping: '' });
+    const [ai9Config, setAi9Config] = useState<any>(selectedWorkshop?.metadata?.ai9Config || { 
+        filters: [{ question: '', expectedAnswer: '', matchCategory: 'approved', mismatchCategory: 'pending', directMove: '' }],
+        maxMismatches: 2,
+        mismatchFallback: 'rejected'
+    });
 
     const [formIdHistory, setFormIdHistory] = useState<string[]>([]);
 
@@ -657,20 +660,154 @@ export function MetaLeadsTab({
                             </button>
                         </div>
 
-                        <div className="p-6">
-                            <label className="block text-sm font-bold text-slate-700 mb-2 flex justify-between">
-                                <span>AI Mapping Configuration</span>
-                            </label>
-                            <textarea
-                                value={ai9Config.mapping}
-                                onChange={(e) => setAi9Config({ ...ai9Config, mapping: e.target.value })}
-                                placeholder="Example:&#10;Q: Are you comfortable attending the workshop in Hindi?&#10;A: Yes&#10;Action: Approved"
-                                className="w-full h-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:bg-white transition-colors resize-none placeholder-slate-400 font-mono"
-                            ></textarea>
-                            <p className="text-xs text-slate-500 mt-3 font-medium flex items-center gap-1.5 bg-yellow-50 p-2 rounded-lg border border-yellow-100">
-                                <Bot size={14} className="text-yellow-600" />
-                                AI-9 uses this configuration to automatically qualify incoming leads into stages (Approved, Pending, Rejected).
-                            </p>
+                        <div className="p-6 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
+                            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                        <Save className="text-yellow-700" size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-yellow-900 text-sm flex items-center gap-2">
+                                            Data Preservation & Routing <span className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-full">MOVE ONLY</span>
+                                        </h4>
+                                        <p className="text-yellow-800 text-xs mt-0.5">Leads will be assigned to stages based on these rules.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {ai9Config.filters?.map((filter: any, index: number) => (
+                                <div key={index} className="bg-white border border-slate-200 rounded-xl p-5 mb-4 shadow-sm relative">
+                                    <button 
+                                        onClick={() => {
+                                            const newFilters = [...ai9Config.filters];
+                                            newFilters.splice(index, 1);
+                                            setAi9Config({...ai9Config, filters: newFilters});
+                                        }}
+                                        className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <X size={16} />
+                                    </button>
+
+                                    <div className="mb-4 pr-6">
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Question Key (or column name)</label>
+                                        <select 
+                                            value={filter.question}
+                                            onChange={(e) => {
+                                                const newFilters = [...ai9Config.filters];
+                                                newFilters[index].question = e.target.value;
+                                                setAi9Config({...ai9Config, filters: newFilters});
+                                            }}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                                        >
+                                            <option value="">-- Search across all questions --</option>
+                                            {dynamicColumns.map(col => (
+                                                <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">If Correct Answer Matches:</label>
+                                            <input 
+                                                type="text" 
+                                                value={filter.expectedAnswer}
+                                                onChange={(e) => {
+                                                    const newFilters = [...ai9Config.filters];
+                                                    newFilters[index].expectedAnswer = e.target.value;
+                                                    setAi9Config({...ai9Config, filters: newFilters});
+                                                }}
+                                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm mb-2 focus:ring-2 focus:ring-green-400 focus:outline-none"
+                                                placeholder="e.g. Yes"
+                                            />
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">Move to Category:</label>
+                                            <select 
+                                                value={filter.matchCategory}
+                                                onChange={(e) => {
+                                                    const newFilters = [...ai9Config.filters];
+                                                    newFilters[index].matchCategory = e.target.value;
+                                                    setAi9Config({...ai9Config, filters: newFilters});
+                                                }}
+                                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white focus:outline-none"
+                                            >
+                                                <option value="approved">Approved</option>
+                                                <option value="pending">Pending</option>
+                                                <option value="rejected">Rejected</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">If Answer Mismatches, Move to:</label>
+                                            <select 
+                                                value={filter.mismatchCategory}
+                                                onChange={(e) => {
+                                                    const newFilters = [...ai9Config.filters];
+                                                    newFilters[index].mismatchCategory = e.target.value;
+                                                    setAi9Config({...ai9Config, filters: newFilters});
+                                                }}
+                                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white focus:outline-none"
+                                            >
+                                                <option value="pending">Pending</option>
+                                                <option value="rejected">Rejected</option>
+                                                <option value="approved">Approved</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label className="block text-xs font-bold text-blue-800 mb-1.5">OR Direct Move (Ignore rules above, direct move all leads here):</label>
+                                        <select 
+                                            value={filter.directMove || ''}
+                                            onChange={(e) => {
+                                                const newFilters = [...ai9Config.filters];
+                                                newFilters[index].directMove = e.target.value;
+                                                setAi9Config({...ai9Config, filters: newFilters});
+                                            }}
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white focus:outline-none text-slate-600"
+                                        >
+                                            <option value="">-- Do Not Direct Move (Use rules above) --</option>
+                                            <option value="approved">Force Approved</option>
+                                            <option value="pending">Force Pending</option>
+                                            <option value="rejected">Force Rejected</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button 
+                                onClick={() => {
+                                    const newFilters = [...(ai9Config.filters || [])];
+                                    newFilters.push({ question: '', expectedAnswer: '', matchCategory: 'approved', mismatchCategory: 'pending', directMove: '' });
+                                    setAi9Config({...ai9Config, filters: newFilters});
+                                }}
+                                className="w-full py-3 border-2 border-dashed border-blue-300 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors"
+                            >
+                                + Add Another Filter
+                            </button>
+
+                            {/* Global Mismatch Rule */}
+                            <div className="mt-6 pt-6 border-t border-slate-200">
+                                <h4 className="font-bold text-slate-800 mb-2">Global Mismatch Rules</h4>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-medium text-slate-600">If</span>
+                                    <input 
+                                        type="number" 
+                                        min="1"
+                                        value={ai9Config.maxMismatches}
+                                        onChange={(e) => setAi9Config({...ai9Config, maxMismatches: parseInt(e.target.value) || 2})}
+                                        className="w-16 px-2 py-1.5 border border-slate-300 rounded text-center"
+                                    />
+                                    <span className="text-sm font-medium text-slate-600">answers mismatch across all rules, forcefully move to</span>
+                                    <select 
+                                        value={ai9Config.mismatchFallback}
+                                        onChange={(e) => setAi9Config({...ai9Config, mismatchFallback: e.target.value})}
+                                        className="px-3 py-1.5 border border-slate-300 rounded bg-white text-sm"
+                                    >
+                                        <option value="rejected">Rejected</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3">
