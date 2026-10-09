@@ -290,21 +290,21 @@ export function MetaLeadsTab({
                     {/* Data Details Button */}
                     <button 
                         onClick={() => {}}
-                        className="w-[100px] bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-xl shadow-sm flex flex-col items-center justify-center text-pink-700 transition-all transform hover:scale-105 group"
+                        className="w-[100px] bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-xl shadow-sm flex flex-col items-center justify-center text-[#B02660] transition-all transform hover:scale-105 group"
                         title="Data Details"
                     >
-                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm"><Settings2 size={28} /></div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mt-1 px-1 text-center">Data Details</div>
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm mb-1"><Settings2 size={24} strokeWidth={2.5} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">DATA<br/>DETAILS</div>
                     </button>
 
                     {/* Simulate Test Lead Button */}
                     <button 
                         onClick={() => setShowDummyPopup(true)}
-                        className="w-[100px] bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-xl shadow-sm flex flex-col items-center justify-center text-pink-700 transition-all transform hover:scale-105 group"
+                        className="w-[100px] bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-xl shadow-sm flex flex-col items-center justify-center text-[#B02660] transition-all transform hover:scale-105 group"
                         title="Simulate Test Lead"
                     >
-                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm"><Bot size={28} /></div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mt-1 px-1 text-center">Simulate</div>
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm mb-1"><Bot size={24} strokeWidth={2.5} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">SIMULATE</div>
                     </button>
 
                     {/* WT Settings Square Button */}
