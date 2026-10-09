@@ -1040,7 +1040,7 @@ export default function BroadcastPage(props: any) {
 
         return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
       });
-  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, batchDecisions]);
+  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;

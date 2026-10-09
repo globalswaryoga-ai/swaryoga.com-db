@@ -147,6 +147,7 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
           ...(existingLead.metadata || {}),
           metaLeadgenId,
           ...(formId ? { metaFormId: formId } : {}),
+          rawFieldData: fieldData,
         },
         labels: Array.from(new Set([...existingLabels, 'social media', 'enquiry']))
       }, existingLead._id || existingLead.id);

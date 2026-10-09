@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X, ChevronDown, ChevronUp, Database, Activity } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Settings2, X, ChevronDown, ChevronUp, Database, Activity, BarChart3, RefreshCcw, AlertCircle, AlertTriangle, CheckCircle2, Eye, ArrowLeft } from 'lucide-react';
 
 export function MetaLeadsTab({ 
     selectedWorkshop, 
@@ -85,6 +85,21 @@ export function MetaLeadsTab({
         approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5 },
         pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay || 30 }
     });
+    const [templates, setTemplates] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (showWTSettingsPopup) {
+            const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
+            fetch('/api/admin/crm/templates?provider=meta', {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                setTemplates(data.data?.templates || data.templates || []);
+            })
+            .catch(err => console.error("Failed to load templates:", err));
+        }
+    }, [showWTSettingsPopup]);
     const [showAI9Popup, setShowAI9Popup] = useState(false);
     const [ai9Config, setAi9Config] = useState<any>(selectedWorkshop?.metadata?.ai9Config || { 
         filters: [{ 
@@ -102,6 +117,37 @@ export function MetaLeadsTab({
     
     // Load from CRM metadata or use default
     const [dummyFields, setDummyFields] = useState<{name: string, values: string[]}[]>([]);
+
+    const [showTriggerReportPopup, setShowTriggerReportPopup] = useState(false);
+    const [triggerReportData, setTriggerReportData] = useState<any[]>([]);
+    const [isLoadingReport, setIsLoadingReport] = useState(false);
+    const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+    const [showRejectedLeads, setShowRejectedLeads] = useState(false);
+
+    const loadTriggerReport = async () => {
+        if (!selectedWorkshop?.id) return;
+        setIsLoadingReport(true);
+        try {
+            const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
+            const res = await fetch(`/api/admin/crm/meta-leads/trigger-report?workshopId=${encodeURIComponent(selectedWorkshop.id)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTriggerReportData(data.data);
+            }
+        } catch (e) {
+            console.error("Failed to load trigger report:", e);
+        } finally {
+            setIsLoadingReport(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showTriggerReportPopup) {
+            loadTriggerReport();
+        }
+    }, [showTriggerReportPopup]);
 
     useEffect(() => {
         if (selectedWorkshop?.metadata?.dummyFormConfig) {
@@ -218,7 +264,7 @@ export function MetaLeadsTab({
             const res = await fetch('/api/admin/crm/meta-leads/bulk-update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids, status: newStatus })
+                body: JSON.stringify({ ids, status: newStatus, wtSettings, workshopId: selectedWorkshop?.id })
             });
             if (res.ok) {
                 alert(`Successfully marked ${ids.length} leads as ${newStatus}. Please refresh the page.`);
@@ -323,6 +369,49 @@ export function MetaLeadsTab({
         else setSelectedLeads(filteredLeads.map((l: any) => l._id || l.id));
     };
 
+    if (showRejectedLeads) {
+        const rejected = metaLeads.filter((l: any) => l.status === 'rejected');
+        return (
+            <div className="flex-1 min-w-0 overflow-y-auto p-6 bg-pink-50 h-full relative animate-fade-in">
+                <div className="flex items-center gap-4 mb-6">
+                    <button 
+                        onClick={() => setShowRejectedLeads(false)}
+                        className="p-2 bg-white rounded-full shadow-sm hover:bg-slate-100 transition-colors border border-slate-200"
+                    >
+                        <ArrowLeft size={20} className="text-slate-600" />
+                    </button>
+                    <h2 className="text-2xl font-black text-pink-900">Rejected Leads Data</h2>
+                    <span className="bg-pink-200 text-pink-800 text-sm font-bold px-3 py-1 rounded-full">{rejected.length} Leads</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {rejected.length === 0 ? (
+                        <div className="col-span-full text-center py-12 text-slate-400 font-bold">No rejected leads found.</div>
+                    ) : (
+                        rejected.map((lead: any, idx: number) => (
+                            <div key={idx} className="bg-white rounded-xl p-5 shadow-sm border border-pink-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-white bg-red-500 px-2 py-1 rounded">Rejected</span>
+                                </div>
+                                <h3 className="font-bold text-slate-800 text-lg mb-1">{lead.name || lead.metadata?.rawFieldData?.find((f: any) => f.name.toLowerCase().includes('name'))?.values?.[0] || 'Unknown'}</h3>
+                                <p className="text-sm text-slate-500 mb-4">{lead.phoneNumber || 'No Phone'}</p>
+                                
+                                <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
+                                    {(lead.metadata?.rawFieldData || []).map((field: any, fIdx: number) => (
+                                        <div key={fIdx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{field.name}</p>
+                                            <p className="text-xs font-semibold text-slate-700 whitespace-normal break-words">{field.values?.[0] || 'N/A'}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in p-6 bg-slate-50 h-full relative">
             
@@ -348,15 +437,7 @@ export function MetaLeadsTab({
                 </div>
 
                 <div className="flex gap-2">
-                    {/* Trigger Report Button */}
-                    <button 
-                        onClick={() => {}}
-                        className="w-[100px] bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-xl shadow-sm flex flex-col items-center justify-center text-[#B02660] transition-all transform hover:scale-105 group"
-                        title="Trigger Report"
-                    >
-                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm mb-1"><Activity size={24} strokeWidth={2.5} /></div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">TRIGGER<br/>REPORT</div>
-                    </button>
+
 
                     {/* Data Details Button */}
                     <button 
@@ -368,15 +449,7 @@ export function MetaLeadsTab({
                         <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">DATA<br/>DETAILS</div>
                     </button>
 
-                    {/* Simulate Test Lead Button */}
-                    <button 
-                        onClick={() => setShowDummyPopup(true)}
-                        className="w-[100px] bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-xl shadow-sm flex flex-col items-center justify-center text-[#B02660] transition-all transform hover:scale-105 group"
-                        title="Simulate Test Lead"
-                    >
-                        <div className="text-3xl font-black tracking-tighter drop-shadow-sm mb-1"><Bot size={24} strokeWidth={2.5} /></div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider px-1 text-center leading-tight">SIMULATE</div>
-                    </button>
+
 
                     {/* WT Settings Square Button */}
                     <button 
@@ -386,6 +459,16 @@ export function MetaLeadsTab({
                     >
                         <div className="text-4xl font-black tracking-tighter drop-shadow-md">W</div>
                         <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">WT Mgt</div>
+                    </button>
+
+                    {/* Trigger Report Button */}
+                    <button 
+                        onClick={() => setShowTriggerReportPopup(true)}
+                        className="w-[100px] bg-[#25D366] hover:bg-[#128C7E] rounded-xl shadow-md flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 group"
+                        title="Trigger Report"
+                    >
+                        <div className="text-3xl font-black tracking-tighter drop-shadow-md mb-1"><BarChart3 size={24} strokeWidth={2.5} /></div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 px-1 text-center leading-tight">TRIGGER<br/>REPORT</div>
                     </button>
                 </div>
             </div>
@@ -402,6 +485,13 @@ export function MetaLeadsTab({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setShowRejectedLeads(true)}
+                            className="px-3 py-1.5 bg-pink-100 hover:bg-pink-200 text-pink-700 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-pink-200"
+                        >
+                            <Trash2 size={14} />
+                            Rejected Data
+                        </button>
                         <button 
                             onClick={() => setShowAI9Popup(true)}
                             className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-yellow-500"
@@ -763,15 +853,33 @@ export function MetaLeadsTab({
                                     
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-2">Select Approved Template</label>
-                                        <select 
-                                            value={wtSettings.approved.template}
-                                            onChange={(e) => setWtSettings({ ...wtSettings, approved: { ...wtSettings.approved, template: e.target.value } })}
-                                            className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all"
-                                        >
-                                            <option value="">-- No template selected --</option>
-                                            <option value="welcome_approved">Welcome Approved (Template 1)</option>
-                                            <option value="onboarding_series">Onboarding Series (Template 2)</option>
-                                        </select>
+                                        <div className="flex gap-2">
+                                            <select 
+                                                value={wtSettings.approved.template}
+                                                onChange={(e) => setWtSettings({ ...wtSettings, approved: { ...wtSettings.approved, template: e.target.value } })}
+                                                onDoubleClick={() => {
+                                                    const t = templates.find(temp => temp.templateName === wtSettings.approved.template);
+                                                    if (t) setPreviewTemplate(t);
+                                                }}
+                                                className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
+                                            >
+                                                <option value="">-- No template selected --</option>
+                                                {templates.map(t => (
+                                                    <option key={t._id || t.id || t.templateName} value={t.templateName}>{t.templateName} ({t.status || 'Active'})</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                onClick={() => {
+                                                    const t = templates.find(temp => temp.templateName === wtSettings.approved.template);
+                                                    if (t) setPreviewTemplate(t);
+                                                }}
+                                                disabled={!wtSettings.approved.template}
+                                                className="p-3.5 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors"
+                                                title="Preview Template"
+                                            >
+                                                <Eye size={20} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -803,15 +911,33 @@ export function MetaLeadsTab({
                                     
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-2">Select Pending Template</label>
-                                        <select 
-                                            value={wtSettings.pending.template}
-                                            onChange={(e) => setWtSettings({ ...wtSettings, pending: { ...wtSettings.pending, template: e.target.value } })}
-                                            className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all"
-                                        >
-                                            <option value="">-- No template selected --</option>
-                                            <option value="followup_reminder">Follow Up Reminder (Template A)</option>
-                                            <option value="pending_offer">Special Pending Offer (Template B)</option>
-                                        </select>
+                                        <div className="flex gap-2">
+                                            <select 
+                                                value={wtSettings.pending.template}
+                                                onChange={(e) => setWtSettings({ ...wtSettings, pending: { ...wtSettings.pending, template: e.target.value } })}
+                                                onDoubleClick={() => {
+                                                    const t = templates.find(temp => temp.templateName === wtSettings.pending.template);
+                                                    if (t) setPreviewTemplate(t);
+                                                }}
+                                                className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
+                                            >
+                                                <option value="">-- No template selected --</option>
+                                                {templates.map(t => (
+                                                    <option key={t._id || t.id || t.templateName} value={t.templateName}>{t.templateName} ({t.status || 'Active'})</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                onClick={() => {
+                                                    const t = templates.find(temp => temp.templateName === wtSettings.pending.template);
+                                                    if (t) setPreviewTemplate(t);
+                                                }}
+                                                disabled={!wtSettings.pending.template}
+                                                className="p-3.5 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors"
+                                                title="Preview Template"
+                                            >
+                                                <Eye size={20} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -1055,35 +1181,67 @@ export function MetaLeadsTab({
                                         {(ai9Config.hardRejectPairs || []).length === 0 && (
                                             <p className="text-xs text-slate-400 italic">No hard reject pairs set. Click "+ Add Pair" to create one.</p>
                                         )}
-                                        {(ai9Config.hardRejectPairs || []).map((pair: any, i: number) => (
-                                            <div key={i} className="flex items-center gap-2 bg-red-50 border border-red-200 p-2.5 rounded-xl">
-                                                <span className="text-[10px] font-black text-red-500 uppercase tracking-wider whitespace-nowrap">If</span>
-                                                <select
-                                                    value={pair.questionA}
-                                                    onChange={(e) => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p[i].questionA = e.target.value; setAi9Config({...ai9Config, hardRejectPairs: p}); }}
-                                                    className="flex-1 px-2 py-1.5 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
-                                                >
-                                                    <option value="">-- Question X --</option>
-                                                    {dynamicColumns.map(col => <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>)}
-                                                </select>
-                                                <span className="text-[10px] font-black text-red-500 uppercase tracking-wider whitespace-nowrap">AND</span>
-                                                <select
-                                                    value={pair.questionB}
-                                                    onChange={(e) => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p[i].questionB = e.target.value; setAi9Config({...ai9Config, hardRejectPairs: p}); }}
-                                                    className="flex-1 px-2 py-1.5 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
-                                                >
-                                                    <option value="">-- Question Y --</option>
-                                                    {dynamicColumns.map(col => <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>)}
-                                                </select>
-                                                <span className="text-[10px] font-black text-red-600 whitespace-nowrap">→ 🚫 Reject</span>
-                                                <button
-                                                    onClick={() => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p.splice(i, 1); setAi9Config({...ai9Config, hardRejectPairs: p}); }}
-                                                    className="text-red-400 hover:text-red-700 transition-colors ml-1"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ))}
+                                        {(ai9Config.hardRejectPairs || []).map((rule: any, i: number) => {
+                                            const selectedQs = rule.questions || [];
+                                            // Handle legacy data structure
+                                            if (rule.questionA && !selectedQs.includes(rule.questionA)) selectedQs.push(rule.questionA);
+                                            if (rule.questionB && !selectedQs.includes(rule.questionB)) selectedQs.push(rule.questionB);
+
+                                            return (
+                                                <div key={i} className="flex flex-col gap-2 bg-red-50 border border-red-200 p-3 rounded-xl relative">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-wider">If all these questions mismatch:</span>
+                                                        <button
+                                                            onClick={() => { const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs)); p.splice(i, 1); setAi9Config({...ai9Config, hardRejectPairs: p}); }}
+                                                            className="text-red-400 hover:text-red-700 transition-colors p-1"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-wrap gap-1.5 mb-1">
+                                                        {selectedQs.length === 0 && <span className="text-xs text-red-400 italic">No questions added yet.</span>}
+                                                        {selectedQs.map((q: string, qIdx: number) => (
+                                                            <span key={qIdx} className="bg-red-100 text-red-800 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-red-200 flex items-center gap-1.5 shadow-sm">
+                                                                {q.replace(/_/g, ' ')}
+                                                                <X 
+                                                                    size={12} 
+                                                                    className="cursor-pointer hover:text-red-500 opacity-70 hover:opacity-100" 
+                                                                    onClick={() => {
+                                                                        const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs));
+                                                                        p[i].questions = selectedQs.filter((sq: string) => sq !== q);
+                                                                        // Clear legacy just in case
+                                                                        p[i].questionA = ''; p[i].questionB = '';
+                                                                        setAi9Config({...ai9Config, hardRejectPairs: p});
+                                                                    }} 
+                                                                />
+                                                            </span>
+                                                        ))}
+                                                    </div>
+
+                                                    <select
+                                                        value=""
+                                                        onChange={(e) => {
+                                                            if (!e.target.value) return;
+                                                            const p = JSON.parse(JSON.stringify(ai9Config.hardRejectPairs));
+                                                            p[i].questions = [...selectedQs, e.target.value];
+                                                            p[i].questionA = ''; p[i].questionB = '';
+                                                            setAi9Config({...ai9Config, hardRejectPairs: p});
+                                                        }}
+                                                        className="w-full px-3 py-2 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
+                                                    >
+                                                        <option value="">+ Add Question to Rule...</option>
+                                                        {dynamicColumns.filter(c => !selectedQs.includes(c)).map(col => (
+                                                            <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>
+                                                        ))}
+                                                    </select>
+                                                    
+                                                    <div className="flex items-center justify-center mt-2 border-t border-red-100 pt-2">
+                                                        <span className="text-[11px] font-black text-red-600 bg-red-100/50 px-4 py-1 rounded-full">→ 🚫 Reject 100%</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -1096,7 +1254,14 @@ export function MetaLeadsTab({
                             <button 
                                 onClick={async () => {
                                     if(saveWorkshopSettings && selectedWorkshop) {
-                                        await saveWorkshopSettings(selectedWorkshop.id, { ai9Config });
+                                        await saveWorkshopSettings({
+                                            ...selectedWorkshop,
+                                            metadata: {
+                                                ...(selectedWorkshop.metadata || {}),
+                                                ai9Config: ai9Config
+                                            }
+                                        });
+                                        alert('AI-9 Configuration saved successfully!');
                                     }
                                     setShowAI9Popup(false);
                                 }} 
@@ -1328,6 +1493,167 @@ export function MetaLeadsTab({
                                 {isSubmittingDummy ? 'Simulating...' : 'Simulate Submission'}
                             </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Trigger Report Popup */}
+            {showTriggerReportPopup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden transform scale-100 animate-slide-up relative flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="px-6 py-5 bg-gradient-to-r from-indigo-50 to-indigo-100/50 border-b border-indigo-100 flex items-center justify-between sticky top-0 z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-white p-2.5 rounded-xl text-indigo-600 shadow-sm border border-indigo-100">
+                                    <BarChart3 size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Trigger Report</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Live WhatsApp Delivery Status</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={loadTriggerReport} className="text-indigo-600 hover:text-indigo-800 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1">
+                                    <RefreshCcw size={16} className={isLoadingReport ? "animate-spin" : ""} /> Refresh
+                                </button>
+                                <button onClick={() => setShowTriggerReportPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all">
+                                    <XCircle size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 bg-slate-50 overflow-y-auto flex-1">
+                            {isLoadingReport ? (
+                                <div className="flex justify-center p-12">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                </div>
+                            ) : triggerReportData.length === 0 ? (
+                                <div className="text-center p-12 bg-white rounded-xl border border-slate-200">
+                                    <p className="text-slate-500 font-medium">No triggers have been scheduled yet.</p>
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100/50 text-slate-600 text-[10px] uppercase tracking-wider font-bold border-b border-slate-200">
+                                                <th className="p-4">Lead Details</th>
+                                                <th className="p-4">Trigger Stage</th>
+                                                <th className="p-4">Template</th>
+                                                <th className="p-4">Scheduled For</th>
+                                                <th className="p-4">Delivery Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {triggerReportData.map((row) => (
+                                                <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-slate-800 text-sm">{row.leadName}</div>
+                                                        <div className="text-slate-500 text-xs font-medium">{row.phone}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md text-xs font-bold capitalize">
+                                                            {row.stage}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-sm font-medium text-slate-700">
+                                                        {row.template}
+                                                    </td>
+                                                    <td className="p-4 text-xs font-medium text-slate-500">
+                                                        {new Date(row.scheduledAt).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {row.status === 'wrong_number' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200" title={row.reason}>
+                                                                <AlertCircle size={12} /> Wrong Number
+                                                            </span>
+                                                        ) : row.status === 'blocked' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-900 text-rose-100 border border-rose-950" title={row.reason}>
+                                                                <XCircle size={12} /> Blocked
+                                                            </span>
+                                                        ) : row.status === 'failed' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-200" title={row.reason}>
+                                                                <AlertTriangle size={12} /> Failed
+                                                            </span>
+                                                        ) : row.status === 'pending' || row.status === 'active' || row.status === 'queued' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                                                <Clock size={12} /> Pending
+                                                            </span>
+                                                        ) : row.status === 'sent' || row.status === 'delivered' || row.status === 'read' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 capitalize">
+                                                                <CheckCircle2 size={12} /> {row.status}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 capitalize">
+                                                                {row.status}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Template Preview Popup */}
+            {previewTemplate && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setPreviewTemplate(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-100 animate-slide-up relative flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between sticky top-0 z-10">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">{previewTemplate.templateName}</h3>
+                                <p className="text-xs text-slate-500 font-medium">Template Preview ({previewTemplate.status})</p>
+                            </div>
+                            <button onClick={() => setPreviewTemplate(null)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-lg shadow-sm transition-all">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 bg-[#efeae2] overflow-y-auto max-h-[70vh]">
+                            {/* WhatsApp style chat bubble preview */}
+                            <div className="bg-white rounded-xl rounded-tl-none p-3 shadow-sm max-w-[95%] relative border border-slate-100 whitespace-pre-wrap text-sm text-slate-800 font-medium">
+                                {(() => {
+                                    const format = (previewTemplate.headerFormat || '').toUpperCase();
+                                    const mediaUrl = previewTemplate.imageFile?.url || previewTemplate.headerMedia?.url || previewTemplate.videoUrl || previewTemplate.headerContent;
+                                    
+                                    if (!mediaUrl && format !== 'TEXT') return null;
+
+                                    return (
+                                        <div className="mb-2 rounded-lg overflow-hidden border border-slate-100">
+                                            {format === 'IMAGE' && mediaUrl ? (
+                                                <img src={mediaUrl} alt="Header" className="w-full h-auto object-cover" />
+                                            ) : format === 'VIDEO' && mediaUrl ? (
+                                                <video src={mediaUrl} className="w-full h-auto" controls />
+                                            ) : previewTemplate.headerContent ? (
+                                                <div className="font-bold text-base bg-slate-50 p-2">{previewTemplate.headerContent}</div>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })()}
+                                
+                                <div>{previewTemplate.templateContent || previewTemplate.bodyText || previewTemplate.content || 'No text content available.'}</div>
+                                
+                                {previewTemplate.footerText && (
+                                    <div className="mt-1 text-[11px] text-slate-400 font-normal">{previewTemplate.footerText}</div>
+                                )}
+                            </div>
+
+                            {/* Buttons Preview */}
+                            {previewTemplate.buttons && Array.isArray(previewTemplate.buttons) && previewTemplate.buttons.length > 0 && (
+                                <div className="mt-1 space-y-1 max-w-[95%]">
+                                    {previewTemplate.buttons.map((btn: any, idx: number) => (
+                                        <div key={idx} className="bg-white rounded-lg p-2.5 shadow-sm border border-slate-100 text-center text-[#00a884] font-medium text-sm flex items-center justify-center gap-1.5 cursor-not-allowed">
+                                            {btn.type === 'URL' ? <Eye size={14} /> : btn.type === 'PHONE_NUMBER' ? <MessageCircle size={14} /> : null}
+                                            {btn.title || btn.text}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

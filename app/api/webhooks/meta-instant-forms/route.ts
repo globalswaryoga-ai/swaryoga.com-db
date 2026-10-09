@@ -108,6 +108,10 @@ async function createLeadFromMetaForm(leadData: any, metaContext: any) {
       result = await saveBunnyLead({
         ...existing,
         ...lead, 
+        metadata: {
+            ...(existing.metadata || {}),
+            ...(lead.metadata || {})
+        },
         labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || []), 'enquiry'])),
         notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
       }, existing._id || existing.id);

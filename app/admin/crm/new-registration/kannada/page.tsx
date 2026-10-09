@@ -49,6 +49,7 @@ export default function NewRegistrationPage() {
   const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
   const [selectedDashboardLang, setSelectedDashboardLang] = useState<string>('Kannada Workshop');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isMapDataCollapsed, setIsMapDataCollapsed] = useState(false);
   const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
 
@@ -2058,7 +2059,30 @@ export default function NewRegistrationPage() {
 
       {/* Global Sidebar for Batch Selection */}
       {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger') && (
-        <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
+        <aside className={`bg-white flex flex-col flex-shrink-0 z-20 relative ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'transition-all duration-300' : ''}`} style={{ width: isSidebarCollapsed ? 80 : sidebarWidth, minWidth: isSidebarCollapsed ? 80 : 200, maxWidth: 600 }}>
+          {!isSidebarCollapsed && (
+            <div 
+              className={`absolute top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 z-50 transition-colors ${sidebarPosition === 'right' ? 'left-0 -ml-[4px]' : 'right-0 -mr-[4px]'}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.pageX;
+                const startWidth = sidebarWidth;
+                
+                const onMouseMove = (moveEvent: any) => {
+                  const diff = sidebarPosition === 'right' ? startX - moveEvent.pageX : moveEvent.pageX - startX;
+                  setSidebarWidth(Math.max(200, Math.min(600, startWidth + diff)));
+                };
+                
+                const onMouseUp = () => {
+                  document.removeEventListener('mousemove', onMouseMove);
+                  document.removeEventListener('mouseup', onMouseUp);
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+              }}
+            />
+          )}
           <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               {!isSidebarCollapsed && (
@@ -2126,7 +2150,7 @@ export default function NewRegistrationPage() {
             {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches' || activeTab === 'our_workshops' || activeTab === 'meta_leads') && (
               <div className="mb-3 px-1">
                 {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">Languages</div>}
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex flex-col gap-1.5">
                   {['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'].map((lang) => (
                     <button
                       key={lang}
@@ -2143,23 +2167,7 @@ export default function NewRegistrationPage() {
                   ))}
                 </div>
 
-                {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-1.5 px-1">Offer Forms</div>}
-                <div className="grid grid-cols-2 gap-1.5 mt-1.5">
-                  {['English Offer', 'Hindi Offer', 'Marathi Offer', 'Kannada Offer'].map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => router.push(`/admin/crm/new-registration/${lang.split(' ')[0].toLowerCase()}`)}
-                      className={`w-full text-center px-2 py-2 rounded-xl text-xs font-bold transition-all ${
-                        selectedDashboardLang === lang 
-                          ? 'bg-purple-600 text-white border border-purple-600 shadow-sm' 
-                          : 'bg-white text-slate-600 border border-slate-200 hover:border-purple-300 hover:bg-purple-50'
-                      }`}
-                      title={lang}
-                    >
-                      {isSidebarCollapsed ? lang.substring(0, 2) : lang.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
+                
               </div>
             )}
 
