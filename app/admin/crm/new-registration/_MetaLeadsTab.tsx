@@ -298,13 +298,32 @@ export function MetaLeadsTab({
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                        <Facebook size={20} />
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                            <Facebook size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800">Meta Leads Connection</h2>
+                            <p className="text-xs text-slate-500">Connect a Facebook Form ID to trigger Stage-1 sync & Stage-2 Auto-Sync (10 mins).</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-800">Meta Leads Connection</h2>
-                        <p className="text-xs text-slate-500">Connect a Facebook Form ID to trigger Stage-1 sync & Stage-2 Auto-Sync (10 mins).</p>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setShowDummyPopup(true)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm"
+                        >
+                            <Bot size={14} />
+                            Simulate Test Lead
+                        </button>
+
+                        <button 
+                            onClick={() => setShowAI9Popup(true)}
+                            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-yellow-500"
+                        >
+                            <Settings2 size={14} />
+                            AI-9 Configured
+                        </button>
                     </div>
                 </div>
                 <div className="p-5 bg-slate-50 flex items-center gap-4 flex-wrap">
@@ -335,27 +354,11 @@ export function MetaLeadsTab({
                         </button>
                         
                         <button 
-                            onClick={() => setShowDummyPopup(true)}
-                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm"
-                        >
-                            <Bot size={14} />
-                            Simulate Test Lead
-                        </button>
-
-                        <button 
                             onClick={() => setIsAutoSync(!isAutoSync)}
                             className={`px-3 py-1.5 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
                         >
                             <Bot size={14} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
                             AI-9A Auto-Sync {isAutoSync ? '(10m)' : '(Off)'}
-                        </button>
-
-                        <button 
-                            onClick={() => setShowAI9Popup(true)}
-                            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border border-yellow-500"
-                        >
-                            <Settings2 size={14} />
-                            AI-9 Configured
                         </button>
                     </div>
                 </div>
