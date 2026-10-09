@@ -885,9 +885,20 @@ export function MetaLeadsTab({
                         </div>
                         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
                             {dummyFields.map((field, idx) => (
-                                <div key={idx} className="flex gap-2 mb-3 items-end">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold text-slate-600 mb-1">Question Key (exact)</label>
+                                <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4 relative">
+                                    <button 
+                                        onClick={() => {
+                                            const newFields = [...dummyFields];
+                                            newFields.splice(idx, 1);
+                                            setDummyFields(newFields);
+                                        }}
+                                        className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                    
+                                    <div className="mb-3 pr-8">
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Question Key (exact column name)</label>
                                         <input 
                                             type="text" 
                                             value={field.name}
@@ -896,11 +907,12 @@ export function MetaLeadsTab({
                                                 newFields[idx].name = e.target.value;
                                                 setDummyFields(newFields);
                                             }}
-                                            className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-800 focus:outline-none"
+                                            placeholder="e.g. are_you_comfortable_in_hindi"
                                         />
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold text-slate-600 mb-1">Lead's Answer</label>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Lead's Answer</label>
                                         <input 
                                             type="text" 
                                             value={field.value}
@@ -909,24 +921,15 @@ export function MetaLeadsTab({
                                                 newFields[idx].value = e.target.value;
                                                 setDummyFields(newFields);
                                             }}
-                                            className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                            placeholder="e.g. Yes"
                                         />
                                     </div>
-                                    <button 
-                                        onClick={() => {
-                                            const newFields = [...dummyFields];
-                                            newFields.splice(idx, 1);
-                                            setDummyFields(newFields);
-                                        }}
-                                        className="mb-1 p-2 text-slate-400 hover:text-red-500 rounded bg-white border border-slate-200"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
                                 </div>
                             ))}
                             <button 
                                 onClick={() => setDummyFields([...dummyFields, {name: '', value: ''}])}
-                                className="w-full py-2 border border-dashed border-slate-300 text-slate-600 rounded text-sm font-bold mt-2 hover:bg-slate-100"
+                                className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 rounded-xl text-sm font-bold mt-2 hover:bg-slate-100 transition-colors"
                             >
                                 + Add Custom Question
                             </button>
