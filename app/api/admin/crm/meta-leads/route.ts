@@ -39,6 +39,11 @@ export async function GET(request: NextRequest) {
       (l.workshopId === workshopId) && 
       (l.source === 'meta_instant_form' || (l.labels || []).includes('meta_instant_form'))
     );
+    
+    console.log(`[MetaLeads API] Fetched ${leadsList.length} total leads. Filtered for workshopId ${workshopId} -> ${metaLeads.length} leads.`);
+    if (metaLeads.length === 0 && leadsList.length > 0) {
+       console.log("Sample lead:", leadsList[0].workshopId, leadsList[0].source);
+    }
 
     // We don't mangle them so that _MetaLeadsTab.tsx can access l.metadata.rawFieldData
     return NextResponse.json({ success: true, data: metaLeads });

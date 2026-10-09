@@ -6,13 +6,32 @@ import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, X
 export function MetaLeadsTab({ 
     selectedWorkshop, 
     saveWorkshopSettings, 
-    leadsData,
     refreshLeads
 }: any) {
     const [formId, setFormId] = useState(selectedWorkshop?.metadata?.facebookFormId || '');
-    
-    // Filter only meta leads
-    let metaLeads = (leadsData || []).filter((lead: any) => lead.source === 'meta_instant_form' || lead.formSource === 'facebook_instagram_ads' || lead.labels?.includes('meta_instant_form'));
+
+    // Self-contained Meta leads state — fetched independently from the parent
+    const [metaLeads, setMetaLeads] = useState<any[]>([]);
+    const [isFetchingLeads, setIsFetchingLeads] = useState(false);
+    const [refreshMetaCounter, setRefreshMetaCounter] = useState(0);
+
+    const internalRefresh = () => setRefreshMetaCounter(prev => prev + 1);
+
+    useEffect(() => {
+        if (!selectedWorkshop?.id) return;
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
+        setIsFetchingLeads(true);
+        fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(selectedWorkshop.id)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(r => r.json())
+        .then(json => {
+            if (json.success) setMetaLeads(json.data || []);
+            else console.error('[MetaLeadsTab] Failed to fetch meta leads:', json.error);
+        })
+        .catch(e => console.error('[MetaLeadsTab] Error fetching meta leads:', e))
+        .finally(() => setIsFetchingLeads(false));
+    }, [selectedWorkshop?.id, refreshMetaCounter]);
 
     // State for Search and Filter
     const [searchQuery, setSearchQuery] = useState('');
@@ -144,7 +163,7 @@ export function MetaLeadsTab({
                 setLastSyncTime(new Date());
                 alert(`AI-9A successfully synced ${data.syncedCount} new leads! Table will now refresh.`);
                 if (!isAutoSync) setIsAutoSync(false);
-                refreshLeads?.();
+                internalRefresh();
             } else {
                 alert(`Sync Failed: ${data.error}`);
                 setIsAutoSync(false);
@@ -538,7 +557,20 @@ export function MetaLeadsTab({
                             {filteredLeads.length === 0 && (
                                 <tr>
                                     <td colSpan={6 + dynamicColumns.length} className="px-4 py-12 text-center text-slate-500">
-                                        No Meta leads match your current filters.
+                                        {isFetchingLeads ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                                                <span>Loading Meta leads...</span>
+                                            </div>
+                                        ) : metaLeads.length === 0 ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span className="text-2xl">📭</span>
+                                                <span>No Meta leads found for this workshop yet.</span>
+                                                <span className="text-xs text-slate-400">Use the Simulate Meta Lead button to test, or sync from your Meta Form ID.</span>
+                                            </div>
+                                        ) : (
+                                            'No Meta leads match your current filters.'
+                                        )}
                                     </td>
                                 </tr>
                             )}
@@ -1133,7 +1165,7 @@ export function MetaLeadsTab({
                                         if (res.ok && data.success) {
                                             alert('Dummy lead simulated! Table will now refresh to show new data.');
                                             setShowDummyPopup(false);
-                                            refreshLeads?.();
+                                            internalRefresh();
                                         } else {
                                             alert(`Failed to simulate lead: ${data.error || 'Unknown error'}`);
                                         }
