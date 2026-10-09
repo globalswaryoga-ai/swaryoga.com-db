@@ -2123,7 +2123,7 @@ export default function NewRegistrationPage() {
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {/* Languages Sidebar (Always visible) */}
-            {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches' || activeTab === 'our_workshops') && (
+            {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches' || activeTab === 'our_workshops' || activeTab === 'meta_leads') && (
               <div className="mb-3 px-1">
                 {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">Languages</div>}
                 <div className="grid grid-cols-2 gap-1.5">
