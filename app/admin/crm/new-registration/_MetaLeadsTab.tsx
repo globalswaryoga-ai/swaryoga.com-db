@@ -25,9 +25,10 @@ export function MetaLeadsTab({
     const dynamicColumns = Array.from(allDynamicQuestions);
 
     const handleConnect = () => {
-        saveWorkshopSettings(selectedWorkshop.id, {
+        saveWorkshopSettings({
+            ...selectedWorkshop,
             metadata: {
-                ...(selectedWorkshop.metadata || {}),
+                ...(selectedWorkshop?.metadata || {}),
                 facebookFormId: formId
             }
         });
