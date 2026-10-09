@@ -46,6 +46,9 @@ export function MetaLeadsTab({
             if (data.success) {
                 console.log('Synced', data.syncedCount, 'new leads');
                 setLastSyncTime(new Date());
+                alert(`AI-9A successfully synced ${data.syncedCount} new leads! Please refresh the page to see them in the table.`);
+                // Turn off auto-sync after a successful manual pull so it doesn't get stuck
+                if (!isAutoSync) setIsAutoSync(false);
             } else {
                 console.error('Sync failed', data.error);
                 alert(`Sync Failed: ${data.error}`);
