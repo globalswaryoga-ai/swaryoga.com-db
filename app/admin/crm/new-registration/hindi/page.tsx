@@ -929,7 +929,7 @@ export default function NewRegistrationPage() {
             return updated;
           });
         } else if (selectedWorkshop?.id) {
-          const res = await fetch(`/api/admin/enquiries?workshopId=${selectedWorkshop.id}`, {
+          const res = await fetch(`/api/admin/crm/meta-leads?workshopId=${selectedWorkshop.id}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
