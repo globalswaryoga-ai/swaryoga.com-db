@@ -915,10 +915,17 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
 
       if (b.kind === 'url') {
         // For URL buttons, Meta expects the runtime parameter to be the variable part.
-        // If the configured URL has no variable (static URL), we omit parameters.
+        // If the configured URL has no variable (static URL), we MUST NOT pass it in parameters
+        // otherwise it will trigger error 131047 (Invalid parameter).
         const url = String(b.url || '');
         const needsParam = url.includes('{{') && url.includes('}}');
-        const param = needsParam ? url.replace(/.*\{\{\s*([^}]+)\s*\}\}.*/, '$1') : '';
+        
+        if (!needsParam) {
+          // Skip entirely - Meta templates with static URLs don't need runtime parameters
+          return;
+        }
+
+        const param = url.replace(/.*\{\{\s*([^}]+)\s*\}\}.*/, '$1');
         const parameters = param ? [{ type: 'text', text: param }] : [];
 
         components.push({
