@@ -1464,12 +1464,14 @@ export function MetaLeadsTab({
                                 <select 
                                     value={manualTemplate}
                                     onChange={(e) => setManualTemplate(e.target.value)}
-                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#25D366]/20 focus:border-[#25D366] bg-white"
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#25D366]/20 focus:border-[#25D366] bg-white text-sm"
                                 >
                                     <option value="" disabled>-- Choose a template --</option>
-                                    <option value="welcome_message">Welcome Message</option>
-                                    <option value="followup_message">Follow Up Reminder</option>
-                                    <option value="custom_offer">Custom Offer Notification</option>
+                                    {templates.map(t => (
+                                        <option key={t._id || t.id || t.templateName} value={t.templateName}>
+                                            {t.templateName} ({t.status || 'Active'})
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
