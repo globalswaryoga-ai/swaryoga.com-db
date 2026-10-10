@@ -146,6 +146,47 @@ export function MetaLeadsTab({
     const [previewTemplate, setPreviewTemplate] = useState<any>(null);
     const [showRejectedLeads, setShowRejectedLeads] = useState(false);
 
+    const exportTriggerReportToCSV = () => {
+        if (!triggerReportData || triggerReportData.length === 0) {
+            alert('No data to export.');
+            return;
+        }
+
+        const headers = ['Run Name', 'Scheduled At', 'Template', 'Lead Name', 'Phone', 'Status', 'Reason'];
+        const rows = [headers];
+
+        triggerReportData.forEach(run => {
+            const runName = run.name || '';
+            const scheduledAt = run.scheduledAt ? new Date(run.scheduledAt).toLocaleString() : '';
+            const template = run.template || '';
+
+            if (run.leads && run.leads.length > 0) {
+                run.leads.forEach((lead: any) => {
+                    rows.push([
+                        runName,
+                        scheduledAt,
+                        template,
+                        lead.leadName || '',
+                        lead.phone || '',
+                        lead.status || '',
+                        lead.reason || ''
+                    ].map(field => `"${String(field).replace(/"/g, '""')}"`));
+                });
+            } else {
+                rows.push([runName, scheduledAt, template, '', '', '', ''].map(field => `"${String(field).replace(/"/g, '""')}"`));
+            }
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Trigger_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const loadTriggerReport = async () => {
         if (!selectedWorkshop?.id) return;
         setIsLoadingReport(true);
@@ -2274,6 +2315,12 @@ export function MetaLeadsTab({
                                     className="text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1"
                                 >
                                     Retry Failed
+                                </button>
+                                <button 
+                                    onClick={exportTriggerReportToCSV}
+                                    className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg shadow-sm hover:shadow transition-all border border-emerald-200 font-bold text-sm flex items-center gap-1"
+                                >
+                                    <Download size={16} /> Export
                                 </button>
                                 <button onClick={loadTriggerReport} className="text-indigo-600 hover:text-indigo-800 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1 border border-indigo-100">
                                     <RefreshCcw size={16} className={isLoadingReport ? "animate-spin" : ""} /> Refresh
