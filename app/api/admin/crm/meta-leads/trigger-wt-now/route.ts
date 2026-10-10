@@ -9,13 +9,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing ids or template' }, { status: 400 });
     }
 
-    const inClause = ids.map(() => '?').join(',');
-    const selectResult = await bunnyExecute({
-      sql: `SELECT document_id, data_json FROM leads_sql WHERE document_id IN (${inClause})`,
-      args: ids
-    });
+    const { loadBunnyLeads } = await import('@/lib/bunnyLeadsRepository');
+    const allLeads = await loadBunnyLeads();
+    const wanted = new Set(ids.map((id: any) => String(id)));
+    const leads = allLeads.filter((lead: any) => wanted.has(String(lead._id)) || wanted.has(String(lead.id)) || wanted.has(String(lead.document_id)));
 
-    const leads = selectResult.rows.map((r: any) => JSON.parse(r.data_json));
+    if (leads.length === 0) {
+      return NextResponse.json({ error: 'No matching leads found' }, { status: 404 });
+    }
 
     let successCount = 0;
     const results: any[] = [];
@@ -174,6 +175,27 @@ export async function POST(req: NextRequest) {
       });
       
       results.push({ id: lead._id || lead.id, wtStatus, wtError });
+    }
+
+    if (dailyRunId) {
+        try {
+            const { broadcastRunUpdateOne } = await import('@/lib/bunnyBroadcastRepository');
+            const failedCount = results.filter(r => r.wtStatus === 'failed').length;
+            await broadcastRunUpdateOne(dailyRunId, {
+                stats: {
+                    total: leads.length,
+                    pending: 0,
+                    sent: successCount,
+                    delivered: 0,
+                    read: 0,
+                    failed: failedCount,
+                    skipped: leads.length - successCount - failedCount,
+                    blocked: 0
+                }
+            });
+        } catch (err) {
+            console.error('Error updating broadcast run stats:', err);
+        }
     }
 
     return NextResponse.json({ success: true, count: successCount, results });
