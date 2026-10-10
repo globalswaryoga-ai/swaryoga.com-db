@@ -62,7 +62,36 @@ export async function POST(req: NextRequest) {
 
     for (const lead of leads) {
       if (!lead.phoneNumber) continue;
-      const input = { to: lead.phoneNumber, templateName: template, languageCode: languageCode };
+      
+      let bodyParams: string[] = [];
+      let headerMedia: any = undefined;
+      
+      if (templateSnapshot?.components) {
+          const bodyComp = templateSnapshot.components.find((c: any) => c.type === 'BODY');
+          if (bodyComp && bodyComp.text) {
+              const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g);
+              if (matches) {
+                  for (let i = 0; i < matches.length; i++) {
+                      if (i === 0) bodyParams.push(lead.name || 'Student');
+                      else bodyParams.push('');
+                  }
+              }
+          }
+          
+          const headerComp = templateSnapshot.components.find((c: any) => c.type === 'HEADER');
+          if (headerComp && headerComp.example?.header_handle?.[0]) {
+              const url = headerComp.example.header_handle[0];
+              const format = String(headerComp.format || '').toLowerCase();
+              if (format === 'image' || format === 'video' || format === 'document') {
+                  headerMedia = { kind: format === 'document' ? 'document' : format, url };
+              }
+          }
+      }
+      
+      const input: any = { to: lead.phoneNumber, templateName: template, languageCode: languageCode };
+      if (bodyParams.length > 0) input.bodyParams = bodyParams;
+      if (headerMedia) input.headerMedia = headerMedia;
+      
       let wtStatus = 'pending';
       let wtError = null;
       try {
