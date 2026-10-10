@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const mongoose = await clientPromise();
+    const db = mongoose.connection.getClient().db(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = db.collection('bunny_leads');
 
     const objectIds = ids.map(id => {

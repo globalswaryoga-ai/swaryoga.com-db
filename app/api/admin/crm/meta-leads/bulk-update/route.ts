@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/mongodb';
+import connectDB from '@/lib/mongodb';
+import mongoose from 'mongoose';
 import { ObjectId } from 'mongodb';
-import { getModel } from '@/lib/mongodb';
 import { getWhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ids, status, wtSettings, workshopId } = body;
+    const { ids, status, wtSettings, workshopId, bulkUpdates } = body;
 
-    if (!ids || !ids.length || !status) {
+    if (!bulkUpdates && (!ids || !ids.length || !status)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const db = await getDb('swaryoga-ai');
+    await connectDB();
+    const db = mongoose.connection.getClient().db('swaryoga-ai');
     
     // Convert string IDs to ObjectIds
     const objectIds = ids.map((id: string) => {
@@ -21,10 +22,30 @@ export async function POST(req: NextRequest) {
         catch (e) { return id; }
     });
 
-    const result = await db.collection('leads').updateMany(
-      { $or: [ { _id: { $in: objectIds } }, { id: { $in: ids } } ] },
-      { $set: { status: status, updatedAt: new Date().toISOString() } }
-    );
+    let updatedIds = ids || [];
+    
+    if (bulkUpdates && bulkUpdates.length > 0) {
+      updatedIds = bulkUpdates.map((u: any) => u.id);
+      
+      const bulkOps = bulkUpdates.map((u: any) => ({
+        updateOne: {
+          filter: { $or: [{ _id: { $in: [u.id] } }, { id: u.id }] },
+          update: { 
+            $set: { 
+              status: u.status, 
+              updatedAt: new Date().toISOString(),
+              ...(u.reason ? { "metadata.ai9Reason": u.reason } : {})
+            } 
+          }
+        }
+      }));
+      await db.collection('leads').bulkWrite(bulkOps);
+    } else {
+      const result = await db.collection('leads').updateMany(
+        { $or: [ { _id: { $in: objectIds } }, { id: { $in: ids } } ] },
+        { $set: { status: status, updatedAt: new Date().toISOString() } }
+      );
+    }
 
     // Auto-schedule WhatsApp Trigger Jobs
     if (wtSettings) {
@@ -35,7 +56,7 @@ export async function POST(req: NextRequest) {
         
         const WhatsAppScheduledJob = getWhatsAppScheduledJob();
         
-        const jobs = ids.map((id: string) => ({
+        const jobs = updatedIds.map((id: string) => ({
           name: `WT Trigger: ${status} - ${stageConfig.template}`,
           createdByUserId: 'system',
           status: 'active',
