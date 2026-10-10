@@ -88,7 +88,7 @@ export function MetaLeadsTab({
     const [templates, setTemplates] = useState<any[]>([]);
 
     useEffect(() => {
-        if (showWTSettingsPopup) {
+        if (showWTSettingsPopup || showManualWTPopup) {
             const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
             fetch('/api/admin/crm/templates?provider=meta', {
                 headers: { Authorization: `Bearer ${token}` }
@@ -99,7 +99,7 @@ export function MetaLeadsTab({
             })
             .catch(err => console.error("Failed to load templates:", err));
         }
-    }, [showWTSettingsPopup]);
+    }, [showWTSettingsPopup, showManualWTPopup]);
     const [showAI9Popup, setShowAI9Popup] = useState(false);
     const [activeAITab, setActiveAITab] = useState<'AI-9A' | 'AI-9B' | 'AI-9C' | 'AI-9D' | 'AI-9E'>('AI-9A');
     
@@ -1226,7 +1226,12 @@ export function MetaLeadsTab({
                                 <button onClick={() => handleBulkStatusUpdate(selectedLeads, 'old_data')} className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-slate-300">
                                     <Archive size={14} /> Save as Old Data
                                 </button>
-                                <button onClick={() => setShowManualWTPopup(true)} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm">
+                                <button onClick={() => {
+                                    if (wtSettings.approved.template) {
+                                        setManualTemplate(wtSettings.approved.template);
+                                    }
+                                    setShowManualWTPopup(true);
+                                }} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm">
                                     <Play size={14} className="fill-white" /> Trigger WT
                                 </button>
                                 <button onClick={() => handleDelete(selectedLeads)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md flex items-center gap-1.5 text-xs shadow-sm ml-2">
