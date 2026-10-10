@@ -102,10 +102,12 @@ export default function NewRegistrationPage() {
       const keywords = String(selectedWorkshop.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
       const ai7MappedQuestion = selectedWorkshop.metadata?.googleFormMapping?.['AI-7'] || selectedWorkshop.metadata?.googleFormMapping?.['ai7'];
       return (leadsData || []).filter((lead: any) => {
-        if (lead._rawRecord && ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+        if (!lead._rawRecord) return false;
+        if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
           return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
+        } else {
+          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
         }
-        return false;
       });
     }
 
@@ -121,11 +123,12 @@ export default function NewRegistrationPage() {
     const ai7MappedQuestion = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.['ai7'];
     
     const matchedCount = (leadsData || []).filter((l: any) => {
-      if (!l) return false;
-      if (l._rawRecord && ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
+      if (!l || !l._rawRecord) return false;
+      if (ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
         return keywords.some((k: string) => isLeadMatchingKeyword(l._rawRecord[ai7MappedQuestion], k));
+      } else {
+        return keywords.some((k: string) => Object.values(l._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
       }
-      return false;
     }).length;
     
     const totalCount = batch.leads || 0;
