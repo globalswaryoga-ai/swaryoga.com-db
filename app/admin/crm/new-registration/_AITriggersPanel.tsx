@@ -166,23 +166,7 @@ export function AITriggersPanel({
                         return false;
                       });
 
-                      const validLeads = targetLeads.filter(l => {
-                          const meta = l.metadata || {};
-                          if (meta.wtLastTemplates && meta.wtLastTemplates[t.template]) {
-                              const diff = Date.now() - new Date(meta.wtLastTemplates[t.template]).getTime();
-                              if (diff < 48 * 60 * 60 * 1000) return false;
-                          } else if (meta.wtStatus === 'sent' || meta.wtStatus === 'delivered') {
-                              if (l.updatedAt) {
-                                  const diff = Date.now() - new Date(l.updatedAt).getTime();
-                                  if (diff < 48 * 60 * 60 * 1000) return false;
-                              } else {
-                                  return false;
-                              }
-                          }
-                          return true;
-                      });
-
-                      const leadIds = validLeads.map(l => l.id || l._id).filter(Boolean);
+                      const leadIds = targetLeads.map((l: any) => l.id || l._id).filter(Boolean);
 
                       if (leadIds.length > 0 && t.channel === 'meta') {
                          await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {

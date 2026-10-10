@@ -673,25 +673,11 @@ export function MetaLeadsTab({
         const validIds = selectedLeads.filter(id => {
             const lead = metaLeads.find((l: any) => (l._id || l.id) === id);
             if (!lead) return false;
-            
-            // Check if the SAME template was sent within 48 hours
-            if (lead.metadata?.wtLastTemplates && lead.metadata.wtLastTemplates[manualTemplate]) {
-                const diff = Date.now() - new Date(lead.metadata.wtLastTemplates[manualTemplate]).getTime();
-                if (diff < 48 * 60 * 60 * 1000) return false;
-            } else if (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered') {
-                // Legacy fallback for templates sent before wtLastTemplates existed
-                if (lead.updatedAt) {
-                    const diff = Date.now() - new Date(lead.updatedAt).getTime();
-                    if (diff < 48 * 60 * 60 * 1000) return false;
-                } else {
-                    return false;
-                }
-            }
             return true;
         });
 
         if (validIds.length === 0) {
-            return alert("All selected leads have already received a message within the last 48 hours. Skipped to prevent spam.");
+            return alert("No valid leads selected.");
         }
         
         try {
