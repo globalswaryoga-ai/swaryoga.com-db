@@ -101,6 +101,115 @@ export function AITriggersPanel({
     }
   }, [token]);
 
+  // Background Worker for Executing Triggers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      // YYYY-MM-DD local timezone
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const currentDateString = `${year}-${month}-${day}`;
+      
+      const currentHourStr = now.getHours().toString().padStart(2, '0');
+      const currentMinStr = now.getMinutes().toString().padStart(2, '0');
+      const currentTime = `${currentHourStr}:${currentMinStr}`;
+
+      setTriggers(prevTriggers => {
+        let triggersUpdated = false;
+        const newTriggers = [...prevTriggers];
+
+        newTriggers.forEach((t) => {
+          if (t.status !== 'active') return;
+          if (t.lastRunTime === currentTime && t.lastRunDate === currentDateString) return;
+
+          // Check if today is a valid date for this trigger
+          let shouldRunToday = false;
+          if (t.dates.includes(currentDateString)) {
+             shouldRunToday = true;
+          } else if (t.dates.length > 0) {
+             const startDate = new Date(t.dates[0]);
+             if (now.getTime() >= startDate.getTime()) {
+                if (t.repeat === 'daily') shouldRunToday = true;
+                else if (t.repeat === 'weekly' && now.getDay() === startDate.getDay()) shouldRunToday = true;
+                else if (t.repeat === 'monthly' && now.getDate() === startDate.getDate()) shouldRunToday = true;
+             }
+          }
+
+          if (shouldRunToday) {
+            // Check if time matches
+            if (t.time === currentTime) {
+              console.log("EXECUTING AI TRIGGER:", t);
+              t.lastRunTime = currentTime;
+              t.lastRunDate = currentDateString;
+              triggersUpdated = true;
+
+              // Process trigger in background
+              const runTrigger = async () => {
+                  try {
+                      // Filter leads based on targetCategory
+                      const targetLeads = leadsData.filter(l => {
+                        const dec = batchDecisions[l.id] || {};
+                        const status = dec.status || 'new_leads';
+                        
+                        if (t.targetCategory === 'All Leads') return true;
+                        if (t.targetCategory === 'New Leads') return true; 
+                        if (t.targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
+                        if (t.targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+                        if (t.targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+                        if (t.targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
+                        if (t.targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
+                        if (t.targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
+                        if (t.targetCategory === 'Registerd leads') return dec.isRegistered;
+                        if (t.targetCategory === 'Rejected leads') return dec.isRejected;
+                        
+                        return false;
+                      });
+
+                      const validLeads = targetLeads.filter(l => {
+                          const meta = l.metadata || {};
+                          if (meta.wtLastTemplates && meta.wtLastTemplates[t.template]) {
+                              const diff = Date.now() - new Date(meta.wtLastTemplates[t.template]).getTime();
+                              if (diff < 48 * 60 * 60 * 1000) return false;
+                          } else if (meta.wtStatus === 'sent' || meta.wtStatus === 'delivered') {
+                              if (l.updatedAt) {
+                                  const diff = Date.now() - new Date(l.updatedAt).getTime();
+                                  if (diff < 48 * 60 * 60 * 1000) return false;
+                              } else {
+                                  return false;
+                              }
+                          }
+                          return true;
+                      });
+
+                      const leadIds = validLeads.map(l => l.id || l._id).filter(Boolean);
+
+                      if (leadIds.length > 0 && t.channel === 'meta') {
+                         await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: leadIds, template: t.template })
+                         });
+                         console.log(`AI Trigger ${t.id} completed. Sent to ${leadIds.length} leads.`);
+                      }
+                  } catch (err) {
+                      console.error("AI Trigger failed:", err);
+                  }
+              };
+              
+              runTrigger();
+            }
+          }
+        });
+
+        return triggersUpdated ? newTriggers : prevTriggers;
+      });
+
+    }, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [leadsData, batchDecisions]);
+
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
