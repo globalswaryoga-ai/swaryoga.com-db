@@ -290,8 +290,15 @@ export function AITriggersPanel({
             if (targetCategory === 'All Leads') targetStatus = undefined;
             else if (targetCategory === 'New Leads') targetStatus = 'new';
             else if (targetCategory === 'Pending Leads') targetStatus = 'pending';
-            else if (targetCategory.includes('Aprovel')) targetStatus = 'approved';
+            else if (targetCategory === 'Pending Leads-1') targetStatus = 'stage_1_pending';
+            else if (targetCategory === 'Pending Leads-2') targetStatus = 'stage_2_pending';
+            else if (targetCategory === 'Pending Leads-3') targetStatus = 'stage_3_pending';
+            else if (targetCategory === 'Aprovel-1') targetStatus = 'stage_1_approved';
+            else if (targetCategory === 'Aprovel-2') targetStatus = 'stage_2_approved';
             else if (targetCategory === 'Rejected leads') targetStatus = 'rejected';
+            else if (targetCategory === 'Registerd leads') targetStatus = 'registered';
+            else if (targetCategory === 'Set zoom meeting') targetStatus = 'zoom_meeting';
+            else if (targetCategory === 'Take Zoom Meeting') targetStatus = 'take_zoom_meeting';
 
             const payload = {
                 name: `AI Trigger: ${template} (${dateStr} ${scheduleTime})`,
