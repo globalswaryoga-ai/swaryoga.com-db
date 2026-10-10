@@ -31,9 +31,14 @@ export async function GET(request: NextRequest) {
             let messageStatus = lead.metadata?.wtStatus;
             let messageReason = lead.metadata?.wtError || '';
             
-            if (messageReason.toLowerCase().includes('not a valid whatsapp') || messageReason.toLowerCase().includes('not exist') || messageReason.toLowerCase().includes('131026')) {
+            if (messageReason.toLowerCase().includes('not a valid whatsapp') || messageReason.toLowerCase().includes('131026')) {
+                messageStatus = 'wrong_number';
+            } else if (messageReason.toLowerCase().includes('template name does not exist')) {
+                messageStatus = 'failed';
+            } else if (messageReason.toLowerCase().includes('not exist') && !messageReason.toLowerCase().includes('template')) {
                 messageStatus = 'wrong_number';
             }
+            
             if (messageReason.toLowerCase().includes('spam') || messageReason.toLowerCase().includes('blocked') || messageReason.toLowerCase().includes('131031')) {
                 messageStatus = 'blocked';
             }

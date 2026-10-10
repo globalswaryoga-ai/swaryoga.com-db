@@ -20,9 +20,26 @@ export async function POST(req: NextRequest) {
     let successCount = 0;
     const results: any[] = [];
     
+    let languageCode = 'en';
+    try {
+        const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+        const tmplRes = await bunnyExecute({
+            sql: "SELECT data_json FROM whatsapp_templates_sql WHERE template_name = ?",
+            args: [template]
+        });
+        if (tmplRes.rows.length > 0) {
+            const t = JSON.parse(String(tmplRes.rows[0].data_json));
+            if (t.language) {
+                languageCode = t.language;
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching template language:', e);
+    }
+
     for (const lead of leads) {
       if (!lead.phoneNumber) continue;
-      const input = { to: lead.phoneNumber, templateName: template, languageCode: 'en' };
+      const input = { to: lead.phoneNumber, templateName: template, languageCode: languageCode };
       let wtStatus = 'pending';
       let wtError = null;
       try {
