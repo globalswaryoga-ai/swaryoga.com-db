@@ -2873,34 +2873,7 @@ export default function MetaInboxPage() {
                     </div>
                   ) : null}
                 </div>
-                {/* AI-9 Approval Button */}
-                <button
-                  type="button"
-                  className="p-1.5 ml-auto flex items-center gap-1.5 px-3 rounded-lg font-bold text-white shadow-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg, #2563EB, #4F46E5)' }}
-                  onClick={() => {
-                    if (selected?.metadata?.rawFieldData && Array.isArray(selected.metadata.rawFieldData)) {
-                       const parsed = selected.metadata.rawFieldData.map((item: any) => {
-                          if (item.question_text) return { q: item.question_text, a: item.response || '' };
-                          if (item.name) return { q: item.name, a: item.values?.[0] || '' };
-                          return null;
-                       }).filter(Boolean);
-                       
-                       if (parsed.length > 0) {
-                          setAi9Data(parsed);
-                       } else {
-                          setAi9Data([{ q: '', a: '' }]);
-                       }
-                    } else {
-                       setAi9Data([{ q: '', a: '' }]);
-                    }
-                    setIsAi9ModalOpen(true);
-                  }}
-                  title="AI-9 Q&A Approval"
-                >
-                  <i className="ph-fill ph-robot"></i>
-                  <span className="text-[11px] uppercase tracking-wide">AI-9 Approve</span>
-                </button>
+
 
                 <button
                   className="p-1.5 text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded-md transition-colors"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveBunnyLead, getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
+import { saveBunnyLead, getBunnyLeadByPhone, getBunnyLeadByEmail } from '@/lib/bunnyLeadsRepository';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch leads from Meta
-    const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}${proofParam}`);
+    const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}${proofParam}&limit=1000`);
 
     const data = await res.json();
 
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     let syncedCount = 0;
+    const localCache = new Map<string, any>();
     
     // Process leads
     for (const item of (data.data || [])) {
@@ -75,16 +76,22 @@ export async function POST(req: NextRequest) {
       if (!cleanPhone) continue; // Skip if no phone
 
       // Check if exists
-      const existing = await getBunnyLeadByPhone(cleanPhone, 'system');
+      let existing = null;
+      if (cleanPhone) {
+          existing = localCache.get(cleanPhone) || await getBunnyLeadByPhone(cleanPhone, 'system');
+      }
+      if (!existing && email) {
+          existing = await getBunnyLeadByEmail(email);
+      }
       
       if (!existing) {
         // Create new lead
-        await saveBunnyLead({
+        const savedLead = await saveBunnyLead({
           phoneNumber: cleanPhone,
           name: name || 'Unknown',
           email: email || '',
           source: 'meta_instant_form',
-          status: 'new',
+          status: 'stage_1_new',
           workshopId: workshopId || null,
           workshopName: workshopName || 'Unknown Workshop',
           formSource: 'facebook_instagram_ads',
@@ -97,27 +104,26 @@ export async function POST(req: NextRequest) {
           },
           createdByUserId: 'system',
         });
+        
+        // Cache it to avoid duplicate inserts in this run
+        localCache.set(cleanPhone, savedLead);
+
         syncedCount++;
       } else {
-        // Update if missing metaLeadId OR missing workshopId
-        const needsMetaLeadId = !existing.metadata?.metaLeadId;
-        const needsWorkshopId = workshopId && !existing.workshopId;
-        
-        if (needsMetaLeadId || needsWorkshopId) {
-          await saveBunnyLead({
-            ...existing,
-            workshopId: existing.workshopId || workshopId,
-            workshopName: existing.workshopName || workshopName,
-            metadata: {
-              ...(existing.metadata || {}),
-              metaFormId: formId,
-              rawFieldData: rawFieldData,
-              metaLeadId: item.id
-            },
-            labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : '']))
-          }, existing._id || existing.id);
-          syncedCount++;
-        }
+        // Always update existing lead to bring in latest answers and make sure no duplicates are created
+        await saveBunnyLead({
+          ...existing,
+          workshopId: workshopId || existing.workshopId,
+          workshopName: workshopName || existing.workshopName,
+          metadata: {
+            ...(existing.metadata || {}),
+            metaFormId: formId,
+            rawFieldData: rawFieldData,
+            metaLeadId: item.id
+          },
+          labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : '']))
+        }, existing._id || existing.id);
+        syncedCount++;
       }
     }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 
-import { getBunnyLeadByPhone, saveBunnyLead, getBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { getBunnyLeadByPhone, saveBunnyLead, listBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone, generateAppSecretProof } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -131,7 +131,7 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
     
     // If not found by phone, try by metaLeadgenId
     if (!existingLead) {
-      const allLeadsData = await getBunnyLeads({ limit: 5000, selectAll: true, excludeSource: '' }, null);
+      const allLeadsData = await listBunnyLeads({ limit: 5000, skip: 0, visibleUserIds: null, viewerUserId: 'system', excludeSource: '' });
       const allLeads = allLeadsData.leads || [];
       existingLead = allLeads.find((l: any) => l.metadata?.metaLeadgenId === metaLeadgenId);
     }

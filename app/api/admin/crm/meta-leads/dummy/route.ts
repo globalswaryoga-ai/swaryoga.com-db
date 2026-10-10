@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
             name: name || 'Dummy Tester',
             email: email || '',
             source: 'meta_instant_form',
-            status: 'new',
+            status: 'stage_1_new',
             workshopId: workshopId || null,
             workshopName: workshopName || 'Unknown Workshop',
             formSource: 'facebook_instagram_ads',

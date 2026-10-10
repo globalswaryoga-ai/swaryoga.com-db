@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,23 +9,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
     }
 
-    const mongoose = await clientPromise();
-    const db = mongoose.connection.getClient().db(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const collection = db.collection('bunny_leads');
-
-    const objectIds = ids.map(id => {
-        try { return new ObjectId(id); }
-        catch { return id; }
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await bunnyExecute({
+      sql: `DELETE FROM leads_sql WHERE document_id IN (${placeholders})`,
+      args: ids
     });
 
-    const result = await collection.deleteMany({
-        $or: [
-            { _id: { $in: objectIds } },
-            { id: { $in: ids } }
-        ]
-    });
-
-    return NextResponse.json({ success: true, deletedCount: result.deletedCount });
+    return NextResponse.json({ success: true, deletedCount: result.rowsAffected });
   } catch (error: any) {
     console.error('Error deleting leads:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

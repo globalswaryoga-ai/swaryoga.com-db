@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     let syncedCount = 0;
+    const localCache = new Map<string, any>();
     
     for (const row of parsed.data as any[]) {
       // Find relevant columns ignoring case
@@ -53,10 +54,10 @@ export async function POST(req: NextRequest) {
 
       if (!cleanPhone) continue;
 
-      const existing = await getBunnyLeadByPhone(cleanPhone, 'system');
+      let existing = localCache.get(cleanPhone) || await getBunnyLeadByPhone(cleanPhone, 'system');
       
       if (!existing) {
-        await saveBunnyLead({
+        const savedLead = await saveBunnyLead({
           phoneNumber: cleanPhone,
           name: name || 'Unknown',
           email: email || '',
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
           },
           createdByUserId: 'system',
         });
+        localCache.set(cleanPhone, savedLead);
         syncedCount++;
       }
     }

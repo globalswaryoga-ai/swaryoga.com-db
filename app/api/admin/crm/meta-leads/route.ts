@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
     // We want to return raw Meta leads (source: meta_instant_form)
     const leadsList = Array.isArray(bunnyResult) ? bunnyResult : (bunnyResult?.leads || []);
     const allMetaLeads = leadsList.filter((l: any) => 
-      l.source === 'meta_instant_form' || (l.labels || []).includes('meta_instant_form')
+      l.source === 'meta_instant_form' || 
+      l.source === 'meta_leadgen' ||
+      (l.labels || []).includes('meta_instant_form') ||
+      (l.labels || []).includes('meta_leadgen')
     );
 
     // Match leads by either exact workshopId or metaFormId
@@ -43,10 +46,7 @@ export async function GET(request: NextRequest) {
       return matchWorkshop || matchForm;
     });
 
-    // If still no matches (or no filters provided), return ALL meta leads so they are visible
-    if (metaLeads.length === 0) {
-      metaLeads = allMetaLeads;
-    }
+    // Isolated compartments: Do NOT return all meta leads if none match.
     
     console.log(`[MetaLeads API] workshopId=${workshopId}, total meta leads=${allMetaLeads.length}, filtered=${metaLeads.length}`);
 

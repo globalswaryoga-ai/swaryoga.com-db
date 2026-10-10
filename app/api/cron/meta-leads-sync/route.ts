@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveBunnyLead, getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
+import { saveBunnyLead, getBunnyLeadByPhone, getBunnyLeadByEmail } from '@/lib/bunnyLeadsRepository';
 import { fetchFromStorage } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       if (!formId) continue;
 
       try {
-        const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}${proofParam}`);
+        const res = await fetch(`https://graph.facebook.com/v24.0/${formId}/leads?access_token=${token}${proofParam}&limit=1000`);
         const data = await res.json();
 
         if (data.error) {
@@ -109,7 +109,13 @@ export async function GET(req: NextRequest) {
           if (!cleanPhone) continue; // Skip if no phone
 
           // Check if exists
-          const existing = await getBunnyLeadByPhone(cleanPhone, 'system');
+          let existing = null;
+          if (cleanPhone) {
+              existing = await getBunnyLeadByPhone(cleanPhone, 'system');
+          }
+          if (!existing && email) {
+              existing = await getBunnyLeadByEmail(email);
+          }
           
           if (!existing) {
             // Create new lead
@@ -134,26 +140,22 @@ export async function GET(req: NextRequest) {
             syncedCount++;
             totalSyncedCount++;
           } else {
-            // Update if missing metaLeadId OR missing workshopId
-            const needsMetaLeadId = !existing.metadata?.metaLeadId;
-            const needsWorkshopId = workshop.id && !existing.workshopId;
-            
-            if (needsMetaLeadId || needsWorkshopId) {
-              await saveBunnyLead({
-                ...existing,
-                workshopId: existing.workshopId || workshop.id,
-                workshopName: existing.workshopName || workshop.name,
-                metadata: {
-                  ...(existing.metadata || {}),
-                  metaFormId: formId,
-                  rawFieldData: rawFieldData,
-                  metaLeadId: item.id
-                },
-                labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshop.id ? `workshop_${workshop.id}` : '']))
-              }, existing._id || existing.id);
-              syncedCount++;
-              totalSyncedCount++;
-            }
+            // Always update existing lead to bring in latest answers and make sure no duplicates are created
+            // We just override the rawFieldData and metaFormId with the latest submission
+            await saveBunnyLead({
+              ...existing,
+              workshopId: workshop.id || existing.workshopId,
+              workshopName: workshop.name || existing.workshopName,
+              metadata: {
+                ...(existing.metadata || {}),
+                metaFormId: formId,
+                rawFieldData: rawFieldData,
+                metaLeadId: item.id
+              },
+              labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshop.id ? `workshop_${workshop.id}` : '']))
+            }, existing._id || existing.id);
+            syncedCount++;
+            totalSyncedCount++;
           }
         }
         

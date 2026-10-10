@@ -408,9 +408,9 @@ export default function WorkshopOfferPage() {
               const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ');
               const isPositive = !isNegative && (aLower.includes('yes') || aLower.includes('ready') || aLower.includes('noted') || aLower.includes('will') || aLower.includes('agree') || aLower.includes('ok') || aLower === 'y');
 
-              if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
+              if ((qLower.includes('14 days') || qLower.includes('14-day') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
-              if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
+              if ((qLower.includes('donation') || qLower.includes('contribute') || qLower.includes('support')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
             });
           }
 
@@ -698,9 +698,9 @@ export default function WorkshopOfferPage() {
               const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ');
               const isPositive = !isNegative && (aLower.includes('yes') || aLower.includes('ready') || aLower.includes('noted') || aLower.includes('will') || aLower.includes('agree') || aLower.includes('ok') || aLower === 'y');
 
-              if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
+              if ((qLower.includes('14 days') || qLower.includes('14-day') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
-              if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
+              if ((qLower.includes('donation') || qLower.includes('contribute') || qLower.includes('support')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
 
               // AI-2 Checks
               if (qLower.includes('education') || qLower.includes('qualification')) {

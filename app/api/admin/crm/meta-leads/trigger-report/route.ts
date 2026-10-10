@@ -64,6 +64,30 @@ export async function GET(request: NextRequest) {
         };
     }));
 
+    // Add manual triggered messages from leads_sql
+    try {
+        const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+        const leadsRes = await bunnyExecute({ sql: "SELECT data_json FROM leads_sql" });
+        const triggerLeads = leadsRes.rows
+            .map((r: any) => JSON.parse(r.data_json))
+            .filter((l: any) => l.metadata?.wtStatus);
+            
+        for (const lead of triggerLeads) {
+            reportData.push({
+                id: lead._id || lead.id || `manual-${Date.now()}`,
+                leadName: lead.name || 'Unknown',
+                phone: lead.phoneNumber || 'Unknown',
+                stage: lead.status || 'Unknown',
+                template: lead.metadata?.wtTemplate || 'Manual/AI Trigger',
+                scheduledAt: lead.updatedAt || new Date().toISOString(),
+                status: lead.metadata?.wtStatus,
+                reason: lead.metadata?.wtError || ''
+            });
+        }
+    } catch(e) {
+        console.error('Error fetching leads_sql triggers:', e);
+    }
+
     reportData.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
     return NextResponse.json({ success: true, data: reportData });

@@ -137,66 +137,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       <span className="text-xs text-slate-500 font-medium">Data Source Selection</span>
                     </div>
 
-                    <div className="flex items-center gap-6 mb-2 bg-slate-100 p-2 rounded-lg inline-flex">
-                      <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
-                        <input
-                          type="radio"
-                          name="formSource"
-                          value="internal"
-                          checked={formSource === 'internal'}
-                          onChange={() => {
-                            setFormSource('internal');
-                            if (selectedWorkshop) {
-                              const updated = { ...selectedWorkshop, metadata: { ...selectedWorkshop.metadata, formSource: 'internal' } };
-                              setSelectedWorkshop(updated);
-                              saveWorkshopSettings(updated);
-                            }
-                          }}
-                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-sm font-bold text-slate-700">Add leads form - CRM</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
-                        <input
-                          type="radio"
-                          name="formSource"
-                          value="google"
-                          checked={formSource === 'google'}
-                          onChange={() => {
-                            setFormSource('google');
-                            if (selectedWorkshop) {
-                              const updated = { ...selectedWorkshop, metadata: { ...selectedWorkshop.metadata, formSource: 'google' } };
-                              setSelectedWorkshop(updated);
-                              saveWorkshopSettings(updated);
-                            }
-                          }}
-                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-sm font-bold text-slate-700">Upload leads form - Google Form</span>
-                      </label>
-                    </div>
-
-                    {formSource === 'internal' ? (
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                        <label className="text-sm font-bold text-slate-700">Select CRM Form</label>
-                        <p className="text-xs text-slate-500 mb-2">Create forms in <a href="/admin/crm/form-questions" className="text-indigo-600 hover:underline" target="_blank">Settings &gt; Forms Setup</a></p>
-                        <select
-                          className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                          value={selectedFormId}
-                          onChange={(e) => setSelectedFormId(e.target.value)}
-                        >
-                          <option value="">Select a form to fetch data fields...</option>
-                          {isLoadingForms ? (
-                            <option disabled>Loading forms...</option>
-                          ) : (
-                            fetchedForms.map((f: any) => (
-                              <option key={f.formId} value={f.formId}>{f.workshopName || f.formId}</option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                         <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                           Select Google Form
                           {googleFormsList.length > 0 && (
@@ -508,7 +449,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           </div>
                         )}
                       </div>
-                    )}
 
                     {needsGoogleAuth && (
                       <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
