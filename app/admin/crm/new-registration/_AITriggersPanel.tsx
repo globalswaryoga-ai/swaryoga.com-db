@@ -255,7 +255,7 @@ export function AITriggersPanel({
     );
   };
 
-  const handleSaveTrigger = () => {
+  const handleSaveTrigger = async () => {
     if (selectedDates.length === 0) {
       toast.error('Please select at least one date in the calendar.');
       return;
@@ -269,31 +269,78 @@ export function AITriggersPanel({
       return;
     }
     
-    // For groups, we just need the group name. For individual broadcast, we use language + batch + category
     let finalAudience = '';
+    const batchName = selectedBatchId ? workshops?.find(w => w.id === selectedBatchId)?.name || selectedBatchId : 'All Batches';
+
     if (channel === 'group') {
       const gName = groups.find(g => (g.id || g._id) === selectedGroupId)?.subject || 'WhatsApp Group';
       finalAudience = `Group: ${gName}`;
     } else {
-      const batchName = selectedBatchId ? workshops?.find(w => w.id === selectedBatchId)?.name || selectedBatchId : 'All Batches';
       finalAudience = `${selectedLanguage} | ${batchName} | ${targetCategory}`;
     }
-    
-    const newTrigger = {
-      id: Date.now().toString(),
-      channel,
-      template,
-      audience: finalAudience,
-      targetGroupId: channel === 'group' ? selectedGroupId : undefined,
-      targetCategory,
-      dates: selectedDates,
-      time: scheduleTime,
-      repeat: repeatMode,
-      status: 'active'
-    };
-    
-    setTriggers([newTrigger, ...triggers]);
-    toast.success('AI Trigger scheduled successfully!');
+
+    try {
+        toast.info('Scheduling broadcasts...');
+        for (const dateStr of selectedDates) {
+            const [yyyy, mm, dd] = dateStr.split('-');
+            const [hh, min] = scheduleTime.split(':');
+            const scheduledAt = new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(hh), Number(min)).toISOString();
+
+            let targetStatus = undefined;
+            if (targetCategory === 'All Leads') targetStatus = undefined;
+            else if (targetCategory === 'New Leads') targetStatus = 'new';
+            else if (targetCategory === 'Pending Leads') targetStatus = 'pending';
+            else if (targetCategory.includes('Aprovel')) targetStatus = 'approved';
+            else if (targetCategory === 'Rejected leads') targetStatus = 'rejected';
+
+            const payload = {
+                name: `AI Trigger: ${template} (${dateStr} ${scheduleTime})`,
+                templateId: templates.find(t => t.templateName === template)?.id || templates.find(t => t.templateName === template)?._id || template,
+                provider: channel,
+                mode: 'schedule',
+                scheduleAt: scheduledAt,
+                target: {
+                    type: 'filters',
+                    filters: {
+                        workshopName: selectedBatchId ? batchName : undefined,
+                        status: targetStatus
+                    }
+                }
+            };
+            
+            const res = await fetch('/api/admin/crm/broadcast-runs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('token') || ''}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to schedule broadcast');
+            }
+        }
+
+        const newTrigger = {
+          id: Date.now().toString(),
+          channel,
+          template,
+          audience: finalAudience,
+          targetGroupId: channel === 'group' ? selectedGroupId : undefined,
+          targetCategory,
+          dates: selectedDates,
+          time: scheduleTime,
+          repeat: repeatMode,
+          status: 'active'
+        };
+        
+        setTriggers([newTrigger, ...triggers]);
+        toast.success('AI Trigger scheduled successfully via Broadcast system!');
+    } catch (e: any) {
+        toast.error(`Error scheduling: ${e.message}`);
+    }
   };
 
   const handleEditTrigger = (trigger: any) => {
