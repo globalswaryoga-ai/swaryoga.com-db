@@ -286,32 +286,37 @@ export function AITriggersPanel({
             const [hh, min] = scheduleTime.split(':');
             const scheduledAt = new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(hh), Number(min)).toISOString();
 
-            let targetStatus = undefined;
-            if (targetCategory === 'All Leads') targetStatus = undefined;
-            else if (targetCategory === 'New Leads') targetStatus = 'new';
-            else if (targetCategory === 'Pending Leads') targetStatus = 'pending';
-            else if (targetCategory === 'Pending Leads-1') targetStatus = 'stage_1_pending';
-            else if (targetCategory === 'Pending Leads-2') targetStatus = 'stage_2_pending';
-            else if (targetCategory === 'Pending Leads-3') targetStatus = 'stage_3_pending';
-            else if (targetCategory === 'Aprovel-1') targetStatus = 'stage_1_approved';
-            else if (targetCategory === 'Aprovel-2') targetStatus = 'stage_2_approved';
-            else if (targetCategory === 'Rejected leads') targetStatus = 'rejected';
-            else if (targetCategory === 'Registerd leads') targetStatus = 'registered';
-            else if (targetCategory === 'Set zoom meeting') targetStatus = 'zoom_meeting';
-            else if (targetCategory === 'Take Zoom Meeting') targetStatus = 'take_zoom_meeting';
+            // Compute actual matching leads using the same logic as filteredPreviewLeads
+            const getMatchingLeads = () => {
+              if (!targetCategory || targetCategory === 'All Leads') return leadsData;
+              return leadsData.filter(l => {
+                const dec = batchDecisions[l.id] || {};
+                const status = dec.status || 'new_leads';
+                if (targetCategory === 'New Leads') return status === 'new_leads' && !dec.isRejected && !dec.isRegistered;
+                if (targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
+                if (targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+                if (targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+                if (targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
+                if (targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status) && !dec.isRejected && !dec.isRegistered;
+                if (targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
+                if (targetCategory === 'Registerd leads') return dec.isRegistered;
+                if (targetCategory === 'Rejected leads') return dec.isRejected;
+                return false;
+              });
+            };
+
+            const matchingLeads = getMatchingLeads();
+            const leadIds = matchingLeads.map((l: any) => l.id || l._id).filter(Boolean);
 
             const payload = {
                 name: `AI Trigger: ${template} (${dateStr} ${scheduleTime})`,
                 templateId: templates.find(t => t.templateName === template)?.id || templates.find(t => t.templateName === template)?._id || template,
-                provider: channel,
+                provider: 'meta',
                 mode: 'schedule',
                 scheduleAt: scheduledAt,
                 target: {
-                    type: 'filters',
-                    filters: {
-                        workshopName: selectedBatchId ? batchName : undefined,
-                        status: targetStatus
-                    }
+                    type: 'leadIds',
+                    leadIds: leadIds
                 }
             };
             
