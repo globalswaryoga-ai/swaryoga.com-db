@@ -345,15 +345,8 @@ export function AITriggersPanel({
 
   const filteredTemplates = React.useMemo(() => {
     if (!templates) return [];
-    return templates.filter(t => {
-      const tLang = (t.language || '').toLowerCase();
-      const target = selectedLanguage.toLowerCase();
-      // Match exactly or if template language is 'en' and target is 'english'
-      if (tLang === target) return true;
-      if (target.startsWith(tLang) || tLang.startsWith(target)) return true;
-      return false;
-    });
-  }, [templates, selectedLanguage]);
+    return templates;
+  }, [templates]);
 
   return (
     <div className="p-6 bg-white min-h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
@@ -718,11 +711,22 @@ export function AITriggersPanel({
                           </button>
                         </div>
                         
-                        {isExpanded && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded-lg text-xs text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                            {t.components?.find((c: any) => c.type === 'BODY')?.text || t.body || t.content || t.message || 'No content preview available.'}
-                          </div>
-                        )}
+                        {isExpanded && (() => {
+                          const bodyText = t.components?.find((c: any) => c.type === 'BODY')?.text || t.body || t.content || t.message || 'No content preview available.';
+                          const headerMediaUrl = t.headerMedia?.url || t.components?.find((c: any) => c.type === 'HEADER')?.example?.header_handle?.[0];
+                          return (
+                            <div className="mt-2 p-3 bg-gray-50 rounded-lg text-xs text-gray-700 whitespace-pre-wrap max-h-60 overflow-y-auto border border-gray-100">
+                              {headerMediaUrl && (
+                                <div className="mb-3 rounded-lg overflow-hidden border border-gray-200">
+                                  {/* Use regular img tag since we don't know domains for next/image */}
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={headerMediaUrl} alt="Template Header" className="w-full h-auto object-cover max-h-32" />
+                                </div>
+                              )}
+                              <div className="font-medium">{bodyText}</div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
