@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     try {
       // Find existing google_forms account
       const existingRes = await bunnyExecute({
-        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC"
       });
 
       let matchedId: string | null = null;

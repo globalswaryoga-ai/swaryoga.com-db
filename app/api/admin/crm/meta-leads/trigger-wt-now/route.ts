@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     
     for (const lead of leads) {
       if (!lead.phoneNumber) continue;
-      const input = buildCloudTemplateSendInput(lead.phoneNumber, template, 'en_US', []);
+      const input = { to: lead.phoneNumber, templateName: template, languageCode: 'en' };
       let wtStatus = 'pending';
       let wtError = null;
       try {
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
           try {
               const { upsertBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
               await upsertBunnyMetaMessage({
-                  _id: apiResult.messages?.[0]?.id || `manual-${Date.now()}-${lead.phoneNumber}`,
-                  waMessageId: apiResult.messages?.[0]?.id,
+                  _id: apiResult.waMessageId || `manual-${Date.now()}-${lead.phoneNumber}`,
+                  waMessageId: apiResult.waMessageId,
                   leadId: lead._id || lead.id,
                   phoneNumber: lead.phoneNumber,
                   direction: 'outbound',

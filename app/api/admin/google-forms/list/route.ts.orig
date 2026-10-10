@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     } catch {}
 
     const accountRes = await bunnyExecute({
-      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC"
+      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
 
     let account: any = null;

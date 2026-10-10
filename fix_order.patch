@@ -1,0 +1,11 @@
+--- app/api/admin/google-forms/list/route.ts
++++ app/api/admin/google-forms/list/route.ts
+@@ -48,7 +48,7 @@
+     }
+ 
+     const accountRes = await bunnyExecute({
+-      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
++      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC"
+     });
+ 
+     let account: any = null;

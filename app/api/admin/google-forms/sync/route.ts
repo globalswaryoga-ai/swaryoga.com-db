@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     const accountRes = await bunnyExecute({
-      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC"
     });
 
     if (!accountRes || !accountRes.rows || accountRes.rows.length === 0) {

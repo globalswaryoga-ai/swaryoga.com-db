@@ -332,8 +332,9 @@ export function MetaLeadsTab({
                 }
                 val = val.toLowerCase();
                 
-                if (item.name) answers[item.name.toLowerCase().replace(/\s+/g, ' ').trim()] = val;
-                if (item.question_text) answers[item.question_text.toLowerCase().replace(/\s+/g, ' ').trim()] = val;
+                const sanitizeKey = (k: string) => (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (item.name) answers[sanitizeKey(item.name)] = val;
+                if (item.question_text) answers[sanitizeKey(item.question_text)] = val;
             });
         }
 
@@ -344,20 +345,18 @@ export function MetaLeadsTab({
             if (!filter.question) return; // Skip empty filters
             validFiltersCount++;
             
-            const ans = answers[filter.question?.toLowerCase().replace(/\s+/g, ' ').trim()] || '';
+            const sanitizeKey = (k: string) => (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const ansKey = sanitizeKey(filter.question);
+            const ans = answers[ansKey] || '';
             let matchedCategory = filter.fallbackCategory || filter.fallback || 'pending';
             
             if (filter.options) {
                 for (const opt of filter.options) {
                     if (opt.answer) {
-                        const cleanAns = ans.replace(/_+$/, '').trim();
-                        const cleanOpt = opt.answer.toLowerCase().trim();
-                        const ansWords = cleanAns.split(/[\s,]+/);
-                        let matched = cleanAns === cleanOpt || ansWords.includes(cleanOpt);
+                        const cleanAns = ans.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+                        const cleanOpt = opt.answer.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
                         
-                        if (!matched && cleanOpt.includes(' ')) {
-                            matched = cleanAns.includes(cleanOpt);
-                        }
+                        let matched = cleanAns === cleanOpt || (cleanOpt.length > 0 && cleanAns.includes(cleanOpt));
 
                         if (matched) {
                             matchedCategory = opt.category;
@@ -398,37 +397,37 @@ export function MetaLeadsTab({
 
             // AI-9A (New Leads)
             if (ai9AConfig?.isActive) {
-                const sNewLeads = metaLeads.filter((l: any) => !l.status || l.status === 'new' || l.status === 'lead');
+                const sNewLeads = metaLeads.filter((l: any) => !l.status || l.status === 'new' || l.status === 'lead' || l.status === 'new_pending');
                 sNewLeads.slice(0, 10).forEach((lead: any) => {
                     const res = evaluateLead(lead, ai9AConfig, 'stage_1_new', 'new_pending', 'new_rejected');
-                    if (res) updates.push({ id: lead._id || lead.id, ...res });
+                    if (res && res.status !== (lead.status || 'new')) updates.push({ id: lead._id || lead.id, ...res });
                 });
             }
 
             // AI-9B (Stage 1)
             if (ai9BConfig?.isActive && updates.length < 10) {
-                const s1Leads = metaLeads.filter((l: any) => l.status === 'stage_1_new');
+                const s1Leads = metaLeads.filter((l: any) => l.status === 'stage_1_new' || l.status === 'stage_1_pending');
                 s1Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
                     const res = evaluateLead(lead, ai9BConfig, 'stage_2_new', 'stage_1_pending', 'stage_1_rejected');
-                    if (res) updates.push({ id: lead._id || lead.id, ...res });
+                    if (res && res.status !== lead.status) updates.push({ id: lead._id || lead.id, ...res });
                 });
             }
 
             // AI-9C (Stage 2)
             if (ai9CConfig?.isActive && updates.length < 10) {
-                const s2Leads = metaLeads.filter((l: any) => l.status === 'stage_2_new');
+                const s2Leads = metaLeads.filter((l: any) => l.status === 'stage_2_new' || l.status === 'stage_2_pending');
                 s2Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
                     const res = evaluateLead(lead, ai9CConfig, 'stage_3_new', 'stage_2_pending', 'stage_2_rejected');
-                    if (res) updates.push({ id: lead._id || lead.id, ...res });
+                    if (res && res.status !== lead.status) updates.push({ id: lead._id || lead.id, ...res });
                 });
             }
 
             // AI-9D (Stage 3)
             if (ai9DConfig?.isActive && updates.length < 10) {
-                const s3Leads = metaLeads.filter((l: any) => l.status === 'stage_3_new');
+                const s3Leads = metaLeads.filter((l: any) => l.status === 'stage_3_new' || l.status === 'stage_3_pending');
                 s3Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
                     const res = evaluateLead(lead, ai9DConfig, 'approved', 'stage_3_pending', 'stage_3_rejected');
-                    if (res) {
+                    if (res && res.status !== lead.status) {
                         updates.push({ id: lead._id || lead.id, ...res });
                         if (res.status === 'approved') triggers.push(lead._id || lead.id);
                     }
@@ -486,16 +485,21 @@ export function MetaLeadsTab({
             
             metaLeads.forEach((lead: any) => {
                 const currentStatus = lead.status || 'new';
-                if ((currentStatus === 'new' || currentStatus === 'lead') && ai9AConfig?.isActive) {
-                    updates.push({ id: lead._id || lead.id, ...evaluateLead(lead, ai9AConfig, 'stage_1_new', 'new_pending', 'new_rejected') });
-                } else if (currentStatus === 'stage_1_new' && ai9BConfig?.isActive) {
-                    updates.push({ id: lead._id || lead.id, ...evaluateLead(lead, ai9BConfig, 'stage_2_new', 'stage_1_pending', 'stage_1_rejected') });
-                } else if (currentStatus === 'stage_2_new' && ai9CConfig?.isActive) {
-                    updates.push({ id: lead._id || lead.id, ...evaluateLead(lead, ai9CConfig, 'stage_3_new', 'stage_2_pending', 'stage_2_rejected') });
-                } else if (currentStatus === 'stage_3_new' && ai9DConfig?.isActive) {
+                if ((currentStatus === 'new' || currentStatus === 'lead' || currentStatus === 'new_pending') && ai9AConfig?.isActive) {
+                    const res = evaluateLead(lead, ai9AConfig, 'stage_1_new', 'new_pending', 'new_rejected');
+                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
+                } else if ((currentStatus === 'stage_1_new' || currentStatus === 'stage_1_pending') && ai9BConfig?.isActive) {
+                    const res = evaluateLead(lead, ai9BConfig, 'stage_2_new', 'stage_1_pending', 'stage_1_rejected');
+                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
+                } else if ((currentStatus === 'stage_2_new' || currentStatus === 'stage_2_pending') && ai9CConfig?.isActive) {
+                    const res = evaluateLead(lead, ai9CConfig, 'stage_3_new', 'stage_2_pending', 'stage_2_rejected');
+                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
+                } else if ((currentStatus === 'stage_3_new' || currentStatus === 'stage_3_pending') && ai9DConfig?.isActive) {
                     const res = evaluateLead(lead, ai9DConfig, 'approved', 'stage_3_pending', 'stage_3_rejected');
-                    updates.push({ id: lead._id || lead.id, ...res });
-                    if (res.status === 'approved') triggers.push(lead._id || lead.id);
+                    if (res && res.status !== currentStatus) {
+                        updates.push({ id: lead._id || lead.id, ...res });
+                        if (res.status === 'approved') triggers.push(lead._id || lead.id);
+                    }
                 }
             });
 
@@ -640,6 +644,7 @@ export function MetaLeadsTab({
     const approvedLeads = metaLeads.filter((l: any) => l.status === 'approved').length;
     const pendingLeads = metaLeads.filter((l: any) => !l.status || l.status === 'pending' || l.status === 'new' || l.status === 'lead').length;
     const rejectedLeads = metaLeads.filter((l: any) => l.status === 'rejected').length;
+    const triggeredLeads = metaLeads.filter((l: any) => l.status === 'approved' && !!l.metadata?.wtStatus).length;
 
     // Filter & Sort Logic
     let filteredLeads = metaLeads.filter((lead: any) => {
@@ -652,11 +657,11 @@ export function MetaLeadsTab({
         
         let matchesStage = true;
         if (activeStageTab === 'stage-1') {
-            matchesStage = ['stage_1_new', 'stage_1_pending', 'stage_1_rejected'].includes(currentStatus);
+            matchesStage = ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
         } else if (activeStageTab === 'stage-2') {
-            matchesStage = ['stage_2_new', 'stage_2_pending', 'stage_2_rejected'].includes(currentStatus);
+            matchesStage = ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
         } else if (activeStageTab === 'stage-3') {
-            matchesStage = ['stage_3_new', 'stage_3_pending', 'stage_3_rejected'].includes(currentStatus);
+            matchesStage = ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
         }
         
         let matchesStatus = true;
@@ -670,7 +675,7 @@ export function MetaLeadsTab({
             if (activeStageTab === 'stage-1') matchesStatus = ['new', 'lead', 'new_pending', 'stage_1_pending'].includes(currentStatus);
             else if (activeStageTab === 'stage-2') matchesStatus = ['stage_2_new', 'stage_2_pending'].includes(currentStatus);
             else if (activeStageTab === 'stage-3') matchesStatus = ['stage_3_new', 'stage_3_pending'].includes(currentStatus);
-            else matchesStatus = currentStatus.includes('pending') || currentStatus === 'new' || currentStatus === 'lead' || currentStatus.endsWith('_new');
+            else matchesStatus = currentStatus === 'pending' || currentStatus === 'new' || currentStatus === 'lead' || currentStatus.endsWith('_pending');
         }
         if (statusFilter === 'Rejected') {
             if (activeStageTab === 'stage-1') matchesStatus = ['new_rejected', 'stage_1_rejected'].includes(currentStatus);
@@ -681,7 +686,7 @@ export function MetaLeadsTab({
         if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
 
         if (activeStageTab === 'pending') {
-            if (!currentStatus.includes('pending') && currentStatus !== 'new' && currentStatus !== 'lead' && !currentStatus.endsWith('_new')) matchesStatus = false;
+            if (currentStatus !== 'pending' && currentStatus !== 'new' && currentStatus !== 'lead' && !currentStatus.endsWith('_pending')) matchesStatus = false;
         }
         if (activeStageTab === 'rejected') {
             if (!currentStatus.includes('rejected')) matchesStatus = false;
@@ -752,12 +757,12 @@ export function MetaLeadsTab({
 
     const tabCounts = {
         all: metaLeads.length,
-        stage1: metaLeads.filter((l: any) => ['stage_1_new', 'stage_1_pending', 'stage_1_rejected'].includes(l.status || 'new')).length,
-        stage2: metaLeads.filter((l: any) => ['stage_2_new', 'stage_2_pending', 'stage_2_rejected'].includes(l.status || 'new')).length,
-        stage3: metaLeads.filter((l: any) => ['stage_3_new', 'stage_3_pending', 'stage_3_rejected'].includes(l.status || 'new')).length,
+        stage1: metaLeads.filter((l: any) => ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
+        stage2: metaLeads.filter((l: any) => ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
+        stage3: metaLeads.filter((l: any) => ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
         pending: metaLeads.filter((l: any) => {
             const s = l.status || 'new';
-            return s.includes('pending') || s === 'new' || s === 'lead' || s.endsWith('_new');
+            return s === 'pending' || s === 'new' || s === 'lead' || s.endsWith('_pending');
         }).length,
         rejected: metaLeads.filter((l: any) => (l.status || 'new').includes('rejected')).length
     };
@@ -767,7 +772,7 @@ export function MetaLeadsTab({
             
             {/* Header Report Cards & Settings Trigger */}
             <div className="flex gap-4">
-                <div className="grid grid-cols-4 gap-4 flex-1">
+                <div className="grid grid-cols-5 gap-4 flex-1">
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                         <h4 className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Leads</h4>
                         <p className="text-3xl font-black text-blue-600">{totalLeads}</p>
@@ -783,6 +788,10 @@ export function MetaLeadsTab({
                     <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm text-center bg-red-50/30">
                         <h4 className="text-xs text-red-600 font-bold uppercase tracking-wider mb-1">Rejected</h4>
                         <p className="text-3xl font-black text-red-600">{rejectedLeads}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm text-center bg-indigo-50/30">
+                        <h4 className="text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">WT Triggered</h4>
+                        <p className="text-3xl font-black text-indigo-600">{triggeredLeads}</p>
                     </div>
                 </div>
 
@@ -805,10 +814,10 @@ export function MetaLeadsTab({
                     <button 
                         onClick={() => setShowWTSettingsPopup(true)}
                         className="w-[100px] bg-[#25D366] hover:bg-[#128C7E] rounded-xl shadow-md flex flex-col items-center justify-center text-white transition-all transform hover:scale-105 group"
-                        title="Meta WhatsApp Trigger Management"
+                        title="AI-9W (WhatsApp AI)"
                     >
                         <div className="text-4xl font-black tracking-tighter drop-shadow-md">W</div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">WT Mgt</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 mt-1 px-1 text-center">AI-9W</div>
                     </button>
 
                     {/* Trigger Report Button */}
@@ -1388,17 +1397,33 @@ export function MetaLeadsTab({
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
                         
                         {/* Header */}
-                        <div className="p-6 bg-[#25D366]/10 border-b border-[#25D366]/20 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg">
+                        <div className="p-6 bg-[#25D366]/10 border-b border-[#25D366]/20 flex items-start justify-between">
+                            <div className="flex gap-4">
+                                <div className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shrink-0">
                                     W
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-slate-800 text-xl tracking-tight">WT Management</h3>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Automated WhatsApp Triggers (Stage 5 & 6)</p>
+                                    <h3 className="font-black text-slate-800 text-xl tracking-tight">AI-9W Configuration</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5 mb-3">Automated WhatsApp Triggers</p>
+                                    
+                                    <div className="text-[11px] text-slate-600 bg-white/60 p-3 rounded-lg border border-emerald-100 space-y-1">
+                                        <p className="font-bold text-slate-700 mb-1">AI-9W Operations:</p>
+                                        <ul className="list-decimal pl-4 space-y-0.5">
+                                            <li>Collect all approved leads data (WhatsApp number and name)</li>
+                                            <li>Check if WhatsApp number is working (if wrong, flag in red)</li>
+                                            <li>Schedule all correct/active numbers for WhatsApp broadcast</li>
+                                            <li>Old data will go in bulk, new data will follow schedule</li>
+                                            <li>No message will be sent if the template was already sent within 48 hours</li>
+                                            <li>Collect the selected template</li>
+                                            <li>Add auto-schedule time and submit</li>
+                                            <li>Auto-update data in Trigger Report and Main Broadcast Report</li>
+                                            <li>Auto-update arrow indicator after the name</li>
+                                        </ul>
+                                        <p className="text-emerald-700 font-bold mt-2 italic flex items-center gap-1"><Bot size={12}/> Note: AI will auto-sync every 1 minute as new leads come.</p>
+                                    </div>
                                 </div>
                             </div>
-                            <button onClick={() => setShowWTSettingsPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all">
+                            <button onClick={() => setShowWTSettingsPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all shrink-0">
                                 <XCircle size={24} />
                             </button>
                         </div>
@@ -1543,8 +1568,8 @@ export function MetaLeadsTab({
                         {/* Footer */}
                         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
                             <span className="text-xs text-slate-500 font-bold flex items-center bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                                <Bot size={14} className="text-blue-500 mr-2" />
-                                AI-9 Engine Automated
+                                <Bot size={14} className="text-[#25D366] mr-2" />
+                                AI-9W
                             </span>
                             <div className="flex gap-3">
                                 <button onClick={() => setShowWTSettingsPopup(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">

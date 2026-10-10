@@ -37,45 +37,8 @@ declare global {
 }
 
 export const connectDB = async () => {
-  if (USE_BUNNY_DATABASE_ONLY) {
-    lastConnectionStatus = 'Disabled (Using Bunny Database Only)';
-    return mongoose.connection;
-  }
-
-  if (mongoose.connection.readyState >= 1) {
-    return mongoose.connection;
-  }
-  
-  if (!MONGODB_URI) {
-    console.warn('⚠️ MONGODB_URI is not set. Database operations will fail.');
-    return mongoose.connection;
-  }
-
-  if (!global.__mongooseConnectionPromise) {
-    console.log('🔄 Establishing new MongoDB connection...');
-    // We disable bufferCommands so that if the connection fails, queries fail fast.
-    mongoose.set('bufferCommands', false);
-    global.__mongooseConnectionPromise = mongoose.connect(MONGODB_URI, { 
-      dbName: MAIN_DB_NAME,
-      maxPoolSize: 10, // Recommended for serverless
-      serverSelectionTimeoutMS: 2000,
-      connectTimeoutMS: 2000,
-    });
-  }
-  
-  try {
-    await global.__mongooseConnectionPromise;
-    isConnecting = false;
-    lastConnectionStatus = 'Connected';
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    global.__mongooseConnectionPromise = undefined;
-    lastConnectionStatus = 'Error: ' + String(error);
-    console.error('❌ MongoDB connection error:', error);
-    throw error;
-  }
-  
-  return mongoose.connection;
+  lastConnectionStatus = 'Disabled (Using Bunny Database Only)';
+  return null; // Return null as mongoose is being phased out
 };
 
 // Export connection status for API
