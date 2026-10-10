@@ -638,7 +638,30 @@ export function AITriggersPanel({
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsTemplateModalOpen(false)}></div>
           <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
-              <h3 className="font-bold text-gray-900 text-lg">Select a Template</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="font-bold text-gray-900 text-lg">Select a Template</h3>
+                <button 
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const btn = e.currentTarget;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<span class="animate-spin inline-block mr-1">⟳</span> Syncing...';
+                    btn.disabled = true;
+                    try {
+                      await fetch('/api/admin/crm/templates/meta/sync?import=true', {
+                        headers: { authorization: `Bearer ${localStorage.getItem('token')}` }
+                      });
+                      await fetchTemplates();
+                    } catch (err) {}
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                  }}
+                  className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm flex items-center"
+                >
+                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Sync Meta Templates
+                </button>
+              </div>
               <button onClick={() => setIsTemplateModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                 <X size={20} className="text-gray-500" />
               </button>

@@ -19,8 +19,10 @@ export async function POST(req: NextRequest) {
 
     let successCount = 0;
     const results: any[] = [];
-    
+
     let languageCode = 'en';
+    let dailyRunId = null;
+    let templateSnapshot = null;
     try {
         const { bunnyExecute } = await import('@/lib/bunnyDatabase');
         const tmplRes = await bunnyExecute({
@@ -28,13 +30,34 @@ export async function POST(req: NextRequest) {
             args: [template]
         });
         if (tmplRes.rows.length > 0) {
-            const t = JSON.parse(String(tmplRes.rows[0].data_json));
-            if (t.language) {
-                languageCode = t.language;
+            templateSnapshot = JSON.parse(String(tmplRes.rows[0].data_json));
+            if (templateSnapshot.language) {
+                languageCode = templateSnapshot.language;
             }
         }
+        
+        // Get or create daily broadcast run
+        const todayStr = new Date().toLocaleDateString('en-GB'); // 10/10/2026
+        const broadcastRunKey = `ai-triggers-${todayStr.replace(/\//g, '-')}`;
+        const runRes = await bunnyExecute({ sql: "SELECT document_id, data_json FROM broadcast_runs_sql WHERE broadcast_run_key = ?", args: [broadcastRunKey] });
+        if (runRes.rows.length > 0) {
+            dailyRunId = runRes.rows[0].document_id;
+        } else {
+            const { broadcastRunCreate } = await import('@/lib/bunnyBroadcastRepository');
+            const newRun = await broadcastRunCreate({
+                broadcastRunKey,
+                name: `AI-9W Triggers (${todayStr})`,
+                mode: 'now',
+                status: 'completed', // completed so it shows in reports instantly
+                templateId: templateSnapshot?._id || 'ai_trigger', 
+                templateSnapshot,
+                createdByLabel: 'AI-9W Worker',
+                stats: { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0, skipped: 0, blocked: 0 }
+            });
+            dailyRunId = newRun._id;
+        }
     } catch (e) {
-        console.error('Error fetching template language:', e);
+        console.error('Error fetching template/daily run:', e);
     }
 
     for (const lead of leads) {

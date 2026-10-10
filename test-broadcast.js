@@ -1,12 +1,8 @@
-const args = {
-  name: 'Test Broadcast',
-  templateId: '67000e335293fb5b4516ff42', // A valid template id
-  provider: 'meta',
-  target: {
-    type: 'filters',
-    leadIds: [],
-    csvContacts: [{ name: 'Test', phoneNumber: '919999999999' }]
-  },
-  mode: 'now'
-};
-console.log(JSON.stringify(args));
+require('dotenv').config({ path: '.env.local' });
+const { bunnyExecute } = require('./lib/bunnyDatabase');
+
+async function run() {
+    const res = await bunnyExecute({ sql: "SELECT * FROM whatsapp_broadcast_runs_sql LIMIT 5" });
+    console.log(res.rows);
+}
+run().catch(console.error);
