@@ -442,13 +442,18 @@ export function MetaLeadsTab({
                 const delayMs = delayMinutes * 60 * 1000;
                 const now = Date.now();
 
-                const eligibleLeads = metaLeads.filter((l: any) => 
-                    l.status === 'approved' && 
-                    l.metadata?.ai9WEligible === true && 
-                    !l.metadata?.wtStatus &&
-                    l.metadata?.approvedAt &&
-                    (now - new Date(l.metadata.approvedAt).getTime()) >= delayMs
-                );
+                const triggerTemplate = selectedWorkshop?.metadata?.wtSettings?.approved?.template;
+                const eligibleLeads = metaLeads.filter((l: any) => {
+                    if (l.status !== 'approved' || l.metadata?.ai9WEligible !== true || !l.metadata?.approvedAt) return false;
+                    
+                    // Check if the specific template was already sent
+                    if (triggerTemplate && l.metadata?.wtLastTemplates && l.metadata.wtLastTemplates[triggerTemplate]) return false;
+                    
+                    // Legacy check if no template specified but it was already sent something
+                    if (!l.metadata?.wtLastTemplates && (l.metadata?.wtStatus === 'sent' || l.metadata?.wtStatus === 'delivered')) return false;
+
+                    return (now - new Date(l.metadata.approvedAt).getTime()) >= delayMs;
+                });
 
                 eligibleLeads.slice(0, 10 - triggers.length).forEach((lead: any) => {
                     if (!triggers.includes(lead._id || lead.id)) {
@@ -488,7 +493,7 @@ export function MetaLeadsTab({
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, metaLeads, selectedWorkshop]);
+    }, [ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, ai9EConfig, metaLeads, selectedWorkshop]);
 
     const handleForceAIProcessing = async () => {
         setIsFetchingLeads(true);
@@ -555,7 +560,10 @@ export function MetaLeadsTab({
             if (res.ok) {
                 setMetaLeads(prev => prev.map(lead => {
                     if (ids.includes(lead._id || lead.id)) {
-                        return { ...lead, status: newStatus };
+                        const newMeta = newStatus === 'approved' && (!lead.metadata || !lead.metadata.approvedAt) 
+                          ? { ...(lead.metadata || {}), approvedAt: new Date().toISOString(), ai9WEligible: true } 
+                          : lead.metadata;
+                        return { ...lead, status: newStatus, metadata: newMeta };
                     }
                     return lead;
                 }));
@@ -624,7 +632,13 @@ export function MetaLeadsTab({
         const validIds = selectedLeads.filter(id => {
             const lead = metaLeads.find((l: any) => (l._id || l.id) === id);
             if (!lead) return false;
-            if (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered') {
+            
+            // Check if the SAME template was sent within 48 hours
+            if (lead.metadata?.wtLastTemplates && lead.metadata.wtLastTemplates[manualTemplate]) {
+                const diff = Date.now() - new Date(lead.metadata.wtLastTemplates[manualTemplate]).getTime();
+                if (diff < 48 * 60 * 60 * 1000) return false;
+            } else if (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered') {
+                // Legacy fallback for templates sent before wtLastTemplates existed
                 if (lead.updatedAt) {
                     const diff = Date.now() - new Date(lead.updatedAt).getTime();
                     if (diff < 48 * 60 * 60 * 1000) return false;

@@ -60,6 +60,15 @@ export async function POST(req: NextRequest) {
         const data = JSON.parse(String(row.data_json));
         data.status = status;
         data.updatedAt = now;
+        
+        if (status === 'approved') {
+          data.metadata = data.metadata || {};
+          if (!data.metadata.approvedAt) {
+            data.metadata.approvedAt = now;
+            data.metadata.ai9WEligible = true;
+          }
+        }
+        
         return {
           sql: `UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?`,
           args: [JSON.stringify(data), now, row.document_id]

@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
       lead.metadata = lead.metadata || {};
       lead.metadata.wtStatus = wtStatus;
       lead.metadata.wtError = wtError;
+      lead.metadata.wtLastTemplates = lead.metadata.wtLastTemplates || {};
+      lead.metadata.wtLastTemplates[template] = new Date().toISOString();
       lead.updatedAt = new Date().toISOString();
       
       await bunnyExecute({
