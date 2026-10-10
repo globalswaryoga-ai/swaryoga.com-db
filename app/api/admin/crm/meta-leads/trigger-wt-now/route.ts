@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
                   sentAt: new Date().toISOString(),
                   metadata: {
                       templateName: template,
+                      templateId: templateSnapshot?._id || template,
                       isBulk: true,
                       source: 'meta-leads-trigger'
                   }
@@ -152,6 +153,7 @@ export async function POST(req: NextRequest) {
                   failureReason: wtError,
                   metadata: {
                       templateName: template,
+                      templateId: templateSnapshot?._id || template,
                       isBulk: true,
                       source: 'meta-leads-trigger',
                       error: wtError
