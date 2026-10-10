@@ -16,12 +16,15 @@ export async function GET(request: NextRequest) {
 
     const { bunnyExecute } = await import('@/lib/bunnyDatabase');
     
-    // Fetch all AI-9W Worker broadcast runs
+    // Fetch all AI-9W Worker broadcast runs and manual AI Triggers
     const runsRes = await bunnyExecute({ 
-        sql: "SELECT data_json FROM broadcast_runs_sql WHERE json_extract(data_json, '$.createdByLabel') = 'AI-9W Worker' ORDER BY created_at DESC LIMIT 50" 
+        sql: "SELECT _id as id, name, created_at, created_by_label, status, data_json FROM broadcast_runs_sql WHERE created_by_label = 'AI-9W Worker' OR name LIKE 'AI Trigger%' OR name LIKE 'AI-9W%' ORDER BY created_at DESC LIMIT 50" 
     });
     
-    const runs = runsRes.rows.map((r: any) => JSON.parse(r.data_json));
+    const runs = runsRes.rows.map((r: any) => {
+        const d = JSON.parse(r.data_json);
+        return { ...d, _id: r.id || d._id, name: r.name || d.name, createdAt: r.created_at || d.createdAt };
+    });
 
     const reportData = [];
 
