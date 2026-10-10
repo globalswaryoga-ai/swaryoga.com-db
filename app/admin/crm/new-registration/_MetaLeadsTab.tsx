@@ -428,16 +428,29 @@ export function MetaLeadsTab({
                 s3Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
                     const res = evaluateLead(lead, ai9DConfig, 'approved', 'stage_3_pending', 'stage_3_rejected');
                     if (res && res.status !== lead.status) {
+                        if (res.status === 'approved') {
+                            res.metadata = { ai9WEligible: true, approvedAt: new Date().toISOString() };
+                        }
                         updates.push({ id: lead._id || lead.id, ...res });
-                        if (res.status === 'approved') triggers.push(lead._id || lead.id);
                     }
                 });
             }
 
-            // AI-9E (WhatsApp Trigger)
+            // AI-9E (WhatsApp Trigger with Delay)
             if (ai9EConfig?.isActive && triggers.length < 10) {
-                const sAppLeads = metaLeads.filter((l: any) => l.status === 'approved' && !l.metadata?.wtStatus);
-                sAppLeads.slice(0, 10 - triggers.length).forEach((lead: any) => {
+                const delayMinutes = selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5;
+                const delayMs = delayMinutes * 60 * 1000;
+                const now = Date.now();
+
+                const eligibleLeads = metaLeads.filter((l: any) => 
+                    l.status === 'approved' && 
+                    l.metadata?.ai9WEligible === true && 
+                    !l.metadata?.wtStatus &&
+                    l.metadata?.approvedAt &&
+                    (now - new Date(l.metadata.approvedAt).getTime()) >= delayMs
+                );
+
+                eligibleLeads.slice(0, 10 - triggers.length).forEach((lead: any) => {
                     if (!triggers.includes(lead._id || lead.id)) {
                         triggers.push(lead._id || lead.id);
                     }
@@ -589,25 +602,48 @@ export function MetaLeadsTab({
     };
 
     const saveWTSettings = () => {
+        const newAI9EConfig = { ...ai9EConfig, isActive: true };
+        setAi9EConfig(newAI9EConfig);
+        
         saveWorkshopSettings({
             ...selectedWorkshop,
             metadata: {
                 ...(selectedWorkshop?.metadata || {}),
-                wtSettings: wtSettings
+                wtSettings: wtSettings,
+                ai9EConfig: newAI9EConfig
             }
         });
-        alert('WhatsApp Trigger Settings saved successfully! The AI-9 engine will now schedule these automatically.');
+        alert('WhatsApp Trigger Settings saved successfully! AI-9W will now schedule these automatically.');
         setShowWTSettingsPopup(false);
     };
 
     const triggerManualWhatsApp = async () => {
         if (!manualTemplate) return alert("Please select a template!");
+        if (selectedLeads.length === 0) return alert("Please select at least one lead.");
+        
+        const validIds = selectedLeads.filter(id => {
+            const lead = metaLeads.find((l: any) => (l._id || l.id) === id);
+            if (!lead) return false;
+            if (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered') {
+                if (lead.updatedAt) {
+                    const diff = Date.now() - new Date(lead.updatedAt).getTime();
+                    if (diff < 48 * 60 * 60 * 1000) return false;
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        if (validIds.length === 0) {
+            return alert("All selected leads have already received a message within the last 48 hours. Skipped to prevent spam.");
+        }
         
         try {
             const res = await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedLeads, template: manualTemplate })
+                body: JSON.stringify({ ids: validIds, template: manualTemplate })
             });
             const data = await res.json();
             
@@ -642,8 +678,11 @@ export function MetaLeadsTab({
     // Calculate Reports
     const totalLeads = metaLeads.length;
     const approvedLeads = metaLeads.filter((l: any) => l.status === 'approved').length;
-    const pendingLeads = metaLeads.filter((l: any) => !l.status || l.status === 'pending' || l.status === 'new' || l.status === 'lead').length;
-    const rejectedLeads = metaLeads.filter((l: any) => l.status === 'rejected').length;
+    const pendingLeads = metaLeads.filter((l: any) => {
+        const s = l.status || 'new';
+        return s === 'pending' || s === 'new' || s === 'lead' || s.endsWith('_pending');
+    }).length;
+    const rejectedLeads = metaLeads.filter((l: any) => (l.status || 'new').includes('rejected')).length;
     const triggeredLeads = metaLeads.filter((l: any) => l.status === 'approved' && !!l.metadata?.wtStatus).length;
 
     // Filter & Sort Logic

@@ -33,9 +33,12 @@ export async function POST(req: NextRequest) {
         const data = JSON.parse(String(row.data_json));
         data.status = u.status;
         data.updatedAt = now;
+        data.metadata = data.metadata || {};
         if (u.reason) {
-          data.metadata = data.metadata || {};
           data.metadata.ai9Reason = u.reason;
+        }
+        if (u.metadata) {
+          data.metadata = { ...data.metadata, ...u.metadata };
         }
         return {
           sql: `UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?`,
