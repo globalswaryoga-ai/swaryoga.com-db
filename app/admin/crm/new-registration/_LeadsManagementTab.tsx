@@ -359,7 +359,7 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiFilter = (type: string, conditions: FilterCondition[]) => {
+  const saveAiConfig = (type: string, conditions: FilterCondition[]) => {
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
@@ -374,8 +374,14 @@ export function LeadsManagementTab({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cohortId: activeBatchId, metadata })
-      }).catch(console.error);
+      }).then(() => toast.success(`✅ ${type} config saved permanently!`)).catch(console.error);
+    } else {
+      toast.success(`✅ ${type} config saved to browser!`);
     }
+  };
+
+  const saveAiFilter = (type: string, conditions: FilterCondition[]) => {
+    saveAiConfig(type, conditions);
 
     const hasValidCondition = conditions.some(c => c.directMoveCategory || c.keyword.trim() || c.question.toLowerCase().includes('age'));
 
@@ -1552,13 +1558,23 @@ export function LeadsManagementTab({
               </button>
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-2">
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-between gap-2">
               <button onClick={() => setActiveModal(null)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">
                 Cancel
               </button>
-              <button onClick={() => saveAiFilter(activeModal, modalConditions)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
-                Submit Config & Run
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    saveAiConfig(activeModal, modalConditions);
+                  }}
+                  className="px-5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-sm font-bold rounded-lg shadow-sm transition-colors"
+                >
+                  💾 Save Config
+                </button>
+                <button onClick={() => saveAiFilter(activeModal, modalConditions)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
+                  ▶ Submit Config & Run
+                </button>
+              </div>
             </div>
           </div>
         </div>
