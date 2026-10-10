@@ -14,56 +14,48 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 
-    const workshopId = new URL(request.url).searchParams.get('workshopId');
-    if (!workshopId) return NextResponse.json({ error: 'Missing workshopId' }, { status: 400 });
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    
+    // Fetch all AI-9W Worker broadcast runs
+    const runsRes = await bunnyExecute({ 
+        sql: "SELECT data_json FROM broadcast_runs_sql WHERE json_extract(data_json, '$.createdByLabel') = 'AI-9W Worker' ORDER BY created_at DESC LIMIT 50" 
+    });
+    
+    const runs = runsRes.rows.map((r: any) => JSON.parse(r.data_json));
 
     const reportData = [];
 
-    // Add manual triggered messages from leads_sql
-    try {
-        const { bunnyExecute } = await import('@/lib/bunnyDatabase');
-        const leadsRes = await bunnyExecute({ sql: "SELECT data_json FROM leads_sql" });
-        const triggerLeads = leadsRes.rows
-            .map((r: any) => JSON.parse(r.data_json))
-            .filter((l: any) => l.metadata?.wtStatus);
-            
-        for (const lead of triggerLeads) {
-            let messageStatus = lead.metadata?.wtStatus;
-            let messageReason = lead.metadata?.wtError || '';
-            
-            if (messageReason.toLowerCase().includes('not a valid whatsapp') || messageReason.toLowerCase().includes('131026')) {
-                messageStatus = 'wrong_number';
-            } else if (messageReason.toLowerCase().includes('template name does not exist')) {
-                messageStatus = 'failed';
-            } else if (messageReason.toLowerCase().includes('not exist') && !messageReason.toLowerCase().includes('template')) {
-                messageStatus = 'wrong_number';
-            }
-            
-            if (messageReason.toLowerCase().includes('spam') || messageReason.toLowerCase().includes('blocked') || messageReason.toLowerCase().includes('131031')) {
-                messageStatus = 'blocked';
-            }
+    for (const run of runs) {
+        // Fetch messages for this run
+        const msgsRes = await bunnyExecute({
+            sql: "SELECT data_json FROM broadcast_run_messages_sql WHERE broadcast_run_id = ?",
+            args: [run._id]
+        });
+        
+        const leads = msgsRes.rows.map((r: any) => {
+            const msg = JSON.parse(r.data_json);
+            return {
+                id: msg._id,
+                leadName: msg.lead?.name || 'Unknown',
+                phone: msg.phone || 'Unknown',
+                status: msg.status || 'pending',
+                reason: msg.failureReason || ''
+            };
+        });
 
-            reportData.push({
-                id: lead._id || lead.id || `manual-${Date.now()}`,
-                leadName: lead.name || 'Unknown',
-                phone: lead.phoneNumber || 'Unknown',
-                stage: lead.status || 'Unknown',
-                template: lead.metadata?.templateName || 'WhatsApp Trigger',
-                scheduledAt: lead.updatedAt || new Date().toISOString(),
-                status: messageStatus,
-                reason: messageReason
-            });
-        }
-    } catch(e) {
-        console.error('Error fetching leads_sql triggers:', e);
+        reportData.push({
+            id: run._id,
+            name: run.name,
+            template: run.templateSnapshot?.templateName || run.templateId,
+            scheduledAt: run.createdAt || run.created_at,
+            stats: run.stats || { total: 0, sent: 0, failed: 0 },
+            leads: leads
+        });
     }
-
-    reportData.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
     return NextResponse.json({ success: true, data: reportData });
   } catch (error: any) {
-    console.error('Error fetching trigger report:', error);
+    console.error('Trigger report error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

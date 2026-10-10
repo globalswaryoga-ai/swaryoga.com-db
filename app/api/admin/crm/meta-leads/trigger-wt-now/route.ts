@@ -36,26 +36,24 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // Get or create daily broadcast run
-        const todayStr = new Date().toLocaleDateString('en-GB'); // 10/10/2026
-        const broadcastRunKey = `ai-triggers-${todayStr.replace(/\//g, '-')}`;
-        const runRes = await bunnyExecute({ sql: "SELECT document_id, data_json FROM broadcast_runs_sql WHERE broadcast_run_key = ?", args: [broadcastRunKey] });
-        if (runRes.rows.length > 0) {
-            dailyRunId = runRes.rows[0].document_id;
-        } else {
-            const { broadcastRunCreate } = await import('@/lib/bunnyBroadcastRepository');
-            const newRun = await broadcastRunCreate({
-                broadcastRunKey,
-                name: `AI-9W Triggers (${todayStr})`,
-                mode: 'now',
-                status: 'completed', // completed so it shows in reports instantly
-                templateId: templateSnapshot?._id || 'ai_trigger', 
-                templateSnapshot,
-                createdByLabel: 'AI-9W Worker',
-                stats: { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0, skipped: 0, blocked: 0 }
-            });
-            dailyRunId = newRun._id;
-        }
+        // Create an individual broadcast run for this execution
+        const todayStr = new Date().toLocaleDateString('en-GB'); 
+        const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const runIdSuffix = Date.now().toString(36);
+        const broadcastRunKey = `ai-triggers-${todayStr.replace(/\//g, '-')}-${runIdSuffix}`;
+        
+        const { broadcastRunCreate } = await import('@/lib/bunnyBroadcastRepository');
+        const newRun = await broadcastRunCreate({
+            broadcastRunKey,
+            name: `AI Trigger: ${templateSnapshot?.templateName || template} (${todayStr} ${timeStr})`,
+            mode: 'now',
+            status: 'completed', // completed so it shows in reports instantly
+            templateId: templateSnapshot?._id || 'ai_trigger', 
+            templateSnapshot,
+            createdByLabel: 'AI-9W Worker',
+            stats: { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0, skipped: 0, blocked: 0 }
+        });
+        dailyRunId = newRun._id;
     } catch (e) {
         console.error('Error fetching template/daily run:', e);
     }
@@ -102,7 +100,7 @@ export async function POST(req: NextRequest) {
           }
       }
       
-      const input: any = { to: lead.phoneNumber, templateName: template, languageCode: languageCode };
+      const input: any = { to: lead.phoneNumber, templateName: template, language: languageCode };
       if (bodyParams.length > 0) input.bodyParams = bodyParams;
       if (headerMedia) input.headerMedia = headerMedia;
       

@@ -2295,68 +2295,97 @@ export function MetaLeadsTab({
                                     <p className="text-slate-500 font-medium">No triggers have been scheduled yet.</p>
                                 </div>
                             ) : (
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-100/50 text-slate-600 text-[10px] uppercase tracking-wider font-bold border-b border-slate-200">
-                                                <th className="p-4">Lead Details</th>
-                                                <th className="p-4">Trigger Stage</th>
-                                                <th className="p-4">Template</th>
-                                                <th className="p-4">Scheduled For</th>
-                                                <th className="p-4">Delivery Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {triggerReportData.map((row) => (
-                                                <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="p-4">
-                                                        <div className="font-bold text-slate-800 text-sm">{row.leadName}</div>
-                                                        <div className="text-slate-500 text-xs font-medium">{row.phone}</div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md text-xs font-bold capitalize">
-                                                            {row.stage}
+                                <div className="flex flex-col gap-4">
+                                    {triggerReportData.map((run) => (
+                                        <div key={run.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                            {/* Run Header */}
+                                            <div className="p-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h4 className="font-bold text-slate-800">{run.name}</h4>
+                                                        <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                                                            {run.leads?.length || 0} Leads
                                                         </span>
-                                                    </td>
-                                                    <td className="p-4 text-sm font-medium text-slate-700">
-                                                        {row.template}
-                                                    </td>
-                                                    <td className="p-4 text-xs font-medium text-slate-500">
-                                                        {new Date(row.scheduledAt).toLocaleString()}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        {row.status === 'wrong_number' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200" title={row.reason}>
-                                                                <AlertCircle size={12} /> Wrong Number
-                                                            </span>
-                                                        ) : row.status === 'blocked' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-900 text-rose-100 border border-rose-950" title={row.reason}>
-                                                                <XCircle size={12} /> Blocked
-                                                            </span>
-                                                        ) : row.status === 'failed' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-200" title={row.reason}>
-                                                                <AlertTriangle size={12} /> Failed
-                                                            </span>
-                                                        ) : row.status === 'pending' || row.status === 'active' || row.status === 'queued' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                                                                <Clock size={12} /> Pending
-                                                            </span>
-                                                        ) : row.status === 'sent' || row.status === 'delivered' || row.status === 'read' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 capitalize">
-                                                                <CheckCircle2 size={12} /> {row.status}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 capitalize">
-                                                                {row.status}
-                                                            </span>
+                                                    </div>
+                                                    <p className="text-xs font-medium text-slate-500 flex items-center gap-3">
+                                                        <span><Clock size={12} className="inline mr-1" />{new Date(run.scheduledAt).toLocaleString()}</span>
+                                                        <span><span className="font-semibold text-emerald-600">{run.stats?.sent || 0} Sent</span> • <span className="font-semibold text-rose-500">{run.stats?.failed || 0} Failed</span></span>
+                                                    </p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        const el = document.getElementById(`run-details-${run.id}`);
+                                                        if(el) el.classList.toggle('hidden');
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-colors"
+                                                >
+                                                    View Details
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Run Details (Hidden by default) */}
+                                            <div id={`run-details-${run.id}`} className="hidden">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-100/50 text-slate-600 text-[10px] uppercase tracking-wider font-bold border-b border-slate-200">
+                                                            <th className="p-3">Lead Details</th>
+                                                            <th className="p-3">Template</th>
+                                                            <th className="p-3">Delivery Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {run.leads && run.leads.length > 0 ? run.leads.map((lead: any) => (
+                                                            <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
+                                                                <td className="p-3">
+                                                                    <div className="font-bold text-slate-800 text-sm">{lead.leadName}</div>
+                                                                    <div className="text-slate-500 text-xs font-medium">{lead.phone}</div>
+                                                                </td>
+                                                                <td className="p-3 text-sm font-medium text-slate-700">
+                                                                    {run.template}
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    {lead.status === 'wrong_number' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200" title={lead.reason}>
+                                                                            <AlertCircle size={12} /> Wrong Number
+                                                                        </span>
+                                                                    ) : lead.status === 'blocked' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-900 text-rose-100 border border-rose-950" title={lead.reason}>
+                                                                            <XCircle size={12} /> Blocked
+                                                                        </span>
+                                                                    ) : lead.status === 'failed' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-100 text-pink-700 border border-pink-200" title={lead.reason}>
+                                                                            <AlertTriangle size={12} /> Failed
+                                                                        </span>
+                                                                    ) : lead.status === 'pending' || lead.status === 'active' || lead.status === 'queued' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                                                            <Clock size={12} /> Pending
+                                                                        </span>
+                                                                    ) : lead.status === 'sent' || lead.status === 'delivered' || lead.status === 'read' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 capitalize">
+                                                                            <CheckCircle2 size={12} /> {lead.status}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 capitalize">
+                                                                            {lead.status}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        )) : (
+                                                            <tr>
+                                                                <td colSpan={3} className="p-4 text-center text-sm font-medium text-slate-500">
+                                                                    No leads recorded for this run.
+                                                                </td>
+                                                            </tr>
                                                         )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
+
                         </div>
                     </div>
                 </div>
