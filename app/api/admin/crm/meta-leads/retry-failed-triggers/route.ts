@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
-import { authorizeMetaAdmin } from '@/lib/authMetaAdmin';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
     try {
-        const decoded = await authorizeMetaAdmin(request);
-        if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         // Update all failed leads to pending (null)
         const sql = `
