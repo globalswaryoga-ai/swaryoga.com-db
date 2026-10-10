@@ -5,9 +5,7 @@ async function run() {
     const res = await bunnyExecute({ sql: "SELECT data_json FROM leads_sql ORDER BY updated_at DESC LIMIT 10" });
     for(const r of res.rows) {
         const lead = JSON.parse(r.data_json);
-        if (lead.metadata?.wtStatus === 'failed') {
-            console.log("Failed lead:", lead.phoneNumber, "Error:", lead.metadata.wtError);
-        }
+        console.log("Lead:", lead.phoneNumber, "Status:", lead.metadata?.wtStatus, "Error:", lead.metadata?.wtError);
     }
 }
 run().catch(console.error);

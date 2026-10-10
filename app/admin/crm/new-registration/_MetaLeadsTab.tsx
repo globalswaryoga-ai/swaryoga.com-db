@@ -2256,10 +2256,29 @@ export function MetaLeadsTab({
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={loadTriggerReport} className="text-indigo-600 hover:text-indigo-800 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1">
+                                <button 
+                                    onClick={async () => {
+                                        if (confirm('Are you sure you want to retry sending all failed WhatsApp triggers?')) {
+                                            try {
+                                                const res = await fetch('/api/admin/crm/meta-leads/retry-failed-triggers', {
+                                                    method: 'POST',
+                                                    headers: { authorization: `Bearer ${localStorage.getItem('token')}` }
+                                                });
+                                                if(res.ok) {
+                                                    alert('All failed triggers have been queued for retry!');
+                                                    loadTriggerReport();
+                                                }
+                                            } catch (err) {}
+                                        }
+                                    }}
+                                    className="text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1"
+                                >
+                                    Retry Failed
+                                </button>
+                                <button onClick={loadTriggerReport} className="text-indigo-600 hover:text-indigo-800 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1 border border-indigo-100">
                                     <RefreshCcw size={16} className={isLoadingReport ? "animate-spin" : ""} /> Refresh
                                 </button>
-                                <button onClick={() => setShowTriggerReportPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all">
+                                <button onClick={() => setShowTriggerReportPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-lg shadow-sm hover:shadow transition-all border border-slate-100">
                                     <XCircle size={20} />
                                 </button>
                             </div>

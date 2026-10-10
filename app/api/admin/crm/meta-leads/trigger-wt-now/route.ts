@@ -86,6 +86,20 @@ export async function POST(req: NextRequest) {
                   headerMedia = { kind: format === 'document' ? 'document' : format, url };
               }
           }
+      } else if (templateSnapshot) {
+          // Support for CRM templates without components array
+          if (templateSnapshot.templateContent) {
+              const matches = String(templateSnapshot.templateContent).match(/\{\{(\d+)\}\}/g);
+              if (matches) {
+                  for (let i = 0; i < matches.length; i++) {
+                      if (i === 0) bodyParams.push(lead.name || 'Student');
+                      else bodyParams.push('');
+                  }
+              }
+          }
+          if (templateSnapshot.headerMedia) {
+              headerMedia = templateSnapshot.headerMedia;
+          }
       }
       
       const input: any = { to: lead.phoneNumber, templateName: template, languageCode: languageCode };
