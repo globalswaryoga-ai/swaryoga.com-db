@@ -1334,7 +1334,10 @@ export default function MetaInboxPage() {
   // ================================================================
   const handleMediaDownload = async (mediaUrl: string, fileName?: string) => {
     try {
-      const res = await fetch(mediaUrl);
+      const downloadUrl = (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) && token
+        ? `/api/admin/crm/media/proxy?url=${encodeURIComponent(mediaUrl)}&token=${encodeURIComponent(token)}`
+        : mediaUrl;
+      const res = await fetch(downloadUrl);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1346,7 +1349,15 @@ export default function MetaInboxPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Download failed:', err);
-      alert('Download failed. Please try again.');
+      // Fallback: trigger direct link download
+      const a = document.createElement('a');
+      a.href = mediaUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.download = fileName || `download-${Date.now()}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
   };
 
