@@ -171,6 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Registration Trigger Category and Field Mapping Alignment (Session: October 11, 2026) — Commit `fe6bbb78`
+
+- Trigger category options now come from the current batch/category list, including newly added categories; preview and server scheduling share batch/category matching.
+- All Leads Data and Trigger recipients now use the same batch-specific Name, Email and Mobile/WhatsApp mapping, including nested `dynamicAnswers.dynamicAnswers` CRM answers.
+- Trigger preview distinguishes an empty saved batch from category-matched rows that have no eligible unique WhatsApp number, and points admins to form/mobile mapping when the recipient count is zero.
+- Added regressions for nested CRM mappings and cross-batch selection; all 91 registration tests and the production build pass. Live authenticated production rows were not inspected.
+
 ### Registration Stage Copy and Move (Session: October 11, 2026) — Commit `293e8694`
 
 - Added Copy to and Move to actions for selected leads across all registration categories; Copy preserves the existing status, while Move updates it and removes source-category copy membership.
