@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### QR WhatsApp Old Chats and Bunny Number Folders (Session: September 29, 2026) — Commit `pending`
+### QR WhatsApp Old Chats and Bunny Number Folders (Session: September 29, 2026) — Commit `ca6b6704`, `9ad85fe2`
 
 - QR inbox reads now merge Super Admin history stored under both `admin` and `admincrm`, restoring the old Bunny chats for the connected number.
 - QR webhook messages and receipts are stored in Bunny SQL first; MongoDB writes are best-effort only.
