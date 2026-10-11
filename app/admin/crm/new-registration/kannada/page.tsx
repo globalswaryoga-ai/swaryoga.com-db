@@ -1,6 +1,7 @@
 'use client';
 import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
-import { registrationFetch as fetch, saveRegistrationState, saveRegistrationWorkshop } from '@/lib/registrationClient';
+import { registrationFetch as fetch, saveRegistrationState, saveRegistrationWorkshop, saveRegistrationSnapshot } from '@/lib/registrationClient';
+import { createRegistrationAutosave } from '@/lib/registrationAutosave';
 import { restoreRegistrationWorkshop } from '@/lib/registrationValues';
 import { useRegistrationLeads } from '@/hooks/useRegistrationLeads';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -803,6 +804,7 @@ export default function NewRegistrationPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const autosave = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot));
 
   useRegistrationLeads({
     token, formId: linkedFormId, language: selectedDashboardLang,
@@ -994,6 +996,7 @@ export default function NewRegistrationPage() {
           if (res.ok) {
             const data = await res.json();
             if (data) {
+              autosave.current.hydrate(data);
               if (data.crm_kannada_workshops || data.crm_workshops) {
                 try {
                   const savedWorkshops = data.crm_kannada_workshops || data.crm_workshops;
@@ -1019,9 +1022,9 @@ export default function NewRegistrationPage() {
               }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
-                if (typeof v === 'string') localStorage.setItem(k, v);
+                localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
               }
-              const restoredWorkshop = data['crm_kannada_selected_workshop' + langSuffixStr] || data.crm_kannada_selected_workshop;
+              const restoredWorkshop = data['crm_kannada_selected_workshop' + langSuffixStr] || data.crm_kannada_selected_workshop || savedWorkshop;
               if (restoredWorkshop) {
                 const restored = restoreRegistrationWorkshop(data.crm_kannada_workshops || data.crm_workshops, restoredWorkshop);
                 setSelectedWorkshop(restored || null);
@@ -1044,11 +1047,7 @@ export default function NewRegistrationPage() {
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
         if (searchParams?.get('success') === 'google_forms_connected') {
-          const defaultUrl = '';
-          toast.success('🎉 Google Account connected! Swar Yoga Form saved & data loaded automatically.');
-          setFormSource('google');
-          setGoogleFormUrl(defaultUrl);
-          setLinkedFormId(defaultUrl);
+          toast.success('Google Account connected. Your saved form selection is unchanged.');
           setActiveTab('forms');
           setIsFormSetupCollapsed(false);
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -1131,23 +1130,7 @@ export default function NewRegistrationPage() {
         setAndCollect('crm_kannada_registered_insights' + suffix, safeStringify(registeredAiInsights));
       }
 
-      const timeoutId = setTimeout(() => {
-        // Collect any other crm_ keys from localStorage that weren't just set
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('crm_kannada_') && !stateObj[key]) {
-            stateObj[key] = localStorage.getItem(key) || '';
-          }
-        }
-
-        fetch('/api/admin/crm/new-registration/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: safeStringify(stateObj)
-        }).catch(e => console.error('Failed to sync state to Bunny', e));
-      }, 3000);
-
-      return () => clearTimeout(timeoutId);
+      void autosave.current.save(stateObj).catch(error => toast.error(error.message));
     }
   }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 
@@ -1249,7 +1232,7 @@ export default function NewRegistrationPage() {
 
     const currentFormSource = overrideWorkshop?.metadata?.formSource || formSource;
 
-    const updatedMetadata = {
+    const updatedMetadata = overrideWorkshop?.id ? { ...targetWorkshop.metadata } : {
       ...targetWorkshop.metadata,
       ...(overrideWorkshop?.metadata || {}),
       formSource: currentFormSource,
@@ -1262,7 +1245,7 @@ export default function NewRegistrationPage() {
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: overrideWorkshop?.formId ?? (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
+      formId: overrideWorkshop?.id ? targetWorkshop.formId : (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
       metadata: updatedMetadata
     };
 

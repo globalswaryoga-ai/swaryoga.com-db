@@ -37,4 +37,37 @@ describe('Meta saved question configuration', () => {
     expect(screen.getByRole('button', { name: 'Start AI-9A Processing' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Active (Click to Stop)' })).not.toBeInTheDocument();
   });
+  it.each(['C', 'D'])('saves AI-9%s before running the authoritative batch and reports moved leads', async stage => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    jest.mocked(registrationFetch).mockImplementation(async input => ({
+      ok: true,
+      json: async () => String(input).includes('/bulk-update')
+        ? { success: true, scannedCount: 58, modifiedCount: 28 }
+        : { success: true, data: [] },
+    } as Response));
+    render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: {} }} saveWorkshopSettings={save} />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Config AI-9${stage}`) }));
+    fireEvent.click(screen.getByRole('button', { name: `Start AI-9${stage} Processing` }));
+    await screen.findByText(/checked 58 leads; moved 28/);
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ [`ai9${stage}Config`]: expect.objectContaining({ isActive: true }) }),
+    }));
+    expect(registrationFetch).toHaveBeenCalledWith('/api/admin/crm/meta-leads/bulk-update', expect.objectContaining({
+      body: JSON.stringify({ action: 'run-ai', workshopId: 'batch' }),
+    }));
+    expect(screen.getByRole('button', { name: 'Run Saved Rules' })).toBeInTheDocument();
+  });
+  it('shows a processing failure without pretending the saved activation was undone', async () => {
+    jest.mocked(registrationFetch).mockImplementation(async input => ({
+      ok: !String(input).includes('/bulk-update'),
+      json: async () => String(input).includes('/bulk-update')
+        ? { error: 'Bunny processing failed' } : { success: true, data: [] },
+    } as Response));
+    render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: {} }} saveWorkshopSettings={jest.fn().mockResolvedValue(undefined)} />);
+    fireEvent.click(screen.getByRole('button', { name: /Config AI-9C/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start AI-9C Processing' }));
+    await screen.findByText('Bunny processing failed');
+    expect(screen.getByRole('button', { name: 'Active (Click to Stop)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run Saved Rules' })).toBeEnabled();
+  });
 });

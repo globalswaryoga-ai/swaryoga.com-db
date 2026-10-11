@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner, PageHeader } from '@/components/admin/crm';
+import { unsupportedChatbotNodes } from '@/lib/chatbotFlowCapabilities';
 
 type ChatbotRule = {
   _id: string;
@@ -47,13 +48,22 @@ type TemplateRow = {
 // Chatbot type cards for the dashboard
 const CHATBOT_TYPES = [
   {
+    id: 'recording-access',
+    icon: '🎓',
+    title: 'Workshop Recording Access',
+    description: 'Attendance-based recording requests with a shared 3–5-day student allowance',
+    link: '/admin/crm/workshop-management',
+    color: 'from-blue-500 to-indigo-600',
+    features: ['Absent / Incomplete Only', 'Keyword Requests', 'Shared Allowance', 'Approved Meta Templates'],
+  },
+  {
     id: 'flow-builder',
     icon: '🔀',
     title: 'Flow Builder',
     description: 'Visual drag-and-drop chatbot flow creator with nodes and connections',
     link: '/admin/crm/chatbots/builder/new',
     color: 'from-purple-500 to-indigo-600',
-    features: ['Visual Flow Chart', 'Multiple Node Types', 'Conditional Logic', 'Delay & Timer'],
+    features: ['Visual Flow Chart', 'Questions & Buttons', 'Template Routing', 'Delay & Timer'],
   },
   {
     id: 'knowledge-base',
@@ -127,44 +137,64 @@ export default function ChatbotsPage() {
     recentArticles: [] as KnowledgeArticle[],
   });
   const [loading, setLoading] = useState(true);
+  const statsRef = useRef(stats);
+  useEffect(() => { statsRef.current = stats; }, [stats]);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeEnabled, setRuntimeEnabled] = useState<boolean | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all flows with error handling
+      const responses = await Promise.allSettled([
+        crmFetchRef.current('/api/admin/crm/chatbot-flows', { params: { limit: 100 } }),
+        crmFetchRef.current('/api/admin/crm/automations', { params: { limit: 100 } }),
+        crmFetchRef.current('/api/admin/crm/knowledge-base', { params: { limit: 100 } }),
+        crmFetchRef.current('/api/admin/crm/chatbot-settings'),
+      ]);
+      const failures: string[] = [];
+      if (responses[3].status === 'fulfilled') setRuntimeEnabled(responses[3].value?.chatbotEnabled === true);
+      else {
+        setRuntimeEnabled(null);
+        failures.push('Runtime settings unavailable');
+      }
       let flows: ChatbotFlow[] = [];
       try {
-        const flowsRes = await crmFetchRef.current('/api/admin/crm/chatbot-flows', { params: { limit: 100 } });
+        if (responses[0].status === 'rejected') throw responses[0].reason;
+        const flowsRes = responses[0].value;
         flows = Array.isArray(flowsRes?.flows) ? flowsRes.flows : [];
       } catch (err) {
         console.error('Failed to fetch flows:', err);
-        flows = [];
+        failures.push(`Flows: ${err instanceof Error ? err.message : 'load failed'}`);
+        flows = statsRef.current.recentFlows;
       }
 
       // Fetch automation rules with error handling
       let rules: ChatbotRule[] = [];
       try {
-        const rulesRes = await crmFetchRef.current('/api/admin/crm/automations', { params: { limit: 100 } });
+        if (responses[1].status === 'rejected') throw responses[1].reason;
+        const rulesRes = responses[1].value;
         rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : [];
       } catch (err) {
         console.error('Failed to fetch rules:', err);
-        rules = [];
+        failures.push(`Rules: ${err instanceof Error ? err.message : 'load failed'}`);
+        rules = statsRef.current.recentRules;
       }
 
       // Fetch knowledge base articles with error handling
       let articles: KnowledgeArticle[] = [];
       let kbTotal = 0;
       try {
-        const kbRes = await crmFetchRef.current('/api/admin/crm/knowledge-base', { params: { limit: 5 } });
+        if (responses[2].status === 'rejected') throw responses[2].reason;
+        const kbRes = responses[2].value;
         articles = Array.isArray(kbRes?.articles) ? kbRes.articles : [];
         kbTotal = kbRes?.total || articles.length || 0;
       } catch (err) {
         console.error('Failed to fetch KB articles:', err);
-        articles = [];
-        kbTotal = 0;
+        failures.push(`Knowledge Base: ${err instanceof Error ? err.message : 'load failed'}`);
+        articles = statsRef.current.recentArticles;
+        kbTotal = statsRef.current.kbArticles;
       }
 
       setStats({
@@ -178,7 +208,7 @@ export default function ChatbotsPage() {
         recentRules: rules.slice(0, 3),
         recentArticles: articles.slice(0, 3),
       });
-      setError(null);
+      setError(failures.length ? `Some data could not be refreshed. Counts may be incomplete. ${failures.join(' | ')}` : null);
     } catch (err) {
       console.error('Failed to fetch chatbot stats:', err);
       setError('Failed to load chatbot data. Please try again.');
@@ -280,6 +310,9 @@ export default function ChatbotsPage() {
         />
 
         {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
+        {stats.recentFlows.some(flow => unsupportedChatbotNodes(flow.nodes).length > 0) && (
+          <AlertBox type="warning" message="Some saved flows contain legacy advanced nodes. They are preserved, but must be revised before running on Bunny Meta. Supported: messages, questions, reply buttons, templates, delays, wait for reply and end." />
+        )}
 
         {/* Stats Overview */}
         {!loading && (
@@ -304,7 +337,7 @@ export default function ChatbotsPage() {
                 {stats.activeFlows + stats.activeRules + stats.activeKb}
               </div>
               <div className="text-sm text-gray-600">Total Active</div>
-              <div className="text-xs text-indigo-600 mt-1">Auto-responding</div>
+              <div className="text-xs text-indigo-600 mt-1">Enabled configurations, not delivery proof</div>
             </div>
           </div>
         )}
@@ -518,13 +551,13 @@ export default function ChatbotsPage() {
                   <span className="text-xs font-bold text-gray-700">Overall Status</span>
                 </div>
                 <div className={`text-sm font-semibold ${(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? 'text-green-700' : 'text-red-700'}`}>
-                  {(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? 'System Active' : 'No automation running'}
+                  {runtimeEnabled === null ? 'Runtime status unavailable' : runtimeEnabled ? 'Meta runtime enabled' : 'Meta runtime disabled'}
                 </div>
               </div>
             </div>
             <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
               <span>💡</span>
-              <span>Cron runs every minute to process flows. Make sure at least one flow or rule is <strong>enabled</strong>.</span>
+              <span>Enable the account runtime in Chatbot Settings. Keywords and Meta button payloads start flows; delayed actions require the configured cron. Recording eligibility never depends on AI.</span>
             </div>
           </div>
         )}
@@ -536,17 +569,17 @@ export default function ChatbotsPage() {
             <div className="text-center">
               <div className="text-4xl mb-2">📱</div>
               <h3 className="font-bold">1. Message Received</h3>
-              <p className="text-white/70 text-sm">User sends WhatsApp message (Meta or QR)</p>
+              <p className="text-white/70 text-sm">User sends a Meta message or clicks a template button</p>
             </div>
             <div className="text-center">
               <div className="text-4xl mb-2">🕐</div>
-              <h3 className="font-bold">2. Check Availability</h3>
-              <p className="text-white/70 text-sm">System checks if admin is online & within office hours</p>
+              <h3 className="font-bold">2. Match Trigger</h3>
+              <p className="text-white/70 text-sm">Check account settings, recording eligibility and exact keyword rules</p>
             </div>
             <div className="text-center">
               <div className="text-4xl mb-2">📚</div>
-              <h3 className="font-bold">3. Search Knowledge Base</h3>
-              <p className="text-white/70 text-sm">If admin unavailable, bot searches KB for matching answer</p>
+              <h3 className="font-bold">3. Continue Flow</h3>
+              <p className="text-white/70 text-sm">Follow saved questions, button branches and delays in Bunny SQL</p>
             </div>
             <div className="text-center">
               <div className="text-4xl mb-2">✅</div>

@@ -1,5 +1,7 @@
 'use client';
 import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
+import { createRegistrationAutosave } from '@/lib/registrationAutosave';
+import { saveRegistrationSnapshot } from '@/lib/registrationClient';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab } from './_WorkshopFormTab';
 import { LeadsManagementTab } from './_LeadsManagementTab';
@@ -925,6 +927,7 @@ export default function WorkshopOfferPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const autosave = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot));
 
   const workshopsRef = React.useRef(workshops);
   const leadsFilterRef = React.useRef(leadsFilter);
@@ -1116,6 +1119,7 @@ export default function WorkshopOfferPage() {
           if (res.ok) {
             const data = await res.json();
             if (data) {
+              autosave.current.hydrate(data);
               if (data.crm_offers) setWorkshops(JSON.parse(data.crm_offers));
               if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
@@ -1142,7 +1146,7 @@ export default function WorkshopOfferPage() {
               }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
-                if (typeof v === 'string') localStorage.setItem(k, v);
+                localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
               }
             }
             setIsLoaded(true);
@@ -1216,24 +1220,7 @@ export default function WorkshopOfferPage() {
         setAndCollect('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
       }
 
-      const timeoutId = setTimeout(() => {
-        // Collect any other crm_ keys from localStorage that weren't just set
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('crm_') && !stateObj[key]) {
-            stateObj[key] = localStorage.getItem(key) || '';
-          }
-        }
-
-        fetch('/api/admin/crm/new-registration/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(stateObj)
-        }).then(response => { if (!response.ok) throw new Error('Offer settings were not saved'); })
-          .catch(e => { console.error('Failed to sync offer state to Bunny', e); toast.error('Offer settings were not saved. Please retry.'); });
-      }, 3000);
-
-      return () => clearTimeout(timeoutId);
+      void autosave.current.save(stateObj).catch(error => toast.error(error.message));
     }
   }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 

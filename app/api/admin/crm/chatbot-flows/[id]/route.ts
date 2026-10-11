@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
 import { getBunnyChatbotFlow, saveBunnyChatbotFlow, deleteBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
+import { unsupportedChatbotNodes } from '@/lib/chatbotFlowCapabilities';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,6 +22,9 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     const existing = await getBunnyChatbotFlow(String(context.params.id), ownerId);
     if (!existing) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+    const unsupported = unsupportedChatbotNodes(body.nodes || existing.nodes || []);
+    if ((body.enabled ?? existing.enabled) !== false && unsupported.length)
+      return NextResponse.json({ error: `Unsupported Bunny Meta node types: ${unsupported.join(', ')}. Save as a disabled draft.` }, { status: 400 });
     const updated = await saveBunnyChatbotFlow({ ...existing, ...body, _id: String(context.params.id) }, ownerId, String(context.params.id));
     return formatCrmSuccess(updated);
   } catch (error) { return handleCrmError(error, 'PUT chatbot flow'); }

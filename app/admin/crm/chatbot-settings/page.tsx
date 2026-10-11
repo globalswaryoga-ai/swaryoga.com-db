@@ -8,6 +8,11 @@ import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 
 type ChatbotSettings = {
+  chatbotEnabled?: boolean;
+  welcomeRepeatDays?: number;
+  aiSystemPrompt?: string;
+  aiMaxTokens?: number;
+  aiModel?: string;
   _id?: string;
   createdByUserId?: string;
   welcomeEnabled?: boolean;
@@ -36,6 +41,7 @@ export default function ChatbotSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -57,17 +63,22 @@ export default function ChatbotSettingsPage() {
   }, [token, router]);
 
   const saveSettings = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       setError(null);
       setSuccess(false);
-      await crmFetch('/api/admin/crm/chatbot-settings', {
+      const saved = await crmFetch('/api/admin/crm/chatbot-settings', {
         method: 'PUT',
         body: settings,
       });
+      setSettings(saved);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -93,16 +104,17 @@ export default function ChatbotSettingsPage() {
           </div>
           <div className="flex gap-2">
             <Link
-              href="/admin/crm/chatbot-builder"
+              href="/admin/crm/chatbots"
               className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
             >
               Flows
             </Link>
             <button
               onClick={saveSettings}
+              disabled={saving || !settings}
               className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-semibold"
             >
-              Save
+              {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
@@ -116,6 +128,11 @@ export default function ChatbotSettingsPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Bunny Meta supports messages, questions, buttons, approved templates, delays and reply waits. Legacy advanced canvas nodes and proactive inactivity/escalation jobs are not active; their settings are preserved for follow-up. Office hours gate normal flows and AI, but recording requests use the workshop eligibility policy.</p>
+            <label className="flex items-center gap-3 rounded-xl bg-white border p-6">
+              <input type="checkbox" checked={settings.chatbotEnabled === true} onChange={e => setSettings({ ...settings, chatbotEnabled: e.target.checked })} />
+              <span>Enable Meta chatbot automation for this account</span>
+            </label>
             {/* Welcome Message */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <h2 className="font-extrabold text-gray-900 mb-4">Welcome Message</h2>
@@ -131,6 +148,7 @@ export default function ChatbotSettingsPage() {
               </label>
 
               {settings.welcomeEnabled && (
+                <>
                 <textarea
                   value={settings.welcomeMessage || ''}
                   onChange={(e) => setSettings((p) => (p ? { ...p, welcomeMessage: e.target.value } : p))}
@@ -138,6 +156,14 @@ export default function ChatbotSettingsPage() {
                   className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-500"
                   placeholder="Welcome message to send when conversation starts..."
                 />
+                <label className="block mt-3 text-sm font-bold text-gray-700">
+                  Welcome again after days (0 = first conversation only)
+                  <input type="number" min={0} max={365} value={settings.welcomeRepeatDays ?? 0}
+                    onChange={e => setSettings({ ...settings, welcomeRepeatDays: Number(e.target.value) })}
+                    className="block mt-2 rounded border p-2 text-gray-900" />
+                </label>
+                <p className="mt-2 text-xs text-gray-500">Welcome is sent on an incoming conversation, not as an unsolicited scheduled message. Keywords and button actions take priority.</p>
+                </>
               )}
             </div>
 
@@ -307,6 +333,17 @@ export default function ChatbotSettingsPage() {
                   />
                   <span className="text-gray-800 font-bold">Enable AI fallback responses</span>
                 </label>
+                {settings.aiEnabled && <div className="space-y-3">
+                  <label className="block text-sm font-bold text-gray-700">AI instructions
+                    <textarea rows={4} value={settings.aiSystemPrompt || ''} onChange={e => setSettings({ ...settings, aiSystemPrompt: e.target.value })}
+                      className="block w-full mt-2 rounded border p-3 text-gray-900" placeholder="Business facts, language and escalation instructions. Recording eligibility remains controlled by attendance rules, never by AI." />
+                  </label>
+                  <label className="block text-sm font-bold text-gray-700">Maximum response tokens
+                    <input type="number" min={50} max={1000} value={settings.aiMaxTokens ?? 250}
+                      onChange={e => setSettings({ ...settings, aiMaxTokens: Number(e.target.value) })} className="block mt-2 rounded border p-2 text-gray-900" />
+                  </label>
+                  <p className="text-xs text-gray-500">Uses the server-configured AI provider credentials. Do not paste API keys here. Keyword flows and recording policies do not require paid AI.</p>
+                </div>}
               </div>
             </div>
           </div>

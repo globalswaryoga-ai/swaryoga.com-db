@@ -3,7 +3,7 @@ import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
 
 export type BunnyWorkshopCohort = Record<string, any> & { _id: string };
 export type BunnyWorkshopStudent = Record<string, any> & { _id: string };
-export type BunnyWorkshopAttendance = Record<string, any> & { _id: string };
+export type BunnyWorkshopAttendance = Record<string, any> & { _id: string; joined: boolean; durationSeconds: number };
 export type BunnyWorkshopRecording = Record<string, any> & { _id: string };
 
 const id = () => crypto.randomUUID();

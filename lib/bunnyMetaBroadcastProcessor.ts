@@ -62,11 +62,27 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       const currentTemplate = await getTemplateById(String(run.templateId || ''));
       if (!currentTemplate) throw new Error('Template not found for run');
       const isOfferDocument = runId.startsWith('offer-doc_');
+      const recordingAccess = run.templateSnapshot?.recordingAccess;
       if (isOfferDocument && (String(currentTemplate.status).toLowerCase() !== 'approved' || String(currentTemplate.headerFormat).toUpperCase() !== 'DOCUMENT')) throw new Error('Offer delivery template is no longer an approved document template');
-      const template = isOfferDocument
+      const template = recordingAccess
+        ? { ...currentTemplate, variables: run.templateSnapshot.variables }
+        : isOfferDocument
         ? { ...currentTemplate, headerMedia: run.templateSnapshot?.headerMedia, headerContent: run.templateSnapshot?.headerContent }
         : currentTemplate;
       if (isOfferDocument && !template.headerMedia?.url) throw new Error('Offer delivery has no saved document URL');
+      if (recordingAccess) {
+        const { getCohort, listAttendance, listStudents } = await import('@/lib/workshopBunnyRepository');
+        const { recordingAccessPolicy, recordingEligibility } = await import('@/lib/workshopRecordingAccess');
+        const cohort = await getCohort(recordingAccess.cohortId);
+        if (!cohort || String(cohort.createdByUserId) !== String(run.createdByUserId)) throw new Error('Recording workshop ownership changed.');
+        const policy = recordingAccessPolicy(cohort.metadata?.recordingAccess);
+        const [students, attendance] = await Promise.all([listStudents(cohort._id, true), listAttendance(cohort._id)]);
+        if (!policy.enabled || ![String(run.templateId), String(currentTemplate.templateName)].includes(policy.templateId) ||
+            !students.some(s => s._id === recordingAccess.studentId) ||
+            !recordingEligibility(attendance.find(a => a.studentId === recordingAccess.studentId && a.classDate === recordingAccess.classDate), policy.minimumMinutes).eligible)
+          throw new Error('Recording access is no longer eligible; administrator review required.');
+        if (String(currentTemplate.status).toUpperCase() !== 'APPROVED') throw new Error('Recording template is no longer approved.');
+      }
       await broadcastRunUpdateOne(runId, { status: 'running', startedAt: run.startedAt || now });
 
       const pending = await broadcastRunMessageFind({ runId, status: 'pending' }, { limit: Math.min(Math.max(options?.perRunMessageLimit ?? 50, 1), 1000) });
@@ -103,7 +119,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
             args: [item.phoneNumber, String(run.templateId), owner, twentyFourHoursAgo]
           });
 
-          if (existingCheck.rows && existingCheck.rows.length > 0) {
+          if (!recordingAccess && existingCheck.rows && existingCheck.rows.length > 0) {
             await broadcastRunMessageUpdateOne(messageId, { status: 'skipped', failureReason: 'Skipped: Same template already sent in the last 24 hours.' });
             stat.skipped++;
             output.skipped++;
@@ -111,6 +127,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           }
 
           const sendInput = buildCloudTemplateSendInput(template, String(item.phoneNumber || ''));
+          if (recordingAccess) sendInput.bodyParams = [String(run.templateSnapshot.variables?.['1'] || '')];
           const apiResult = await sendWhatsAppTemplate(sendInput, creds);
           const waMessageId = String(apiResult.waMessageId || '');
           if (!waMessageId) throw new Error('Meta did not return a WhatsApp message ID.');
@@ -140,7 +157,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
               },
             },
           });
-          if (runId.startsWith('registration_') && item.leadId) {
+          if (runId.startsWith('registration_') && !recordingAccess && item.leadId) {
             await bunnyExecute({
               sql: `UPDATE leads_sql SET data_json = json_set(data_json,
                 '$.metadata.wtStatus', 'sent', '$.metadata.wtError', NULL,

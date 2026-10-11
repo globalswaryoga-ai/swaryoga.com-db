@@ -3,6 +3,11 @@ jest.mock('@/lib/whatsapp', () => ({ buildCloudTemplateSendInput: jest.fn(), sen
 jest.mock('@/lib/whatsappAccounts', () => ({ getMetaCredentialsForTenant: jest.fn() }));
 jest.mock('@/lib/bunnyMetaWhatsAppRepository', () => ({ upsertBunnyMetaMessage: jest.fn() }));
 jest.mock('@/lib/bunnyDatabase', () => ({ bunnyExecute: jest.fn() }));
+jest.mock('@/lib/workshopBunnyRepository', () => ({ getCohort: jest.fn(), listStudents: jest.fn(), listAttendance: jest.fn() }));
+jest.mock('@/lib/workshopRecordingAccess', () => ({
+  recordingAccessPolicy: (policy: unknown) => policy,
+  recordingEligibility: (attendance: { durationSeconds: number }) => ({ eligible: attendance?.durationSeconds < 3600 }),
+}));
 jest.mock('@/lib/bunnyBroadcastRepository', () => ({
   broadcastRunFind: jest.fn(), broadcastRunFindOne: jest.fn(), broadcastRunMessageFind: jest.fn(),
   broadcastRunMessageUpdateOne: jest.fn(), broadcastRunUpdateOne: jest.fn(),
@@ -10,7 +15,8 @@ jest.mock('@/lib/bunnyBroadcastRepository', () => ({
 }));
 
 import { processDueBunnyMetaBroadcasts } from '@/lib/bunnyMetaBroadcastProcessor';
-import { sendWhatsAppTemplate } from '@/lib/whatsapp';
+import { sendWhatsAppTemplate, buildCloudTemplateSendInput } from '@/lib/whatsapp';
+import { getCohort, listAttendance, listStudents } from '@/lib/workshopBunnyRepository';
 import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { upsertBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
@@ -55,5 +61,19 @@ describe('Meta provider acceptance and safe report actions', () => {
     const result = await processDueBunnyMetaBroadcasts({ runId: 'test-run' });
     expect(result.attempted).toBe(0);
     expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
+  });
+  it('sends actual recording URLs from the saved snapshot, not the variable name or stale template defaults', async () => {
+    jest.mocked(broadcastRunFindOne).mockResolvedValue({ _id: 'registration_recording', status: 'scheduled', templateId: 'template', createdByUserId: 'admincrm',
+      templateSnapshot: { recordingAccess: { cohortId: 'cohort', studentId: 'student', classDate: '2026-10-01' },
+        variables: { '1': 'https://youtu.be/class-speaker\nhttps://youtu.be/class-gallery' } } });
+    jest.mocked(getCohort).mockResolvedValue({ _id: 'cohort', createdByUserId: 'admincrm', metadata: {
+      recordingAccess: { enabled: true, templateId: 'template', minimumMinutes: 60 } } });
+    jest.mocked(listStudents).mockResolvedValue([{ _id: 'student' }]);
+    jest.mocked(listAttendance).mockResolvedValue([{ _id: 'a', studentId: 'student', classDate: '2026-10-01', joined: false, durationSeconds: 0 }]);
+    jest.mocked(buildCloudTemplateSendInput).mockReturnValue({ to: '919000000000', templateName: 'workshop', language: 'en', bodyParams: ['1'] });
+    await processDueBunnyMetaBroadcasts({ runId: 'registration_recording' });
+    expect(sendWhatsAppTemplate).toHaveBeenCalledWith(expect.objectContaining({
+      bodyParams: ['https://youtu.be/class-speaker\nhttps://youtu.be/class-gallery'],
+    }), undefined);
   });
 });

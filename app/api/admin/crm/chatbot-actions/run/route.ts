@@ -3,17 +3,14 @@ import { handleCrmError } from '@/lib/crm-handlers';
 import { runDueChatbotActions } from '@/lib/chatbotScheduler';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 // Mark as dynamic since this route uses request.headers
 
 function verifyCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
-  // If no CRON_SECRET is set, allow the request (for Vercel cron)
-  if (!expected) return true;
+  if (!expected) return false;
   const provided = request.headers.get('x-cron-secret') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  // Check for Vercel cron user-agent
-  const userAgent = request.headers.get('user-agent') || '';
-  if (userAgent.includes('vercel-cron')) return true;
   return Boolean(provided && provided === expected);
 }
 
@@ -26,15 +23,17 @@ function verifyCronSecret(request: NextRequest): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.CRON_SECRET) return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 503 });
     if (!verifyCronSecret(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
-    const limit = typeof body?.limit === 'number' ? body.limit : 100;
+    const limit = typeof body?.limit === 'number' ? Math.min(Math.max(Math.floor(body.limit), 1), 25) : 25;
+    if (!Number.isFinite(limit)) return NextResponse.json({ error: 'Invalid action limit' }, { status: 400 });
 
     const data = await runDueChatbotActions({ limit });
-    return NextResponse.json({ success: true, data }, { status: 200 });
+    return NextResponse.json({ success: data.failedActions === 0, data }, { status: data.failedActions ? 207 : 200 });
   } catch (error) {
     return handleCrmError(error, 'POST chatbot-actions/run');
   }
@@ -47,12 +46,13 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    if (!process.env.CRON_SECRET) return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 503 });
     if (!verifyCronSecret(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const data = await runDueChatbotActions({ limit: 100 });
-    return NextResponse.json({ success: true, data }, { status: 200 });
+    const data = await runDueChatbotActions({ limit: 25 });
+    return NextResponse.json({ success: data.failedActions === 0, data }, { status: data.failedActions ? 207 : 200 });
   } catch (error) {
     return handleCrmError(error, 'GET chatbot-actions/run');
   }

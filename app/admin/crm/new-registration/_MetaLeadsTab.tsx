@@ -2,7 +2,6 @@
 import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
 
 
-import { evaluateMetaLead } from '@/lib/registrationRules';
 import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation';
 import { metaLeadBucket, metaLeadCounts } from '@/lib/registrationMetaReport';
 import { MetaTriggerReportTable, type MetaTriggerAction } from './_MetaTriggerReportTable';
@@ -124,6 +123,8 @@ export function MetaLeadsTab({
     const [showAI9Popup, setShowAI9Popup] = useState(false);
     const [savingAIConfig, setSavingAIConfig] = useState(false);
     const [aiConfigMessage, setAIConfigMessage] = useState('');
+    const [runningAIConfig, setRunningAIConfig] = useState(false);
+    const aiRunRef = useRef(false);
     const aiConfigSaveRef = useRef(false);
     const saveMetaAIConfig = async (key: string, config: any, close = false) => {
         if (aiConfigSaveRef.current) return false;
@@ -460,8 +461,6 @@ export function MetaLeadsTab({
         return () => clearInterval(interval);
     }, [isAutoSync, formId]);
 
-    const evaluateLead = evaluateMetaLead;
-
     // Server cron handles automatic classification and delayed messages even when this page is closed.
     useEffect(() => {
         const interval = setInterval(() => { if (!document.hidden) internalRefresh(); }, 30000);
@@ -469,50 +468,29 @@ export function MetaLeadsTab({
     }, []);
 
     const handleForceAIProcessing = async () => {
-        setIsFetchingLeads(true);
+        if (aiRunRef.current) return;
+        aiRunRef.current = true;
+        setRunningAIConfig(true);
+        setAIConfigMessage('Processing saved rules for this batch...');
         try {
-            const updates: any[] = [];
-            const triggers: string[] = [];
-            
-            metaLeads.forEach((lead: any) => {
-                const currentStatus = lead.status || 'new';
-                if ((currentStatus === 'new' || currentStatus === 'lead' || currentStatus === 'new_pending') && ai9AConfig?.isActive) {
-                    const res = evaluateLead(lead, ai9AConfig, 'stage_1_new', 'new_pending', 'new_rejected');
-                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
-                } else if ((currentStatus === 'stage_1_new' || currentStatus === 'stage_1_pending') && ai9BConfig?.isActive) {
-                    const res = evaluateLead(lead, ai9BConfig, 'stage_2_new', 'stage_1_pending', 'stage_1_rejected');
-                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
-                } else if ((currentStatus === 'stage_2_new' || currentStatus === 'stage_2_pending') && ai9CConfig?.isActive) {
-                    const res = evaluateLead(lead, ai9CConfig, 'stage_3_new', 'stage_2_pending', 'stage_2_rejected');
-                    if (res && res.status !== currentStatus) updates.push({ id: lead._id || lead.id, ...res });
-                } else if ((currentStatus === 'stage_3_new' || currentStatus === 'stage_3_pending') && ai9DConfig?.isActive) {
-                    const res = evaluateLead(lead, ai9DConfig, 'approved', 'stage_3_pending', 'stage_3_rejected');
-                    if (res && res.status !== currentStatus) {
-                        updates.push({ id: lead._id || lead.id, ...res });
-                        if (res.status === 'approved') triggers.push(lead._id || lead.id);
-                    }
-                }
+            const response = await fetch('/api/admin/crm/meta-leads/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'run-ai', workshopId: selectedWorkshop?.id }),
             });
-
-            if (updates.length > 0) {
-                const response = await fetch('/api/admin/crm/meta-leads/bulk-update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bulkUpdates: updates, status: 'mixed', workshopId: selectedWorkshop?.id })
-                });
-                
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error || 'AI processing failed');
-                internalRefresh();
-                alert(`Successfully processed ${updates.length} leads through the AI rules!`);
-            } else {
-                alert('No leads are currently pending AI processing based on your active rules.');
-            }
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'AI processing failed');
+            internalRefresh();
+            refreshLeads?.();
+            setAIConfigMessage(`Processing complete: checked ${result.scannedCount} leads; moved ${result.modifiedCount}. ${
+                result.modifiedCount === 0 ? 'No stage changes: check that leads have reached this stage and their saved answers match your rules.' : 'Updated stages are saved in Bunny Database.'
+            }`);
         } catch (err) {
             console.error('Failed to run manual AI:', err);
-            alert('Failed to process leads manually.');
+            setAIConfigMessage(err instanceof Error ? err.message : 'Failed to process leads. Please retry.');
         } finally {
-            setIsFetchingLeads(false);
+            aiRunRef.current = false;
+            setRunningAIConfig(false);
         }
     };
 
@@ -792,6 +770,9 @@ export function MetaLeadsTab({
                     : 'Automatic WhatsApp is not enabled. Connect a saved batch, configure and start AI-9A–D, then save AI-9W settings. Existing leads will not be resent.'}
             </div>
             {loadError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>}
+            {!showAI9Popup && aiConfigMessage && (
+                <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{aiConfigMessage}</p>
+            )}
             {/* Header Report Cards & Settings Trigger */}
             <div className="flex gap-4">
                 <div className="grid grid-cols-5 gap-4 flex-1">
@@ -1687,10 +1668,13 @@ export function MetaLeadsTab({
                                     <div className="flex items-center gap-3">
                                         <h3 className={`text-xl font-bold ${activeConfig.isActive ? 'text-emerald-900' : 'text-yellow-900'}`}>{activeAITab} Configuration</h3>
                                         <button
-                                            disabled={savingAIConfig}
+                                            disabled={savingAIConfig || runningAIConfig}
                                             onClick={async () => {
                                                 const newConfig = { ...activeConfig, isActive: !activeConfig.isActive };
-                                                if (await saveMetaAIConfig(activeConfigKey, newConfig)) setActiveConfig(newConfig);
+                                                if (await saveMetaAIConfig(activeConfigKey, newConfig)) {
+                                                    setActiveConfig(newConfig);
+                                                    if (newConfig.isActive) await handleForceAIProcessing();
+                                                }
                                             }}
                                             className={`px-3 py-1 text-xs font-bold rounded-full border shadow-sm flex items-center gap-1.5 transition-colors ${
                                                 activeConfig.isActive 
@@ -1699,10 +1683,19 @@ export function MetaLeadsTab({
                                             }`}
                                         >
                                             {activeConfig.isActive ? <Square size={10} className="fill-current" /> : <Play size={10} className="fill-current" />}
-                                            {activeConfig.isActive ? 'Active (Click to Stop)' : `Start ${activeAITab} Processing`}
+                                            {runningAIConfig ? 'Processing...' : activeConfig.isActive ? 'Active (Click to Stop)' : `Start ${activeAITab} Processing`}
                                         </button>
+                                        {activeConfig.isActive && (
+                                            <button disabled={savingAIConfig || runningAIConfig}
+                                                onClick={async () => {
+                                                    if (await saveMetaAIConfig(activeConfigKey, activeConfig)) await handleForceAIProcessing();
+                                                }}
+                                                className="px-3 py-1 text-xs font-bold rounded-full border bg-white text-slate-700 disabled:opacity-50">
+                                                Run Saved Rules
+                                            </button>
+                                        )}
                                     </div>
-                                    <p className={`${activeConfig.isActive ? 'text-emerald-800' : 'text-yellow-800'} text-sm opacity-90 mt-1 font-medium`}>Map questions and expected answers for AI qualification</p>
+                                    <p className={`${activeConfig.isActive ? 'text-emerald-800' : 'text-yellow-800'} text-sm opacity-90 mt-1 font-medium`}>Start saves and runs active rules now. Future leads are checked by the scheduled worker.</p>
                                 </div>
                             </div>
                             <div className="absolute top-4 right-4 flex items-center gap-2 z-20">

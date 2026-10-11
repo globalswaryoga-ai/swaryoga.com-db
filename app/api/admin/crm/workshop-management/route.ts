@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
+import { recordingAccessPolicy } from '@/lib/workshopRecordingAccess';
 import { getCohort, listCohorts, listStudents, listAttendance, listRecordings, saveCohort, updateCohort, editCohort, deleteCohort } from '@/lib/workshopBunnyRepository';
 import { listBunnyZoomMappings, createBunnyZoomMapping, updateBunnyZoomMapping } from '@/lib/bunnyZoomRepository';
 
@@ -45,11 +47,22 @@ export async function PATCH(request: NextRequest) {
   if (!body.cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
 
   try {
+    const existing = await getCohort(body.cohortId);
+    if (!existing) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    if (!isSuperAdmin(decoded) && existing.createdByUserId !== decoded.userId)
+      return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
+    if (body.recordingAccess !== undefined) {
+      let policy;
+      try { policy = recordingAccessPolicy(body.recordingAccess); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid recording policy' }, { status: 400 }); }
+      body.metadata = { ...existing.metadata, ...body.metadata, recordingAccess: policy };
+    }
     // Full edit from the Edit Workshop modal
     if (body._fullEdit) {
       const cohort = await editCohort(body.cohortId, body);
+      if (body.metadata) await updateCohort(body.cohortId, { metadata: body.metadata });
       if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-      return NextResponse.json({ cohort });
+      return NextResponse.json({ cohort: await getCohort(body.cohortId) });
     }
 
     // Quick partial updates

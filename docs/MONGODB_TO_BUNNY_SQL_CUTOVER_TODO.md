@@ -5,6 +5,61 @@
 
 ## Registration repair clarification
 
+### Chatbot and workshop recording access — October 11, 2026
+
+Chatbot flow CRUD now treats Bunny SQL as authoritative. SQL failures are explicit;
+the shared Storage JSON file is no longer a silent fallback or concurrent write
+target. Tenants author only their own flows; Super Admin edits preserve the
+original flow owner. Automation rules are stored in `chatbot_automation_rules_sql`;
+preserved `whatsapp_automation_rules` documents are imported once from the Bunny
+archive without contacting MongoDB. Deleting an imported rule does not restore it.
+
+Workshop Edit contains an opt-in recording access policy in
+`metadata.recordingAccess`: `enabled`, `maxDays` (3–5), `minimumMinutes`,
+`keywords`, and `templateId`. Both attendance delivery and keyword/button requests
+share `workshop_recording_access_sql`, keyed by cohort/student/class date. Missing
+attendance is not absence; verified absence or duration strictly below the selected
+minutes is eligible. Sunday/holidays do not count as class sessions. Automatic
+delivery scans prior dates, queues at most 25 recipients per run, and continues on
+subsequent cron runs. Previously delivered recordings are not resent.
+
+Recording delivery uses an owned approved Meta template with one body variable
+`{{1}}` for saved Speaker/Gallery links. The existing broadcast worker rechecks
+enrollment, ownership, policy and attendance before sending, and uses the immutable
+queued links rather than template variable names. Queued/reserved distinct dates
+consume allowance while delivery is pending; retries reuse the same date/event.
+Uncertain provider acceptance requires reconciliation, never blind resending.
+No group broadcast is used for individual student eligibility.
+
+The account chatbot master switch and AI fallback remain opt-in. Welcome repeat
+days `0` means first conversation only; positive days configure an inbound
+conversation cooldown, not unsolicited proactive messaging. Template-button
+payloads and interactive IDs/titles are preserved for trigger matching. AI uses
+server-configured credentials and must not override recording eligibility.
+Multiple active workshop matches require administrator selection. Explicit
+`recording YYYY-MM-DD` selects a date; “yesterday” is literal in workshop timezone,
+while a request without a date selects the last prior class session.
+
+Live chatbot execution, state, send intent, delays and deferred-event replay use
+Bunny SQL only. Distinct incoming messages received while a conversation is
+locked remain deferred for provider retry or the minute cron. Accepted/uncertain
+sends remain guarded and are not retried automatically. Cancelling a flow clears
+canonical state and cancels pending owned actions, without erasing provider evidence.
+Office hours gate normal flows and AI, including overnight ranges; recording
+requests remain independently controlled by workshop policy.
+
+Supported canvas nodes are message/question/buttons/template/delay/wait_reply/end.
+Legacy advanced nodes remain preserved as disabled drafts and are rejected before
+flow start rather than partially executing. The palette exposes supported nodes
+only. Proactive inactivity/escalation jobs and advanced canvas integrations remain
+follow-up work; their existing settings are not proof of runtime support.
+
+The minute chatbot-actions cron requires `CRON_SECRET`; a Vercel User-Agent is not
+authentication. Recording delivery also requires the existing broadcast cron;
+recording availability still depends on the external upload worker. Configuring
+templates, enabling settings, deployment and a consented live-send acceptance test
+remain separate from local implementation. No paid AI or live send is used in tests.
+
 ### Permanent contact ingestion and recipient mapping — October 11, 2026
 
 Google response persistence, CRM submission persistence, Meta lead ingestion and
@@ -25,6 +80,23 @@ Live deployment, the Google OAuth reconnect and the user's saved approval-stage
 configuration remain separate prerequisites for unattended end-to-end operation.
 
 ### Future Meta approval-only trigger — October 11, 2026
+
+AI-9 Start now saves the edited configuration and immediately runs the saved
+active stage rules through the authenticated Bunny batch processor. Already
+active configurations offer **Run Saved Rules** for an explicit retry. The UI
+reports checked/moved counts and errors, including when no eligible stage
+changes exist. Processing uses the full owned batch, not the currently loaded
+browser candidate list. AI-9C handles stage-2 new/pending leads; it does not
+bypass inactive earlier stages or reclassify finalized/rejected leads.
+Scheduled processing remains responsible for future leads. This immediate-run
+correction is local pending deployment; activating classification does not
+override the separate future-only WhatsApp approval gate described below.
+
+Workshop settings use three-way merging against the client's previous snapshot:
+unchanged fields retain current Bunny values, and unrelated batch/other-stage
+updates no longer block saving. An AI-stage configuration remains one atomic
+field, so competing changes to the same rule set require reload rather than
+silent overwrite. SQL list compare-and-swap and removed-batch checks remain.
 
 The user chose to keep all four AI-9 approval stages and configure their rules,
 not substitute the single recoverable question. Automatic WhatsApp now requires
@@ -82,13 +154,50 @@ listing, sync and authenticated private-sheet access:
   Bunny SQL accounts, scoped to the authenticated owner; saved leads and form
   selections are unchanged. No success is reported if credential persistence fails.
 
-**Remaining live acceptance:** token refresh currently returns
-`unauthorized_client` for the preserved connection. Some legacy imports use
+**Remaining live acceptance (October 11, 2026):** preserved connections return
+`unauthorized_client` / `invalid_grant`. A fresh production reconnect was also
+verified to fail with Google's `redirect_uri_mismatch` for
+`https://swaryoga.com/api/admin/google-form-oauth/callback`. The local general
+client ID/secret are configured and the client matches production; absence of
+the optional dedicated Forms pair is not itself an error. The currently
+signed-in Google Cloud account lacks access to the client project. Its owner
+must add the callback under Google Auth Platform → Clients → the configured
+web client → Authorized redirect URIs, save, then reconnect from CRM and approve
+offline access. Verify an authenticated form listing and persisted Bunny
+connection before reporting success; do not replace credentials or alter saved
+responses merely to hide this error.
+
+Some legacy imports use
 different identities from newer official responses, and several saved form IDs
 have no current form definition. Reconnect and compare the complete Google
 response-ID set before deciding which uncertain older imports represent copies.
 No older rows were physically deleted and exact live Google/Bunny parity is not
 certified yet.
+
+### Preserve-first registration persistence — October 11, 2026
+
+The registration language pages and Workshop Offer no longer resend every
+cached browser key. Initial hydration and newly restored batch fields do not
+write defaults; subsequent saves contain changed visible fields only. Client
+saves are serialized, and Bunny checks the previous persisted values inside a
+write transaction before committing the entire patch. A stale-tab conflict
+rolls back and reports reload guidance. Old broad-autosave clients are rejected
+until refreshed. This is application-level protection, not a Playwright/network
+interception dependency.
+
+Canonical SQL objects/arrays refresh browser cache alongside string values.
+Saving Meta stage rules does not rewrite form-screen defaults; OAuth success
+does not clear an existing form connection. Saved source leads/responses,
+manual gates and batch settings remain stored independently of browser sessions
+and deployments. Explicit edits and enabled scheduled automation can still
+change their respective data; the deployment itself does not reset it.
+
+Regression coverage includes SQL reopening, stale snapshot rollback, unchanged
+mounts, restored batch fields, independent updates, and Stage 2/3 saves. The
+read-only pre-deployment baseline contains 5,841 lead rows, 925 form responses
+and 5 forms; exact identity hashes are retained privately for post-deploy
+verification. Missing historical settings are not invented from incomplete
+browser snapshots.
 
 ### Meta trigger evidence and report lifecycle — October 11, 2026
 

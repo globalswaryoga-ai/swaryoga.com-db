@@ -43,7 +43,8 @@ export async function saveBunnyChatbotSettings(input: Record<string, any>, owner
   await bunnyExecute({
     sql: `INSERT INTO chatbot_settings_sql (document_id,created_by_user_id,data_json,created_at,updated_at)
       VALUES (?,?,?,?,?)
-      ON CONFLICT(document_id) DO UPDATE SET data_json=excluded.data_json,updated_at=excluded.updated_at`,
+      ON CONFLICT(created_by_user_id) DO UPDATE SET
+        data_json=json_patch(chatbot_settings_sql.data_json,excluded.data_json),updated_at=excluded.updated_at`,
     args: [id, ownerId, JSON.stringify(settings), settings.createdAt, timestamp],
   });
   return getBunnyChatbotSettings(ownerId);

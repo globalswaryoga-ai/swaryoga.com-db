@@ -3,6 +3,7 @@
 jest.mock('@/lib/bunnyDatabase', () => ({
   bunnyExecute: jest.fn(),
   bunnyBatch: jest.fn(),
+  getBunnyDatabase: jest.fn(),
 }));
 jest.mock('@/lib/bunny-storage', () => ({ fetchFromStorage: jest.fn() }));
 
@@ -10,9 +11,9 @@ import { createClient, type Client } from '@libsql/client';
 import { mkdtempSync, rmSync, rmdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
+import { bunnyExecute, bunnyBatch, getBunnyDatabase } from '@/lib/bunnyDatabase';
 import { fetchFromStorage } from '@/lib/bunny-storage';
-import { mergeRegistrationState, readRegistrationDecisionState, readRegistrationState, replaceRegistrationStateIfUnchanged, saveRegistrationGate, writeRegistrationState } from '@/lib/registrationState';
+import { mergeRegistrationState, readRegistrationDecisionState, readRegistrationState, replaceRegistrationStateIfUnchanged, saveRegistrationGate, writeRegistrationState, saveRegistrationSnapshotIfUnchanged } from '@/lib/registrationState';
 import { readRegistrationAiConfig, registrationAiConfigKey, registrationDecisionKey } from '@/lib/registrationAiConfig';
 import { processRegistrationFunnel } from '@/lib/registrationFunnel';
 
@@ -26,6 +27,7 @@ describe('Durable registration configuration in SQL', () => {
     directory = mkdtempSync(join(tmpdir(), 'registration-state-test-'));
     databasePath = join(directory, 'state.db');
     client = createClient({ url: `file:${databasePath}` });
+    jest.mocked(getBunnyDatabase).mockImplementation(() => client);
     jest.mocked(bunnyExecute).mockImplementation(statement => client.execute(statement));
     jest.mocked(bunnyBatch).mockImplementation(statements => client.batch(statements, 'write'));
     jest.mocked(fetchFromStorage).mockResolvedValue({
@@ -52,6 +54,26 @@ describe('Durable registration configuration in SQL', () => {
     expect(saved.settings['AI-4']).toEqual([{ question: 'Ready', keyword: 'Yes' }]);
     expect(saved.copyModes['AI-4A']).toBe(false);
     expect(fetchFromStorage).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a stale browser snapshot atomically and keeps all saved batch data after reopening', async () => {
+    const old = { crm_hindi_workshops: '[{"id":"batch","formId":"old"}]', crm_hindi_approved_ids_batch: '["one"]' };
+    const newer = { crm_hindi_workshops: '[{"id":"batch","formId":"saved","metadata":{"ai9DConfig":{"isActive":true}}}]',
+      crm_hindi_approved_ids_batch: '["one","two"]' };
+    await writeRegistrationState(old);
+    await writeRegistrationState(newer);
+    await expect(saveRegistrationSnapshotIfUnchanged({
+      crm_hindi_approved_ids_batch: '[]', crm_hindi_workshops: '[]',
+    }, old)).rejects.toThrow('saved data has been preserved');
+    client.close();
+    client = createClient({ url: `file:${databasePath}` });
+    expect(await readRegistrationState()).toMatchObject(newer);
+  });
+  it('persists an explicit version-checked change without replacing unrelated settings', async () => {
+    await writeRegistrationState({ crm_hindi_workshops: '[]', crm_meta_rules: { active: true } });
+    await saveRegistrationSnapshotIfUnchanged({ crm_hindi_workshops: '[{"id":"new"}]' }, { crm_hindi_workshops: '[]' });
+    expect(await readRegistrationState()).toMatchObject({
+      crm_hindi_workshops: '[{"id":"new"}]', crm_meta_rules: { active: true },
+    });
   });
 
   it('does not copy shared configuration into a tenant scope', async () => {

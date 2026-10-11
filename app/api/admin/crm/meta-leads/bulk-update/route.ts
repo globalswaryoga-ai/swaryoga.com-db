@@ -7,29 +7,33 @@ import { processRegistrationApprovals } from '@/lib/registrationAutomation';
 import { registrationWorkshops } from '@/lib/registrationState';
 import { matchesMetaBatch } from '@/lib/registrationMetaReport';
 
+export const maxDuration = 300;
+
 export async function POST(request: Request) {
   const viewer = registrationViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const { ids, status, workshopId, bulkUpdates } = await request.json();
+    const { ids, status, workshopId, bulkUpdates, action } = await request.json();
+    const runAi = action === 'run-ai';
     const updates: Array<{ id: string; status: string; reason?: string; metadata?: Record<string, unknown> }> =
       Array.isArray(bulkUpdates) ? bulkUpdates : Array.isArray(ids) ? ids.map(id => ({ id: String(id), status })) : [];
-    if (!updates.length || updates.length > 5000 || updates.some(update => !update.id || typeof update.status !== 'string' || !/^[a-z0-9_]+$/.test(update.status))) {
+    if (!runAi && (!updates.length || updates.length > 5000 || updates.some(update => !update.id || typeof update.status !== 'string' || !/^[a-z0-9_]+$/.test(update.status)))) {
       return NextResponse.json({ error: 'Valid lead IDs and statuses are required' }, { status: 400 });
     }
     const state = await readRegistrationState(viewer.superAdmin ? 'shared' : viewer.userId);
     const allLeads = await loadBunnyLeads();
     const owner = viewer.superAdmin ? 'admincrm' : viewer.userId;
-    if (Array.isArray(bulkUpdates)) {
+    if (runAi || Array.isArray(bulkUpdates)) {
       const workshop = registrationWorkshops(state).find(item => item.id === workshopId);
       if (!workshop) return NextResponse.json({ error: 'Select a saved Meta batch before running AI.' }, { status: 400 });
       const requested = new Set(updates.map(update => String(update.id)));
-      const leads = allLeads.filter(lead => requested.has(String(lead._id)) && registrationLeadOwned(lead, viewer) &&
+      const leads = allLeads.filter(lead => (runAi || requested.has(String(lead._id))) && registrationLeadOwned(lead, viewer) &&
         matchesMetaBatch(lead, String(workshop.id), String(workshop.metadata?.facebookFormId || workshop.metadata?.metaFormId || '')));
-      if (!leads.length) return NextResponse.json({ error: 'No matching accessible leads' }, { status: 404 });
+      if (!leads.length && !runAi) return NextResponse.json({ error: 'No matching accessible leads' }, { status: 404 });
       const before = leads.map(lead => lead.status);
       const queued = await processRegistrationApprovals({ crm_workshops: [workshop] }, leads, owner, viewer.superAdmin);
-      return NextResponse.json({ success: true, modifiedCount: leads.filter((lead, index) => lead.status !== before[index]).length, queued });
+      return NextResponse.json({ success: true, scannedCount: leads.length,
+        modifiedCount: leads.filter((lead, index) => lead.status !== before[index]).length, queued });
     }
     const now = new Date().toISOString();
     const changed: Array<Record<string, any>> = [];

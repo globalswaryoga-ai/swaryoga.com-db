@@ -36,7 +36,7 @@
       "maxDuration": 60
     },
     "app/api/admin/crm/chatbot-actions/run/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/admin/crm/inactive-cleanup/run/route.ts": {
       "maxDuration": 60

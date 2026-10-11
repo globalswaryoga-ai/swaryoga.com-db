@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner } from '@/components/admin/crm';
+import { BUNNY_META_NODE_TYPES, unsupportedChatbotNodes } from '@/lib/chatbotFlowCapabilities';
 
 type Block = {
   id: string;
@@ -122,7 +123,7 @@ const BLOCK_TYPES = [
   { id: 'ai_response', name: 'AI Response', color: '#10B981', icon: '🤖', category: 'integration', desc: 'Generate with AI' },
   { id: 'calendar', name: 'Calendar', color: '#10B981', icon: '📅', category: 'integration', desc: 'Book appointment' },
   { id: 'payment', name: 'Payment', color: '#10B981', icon: '💳', category: 'integration', desc: 'Request payment' },
-];
+].filter(block => BUNNY_META_NODE_TYPES.includes(block.id));
 
 export default function ChatbotBuilder() {
   const router = useRouter();
@@ -682,6 +683,8 @@ export default function ChatbotBuilder() {
       });
 
       const endpoint = chatbotId === 'new' ? '/api/admin/crm/chatbot-flows' : `/api/admin/crm/chatbot-flows/${chatbotId}`;
+      const unsupported = unsupportedChatbotNodes(nodes);
+      if (flowEnabled && unsupported.length) throw new Error(`Disable this flow before saving its legacy nodes: ${unsupported.join(', ')}. These nodes are preserved but are not supported by the Bunny Meta runtime.`);
       const method = chatbotId === 'new' ? 'POST' : 'PUT';
 
       const res = await crm.fetch(endpoint, {
@@ -703,7 +706,7 @@ export default function ChatbotBuilder() {
       }
       alert('Chatbot saved!');
     } catch (err) {
-      alert('Failed to save chatbot');
+      alert(err instanceof Error ? err.message : 'Failed to save chatbot');
     } finally {
       setSaving(false);
     }

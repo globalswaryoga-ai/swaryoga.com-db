@@ -66,11 +66,40 @@ describe('Durable Meta batch settings', () => {
   it('rejects stale edits and concurrent list replacement without losing newer configuration', async () => {
     const current = { ...workshop(), name: 'Updated by another tab' };
     jest.mocked(readRegistrationState).mockResolvedValue({ crm_hindi_workshops: [current] });
-    expect((await POST(request({ listKey: 'crm_hindi_workshops', previous: workshop(), workshop: workshop() }))).status).toBe(409);
+    expect((await POST(request({ listKey: 'crm_hindi_workshops', previous: workshop(), workshop: { ...workshop(), name: 'My competing edit' } }))).status).toBe(409);
     expect(replaceRegistrationStateIfUnchanged).not.toHaveBeenCalled();
     jest.mocked(readRegistrationState).mockResolvedValue({});
     jest.mocked(replaceRegistrationStateIfUnchanged).mockResolvedValueOnce(false);
     expect((await POST(request({ listKey: 'crm_hindi_workshops', workshop: workshop() }))).status).toBe(409);
+  });
+  it('allows Stage 3 activation when unrelated batch fields changed and preserves those changes', async () => {
+    const previous = { ...workshop(), leads: 10 };
+    const current = { ...previous, leads: 58, name: 'Updated batch', metadata: {
+      ...previous.metadata, ai9CConfig: { ...rule, maxMismatches: 3 },
+    } };
+    const edited = { ...previous, metadata: { ...previous.metadata, ai9DConfig: { ...rule, maxMismatches: 1 } } };
+    jest.mocked(readRegistrationState).mockResolvedValue({ crm_hindi_workshops: [current] });
+    const response = await POST(request({ listKey: 'crm_hindi_workshops', previous, workshop: edited }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).workshop).toMatchObject({
+      leads: 58, name: 'Updated batch',
+      metadata: { ai9CConfig: { maxMismatches: 3 }, ai9DConfig: { maxMismatches: 1 } },
+    });
+  });
+  it('rejects competing changes to the same Stage 3 configuration', async () => {
+    const previous = workshop();
+    jest.mocked(readRegistrationState).mockResolvedValue({ crm_hindi_workshops: [{
+      ...previous, metadata: { ...previous.metadata, ai9DConfig: { ...rule, maxMismatches: 2 } },
+    }] });
+    const edited = { ...previous, metadata: { ...previous.metadata, ai9DConfig: { ...rule, maxMismatches: 1 } } };
+    expect((await POST(request({ listKey: 'crm_hindi_workshops', previous, workshop: edited }))).status).toBe(409);
+    expect(replaceRegistrationStateIfUnchanged).not.toHaveBeenCalled();
+  });
+  it('does not reject reordered JSON keys as a competing edit', async () => {
+    const previous = workshop();
+    const reordered = { name: previous.name, metadata: previous.metadata, id: previous.id };
+    jest.mocked(readRegistrationState).mockResolvedValue({ crm_hindi_workshops: [reordered] });
+    expect((await POST(request({ listKey: 'crm_hindi_workshops', previous, workshop: previous }))).status).toBe(200);
   });
   it('restores canonical saved rules, not an outdated or malformed selected snapshot', () => {
     const canonical = workshop();

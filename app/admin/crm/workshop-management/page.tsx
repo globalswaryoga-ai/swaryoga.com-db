@@ -11,6 +11,7 @@ import {
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import RegistrationNewBatch from '@/components/admin/crm/RegistrationNewBatch';
 import { workshopSessionCalendar } from '@/lib/workshopSessionUtils';
+import { DEFAULT_RECORDING_ACCESS } from '@/lib/workshopRecordingPolicy';
 import { buildWorkshopAttendanceReport, attendanceReportTable, reportCsv } from '@/lib/workshopAttendanceReport';
 
 interface Cohort { _id: string; name: string; startDate: string; timezone?: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
@@ -123,6 +124,7 @@ export default function WorkshopManagementPage() {
 
   // Edit/Delete workshop state
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
+  const [recordingAccess, setRecordingAccess] = useState({ ...DEFAULT_RECORDING_ACCESS });
   const [editCohortForm, setEditCohortForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: [] as string[], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', autoSendRecordings: false, autoSyncZoomAttendance: true, autoRecoverZoomTrash: false, daySubjects: Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' })) });
   const [zoomMeetingIdInput, setZoomMeetingIdInput] = useState('');
   const [zoomJoinUrlInput, setZoomJoinUrlInput] = useState('');
@@ -504,6 +506,7 @@ export default function WorkshopManagementPage() {
   const handleEditCohort = (c: Cohort, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingCohort(c);
+    setRecordingAccess({ ...DEFAULT_RECORDING_ACCESS, ...c.metadata?.recordingAccess });
     setEditCohortForm({
       name: c.name,
       startDate: c.startDate ? c.startDate.slice(0, 10) : '',
@@ -537,7 +540,7 @@ export default function WorkshopManagementPage() {
       const res = await fetch('/api/admin/crm/workshop-management', {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ ...editCohortForm, cohortId: editingCohort._id, _fullEdit: true }),
+        body: JSON.stringify({ ...editCohortForm, recordingAccess, cohortId: editingCohort._id, _fullEdit: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
@@ -2390,6 +2393,29 @@ export default function WorkshopManagementPage() {
                 </div>
 
                 {/* Toggles */}
+                <div className="sm:col-span-2 rounded-xl border border-indigo-100 p-4 space-y-3">
+                  <h3 className="font-bold text-indigo-900">Recording access · shared 14-session allowance</h3>
+                  <label className="flex gap-2 items-center">
+                    <input type="checkbox" checked={recordingAccess.enabled} onChange={e => setRecordingAccess({ ...recordingAccess, enabled: e.target.checked })} />
+                    Enable keyword requests and attendance-based recording access
+                  </label>
+                  <p className="text-xs text-slate-600">Only verified absent or incomplete attendance qualifies. Automatic delivery and requests use the same allowance; repeated requests for one class do not use another day. Missing attendance is not treated as absence.</p>
+                  <label className="block text-sm">Recording days allowed
+                    <select value={recordingAccess.maxDays} onChange={e => setRecordingAccess({ ...recordingAccess, maxDays: Number(e.target.value) })} className="block rounded border p-2 mt-1">
+                      {[3, 4, 5].map(days => <option key={days} value={days}>{days} of 14 sessions</option>)}
+                    </select>
+                  </label>
+                  <label className="block text-sm">Minutes required to complete attendance
+                    <input type="number" min={1} max={240} value={recordingAccess.minimumMinutes} onChange={e => setRecordingAccess({ ...recordingAccess, minimumMinutes: Number(e.target.value) })} className="block rounded border p-2 mt-1" />
+                  </label>
+                  <label className="block text-sm">Keywords or template-button payloads (comma-separated)
+                    <input value={recordingAccess.keywords.join(', ')} onChange={e => setRecordingAccess({ ...recordingAccess, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) })} className="block w-full rounded border p-2 mt-1" />
+                  </label>
+                  <label className="block text-sm">Approved Meta recording template name or ID
+                    <input value={recordingAccess.templateId} onChange={e => setRecordingAccess({ ...recordingAccess, templateId: e.target.value })} className="block w-full rounded border p-2 mt-1" />
+                  </label>
+                  <p className="text-xs text-slate-500">Template body must have one variable {'{{1}}'} for the saved recording links. Delivery uses Meta WhatsApp, not an unrestricted group broadcast. Enable automatic sending separately below.</p>
+                </div>
                 <div className="sm:col-span-2 flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100">
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
                     <input type="checkbox" checked={editCohortForm.autoSendRecordings} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoSendRecordings: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />

@@ -1,90 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyAdminAccess, handleCrmError, isValidObjectId, toObjectId, formatCrmSuccess } from '@/lib/crm-handlers';
-import { getWhatsAppAutomationRule } from '@/lib/schemas/enterpriseSchemas';
-
+import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
+import { listBunnyAutomationRules, saveBunnyAutomationRule, deleteBunnyAutomationRule } from '@/lib/bunnyAutomationRepository';
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
-
-export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+type Context = { params: Promise<{ id: string }> };
+export async function GET(request: NextRequest, context: Context) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
-
-    await connectDB();
-    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
-
-    const rule = await WhatsAppAutomationRule.findOne({ _id: toObjectId(String(id)), createdByUserId: String(userId) }).lean();
-    if (!rule) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    return formatCrmSuccess(rule);
-  } catch (error) {
-    return handleCrmError(error, 'GET automations/[id]');
-  }
+    const owner = String(verifyAdminAccess(request));
+    const { id } = await context.params;
+    const rule = (await listBunnyAutomationRules(owner)).find(rule => rule._id === id);
+    return rule ? formatCrmSuccess(rule) : NextResponse.json({ error: 'Not found' }, { status: 404 });
+  } catch (error) { return handleCrmError(error, 'GET automation'); }
 }
-
-export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, context: Context) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
-
-    const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-
-    await connectDB();
-    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
-
-    const allowed: any = {};
-    const fields = [
-      'name',
-      'enabled',
-      'triggerType',
-      'keywords',
-      'conditions',
-      'throttleMinutesPerLead',
-      'actionType',
-      'actionText',
-      'actionTemplateId',
-      'actionTemplateVariables',
-      'actionLeadUpdates',
-    ];
-
-    for (const f of fields) {
-      if (Object.prototype.hasOwnProperty.call(body, f)) allowed[f] = body[f];
+    const owner = String(verifyAdminAccess(request));
+    const { id } = await context.params;
+    if (!(await listBunnyAutomationRules(owner)).some(rule => rule._id === id))
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const body = await request.json();
+    try { return formatCrmSuccess(await saveBunnyAutomationRule(body, owner, id)); }
+    catch (error) {
+      if (error instanceof Error && /required|Unsupported|Keywords|Invalid/.test(error.message))
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      throw error;
     }
-
-    const updated = await WhatsAppAutomationRule.findOneAndUpdate(
-      { _id: toObjectId(String(id)), createdByUserId: String(userId) },
-      { $set: allowed },
-      { new: true }
-    ).lean();
-
-    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    return formatCrmSuccess(updated);
-  } catch (error) {
-    return handleCrmError(error, 'PUT automations/[id]');
-  }
+  } catch (error) { return handleCrmError(error, 'PUT automation'); }
 }
-
-export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: Context) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
-
-    await connectDB();
-    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
-
-    const res = await WhatsAppAutomationRule.deleteOne({ _id: toObjectId(String(id)), createdByUserId: String(userId) });
-    if (!res.deletedCount) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    return formatCrmSuccess({ deletedCount: res.deletedCount });
-  } catch (error) {
-    return handleCrmError(error, 'DELETE automations/[id]');
-  }
+    const owner = String(verifyAdminAccess(request));
+    const { id } = await context.params;
+    const deletedCount = await deleteBunnyAutomationRule(id, owner);
+    return deletedCount ? formatCrmSuccess({ deletedCount }) : NextResponse.json({ error: 'Not found' }, { status: 404 });
+  } catch (error) { return handleCrmError(error, 'DELETE automation'); }
 }

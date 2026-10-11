@@ -1,107 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getCohort, listRecordings, listStudents, markRecordingDelivered, updateCohort } from '@/lib/workshopBunnyRepository';
-
-import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { getCohort, updateCohort } from '@/lib/workshopBunnyRepository';
+import { queueDueWorkshopRecordings } from '@/lib/workshopRecordingAccess';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
-function auth(request: NextRequest) {
-  const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
-  return verifyToken(raw.startsWith('Bearer ') ? raw.slice(7) : raw);
-}
-
-function phoneOf(value: unknown) {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits.length >= 10 ? digits : '';
-}
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  let isAdmin = false;
-  let decoded: any = null;
-  const cronSecret = request.headers.get('authorization')?.replace('Bearer ', '');
-  if (cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET) {
-    isAdmin = true;
-    decoded = { isAdmin: true, isSuperAdmin: true, userId: 'cron' };
-  } else {
-    decoded = auth(request);
+  try {
+    const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
+    const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+    const cron = Boolean(process.env.CRON_SECRET && token === process.env.CRON_SECRET);
+    const decoded = cron ? { isAdmin: true, userId: 'cron' } : verifyToken(token);
     if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    isAdmin = true;
+    const { cohortId, dryRun = false } = await request.json();
+    if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
+    const cohort = await getCohort(cohortId);
+    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    if (!cron && !isSuperAdmin(decoded) && cohort.createdByUserId !== decoded.userId)
+      return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
+    const zoomAttendance = cohort.zoomMeetingId && !dryRun
+      ? await syncWorkshopZoomAttendance(cohortId) : null;
+    const delivery = await queueDueWorkshopRecordings(cohortId, dryRun);
+    if (!dryRun) await updateCohort(cohortId, { workerLastRunAt: new Date().toISOString() });
+    return NextResponse.json({
+      success: delivery.errors.length === 0,
+      result: { worker: 'workshop-management', dryRun, zoomAttendance,
+        sent: 0, queued: delivery.queued, skipped: delivery.skipped, failed: delivery.errors.length,
+        errors: delivery.errors, message: delivery.errors.length ? delivery.errors.join('; ') : `${delivery.queued} approved Meta recording messages queued; delivery uses the broadcast worker.` },
+    }, { status: delivery.errors.length ? 207 : 200 });
+  } catch (error) {
+    console.error('[Workshop worker]', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Workshop worker failed' }, { status: 500 });
   }
-  const { cohortId, dryRun = false } = await request.json();
-  if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
-
-  const cohort: any = await getCohort(cohortId);
-  if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-  if (cohort.createdByUserId && String(cohort.createdByUserId) !== String(decoded.userId) && !isSuperAdmin(decoded) && decoded.userId !== 'cron') {
-    return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
-  }
-
-  const students: any[] = await listStudents(cohortId, true);
-  const recordings: any[] = (await listRecordings(cohortId)).sort((a, b) => String(a.classDate).localeCompare(String(b.classDate)));
-  const result: any = { worker: 'workshop-management', dryRun, studentsChecked: students.length, recordingsChecked: recordings.length, sent: 0, skipped: 0, failed: 0, errors: [] as string[] };
-  // Attendance is independent of recording delivery. Run it first so the same
-  // AI worker button also refreshes daily Zoom attendance.
-  if (cohort.zoomMeetingId && !dryRun) {
-    try {
-      result.zoomAttendance = await syncWorkshopZoomAttendance(String(cohort._id));
-    } catch (error) {
-      result.zoomAttendance = { updated: 0, message: error instanceof Error ? error.message : 'Zoom attendance sync failed' };
-    }
-  }
-
-  result.recordingUpload = { mode: 'external-worker', message: 'Large recording uploads and safe Zoom cleanup run on the scheduled external worker, not this serverless delivery endpoint.' };
-
-  if (!cohort.aiWorkerEnabled) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Recording delivery worker is disabled; Zoom attendance sync was still attempted.' } });
-
-  if (!cohort.autoSendRecordings) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Automatic recording delivery is disabled.' } });
-
-  const bridge = getWhatsAppBridgeConfig();
-  const sessionKey = cohort.createdByUserId || decoded.userId;
-  result.emailDelivery = { enabled: false, message: 'Email delivery configuration has not been migrated; WhatsApp delivery remains available.' };
-
-  const deliveredByStudent = new Map<string, any[]>();
-  for (const recording of recordings) {
-    const delivered = new Set((recording.deliveredStudentIds || []).map((id: any) => String(id)));
-    for (const student of students) {
-      if (delivered.has(String(student._id))) { result.skipped++; continue; }
-      
-      const phone = phoneOf(student.whatsappNumber || student.phone);
-      
-      const zoomLink = recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl;
-      const links = [recording.youtubeSpeakerUrl, recording.youtubeGalleryUrl, recording.bunnySpeakerUrl, recording.metadata?.bunnyAudioUrl, recording.bunnyGalleryUrl, zoomLink].filter(Boolean);
-      if (!links.length) { result.skipped++; continue; }
-      
-      if (!phone) { result.skipped++; continue; }
-      
-      const message = `Workshop ${cohort.name} — Day ${recording.dayNumber || ''}\n\nYour class recording is ready:\n${links.join('\n')}`;
-      if (dryRun) { result.sent++; continue; }
-      try {
-        const response = await fetch(`${bridge.url}/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-bridge-secret': bridge.secret, 'x-user-id': String(cohort.createdByUserId || decoded.userId), 'x-session-key': sessionKey, 'x-tenant-id': sessionKey },
-          body: JSON.stringify({ to: `${phone}@c.us`, type: 'text', message }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (!response.ok) throw new Error(`WhatsApp bridge returned ${response.status}`);
-        result.sent++;
-        const list = deliveredByStudent.get(String(recording._id)) || [];
-        list.push(student._id);
-        deliveredByStudent.set(String(recording._id), list);
-        
-      } catch (error) {
-        result.failed++;
-        result.errors.push(`${student.name}: ${error instanceof Error ? error.message : 'send failed'}`);
-      }
-    }
-  }
-
-  if (!dryRun) {
-    for (const recording of recordings) {
-      const newlyDelivered = deliveredByStudent.get(String(recording._id)) || [];
-      if (newlyDelivered.length) await markRecordingDelivered(String(recording._id), newlyDelivered.map(String));
-    }
-    await updateCohort(cohortId, { workerLastRunAt: new Date().toISOString() });
-  }
-  return NextResponse.json({ success: true, result });
 }

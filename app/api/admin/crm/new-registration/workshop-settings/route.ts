@@ -4,6 +4,7 @@ import { parseRegistrationValue, readRegistrationState, replaceRegistrationState
 import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation';
 import type { RegistrationRecord } from '@/lib/registrationRules';
 import { resolveRegistrationTemplate } from '@/lib/registrationAutomation';
+import { mergeRegistrationWorkshop } from '@/lib/registrationWorkshopMerge';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +24,18 @@ export async function POST(request: Request) {
     const list = parseRegistrationValue<RegistrationRecord[]>(state[listKey], []);
     if (!Array.isArray(list)) throw new Error('Invalid saved workshop list');
     const existing = list.find(item => item.id === workshop.id);
-    if ((existing && JSON.stringify(existing) !== JSON.stringify(previous)) || (!existing && previous)) {
+    if ((existing && (!previous || previous.id !== workshop.id)) || (!existing && previous)) {
       return NextResponse.json({ error: 'This batch changed or was removed. Reload before saving; newer settings have been preserved.' }, { status: 409 });
     }
-    const metadata = { ...workshop.metadata };
+    let merged = workshop;
+    if (existing) {
+      try {
+        merged = mergeRegistrationWorkshop(existing, previous, workshop);
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Batch settings conflict. Reload and retry.' }, { status: 409 });
+      }
+    }
+    const metadata = { ...merged.metadata };
     if (metadata.metaAutomation?.enabled) {
       const error = metaApprovalConfigurationError(metadata);
       if (error) return NextResponse.json({ error }, { status: 400 });
@@ -41,7 +50,7 @@ export async function POST(request: Request) {
         startsAt: existingPolicy?.startsAt || new Date().toISOString(),
       };
     }
-    const saved = { ...workshop, metadata };
+    const saved = { ...merged, metadata };
     const workshops = existing ? list.map(item => item.id === saved.id ? saved : item) : [...list, saved];
     if (!await replaceRegistrationStateIfUnchanged(listKey, workshops, state[listKey], scope)) {
       return NextResponse.json({ error: 'Workshop settings changed during saving. Reload and retry.' }, { status: 409 });

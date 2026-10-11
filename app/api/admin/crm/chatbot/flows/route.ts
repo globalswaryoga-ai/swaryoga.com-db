@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { listBunnyChatbotFlows, getBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
-import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
-import { startChatbotFlowForLead } from '@/lib/whatsappAutomation';
+import { getBunnyLeadById } from '@/lib/bunnyLeadsRepository';
+import { startChatbotFlowForLead, getChatbotFlowStateForLead, cancelChatbotFlowForLead } from '@/lib/whatsappAutomation';
 
 export const dynamic = 'force-dynamic';
+function leadRuntimeOwner(lead: Record<string, any>, viewer: string) {
+  const scopedOwner = String(lead.metadata?.chatbotFlowState?.scope || '').split(':')[0];
+  const owner = scopedOwner || String(lead.createdByUserId || '');
+  return !owner || owner === 'system' ? viewer : owner;
+}
 
 
 /**
@@ -17,7 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const ownerId = String(decoded.userId || decoded.username || '');
@@ -39,7 +44,11 @@ export async function GET(request: NextRequest) {
     const leadId = request.nextUrl.searchParams.get('leadId');
     if (leadId) {
       const lead = await getBunnyLeadById(leadId);
-      const flowState = lead?.metadata?.chatbotFlowState;
+      if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+      if (!isSuperAdmin(decoded) && ![lead.createdByUserId, lead.assignedToUserId].includes(getViewerUserId(decoded)))
+        return NextResponse.json({ error: 'Lead access denied' }, { status: 403 });
+      const stateOwner = isSuperAdmin(decoded) ? leadRuntimeOwner(lead, ownerId) : ownerId;
+      const { state: flowState } = await getChatbotFlowStateForLead({ leadId: String(lead._id), ownerUserId: stateOwner });
       if (flowState?.flowId) {
         const activeFlow = enabledFlows.find((f: any) => String(f._id) === String(flowState.flowId));
         currentFlow = {
@@ -67,32 +76,31 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { leadId, flowId, phoneNumber } = await request.json();
+    const { leadId, flowId } = await request.json();
     if (!leadId || !flowId) {
       return NextResponse.json({ error: 'leadId and flowId are required' }, { status: 400 });
     }
     const ownerId = String(decoded.userId || decoded.username || '');
 
-    // Resolve phone number from lead if not provided
-    let phone = phoneNumber;
-    if (!phone) {
-      const lead = await getBunnyLeadById(leadId);
-      phone = lead?.phoneNumber || '';
-    }
+    const lead = await getBunnyLeadById(leadId);
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    if (!isSuperAdmin(decoded) && ![lead.createdByUserId, lead.assignedToUserId].includes(getViewerUserId(decoded)))
+      return NextResponse.json({ error: 'Lead access denied' }, { status: 403 });
+    const startedFlow = await getBunnyChatbotFlow(flowId, ownerId);
+    if (!startedFlow) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
 
     // Start the flow AND send the first message
-    const result = await startChatbotFlowForLead({ leadId, flowId, phoneNumber: phone });
+    const result = await startChatbotFlowForLead({ leadId, flowId, phoneNumber: lead.phoneNumber || '', ownerUserId: String(startedFlow.createdByUserId) });
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
     // Resolve flow name from bunny for the UI
-    const startedFlow = await getBunnyChatbotFlow(flowId, ownerId);
 
     return NextResponse.json({
       success: true,
@@ -123,7 +131,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -134,12 +142,11 @@ export async function DELETE(request: NextRequest) {
 
     // Clear the chatbot flow state on the lead via bunny
     const lead = await getBunnyLeadById(leadId);
-    if (lead) {
-      const metadata = lead.metadata || {};
-      delete metadata.chatbotFlowState;
-      delete metadata.chatbotVariables;
-      await saveBunnyLead({ ...lead, metadata }, String(lead._id));
-    }
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    if (!isSuperAdmin(decoded) && ![lead.createdByUserId, lead.assignedToUserId].includes(getViewerUserId(decoded)))
+      return NextResponse.json({ error: 'Lead access denied' }, { status: 403 });
+    const stateOwner = isSuperAdmin(decoded) ? leadRuntimeOwner(lead, getViewerUserId(decoded)) : getViewerUserId(decoded);
+    await cancelChatbotFlowForLead({ leadId: String(lead._id), ownerUserId: stateOwner });
 
     return NextResponse.json({ success: true, message: 'Flow removed from lead' });
   } catch (err: any) {

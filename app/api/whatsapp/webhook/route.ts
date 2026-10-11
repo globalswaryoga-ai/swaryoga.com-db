@@ -7,6 +7,7 @@ import { ingestMetaSocialEvent, parseMetaSocialWebhookPayload } from '@/lib/soci
 export const dynamic = 'force-dynamic';
 
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
+import { chatbotTriggerValues } from '@/lib/chatbotTriggerValues';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 
@@ -195,6 +196,7 @@ async function handleWebhookPayload(payload: any) {
     }
 
     const now = new Date();
+    let failedMessages = 0;
 
     for (const entry of entries) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
@@ -245,7 +247,7 @@ async function handleWebhookPayload(payload: any) {
           try {
             const from = normalizePhone(String(msg?.from || ''));
             const type = String(msg?.type || 'text');
-            const body = extractTextMessageBody(msg);
+            const body = extractTextMessageBody(msg) || chatbotTriggerValues(msg)[0] || '';
             const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
             const msgTimestampSec = msg?.timestamp ? Number(msg.timestamp) : NaN;
             const msgSentAt = Number.isFinite(msgTimestampSec) ? new Date(msgTimestampSec * 1000) : now;
@@ -384,8 +386,6 @@ async function handleWebhookPayload(payload: any) {
                   waBlockedReason: `User replied "${normalizedBody}"`,
                   waBlockedAt: now.toISOString()
                 });
-                const { sendWhatsAppText } = await import('@/lib/whatsapp');
-                await sendWhatsAppText(from, 'You have been unsubscribed. Reply START anytime to subscribe again. 🙏', tenantCreds).catch(()=>{});
                 continue;
               }
 
@@ -396,33 +396,36 @@ async function handleWebhookPayload(payload: any) {
                   waBlockedReason: null,
                   waBlockedAt: null
                 });
-                const { sendWhatsAppText } = await import('@/lib/whatsapp');
-                await sendWhatsAppText(from, 'Welcome back! You are subscribed again. 🙏', tenantCreds).catch(()=>{});
                 continue;
               }
-            } catch (optErr: any) {}
+            } catch (optErr: unknown) {
+              console.error('[Meta opt-out persistence failed]', optErr);
+              throw optErr;
+            }
 
             if (lead.isBlocked) continue;
 
-            // Run automations in background so webhook responds instantly
-            handleInboundWhatsAppAutomations({
+            // Await the durable runtime handoff; untracked work may be terminated by Vercel.
+            await handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
               messageBody: body,
               wasFirstInbound,
               tenantUserId,
               creds: tenantCreds,
-            }).catch((err) => {
-              console.error('[Automation Error]', err);
+              messageId: String(msg.id || ''),
+              triggerValues: chatbotTriggerValues(msg),
             });
 
           } catch (err) {
+            failedMessages++;
             console.error('[WEBHOOK ERROR] Loop failure:', err);
           }
         }
       }
     }
 
+    if (failedMessages) return NextResponse.json({ success: false, error: 'Message processing failed; provider retry required.', failedMessages }, { status: 503 });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook handler error';

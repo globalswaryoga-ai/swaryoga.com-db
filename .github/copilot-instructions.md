@@ -171,6 +171,43 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Registration Preserve-First Autosave Release (Session: October 11, 2026) — Commit `pending`
+
+- Removed broad localStorage cache re-uploads from all four registration language pages and Workshop Offer. Mount/hydration and newly restored batch fields no longer write defaults; subsequent autosave sends only changed visible fields.
+- Added serialized client saves and atomic Bunny SQL version checks. Stale snapshots roll back without replacing newer batches, settings or membership lists; old deployed bulk-autosave requests now receive a reload error instead of overwriting data.
+- Canonical arrays/objects now hydrate browser caches as well as strings. AI-stage saves preserve the selected batch's form/mapping fields rather than injecting unrelated form-screen defaults; Google reconnect no longer clears the saved form URL.
+- Validation: 159 focused tests across 20 suites pass, production Next.js build succeeds, and changed-path diagnostics are clean. SQL reopen/stale-tab tests preserve decisions and configuration; read-only pre-deployment identity baseline records 5,841 lead rows, 925 form responses and 5 forms. No source records were deleted or live WhatsApp messages sent during validation.
+- Google Cloud callback consent, historically missing/invalid selected Meta batch identity, advanced chatbot nodes and external recording uploader configuration remain explicit prerequisites; they are not silently restored or marked successful.
+
+### Meta Stage Save Conflict Regression Repair (Session: October 11, 2026) — Commit `pending`
+
+- Replaced whole-batch JSON equality in the workshop-settings API with field-level three-way merging. Unchanged client fields retain newer saved values; unrelated counts/name/other-stage updates no longer prevent AI-9C/D saves, and JSON key order does not cause false conflicts.
+- Concurrent edits to the same AI-stage configuration still return an explicit conflict; removed batches and concurrent SQL list writes remain protected. Rules within a stage are kept atomic rather than merged into an unintended approval policy.
+- Added coverage for Stage 3 activation with newer unrelated data, same-stage conflict rejection and reordered snapshots; shared Start/run behavior applies to every AI-9 stage.
+- Validation: focused activation/settings/route tests pass and changed-path editor diagnostics are clean. Working-tree correction only; no live settings overwrite, lead move, send or deployment.
+
+### Immediate Meta AI-9 Stage Activation (Session: October 11, 2026) — Commit `pending`
+
+- Fixed the Meta AI-9 Start buttons in the shared registration component: activation previously only saved settings and waited for cron. Start now persists the edited rules first and immediately invokes the authoritative Bunny batch processor.
+- Added authenticated `run-ai` handling to the existing Meta bulk-update route; it resolves all accessible saved batch leads rather than relying on stale browser candidates. Existing future-only approved-template and duplicate-send safeguards remain unchanged.
+- Added running/result/error feedback, checked/moved counts and a Run Saved Rules retry action for already-active configurations. No eligible leads produces an explicit zero-change explanation rather than a silent click.
+- Validation: 14 focused tests across four suites pass, including AI-9C save-before-run, processing failure, batch/tenant isolation and empty batches; changed-path editor diagnostics and whitespace checks pass. Local changes are not deployed; no live lead move or message send was performed during tests.
+
+### Google Forms Live Reconnect Diagnosis (Session: October 11, 2026) — Commit `pending`
+
+- Verified `.env.local` contains the general Google client ID/secret and encryption key; the optional dedicated Forms pair is absent, so the supported general-client fallback applies. Local and production authorization use the same client.
+- Production form listing reports `unauthorized_client` / `invalid_grant` for preserved credentials. A fresh production reconnect is blocked by Google's `redirect_uri_mismatch` for `https://swaryoga.com/api/admin/google-form-oauth/callback`.
+- The currently signed-in Google Cloud account cannot access the client project. A project owner must register the Forms callback and then complete fresh consent; environment credentials alone cannot change Google's authorized redirect list.
+- Saved Bunny responses and form selections remain untouched. No connection success, code deployment, credential replacement or live sync was claimed; the cutover guidance records the external prerequisite.
+
+### Bunny Meta Chatbot and Attendance Recording Access (Session: October 11, 2026) — Commit `pending`
+
+- Chatbot flow CRUD and automation rule APIs now use authoritative Bunny SQL; tenant flow ownership and saved canvas/keyword contracts are preserved. Archived rules import once without contacting MongoDB; database failures no longer look like successful empty dashboards.
+- Added account runtime controls, first-only/repeat-after-days welcome settings, optional bounded AI instructions and Meta button payload/ID/title extraction. The webhook awaits processing and reports failed messages for provider retry rather than silently abandoning serverless work.
+- Added opt-in Workshop Edit recording eligibility with a shared 3–5-distinct-day allowance for keyword requests and automatic attendance delivery. Missing attendance is not absence; verified absent/incomplete students receive approved Meta recording templates with saved links, without unrestricted group sends.
+- Hardened the minute chatbot-actions cron to require a configured secret, bounded execution and explicit failure status. Existing external recording uploads and approved-template/cron configuration remain prerequisites; no paid AI, live send or production activation was performed.
+- Validation: 120 focused tests across 13 suites pass, final production Next.js build succeeds, changed-path diagnostics/whitespace checks are clean, and restored localhost Chatbots/Settings/Workshop routes return HTTP 200. Deferred-event retry and cancellation preserve send evidence. Advanced canvas nodes and proactive inactivity/escalation remain explicit follow-up work; this is working-tree implementation, not a deployed release.
+
 ### CRM Workflow Release Publication (Session: October 11, 2026) — Commit `35e0fc4a`
 
 - Committed and pushed the verified permanent-contact, recipient-mapping, approval/report, Google OAuth, workshop and native offer repairs on the existing work branch.

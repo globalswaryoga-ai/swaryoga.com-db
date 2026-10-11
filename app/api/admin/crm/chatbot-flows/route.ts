@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAccess, parsePagination, handleCrmError, formatCrmSuccess, buildMetadata } from '@/lib/crm-handlers';
 import { listBunnyChatbotFlows, saveBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
+import { unsupportedChatbotNodes } from '@/lib/chatbotFlowCapabilities';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     const name = String(body.name || '').trim();
     if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+    const unsupported = unsupportedChatbotNodes(Array.isArray(body.nodes) ? body.nodes : []);
+    if (body.enabled !== false && unsupported.length)
+      return NextResponse.json({ error: `Unsupported Bunny Meta node types: ${unsupported.join(', ')}. Save as a disabled draft.` }, { status: 400 });
     const created = await saveBunnyChatbotFlow({
       name,
       description: typeof body.description === 'string' ? body.description : '',

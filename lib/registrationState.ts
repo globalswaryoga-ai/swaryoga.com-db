@@ -1,9 +1,11 @@
-import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { bunnyBatch, bunnyExecute, getBunnyDatabase } from '@/lib/bunnyDatabase';
 import { fetchFromStorage } from '@/lib/bunny-storage';
 import { parseRegistrationValue } from '@/lib/registrationValues';
+import { registrationValuesEqual } from '@/lib/registrationWorkshopMerge';
 export { parseRegistrationValue } from '@/lib/registrationValues';
 
 export type RegistrationState = Record<string, unknown>;
+export class RegistrationSnapshotConflict extends Error {}
 const LANGUAGES = ['english', 'hindi', 'marathi', 'kannada'];
 
 export function registrationWorkshops(state: RegistrationState): Array<Record<string, any>> {
@@ -63,6 +65,35 @@ export async function writeRegistrationState(patch: RegistrationState, scope = '
   })));
 }
 
+export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationState, previous: RegistrationState, scope = 'shared') {
+  await ensureState(scope);
+  const transaction = await getBunnyDatabase().transaction('write');
+  try {
+    for (const [key, value] of Object.entries(patch)) {
+      const result = await transaction.execute({
+        sql: 'SELECT value_json FROM registration_state_sql WHERE scope = ? AND state_key = ?',
+        args: [scope, key],
+      });
+      const current = result.rows.length ? JSON.parse(String(result.rows[0].value_json)) : undefined;
+      if (!registrationValuesEqual(current, previous[key]) && !registrationValuesEqual(current, value)) {
+        throw new RegistrationSnapshotConflict(`Saved setting ${key} changed in another update. Reload before editing; your saved data has been preserved.`);
+      }
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      await transaction.execute({
+        sql: 'INSERT INTO registration_state_sql (scope, state_key, value_json) VALUES (?, ?, ?) ON CONFLICT(scope, state_key) DO UPDATE SET value_json = excluded.value_json',
+        args: [scope, key, JSON.stringify(value)],
+      });
+    }
+    await transaction.commit();
+    return patch;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  } finally {
+    transaction.close();
+  }
+}
 export async function mergeRegistrationState(patch: RegistrationState, scope = 'shared') {
   await ensureState(scope);
   const entries = Object.entries(patch);
