@@ -130,6 +130,8 @@ import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, normalizeConnectedPhone } from '@/lib/qrSessionIsolation';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { getBunnyCrmUserSettings, saveBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
+import { getQrStorageFolder } from '@/lib/bunnyQrRepository';
+import { uploadToPath } from '@/lib/bunny-storage';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
@@ -2001,6 +2003,20 @@ export async function GET(req: NextRequest) {
         };
       }
       data = ensureStatusPhoneShape(data, bridgePhone || resolved.storedPhone);
+      const folderPhone = bridgePhone || resolved.storedPhone;
+      if (folderPhone) {
+        try {
+          const folderOwner = resolved.isSuperAdmin ? 'admin' : userId;
+          const folder = await getQrStorageFolder(folderOwner, folderPhone);
+          if (folder.created) {
+            const manifest = { folderId: folder.folderId, connectedPhone: folderPhone, createdAt: new Date().toISOString() };
+            await uploadToPath(Buffer.from(JSON.stringify(manifest, null, 2)), `${folder.folderPath}/folder.json`, 'application/json');
+          }
+          data = { ...data, qrStorageFolderId: folder.folderId };
+        } catch (err: any) {
+          console.warn('[QR Bridge Proxy GET /status] Storage folder unavailable:', err?.message || err);
+        }
+      }
     }
 
     // ── SESSION ISOLATION (GET /chats) ──

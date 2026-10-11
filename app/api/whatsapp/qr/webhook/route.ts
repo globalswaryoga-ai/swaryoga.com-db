@@ -11,6 +11,18 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizeQRIncomingMessages, normalizeQRChatJid, resolveQRContactPhone } from '@/lib/qrWebhookNormalize';
 import { QR_MESSAGE_STATUS } from '@/lib/qrMessageStatus';
 import { applyQrStatusUpdate } from '@/lib/qrStatusUpdates';
+import { applyQrStatusToBunny, persistQrWebhookToBunny } from '@/lib/qrBunnyWebhookStore';
+
+/** Legacy MongoDB persistence is best-effort; Bunny SQL is the QR source of truth. */
+async function legacyMongo<T>(label: string, run: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    await connectDB();
+    return await run();
+  } catch (err: any) {
+    console.warn(`[QR WEBHOOK] Legacy ${label} skipped:`, err?.message || err);
+    return fallback;
+  }
+}
 
 function normalizeConnectedPhone(value: string): string {
   return normalizePhone(String(value || '').split(':')[0].split('@')[0]);
@@ -48,8 +60,6 @@ function stripInlineMedia(payload: any): any {
  */
 export async function POST(req: NextRequest) {
   try {
-    await connectDB();
-
     // Accept multiple secret header names for backwards compatibility
     const secret = (process.env.QR_CHAT_WEBHOOK_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
     if (secret) {
@@ -79,8 +89,9 @@ export async function POST(req: NextRequest) {
     // a bridge restart / PC off instead of reverting to a single grey tick. Handled before
     // the forensic log below so high-frequency receipts don't flood the events collection.
     if (payload?.type === 'status_update' || payload?.event === 'message_status') {
-      const result = await applyQrStatusUpdate(payload, payload.bridgeUserId);
-      return apiSuccess({ ok: true, ...result });
+      const bunny = await applyQrStatusToBunny(payload);
+      const result = await legacyMongo('status update', () => applyQrStatusUpdate(payload, payload.bridgeUserId), {} as any);
+      return apiSuccess({ ok: true, ...result, bunnyUpdated: bunny.updated });
     }
 
     // ── History-sync backfill (old messages after a fresh QR scan) ──
@@ -92,12 +103,15 @@ export async function POST(req: NextRequest) {
     // history. Handled before the forensic log so a burst of backfill
     // batches doesn't flood the events collection.
     if (payload?.type === 'history_sync') {
-      const result = await ingestQRHistorySync(payload);
-      return apiSuccess({ ok: true, ...result });
+      const bunny = await persistQrWebhookToBunny(payload);
+      const result = await legacyMongo('history sync', () => ingestQRHistorySync(payload), {} as any);
+      return apiSuccess({ ok: true, ...result, bunny });
     }
 
+    const bunny = await persistQrWebhookToBunny(payload);
+
     // Store raw events first for forensics.
-    await logQREvent({
+    await legacyMongo('event log', () => logQREvent({
       kind: 'unknown',
       ok: true,
       message: 'QR_CHAT_WEBHOOK_RECEIVED',
@@ -105,7 +119,7 @@ export async function POST(req: NextRequest) {
         route: '/api/whatsapp/qr/webhook',
         payload,
       },
-    });
+    }), undefined);
 
     // Debug: Log webhook headers
     console.log(`[QR WEBHOOK] ════════════════════════════════════════`);
@@ -116,9 +130,9 @@ export async function POST(req: NextRequest) {
 
     // Best-effort ingestion into CRM WhatsAppMessage.
     // We keep this intentionally tolerant because QR providers differ in payload shape.
-    const ingested = await ingestQRPayload(payload);
+    const ingested: any = await legacyMongo('CRM ingestion', () => ingestQRPayload(payload), {} as any);
 
-    return apiSuccess({ ok: true, ...ingested, ...(ingested.mediaUrl && { mediaUrl: ingested.mediaUrl }) });
+    return apiSuccess({ ok: true, ...ingested, bunny, ...(ingested.mediaUrl && { mediaUrl: ingested.mediaUrl }) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiError('SERVER_ERROR', message);

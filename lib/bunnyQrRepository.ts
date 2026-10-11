@@ -23,6 +23,7 @@ export async function initBunnyQrSchema() {
     { sql: 'CREATE INDEX IF NOT EXISTS idx_qr_messages_chat_time ON qr_messages_sql(user_id,connected_phone,chat_jid,timestamp DESC)', args: [] },
     { sql: 'CREATE TABLE IF NOT EXISTS qr_archive_manifest_sql (user_id TEXT NOT NULL,connected_phone TEXT NOT NULL,chat_jid TEXT NOT NULL,date_key TEXT NOT NULL,bunny_path TEXT NOT NULL,byte_size INTEGER NOT NULL DEFAULT 0,message_count INTEGER NOT NULL DEFAULT 0,archived_at TEXT,data_json TEXT NOT NULL,PRIMARY KEY(user_id,connected_phone,chat_jid,date_key))', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_qr_archive_lookup ON qr_archive_manifest_sql(user_id,connected_phone,chat_jid,date_key)', args: [] },
+    { sql: 'CREATE TABLE IF NOT EXISTS qr_sessions_sql (session_key TEXT PRIMARY KEY,user_id TEXT NOT NULL,connected_phone TEXT,data_json TEXT NOT NULL,created_at TEXT,updated_at TEXT)', args: [] },
     { sql: 'CREATE TABLE IF NOT EXISTS qr_storage_usage_sql (user_id TEXT NOT NULL,connected_phone TEXT NOT NULL,bunny_bytes INTEGER NOT NULL DEFAULT 0,bunny_file_count INTEGER NOT NULL DEFAULT 0,bunny_message_count INTEGER NOT NULL DEFAULT 0,last_archived_at TEXT,last_purged_at TEXT,data_json TEXT NOT NULL,PRIMARY KEY(user_id,connected_phone))', args: [] },
   ]);
 }
@@ -36,15 +37,38 @@ export async function upsertBunnyQrMessage(message: Record<string, any>) {
   return row as BunnyQrMessage;
 }
 
+// Super Admin history is stored under both legacy owner IDs; read them as one inbox.
+const SUPER_ADMIN_QR_OWNER_IDS = ['admin', 'admincrm'];
+
+export function getQrOwnerIds(userId: string): string[] {
+  const id = text(userId).trim();
+  return SUPER_ADMIN_QR_OWNER_IDS.includes(id) ? SUPER_ADMIN_QR_OWNER_IDS : [id];
+}
+
+function ownerClause(userId: string) {
+  const ids = getQrOwnerIds(userId);
+  return { sql: `user_id IN (${ids.map(() => '?').join(',')})`, args: ids };
+}
+
 export async function listBunnyQrMessages(input: { userId: string; connectedPhone: string; chatJid: string; limit?: number; before?: number }) {
   await initBunnyQrSchema();
   const limit = Math.min(Math.max(Number(input.limit || 100), 1), 500);
-  const args: (string | number)[] = [input.userId, input.connectedPhone, input.chatJid];
-  let sql = 'SELECT data_json FROM qr_messages_sql WHERE user_id = ? AND connected_phone = ? AND chat_jid = ?';
+  const owner = ownerClause(input.userId);
+  const args: (string | number)[] = [...owner.args, input.connectedPhone, input.chatJid];
+  let sql = `SELECT data_json FROM qr_messages_sql WHERE ${owner.sql} AND connected_phone = ? AND chat_jid = ?`;
   if (input.before) { sql += ' AND timestamp < ?'; args.push(input.before); }
   sql += ' ORDER BY timestamp DESC LIMIT ?'; args.push(limit);
   const result = await bunnyExecute({ sql, args });
-  return result.rows.map((row) => parse<BunnyQrMessage>(row.data_json, {} as BunnyQrMessage));
+  const seen = new Set<string>();
+  const messages: BunnyQrMessage[] = [];
+  for (const row of result.rows) {
+    const message = parse<BunnyQrMessage>(row.data_json, {} as BunnyQrMessage);
+    const key = text(message.messageId);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    messages.push(message);
+  }
+  return messages;
 }
 
 export async function upsertBunnyQrChat(chat: Record<string, any>) {
@@ -59,8 +83,40 @@ export async function upsertBunnyQrChat(chat: Record<string, any>) {
 export async function listBunnyQrChats(input: { userId: string; connectedPhone: string; limit?: number }) {
   await initBunnyQrSchema();
   const limit = Math.min(Math.max(Number(input.limit || 500), 1), 5000);
-  const result = await bunnyExecute({ sql: 'SELECT data_json FROM qr_chats_sql WHERE user_id = ? AND connected_phone = ? ORDER BY pinned DESC, conversation_timestamp DESC, updated_at DESC LIMIT ?', args: [input.userId, input.connectedPhone, limit] });
-  return result.rows.map((row) => parse<BunnyQrChat>(row.data_json, {} as BunnyQrChat));
+  const owner = ownerClause(input.userId);
+  const result = await bunnyExecute({ sql: `SELECT data_json FROM qr_chats_sql WHERE ${owner.sql} AND connected_phone = ? ORDER BY pinned DESC, conversation_timestamp DESC, updated_at DESC LIMIT ?`, args: [...owner.args, input.connectedPhone, limit] });
+  const seen = new Set<string>();
+  const chats: BunnyQrChat[] = [];
+  for (const row of result.rows) {
+    const chat = parse<BunnyQrChat>(row.data_json, {} as BunnyQrChat);
+    const key = text(chat.chatJid);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    chats.push(chat);
+  }
+  return chats;
+}
+
+/**
+ * Returns the permanent 9-digit Bunny folder for one QR WhatsApp number.
+ * The ID is derived from owner + number, so it is stable across deployments.
+ */
+export async function getQrStorageFolder(userId: string, connectedPhone: string) {
+  await initBunnyQrSchema();
+  const ownerKey = getQrOwnerIds(userId).length > 1 ? 'superadmin' : text(userId).trim();
+  const phone = text(connectedPhone).replace(/\D/g, '');
+  const sessionKey = `storage-folder:${ownerKey}:${phone}`;
+  const existing = await bunnyExecute({ sql: 'SELECT data_json FROM qr_sessions_sql WHERE session_key = ? LIMIT 1', args: [sessionKey] });
+  const stored = existing.rows[0] ? parse<Record<string, any>>(existing.rows[0].data_json, {}) : null;
+  if (stored?.folderId && stored?.folderPath) return { folderId: String(stored.folderId), folderPath: String(stored.folderPath), created: false };
+
+  const { createHash } = await import('crypto');
+  const hashNumber = parseInt(createHash('sha256').update(sessionKey).digest('hex').slice(0, 12), 16);
+  const folderId = String(100000000 + (hashNumber % 900000000));
+  const folderPath = `qr-whatsapp/${folderId}`;
+  const now = new Date().toISOString();
+  await bunnyExecute({ sql: 'INSERT INTO qr_sessions_sql (session_key,user_id,connected_phone,data_json,created_at,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(session_key) DO NOTHING', args: [sessionKey, ownerKey, phone, JSON.stringify({ folderId, folderPath, ownerKey, connectedPhone: phone, createdAt: now }), now, now] });
+  return { folderId, folderPath, created: true };
 }
 
 export async function listBunnyQrArchiveManifest(input: { userId: string; connectedPhone: string; chatJid: string; sinceDateKey: string; untilDateKey: string }) {

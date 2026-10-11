@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### QR WhatsApp Old Chats and Bunny Number Folders (Session: September 29, 2026) — Commit `pending`
+
+- QR inbox reads now merge Super Admin history stored under both `admin` and `admincrm`, restoring the old Bunny chats for the connected number.
+- QR webhook messages and receipts are stored in Bunny SQL first; MongoDB writes are best-effort only.
+- Each owner+number receives a deterministic 9-digit Bunny folder (`qr-whatsapp/{id}`) for `folder.json` and inbound media.
+- The inbox falls back to the bridge proxy when the Bunny chat endpoint returns an empty list.
 ### QR Proxy 504 Gateway Timeout Guard (Session: September 29, 2026) — Commit `pending`
 
 - Bounded Bunny SQL session lookups in `resolveUserBridge()` (`app/api/admin/crm/whatsapp/qr-bridge/route.ts`) to 5 seconds each, so slow/502 Bunny responses no longer hang `/qr` and `/status` into a 504.
