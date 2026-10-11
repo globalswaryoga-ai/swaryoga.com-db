@@ -31,11 +31,27 @@ describe('Form schema migration across concurrent serverless instances', () => {
     jest.mocked(bunnyExecute).mockImplementation(async statement => {
       const sql = typeof statement === 'string' ? statement : statement.sql;
       if (sql.includes('ALTER TABLE')) throw new Error('Database write denied');
+      if (sql.startsWith('SELECT lead_id')) throw new Error('no such column: lead_id');
       return { rows: sql.includes('enquiry_forms') ? [{ name: 'url_image' }] :
         ['form_data', 'source', 'raw_answers'].map(name => ({ name })) } as never;
     });
     await expect(ensureFormTables()).rejects.toThrow('Database write denied');
     await expect(ensureFormTables()).rejects.toThrow('Database write denied');
     expect(bunnyBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('verifies column resolution when remote schema metadata remains stale', async () => {
+    const { bunnyExecute, bunnyBatch } = await import('@/lib/bunnyDatabase');
+    const { ensureFormTables } = await import('@/lib/bunny-forms-db');
+    jest.mocked(bunnyBatch).mockResolvedValue([]);
+    jest.mocked(bunnyExecute).mockImplementation(async statement => {
+      const sql = typeof statement === 'string' ? statement : statement.sql;
+      if (sql.includes('ALTER TABLE')) throw new Error('duplicate column name: lead_id');
+      if (sql.startsWith('SELECT lead_id')) return { rows: [] } as never;
+      return { rows: sql.includes('enquiry_forms') ? [{ name: 'url_image' }] :
+        ['form_data', 'source', 'raw_answers'].map(name => ({ name })) } as never;
+    });
+    await ensureFormTables();
+    expect(bunnyExecute).toHaveBeenCalledWith('SELECT lead_id FROM form_submissions LIMIT 0');
   });
 });

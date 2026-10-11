@@ -127,7 +127,14 @@ async function ensureFormColumn(table: string, name: string, definition: string)
     await bunnyExecute(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
   } catch (error) {
     const current = await bunnyExecute(`PRAGMA table_info(${table})`);
-    if (!current.rows.some(row => String(row.name) === name)) throw error;
+    if (!current.rows.some(row => String(row.name) === name)) {
+      // A remote schema listing can lag DDL; resolving the column is definitive.
+      try {
+        await bunnyExecute(`SELECT ${name} FROM ${table} LIMIT 0`);
+      } catch {
+        throw error;
+      }
+    }
   }
 }
 
