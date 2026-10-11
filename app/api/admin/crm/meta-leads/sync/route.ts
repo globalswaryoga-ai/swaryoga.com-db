@@ -21,15 +21,17 @@ export async function POST(req: NextRequest) {
     }
 
     const appSecret = process.env.META_APP_SECRET;
-    let proofParam = '';
-    if (appSecret) {
+    const getAppSecretProof = (accessToken: string) => {
+      if (!appSecret) return '';
       const crypto = require('crypto');
-      const appsecret_proof = crypto.createHmac('sha256', appSecret).update(token).digest('hex');
-      proofParam = `&appsecret_proof=${appsecret_proof}`;
-    }
+      return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+    };
+
+    const initialProof = getAppSecretProof(token);
+    const proofParam = initialProof ? `&appsecret_proof=${initialProof}` : '';
 
     // Fetch leads from Meta
-    let nextUrl: string | undefined = `https://graph.facebook.com/v24.0/${encodeURIComponent(formId)}/leads?access_token=${token}${proofParam}&limit=100`;
+    let nextUrl: string | undefined = `https://graph.facebook.com/v24.0/${encodeURIComponent(formId)}/leads?access_token=${encodeURIComponent(token)}${proofParam}&limit=100`;
     const items: Array<{ id: string; created_time?: string; field_data?: Array<{ name: string; values?: string[] }> }> = [];
     const visitedPages = new Set<string>();
     while (nextUrl) {
@@ -41,8 +43,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: data.error?.message || 'Meta form sync failed' }, { status: 502 });
       }
       items.push(...(data.data || []));
-      nextUrl = data.paging?.next;
-      if (nextUrl && new URL(nextUrl).hostname !== 'graph.facebook.com') throw new Error('Invalid Meta pagination URL');
+      if (data.paging?.next) {
+        const parsed = new URL(data.paging.next);
+        if (parsed.hostname !== 'graph.facebook.com') throw new Error('Invalid Meta pagination URL');
+        const tokenForProof = parsed.searchParams.get('access_token') || token;
+        const proof = getAppSecretProof(tokenForProof);
+        if (proof) {
+          parsed.searchParams.set('appsecret_proof', proof);
+        }
+        nextUrl = parsed.toString();
+      } else {
+        nextUrl = undefined;
+      }
     }
 
     let syncedCount = 0;

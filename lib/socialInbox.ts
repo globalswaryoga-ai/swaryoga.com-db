@@ -757,7 +757,20 @@ export async function listManagedPages(userAccessToken: string): Promise<Managed
         instagramId: cleanString(p?.instagram_business_account?.id) || undefined,
       });
     }
-    next = cleanString(data?.paging?.next) || null;
+    const rawNext = cleanString(data?.paging?.next);
+    if (rawNext) {
+      try {
+        const parsed = new URL(rawNext);
+        const tokenForProof = parsed.searchParams.get('access_token') || userAccessToken;
+        const proof = appsecretProof(tokenForProof);
+        if (proof) parsed.searchParams.set('appsecret_proof', proof);
+        next = parsed.toString();
+      } catch {
+        next = rawNext;
+      }
+    } else {
+      next = null;
+    }
   }
   return pages;
 }
@@ -972,7 +985,22 @@ export async function importFacebookConversationHistory(
       }
     }
 
-    next = cleanString(data?.paging?.next) || null;
+    const rawNext = cleanString(data?.paging?.next);
+    if (rawNext) {
+      try {
+        const parsed = new URL(rawNext);
+        const tokenForProof = parsed.searchParams.get('access_token') || resolvedAccount.accessToken;
+        const proof = resolvedAccount.apiType === 'instagram_login'
+          ? instagramAppsecretProof(tokenForProof)
+          : appsecretProof(tokenForProof);
+        if (proof) parsed.searchParams.set('appsecret_proof', proof);
+        next = parsed.toString();
+      } catch {
+        next = rawNext;
+      }
+    } else {
+      next = null;
+    }
   }
 
   return { conversations: convCount, messages: msgCount };
