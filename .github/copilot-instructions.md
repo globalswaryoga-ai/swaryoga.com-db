@@ -171,11 +171,18 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Registration Stage Copy and Move (Session: October 11, 2026) — Commit `293e8694`
+
+- Added Copy to and Move to actions for selected leads across all registration categories; Copy preserves the existing status, while Move updates it and removes source-category copy membership.
+- Funnel Copy Ahead retains explicit membership in both the source and destination stage; Move Only removes the source membership but retains decision history and unrelated copies.
+- Pending/approval tabs now show current status plus explicit copies, so their counts can overlap by design; history alone does not keep a lead in a previous stage.
+- Added manual-operation and funnel regressions; all 79 registration tests and the production build pass.
+
 ### Registration Funnel Current-Stage Counts (Session: October 11, 2026) — Commit `1d9c3bfc`
 
-- Pending and approval stage tabs now count and display leads by their current saved stage, rather than counting historical copies as still pending after they advanced.
-- Historical decision history and saved data remain unchanged; custom non-stage category copies retain their previous behavior.
-- Added regression coverage for 58 leads (51 at Approval-1, 7 at Pending-1); registration repair tests and production build pass.
+- Pending and approval stage tabs now count current status and explicit copy membership; history alone does not retain prior-stage membership.
+- This supersedes exclusive current-stage counts: the tabs may overlap when leads are copied, while Move removes source membership.
+- Copy and Move actions are available across the stage/category tabs, and funnel copy-mode results retain the source plus destination stage.
 
 ### All Leads Form Connection Without Batch Selection (Session: October 11, 2026) — Commit `cf63424d`
 
