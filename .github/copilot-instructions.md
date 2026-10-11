@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Workshop Group Live Verification and Schema Initialization (Session: October 12, 2026) — Commit `ae69bae1`
+
+- Live Marathi October group import persisted 47 students: 43 linked CRM leads, 41 emails and 23 city records; zero unresolved phones were reported. Existing source records and WhatsApp membership were not deleted/changed.
+- Replaced repeated workshop schema setup on each repository operation with one retryable, shared initialization promise. Only duplicate-column migration errors are ignored; database failures remain explicit. Group writes are batched and guarded.
+- 19 focused tests across five suites and the final production build pass. Group release `8209ed16` was verified Ready on both production domains; Workshop Management returns 200 and the unauthenticated cron returns 401. Remaining groups' scheduled imports are not yet live-certified.
+
 ### Workshop Group Student Auto-Sync and CRM Enrichment (Session: October 12, 2026) — Commit `38329612`
 
 - Replaced the broken `/groups` import with server-side saved-link resolution through the workshop owner's isolated bridge. Exact invite-code verification is cached; unresolved LIDs remain explicitly counted rather than fabricated as phone numbers.
