@@ -12,6 +12,9 @@ import { MetaConnectionStatus } from './_MetaConnectionStatus';
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Square, Settings2, X, ChevronDown, ChevronUp, Database, Activity, BarChart3, RefreshCcw, AlertCircle, AlertTriangle, CheckCircle2, Eye, ArrowLeft, Upload, ArrowUpRight, ArrowUp } from 'lucide-react';
 
+// After Stage 1 (AI-9B) a lead is approved, pending or rejected. Legacy Stage 2/3 statuses stay visible here.
+const STAGE_1_STATUSES = ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'];
+
 export function MetaLeadsTab({ 
     selectedWorkshop, 
     saveWorkshopSettings, 
@@ -158,10 +161,10 @@ export function MetaLeadsTab({
             setSavingAIConfig(false);
         }
     };
-    const [activeAITab, setActiveAITab] = useState<'AI-9A' | 'AI-9B' | 'AI-9C' | 'AI-9D' | 'AI-9E'>('AI-9A');
+    const [activeAITab, setActiveAITab] = useState<'AI-9A' | 'AI-9B' | 'AI-9E'>('AI-9A');
     
     // Tab State
-    const [activeStageTab, setActiveStageTab] = useState<'all' | 'stage-1' | 'stage-2' | 'stage-3' | 'pending' | 'rejected' | 'processing' | 'other'>('all');
+    const [activeStageTab, setActiveStageTab] = useState<'all' | 'stage-1' | 'pending' | 'rejected' | 'processing' | 'other'>('all');
 
     const defaultAIConfig = {
         filters: [{ 
@@ -169,35 +172,26 @@ export function MetaLeadsTab({
             options: [
                 { answer: 'yes', category: 'approved' },
                 { answer: 'no', category: 'rejected' }
-            ], 
-            fallbackCategory: 'pending' 
-        }],
-        maxMismatches: 2,
-        mismatchFallback: 'rejected',
-        hardRejectPairs: []
+            ]
+        }]
     };
 
     const configCopy = (config: any) => JSON.parse(JSON.stringify(config || defaultAIConfig));
     const [ai9AConfig, setAi9AConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9AConfig));
     const [ai9BConfig, setAi9BConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9BConfig));
-    const [ai9CConfig, setAi9CConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9CConfig));
-    const [ai9DConfig, setAi9DConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9DConfig));
     const [ai9EConfig, setAi9EConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9EConfig));
 
     useEffect(() => {
         setFormId(selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '');
         setAi9AConfig(configCopy(selectedWorkshop?.metadata?.ai9AConfig));
         setAi9BConfig(configCopy(selectedWorkshop?.metadata?.ai9BConfig));
-        setAi9CConfig(configCopy(selectedWorkshop?.metadata?.ai9CConfig));
-        setAi9DConfig(configCopy(selectedWorkshop?.metadata?.ai9DConfig));
         setAi9EConfig(configCopy(selectedWorkshop?.metadata?.ai9EConfig));
         setWtSettings({
             approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay ?? 5 },
             pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay ?? 30 }
         });
     }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9AConfig),
-        JSON.stringify(selectedWorkshop?.metadata?.ai9BConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9CConfig),
-        JSON.stringify(selectedWorkshop?.metadata?.ai9DConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9EConfig),
+        JSON.stringify(selectedWorkshop?.metadata?.ai9BConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9EConfig),
         selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId,
         JSON.stringify(selectedWorkshop?.metadata?.wtSettings)]);
 
@@ -563,7 +557,7 @@ export function MetaLeadsTab({
     const saveWTSettings = async () => {
         if (!selectedWorkshop?.id) return alert('Connect the Meta form to a saved batch before enabling automatic WhatsApp.');
         const metadata = { ...(selectedWorkshop.metadata || {}),
-            ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig,
+            ai9AConfig, ai9BConfig,
             facebookFormId: formId, wtSettings };
         const configurationError = metaApprovalConfigurationError(metadata);
         if (configurationError) return alert(configurationError);
@@ -651,30 +645,19 @@ export function MetaLeadsTab({
         
         let matchesStage = true;
         if (activeStageTab === 'stage-1') {
-            matchesStage = ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
-        } else if (activeStageTab === 'stage-2') {
-            matchesStage = ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
-        } else if (activeStageTab === 'stage-3') {
-            matchesStage = ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
+            matchesStage = STAGE_1_STATUSES.includes(currentStatus);
         }
         
         let matchesStatus = true;
         if (statusFilter === 'Approved') {
-            if (activeStageTab === 'stage-1') matchesStatus = ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
-            else if (activeStageTab === 'stage-2') matchesStatus = ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(currentStatus);
-            else if (activeStageTab === 'stage-3') matchesStatus = currentStatus === 'approved';
-            else matchesStatus = ['stage_2_new', 'stage_3_new', 'approved'].includes(currentStatus);
+            matchesStatus = currentStatus === 'approved';
         }
         if (statusFilter === 'Pending') {
-            if (activeStageTab === 'stage-1') matchesStatus = ['new', 'lead', 'new_pending', 'stage_1_pending'].includes(currentStatus);
-            else if (activeStageTab === 'stage-2') matchesStatus = ['stage_2_new', 'stage_2_pending'].includes(currentStatus);
-            else if (activeStageTab === 'stage-3') matchesStatus = ['stage_3_new', 'stage_3_pending'].includes(currentStatus);
+            if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_new', 'stage_1_pending', 'stage_2_new', 'stage_2_pending', 'stage_3_new', 'stage_3_pending'].includes(currentStatus);
             else matchesStatus = currentStatus === 'pending' || currentStatus === 'new' || currentStatus === 'lead' || currentStatus.endsWith('_pending');
         }
         if (statusFilter === 'Rejected') {
-            if (activeStageTab === 'stage-1') matchesStatus = ['new_rejected', 'stage_1_rejected'].includes(currentStatus);
-            else if (activeStageTab === 'stage-2') matchesStatus = currentStatus === 'stage_2_rejected';
-            else if (activeStageTab === 'stage-3') matchesStatus = currentStatus === 'stage_3_rejected';
+            if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_rejected', 'stage_2_rejected', 'stage_3_rejected'].includes(currentStatus);
             else matchesStatus = currentStatus.includes('rejected');
         }
         if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
@@ -753,9 +736,7 @@ export function MetaLeadsTab({
 
     const tabCounts = {
         all: metaLeads.length,
-        stage1: metaLeads.filter((l: any) => ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
-        stage2: metaLeads.filter((l: any) => ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
-        stage3: metaLeads.filter((l: any) => ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
+        stage1: metaLeads.filter((l: any) => STAGE_1_STATUSES.includes(l.status || 'new')).length,
         pending: leadCounts.pending,
         rejected: leadCounts.rejected,
     };
@@ -766,9 +747,9 @@ export function MetaLeadsTab({
             <p className="text-xs text-slate-500">Saved Meta leads load from Bunny. Sync imports new responses; approved template sends use the shared Bunny broadcast queue.</p>
             <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">
                 {selectedWorkshop?.metadata?.metaAutomation?.enabled && ai9EConfig?.isActive &&
-                    !metaApprovalConfigurationError({ ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, facebookFormId: formId, wtSettings })
+                    !metaApprovalConfigurationError({ ai9AConfig, ai9BConfig, facebookFormId: formId, wtSettings })
                     ? 'Automatic WhatsApp is enabled: leads approved after activation (by AI-9 or manually) receive the template once. Contacts already sent this template, pending and rejected leads are excluded.'
-                    : 'Automatic WhatsApp is not enabled. Connect a saved batch, configure and start AI-9A–D, then save AI-9W settings. Existing leads will not be resent.'}
+                    : 'Automatic WhatsApp is not enabled. Connect a saved batch, configure and start AI-9A and AI-9B (Stage 1), then save AI-9W settings. Existing leads will not be resent.'}
             </div>
             {loadError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>}
             {!showAI9Popup && aiConfigMessage && (
@@ -839,7 +820,7 @@ export function MetaLeadsTab({
 
             <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
                 <p>Total {totalLeads} = Approved {approvedLeads} + Pending/New {pendingLeads} + Rejected {rejectedLeads} + In progress {leadCounts.processing} + Other/older status {leadCounts.other}.</p>
-                <p className="mt-1 text-xs text-slate-500">Stage 1–3 tabs show cumulative progress and overlap; they are not additional leads.</p>
+                <p className="mt-1 text-xs text-slate-500">After Stage 1 each lead becomes Approved, Pending or Rejected. Only Approved leads receive the selected WhatsApp template.</p>
                 {(triggerSummary?.legacyReportedSent ?? 0) > 0 && <p className="mt-2 text-amber-700">{triggerSummary?.legacyReportedSent} historical sent flags have no matching provider-message evidence. They are not counted as verified triggers; do not resend solely because this counter is zero.</p>}
                 {triggerReportError && <p role="alert" className="mt-2 text-red-700">{triggerReportError}</p>}
             </div>
@@ -915,60 +896,6 @@ export function MetaLeadsTab({
                             >
                                 <Settings2 size={14} />
                                 Config AI-9B (Stg 1)
-                            </button>
-                        )}
-                        
-                        {ai9CConfig?.isActive ? (
-                            <div className="flex items-center">
-                                <button 
-                                    onClick={handleForceAIProcessing}
-                                    className="px-3 py-1.5 font-bold rounded-l-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border bg-emerald-400 hover:bg-emerald-500 text-emerald-900 border-emerald-500"
-                                >
-                                    <Play size={14} className="fill-current" />
-                                    Process Stage 2
-                                </button>
-                                <button 
-                                    onClick={() => { setActiveAITab('AI-9C'); setShowAI9Popup(true); }}
-                                    className="px-2 py-1.5 font-bold rounded-r-lg transition-colors flex items-center text-xs shadow-sm border border-l-0 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-500"
-                                    title="Configure AI-9C (Stg 2)"
-                                >
-                                    <Settings2 size={14} />
-                                </button>
-                            </div>
-                        ) : (
-                            <button 
-                                onClick={() => { setActiveAITab('AI-9C'); setShowAI9Popup(true); }}
-                                className="px-3 py-1.5 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300"
-                            >
-                                <Settings2 size={14} />
-                                Config AI-9C (Stg 2)
-                            </button>
-                        )}
-
-                        {ai9DConfig?.isActive ? (
-                            <div className="flex items-center">
-                                <button 
-                                    onClick={handleForceAIProcessing}
-                                    className="px-3 py-1.5 font-bold rounded-l-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border bg-emerald-400 hover:bg-emerald-500 text-emerald-900 border-emerald-500"
-                                >
-                                    <Play size={14} className="fill-current" />
-                                    Process Stage 3
-                                </button>
-                                <button 
-                                    onClick={() => { setActiveAITab('AI-9D'); setShowAI9Popup(true); }}
-                                    className="px-2 py-1.5 font-bold rounded-r-lg transition-colors flex items-center text-xs shadow-sm border border-l-0 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-500"
-                                    title="Configure AI-9D (Stg 3)"
-                                >
-                                    <Settings2 size={14} />
-                                </button>
-                            </div>
-                        ) : (
-                            <button 
-                                onClick={() => { setActiveAITab('AI-9D'); setShowAI9Popup(true); }}
-                                className="px-3 py-1.5 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm border bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300"
-                            >
-                                <Settings2 size={14} />
-                                Config AI-9D (Stg 3)
                             </button>
                         )}
                     </div>
@@ -1047,18 +974,6 @@ export function MetaLeadsTab({
                                     Stage 1 ({tabCounts.stage1})
                                 </button>
                                 <button 
-                                    onClick={() => setActiveStageTab('stage-2')}
-                                    className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeStageTab === 'stage-2' ? 'bg-white shadow-sm text-purple-700' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Stage 2 ({tabCounts.stage2})
-                                </button>
-                                <button 
-                                    onClick={() => setActiveStageTab('stage-3')}
-                                    className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeStageTab === 'stage-3' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Stage 3 ({tabCounts.stage3})
-                                </button>
-                                <button 
                                     onClick={() => setActiveStageTab('pending')}
                                     className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeStageTab === 'pending' ? 'bg-white shadow-sm text-amber-700' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -1125,7 +1040,7 @@ export function MetaLeadsTab({
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => {
-                                    const targetStatus = activeStageTab === 'stage-1' ? 'stage_2_new' : activeStageTab === 'stage-2' ? 'stage_3_new' : 'approved';
+                                    const targetStatus = 'approved';
                                     handleBulkStatusUpdate(selectedLeads, targetStatus);
                                 }} className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-emerald-200">
                                     <CheckCircle size={14} /> Approve
@@ -1136,13 +1051,13 @@ export function MetaLeadsTab({
                                     <RefreshCw size={14} /> Reset to Stg 1
                                 </button>
                                 <button onClick={() => {
-                                    const targetStatus = activeStageTab === 'stage-1' ? 'stage_1_pending' : activeStageTab === 'stage-2' ? 'stage_2_pending' : 'stage_3_pending';
+                                    const targetStatus = 'stage_1_pending';
                                     handleBulkStatusUpdate(selectedLeads, targetStatus);
                                 }} className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-amber-200">
                                     <Clock size={14} /> Pending
                                 </button>
                                 <button onClick={() => {
-                                    const targetStatus = activeStageTab === 'stage-1' ? 'stage_1_rejected' : activeStageTab === 'stage-2' ? 'stage_2_rejected' : 'stage_3_rejected';
+                                    const targetStatus = 'stage_1_rejected';
                                     handleBulkStatusUpdate(selectedLeads, targetStatus);
                                 }} className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-md flex items-center gap-1.5 text-xs border border-red-200">
                                     <XCircle size={14} /> Reject
@@ -1436,7 +1351,7 @@ export function MetaLeadsTab({
                                         <p className="font-bold text-slate-700 mb-1">AI-9W Operations:</p>
                                         <ul className="list-decimal pl-4 space-y-0.5">
                                             <li>Process new leads only after saved activation time</li>
-                                            <li>Require approval from all four saved AI-9A–D rules</li>
+                                            <li>Require approval from saved AI-9A and AI-9B (Stage 1) rules</li>
                                             <li>Exclude pending, rejected, blocked and invalid numbers</li>
                                             <li>Keep old bulk recipients out of automatic delivery</li>
                                             <li>Queue the selected template once per lead and batch</li>
@@ -1614,15 +1529,13 @@ export function MetaLeadsTab({
 
             {/* AI-9 Config Popup */}
             {showAI9Popup && (() => {
-                const activeConfig = activeAITab === 'AI-9A' ? ai9AConfig : activeAITab === 'AI-9B' ? ai9BConfig : activeAITab === 'AI-9C' ? ai9CConfig : activeAITab === 'AI-9D' ? ai9DConfig : ai9EConfig;
+                const activeConfig = activeAITab === 'AI-9A' ? ai9AConfig : activeAITab === 'AI-9B' ? ai9BConfig : ai9EConfig;
                 const setActiveConfig = (newConfig: any) => {
                     if (activeAITab === 'AI-9A') setAi9AConfig(newConfig);
                     else if (activeAITab === 'AI-9B') setAi9BConfig(newConfig);
-                    else if (activeAITab === 'AI-9C') setAi9CConfig(newConfig);
-                    else if (activeAITab === 'AI-9D') setAi9DConfig(newConfig);
                     else setAi9EConfig(newConfig);
                 };
-                const activeConfigKey = activeAITab === 'AI-9A' ? 'ai9AConfig' : activeAITab === 'AI-9B' ? 'ai9BConfig' : activeAITab === 'AI-9C' ? 'ai9CConfig' : activeAITab === 'AI-9D' ? 'ai9DConfig' : 'ai9EConfig';
+                const activeConfigKey = activeAITab === 'AI-9A' ? 'ai9AConfig' : activeAITab === 'AI-9B' ? 'ai9BConfig' : 'ai9EConfig';
                 return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-slide-up">
@@ -1639,18 +1552,6 @@ export function MetaLeadsTab({
                                 className={`flex-1 py-2 px-2 text-xs font-bold rounded-md transition-all ${activeAITab === 'AI-9B' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
                             >
                                 Stage 1 (9B)
-                            </button>
-                            <button
-                                onClick={() => setActiveAITab('AI-9C')}
-                                className={`flex-1 py-2 px-2 text-xs font-bold rounded-md transition-all ${activeAITab === 'AI-9C' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-                            >
-                                Stage 2 (9C)
-                            </button>
-                            <button
-                                onClick={() => setActiveAITab('AI-9D')}
-                                className={`flex-1 py-2 px-2 text-xs font-bold rounded-md transition-all ${activeAITab === 'AI-9D' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-                            >
-                                Stage 3 (9D)
                             </button>
                             <button
                                 onClick={() => setActiveAITab('AI-9E')}
@@ -1824,29 +1725,13 @@ export function MetaLeadsTab({
                                         </button>
                                     </div>
 
-                                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 flex items-center justify-between">
-                                        <label className="text-xs font-bold text-yellow-900">If answer matches none of the above, move to:</label>
-                                        <select 
-                                            value={filter.fallbackCategory || 'pending'}
-                                            onChange={(e) => {
-                                                const newFilters = configCopy(activeConfig).filters;
-                                                newFilters[index].fallbackCategory = e.target.value;
-                                                setActiveConfig({...activeConfig, filters: newFilters});
-                                            }}
-                                            className="w-32 px-2 py-1.5 border border-yellow-300 rounded-md text-xs bg-white focus:outline-none"
-                                        >
-                                            <option value="pending">Pending</option>
-                                            <option value="rejected">Rejected</option>
-                                            <option value="approved">Approved</option>
-                                        </select>
-                                    </div>
                                 </div>
                             ))}
 
                             <button 
                                 onClick={() => {
                                     const newFilters = [...(activeConfig.filters || [])];
-                                    newFilters.push({ question: '', options: [{ answer: '', category: 'approved' }], fallbackCategory: 'pending' });
+                                    newFilters.push({ question: '', options: [{ answer: '', category: 'approved' }] });
                                     setActiveConfig({...activeConfig, filters: newFilters});
                                 }}
                                 className="w-full py-3 border-2 border-dashed border-blue-300 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors"
@@ -1854,110 +1739,6 @@ export function MetaLeadsTab({
                                 + Add Another Question Rule
                             </button>
 
-                            {/* Global Mismatch Rule */}
-                            <div className="mt-6 pt-6 border-t border-slate-200">
-                                <h4 className="font-bold text-slate-800 mb-2">Global Mismatch Rules</h4>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-medium text-slate-600">If</span>
-                                    <input 
-                                        type="number" 
-                                        min="1"
-                                        value={activeConfig.maxMismatches}
-                                        onChange={(e) => setActiveConfig({...activeConfig, maxMismatches: parseInt(e.target.value) || 2})}
-                                        className="w-16 px-2 py-1.5 border border-slate-300 rounded text-center"
-                                    />
-                                    <span className="text-sm font-medium text-slate-600">answers mismatch across all rules, forcefully move to</span>
-                                    <select 
-                                        value={activeConfig.mismatchFallback}
-                                        onChange={(e) => setActiveConfig({...activeConfig, mismatchFallback: e.target.value})}
-                                        className="px-3 py-1.5 border border-slate-300 rounded bg-white text-sm"
-                                    >
-                                        <option value="rejected">Rejected</option>
-                                        <option value="pending">Pending</option>
-                                    </select>
-                                </div>
-                                {/* Hard Reject Combinations */}
-                                <div className="mt-5 pt-4 border-t border-red-100">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <div>
-                                            <h5 className="text-sm font-black text-red-700">Hard Reject Combinations</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">If Question X <strong>AND</strong> Question Y are both mismatched → <span className="text-red-600 font-bold">Rejected 100%</span></p>
-                                        </div>
-                                        <button
-                                            onClick={() => setActiveConfig({...activeConfig, hardRejectPairs: [...(activeConfig.hardRejectPairs || []), { questionA: '', questionB: '' }]})}
-                                            className="text-xs px-3 py-1.5 bg-red-100 text-red-700 font-bold rounded-lg border border-red-200 hover:bg-red-200 transition-colors flex items-center gap-1"
-                                        >
-                                            + Add Pair
-                                        </button>
-                                    </div>
-                                    <div className="space-y-2 mt-3">
-                                        {(activeConfig.hardRejectPairs || []).length === 0 && (
-                                            <p className="text-xs text-slate-400 italic">No hard reject pairs set. Click "+ Add Pair" to create one.</p>
-                                        )}
-                                        {(activeConfig.hardRejectPairs || []).map((rule: any, i: number) => {
-                                            const selectedQs = rule.questions || [];
-                                            // Handle legacy data structure
-                                            if (rule.questionA && !selectedQs.includes(rule.questionA)) selectedQs.push(rule.questionA);
-                                            if (rule.questionB && !selectedQs.includes(rule.questionB)) selectedQs.push(rule.questionB);
-
-                                            return (
-                                                <div key={i} className="flex flex-col gap-2 bg-red-50 border border-red-200 p-3 rounded-xl relative">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-wider">If all these questions mismatch:</span>
-                                                        <button
-                                                            onClick={() => { const p = JSON.parse(JSON.stringify(activeConfig.hardRejectPairs)); p.splice(i, 1); setActiveConfig({...activeConfig, hardRejectPairs: p}); }}
-                                                            className="text-red-400 hover:text-red-700 transition-colors p-1"
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
-                                                    </div>
-                                                    
-                                                    <div className="flex flex-wrap gap-1.5 mb-1">
-                                                        {selectedQs.length === 0 && <span className="text-xs text-red-400 italic">No questions added yet.</span>}
-                                                        {selectedQs.map((q: string, qIdx: number) => (
-                                                            <span key={qIdx} className="bg-red-100 text-red-800 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-red-200 flex items-center gap-1.5 shadow-sm">
-                                                                {q.replace(/_/g, ' ')}
-                                                                <X 
-                                                                    size={12} 
-                                                                    className="cursor-pointer hover:text-red-500 opacity-70 hover:opacity-100" 
-                                                                    onClick={() => {
-                                                                        const p = JSON.parse(JSON.stringify(activeConfig.hardRejectPairs));
-                                                                        p[i].questions = selectedQs.filter((sq: string) => sq !== q);
-                                                                        // Clear legacy just in case
-                                                                        p[i].questionA = ''; p[i].questionB = '';
-                                                                        setActiveConfig({...activeConfig, hardRejectPairs: p});
-                                                                    }} 
-                                                                />
-                                                            </span>
-                                                        ))}
-                                                    </div>
-
-                                                    <select
-                                                        value=""
-                                                        onChange={(e) => {
-                                                            if (!e.target.value) return;
-                                                            const p = JSON.parse(JSON.stringify(activeConfig.hardRejectPairs));
-                                                            p[i].questions = [...selectedQs, e.target.value];
-                                                            p[i].questionA = ''; p[i].questionB = '';
-                                                            setActiveConfig({...activeConfig, hardRejectPairs: p});
-                                                        }}
-                                                        className="w-full px-3 py-2 border border-red-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-300 focus:outline-none"
-                                                    >
-                                                        <option value="">+ Add Question to Rule...</option>
-                                                        {dynamicColumns.filter(c => !selectedQs.includes(c)).map(col => (
-                                                            <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>
-                                                        ))}
-                                                    </select>
-                                                    
-                                                    <div className="flex items-center justify-center mt-2 border-t border-red-100 pt-2">
-                                                        <span className="text-[11px] font-black text-red-600 bg-red-100/50 px-4 py-1 rounded-full">→ 🚫 Reject 100%</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
                         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3">

@@ -37,7 +37,7 @@ describe('Meta saved question configuration', () => {
     expect(screen.getByRole('button', { name: 'Start AI-9A Processing' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Active (Click to Stop)' })).not.toBeInTheDocument();
   });
-  it.each(['C', 'D'])('saves AI-9%s before running the authoritative batch and reports moved leads', async stage => {
+  it.each(['B'])('saves AI-9%s before running the authoritative batch and reports moved leads', async stage => {
     const save = jest.fn().mockResolvedValue(undefined);
     jest.mocked(registrationFetch).mockImplementation(async input => ({
       ok: true,
@@ -64,8 +64,8 @@ describe('Meta saved question configuration', () => {
         ? { error: 'Bunny processing failed' } : { success: true, data: [] },
     } as Response));
     render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: {} }} saveWorkshopSettings={jest.fn().mockResolvedValue(undefined)} />);
-    fireEvent.click(screen.getByRole('button', { name: /Config AI-9C/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Start AI-9C Processing' }));
+    fireEvent.click(screen.getByRole('button', { name: /Config AI-9B/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start AI-9B Processing' }));
     await screen.findByText('Bunny processing failed');
     expect(screen.getByRole('button', { name: 'Active (Click to Stop)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run Saved Rules' })).toBeEnabled();

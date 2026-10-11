@@ -45,12 +45,12 @@ describe('Bunny-only registration repairs', () => {
     expect(evaluateMetaLead({ metadata: { rawFieldData: [{ name: 'लिंग', values: ['male'] }] } }, config, 'approved', 'pending', 'rejected')?.status).toBe('approved');
   });
 
-  it('honors paired hard rejections and exact pending categories', () => {
+  it('ignores legacy fallback/global mismatch rules and keeps exact pending categories', () => {
     const config = {
-      filters: [{ question: 'A', options: [] }, { question: 'B', options: [] }],
-      hardRejectPairs: [{ questionA: 'A', questionB: 'B' }],
+      filters: [{ question: 'A', options: [], fallbackCategory: 'rejected' }, { question: 'B', options: [] }],
+      hardRejectPairs: [{ questionA: 'A', questionB: 'B' }], maxMismatches: 1, mismatchFallback: 'rejected',
     };
-    expect(evaluateMetaLead({}, config, 'approved', 'pending', 'rejected')?.status).toBe('rejected');
+    expect(evaluateMetaLead({}, config, 'approved', 'pending', 'rejected')?.status).toBe('pending');
     expect(registrationTargetMatches({ _id: 'a' }, { a: { status: 'pending_leads_2' } }, 'Pending Leads-1')).toBe(false);
     expect(registrationTargetMatches({ _id: 'a' }, { a: { status: 'pending_leads_2' } }, 'Pending Leads-2')).toBe(true);
   });

@@ -63,8 +63,8 @@ describe('Future-only four-stage Meta automation', () => {
   it('requires every saved active stage and restores nested legacy settings', () => {
     const saved = metadata();
     expect(metaApprovalConfigurationError(saved)).toBeNull();
-    saved.ai9CConfig.isActive = false;
-    expect(metaApprovalConfigurationError(saved)).toContain('AI-9C');
+    saved.ai9BConfig.isActive = false;
+    expect(metaApprovalConfigurationError(saved)).toContain('AI-9B');
     expect(parseRegistrationValue(JSON.stringify(JSON.stringify([{ id: 'batch' }])), [])).toEqual([{ id: 'batch' }]);
   });
 
@@ -90,7 +90,7 @@ describe('Future-only four-stage Meta automation', () => {
     expect(await loadBunnyLeads()).toHaveLength(1);
   });
 
-  it('queues exactly one run after four approvals across ten worker replays', async () => {
+  it('queues exactly one run after Stage 1 approval across ten worker replays', async () => {
     await persistMetaFormLead(input());
     const state = { crm_workshops: [{ id: 'batch', metadata: metadata() }] };
     for (let replay = 0; replay < 10; replay++) {
@@ -100,7 +100,7 @@ describe('Future-only four-stage Meta automation', () => {
     expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(1);
     expect((await client.execute('SELECT document_id FROM broadcast_run_messages_sql')).rows).toHaveLength(1);
     expect((await loadBunnyLeads())[0].metadata.ai9PassedStages).toEqual({
-      ai9AConfig: true, ai9BConfig: true, ai9CConfig: true, ai9DConfig: true,
+      ai9AConfig: true, ai9BConfig: true,
     });
   });
 

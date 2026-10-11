@@ -9,7 +9,6 @@ export function evaluateMetaLead(lead: RegistrationRecord, config: RegistrationR
   }
   let mismatches = 0;
   let hardReject = false;
-  const mismatchedQuestions = new Set<string>();
   const reasons: string[] = [];
   const filters = (config.filters || []).filter((filter: RegistrationRecord) => filter.question);
   if (!filters.length) return null;
@@ -23,25 +22,16 @@ export function evaluateMetaLead(lead: RegistrationRecord, config: RegistrationR
       const escaped = expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, 'iu').test(actual);
     });
-    const category = option?.category || filter.fallbackCategory || filter.fallback || 'pending';
+    const category = option?.category || 'pending';
     if (category === 'rejected') {
       hardReject = true;
-      mismatchedQuestions.add(sanitize(filter.question));
       reasons.push(`Failed on: ${filter.question}`);
     } else if (category !== 'approved') {
       mismatches++;
-      mismatchedQuestions.add(sanitize(filter.question));
       reasons.push(`Pending on: ${filter.question}`);
     }
-    for (const pair of config.hardRejectPairs || []) {
-      const questions = (pair.questions || [pair.questionA, pair.questionB]).filter(Boolean);
-      if (questions.length >= 2 && questions.every((question: string) => mismatchedQuestions.has(sanitize(question)))) {
-        hardReject = true;
-      }
-    }
   }
-  const exceeded = config.maxMismatches && mismatches >= config.maxMismatches && config.mismatchFallback === 'rejected';
-  return { status: hardReject || exceeded ? rejected : mismatches ? pending : approved, reason: reasons.join(' | ') || 'Approved by AI' };
+  return { status: hardReject ? rejected : mismatches ? pending : approved, reason: reasons.join(' | ') || 'Approved by AI' };
 }
 
 export function registrationTargetMatches(lead: RegistrationRecord, decisions: RegistrationRecord, category: string) {

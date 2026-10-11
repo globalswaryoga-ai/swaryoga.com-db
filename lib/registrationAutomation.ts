@@ -118,9 +118,9 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
       if (lead.isBlocked) continue;
       const stages = [
         ['ai9AConfig', ['new', 'lead', 'new_pending'], 'stage_1_new', 'new_pending', 'new_rejected'],
-        ['ai9BConfig', ['stage_1_new', 'stage_1_pending'], 'stage_2_new', 'stage_1_pending', 'stage_1_rejected'],
-        ['ai9CConfig', ['stage_2_new', 'stage_2_pending'], 'stage_3_new', 'stage_2_pending', 'stage_2_rejected'],
-        ['ai9DConfig', ['stage_3_new', 'stage_3_pending'], 'approved', 'stage_3_pending', 'stage_3_rejected'],
+        // Stage 1 (AI-9B) is the final screen. Legacy Stage 2/3 statuses are re-screened here instead of stalling.
+        ['ai9BConfig', ['stage_1_new', 'stage_1_pending', 'stage_2_new', 'stage_2_pending', 'stage_3_new', 'stage_3_pending'],
+          'approved', 'stage_1_pending', 'stage_1_rejected'],
       ] as const;
       for (const [configKey, statuses, approved, pending, rejected] of stages) {
         const config = workshop.metadata?.[configKey];
