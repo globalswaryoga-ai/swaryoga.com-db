@@ -171,6 +171,14 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Durable Registration, Students and Offer Autosave (Session: October 11, 2026) — Commit `2f8b2320`
+
+- Registration My Data/batch lists, categories, valid AI rules and sidebar layout use versioned, serialized saves with visible status and failed-edit Retry. Meta draft saves do not activate processing; unrelated stage hydration no longer erases drafts.
+- The registration state API rejects old unversioned batch/category/rule writes. Whole-list autosave cannot replace existing form/AI metadata or remove batches without confirmed permission; batch settings keep their dedicated merge-safe endpoint.
+- Workshop Students/settings/recording links and independent Workshop Offer drafts now autosave with conflict checks, retry and flush-on-close. Financial finalization, delivery and destructive actions remain explicit; source form responses are preserved.
+- Compact audience responses retain identity/mapping fields while avoiding multi-megabyte answer duplication. Concurrent form-column ALTER failures succeed only after schema verification confirms another instance added the column.
+- Validation: 157 tests across 29 suites and the production build pass; affected editor diagnostics and whitespace checks are clean. Hindi historical Meta recovery/restart must be verified after deploying these guards; the earlier restoration was overwritten and is not claimed persistent. Google OAuth remains untouched.
+
 ### Registration Trigger Category and Field Mapping Alignment (Session: October 11, 2026) — Commit `fe6bbb78`
 
 - Trigger category options now come from the current batch/category list, including newly added categories; preview and server scheduling share batch/category matching.
