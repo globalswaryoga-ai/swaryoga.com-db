@@ -49,6 +49,21 @@ describe('Saved registration form connection', () => {
     expect(input.setRefreshLeadsCounter).not.toHaveBeenCalled();
   });
 
+  it('saves to the language master list when All Leads has no selected batch', async () => {
+    const input = props();
+    input.selectedWorkshop = null;
+    input.workshops = [];
+    render(<WorkshopFormTab {...input} />);
+
+    expect(screen.getByLabelText('Where should this form connection be saved?')).toHaveValue('__all_leads__');
+    expect(screen.getByText('No batch is required. The connection will be saved to the language master list.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save & Connect CRM Form' }));
+
+    await waitFor(() => expect(input.saveWorkshopSettings).toHaveBeenCalledWith(undefined));
+    expect(input.toast.success).toHaveBeenCalledWith('Form connection saved for all leads.');
+    expect(input.setActiveTab).toHaveBeenCalledWith('my_data');
+  });
+
   it('shows a permanently saved form ID even when the form-list request has not returned it', () => {
     const input = props();
     input.fetchedForms = [];

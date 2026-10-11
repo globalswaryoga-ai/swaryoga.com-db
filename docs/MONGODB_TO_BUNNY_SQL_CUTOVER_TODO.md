@@ -93,13 +93,14 @@ response total, saved total, last run/success and recent error for diagnosis.
 CRM submissions and Google responses are both displayed for a selected form when
 their saved `form_id` matches that form. Public website workshop registrations
 can now be generated from Form Links Manager with an explicit active CRM
-registration form selected. In the registration setup panel, the batch is
-selected inline before saving its CRM or Google form connection; this avoids
-relying on a batch selection that is cleared when opening All Leads. The public
-link's form ID is validated and saved with the lead-linked CRM submission, so it
-appears with Google responses in the selected form's Data section. Links without
-a selected form continue to save ordinary CRM leads only; no association is
-guessed from a workshop name or language.
+registration form selected. In the registration setup panel, a form can be saved
+to an explicitly selected batch or to the language master list when opened from
+All Leads without a selected batch. This avoids blocking form setup after the
+batch selection is cleared on that tab. The public link's form ID is validated
+and saved with the lead-linked CRM submission, so it appears with Google
+responses in the selected form's Data section. Links without a selected form
+continue to save ordinary CRM leads only; no association is guessed from a
+workshop name or language.
 
 ### Future Meta approval-only trigger — October 11, 2026
 

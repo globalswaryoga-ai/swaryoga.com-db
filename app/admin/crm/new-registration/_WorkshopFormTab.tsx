@@ -42,6 +42,8 @@ export interface WorkshopFormTabProps {
   [key: string]: any;
 }
 
+const ALL_LEADS_BATCH_ID = '__all_leads__';
+
 export function WorkshopFormTab(props: WorkshopFormTabProps) {
   const p = props;
   // Destructure all props for use in JSX below
@@ -65,6 +67,13 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
   const [isMergeModalOpen, setIsMergeModalOpen] = React.useState(false);
   const [isSavingConnection, setIsSavingConnection] = React.useState(false);
+  const [connectionBatchId, setConnectionBatchId] = React.useState(
+    selectedWorkshop?.id ? String(selectedWorkshop.id) : ALL_LEADS_BATCH_ID,
+  );
+
+  React.useEffect(() => {
+    setConnectionBatchId(selectedWorkshop?.id ? String(selectedWorkshop.id) : ALL_LEADS_BATCH_ID);
+  }, [selectedWorkshop?.id]);
 
   // The data section reads saved Bunny submissions, so an import must use the
   // form connection saved on this batch.
@@ -81,14 +90,18 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
   const saveConnection = async (openData = false) => {
     if (isSavingConnection) return;
     const formId = String(formSource === 'google' ? googleFormUrl : selectedFormId).trim();
-    if (!selectedWorkshop) { toast.error('Choose a batch in the selector above before connecting a form.'); return; }
     if (!formId) { toast.error('Select a registration form first.'); return; }
     setIsSavingConnection(true);
     try {
-      await saveWorkshopSettings({
-        ...selectedWorkshop, formId,
+      const connectionBatch = connectionBatchId === ALL_LEADS_BATCH_ID
+        ? null
+        : availableMergeBatches.find((batch: any) => String(batch.id) === connectionBatchId)
+          || (selectedWorkshop?.id && String(selectedWorkshop.id) === connectionBatchId ? selectedWorkshop : null);
+      await saveWorkshopSettings(connectionBatch ? {
+        ...connectionBatch,
+        formId,
         metadata: {
-          ...selectedWorkshop.metadata,
+          ...connectionBatch.metadata,
           formSource,
           mainFilter: leadsFilter,
           subFilter: leadsSubFilter,
@@ -97,8 +110,10 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
           googleFormMapping: fieldMapping,
           crmFields,
         },
-      });
-      toast.success('Form connection saved permanently for this batch.');
+      } : undefined);
+      toast.success(connectionBatch
+        ? 'Form connection saved permanently for this batch.'
+        : 'Form connection saved for all leads.');
       setRefreshLeadsCounter((previous: number) => previous + 1);
       if (openData) { setActiveTab('my_data'); setIsFormSetupCollapsed(true); }
     } catch (error) {
@@ -220,20 +235,24 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 <div className="p-6 space-y-6">
                   <div className="space-y-4">
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-2">
-                      <label htmlFor="registration-batch" className="text-sm font-bold text-slate-700">Select batch for this form connection</label>
+                      <label htmlFor="registration-batch" className="text-sm font-bold text-slate-700">Where should this form connection be saved?</label>
                       <select
                         id="registration-batch"
-                        value={selectedWorkshop?.id || ''}
-                        onChange={event => setSelectedWorkshop(availableMergeBatches.find((batch: any) => batch.id === event.target.value) || null)}
-                        disabled={isSavingConnection || availableMergeBatches.length === 0}
+                        value={connectionBatchId}
+                        onChange={event => setConnectionBatchId(event.target.value)}
+                        disabled={isSavingConnection}
                         className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm bg-white disabled:bg-slate-100"
                       >
-                        <option value="">{availableMergeBatches.length ? 'Select a batch...' : 'No batches available for this language'}</option>
+                        <option value={ALL_LEADS_BATCH_ID}>All {selectedDashboardLang} leads (create or use master list)</option>
                         {availableMergeBatches.map((batch: any) => (
-                          <option key={batch.id} value={batch.id}>{batch.name}</option>
+                          <option key={batch.id} value={String(batch.id)}>{batch.name}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-slate-600">The form connection and its submissions are saved under this batch.</p>
+                      <p className="text-xs text-slate-600">
+                        {connectionBatchId === ALL_LEADS_BATCH_ID
+                          ? 'No batch is required. The connection will be saved to the language master list.'
+                          : 'The form connection and its submissions are saved under the selected batch.'}
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -245,7 +264,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       <button type="button" disabled={isSavingConnection} onClick={() => setFormSource('internal')} className={`rounded-lg border px-4 py-2 text-sm font-bold ${formSource === 'internal' ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Connect CRM Form</button>
                       <button type="button" disabled={isSavingConnection} onClick={() => setFormSource('google')} className={`rounded-lg border px-4 py-2 text-sm font-bold ${formSource === 'google' ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Connect Google Form</button>
                     </div>
-                    <p className="text-xs text-slate-500">Save connects this form to the selected batch until you change it. All Leads Data reads saved Bunny submissions; existing records and workflow gates are preserved.</p>
+                    <p className="text-xs text-slate-500">Save connects this form to the selected batch or the language master list until you change it. All Leads Data reads saved Bunny submissions; existing records and workflow gates are preserved.</p>
                     {formSource === 'internal' && (
                       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
                         <label htmlFor="registration-crm-form" className="text-sm font-bold text-slate-700">Select connected CRM form</label>
