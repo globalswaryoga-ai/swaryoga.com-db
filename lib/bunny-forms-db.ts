@@ -511,7 +511,7 @@ export async function createSubmission(data: any) {
       data.currency || 'INR',
       data.formData || '',
       data.createdAt || null,
-      '',
+      data.leadId || '',
     ],
   });
   
@@ -521,7 +521,7 @@ export async function createSubmission(data: any) {
     args: [data.formId],
   });
   const form = await bunnyExecute({ sql: 'SELECT created_by FROM enquiry_forms WHERE form_id=?', args: [data.formId] });
-  if (data.email || data.mobile) {
+  if (!data.leadId && (data.email || data.mobile)) {
     const contact = await persistBunnyContact({
       name: data.name, email: data.email, phoneNumber: data.mobile, source: 'form-submission',
       labels: ['form-submission'], metadata: { formId: data.formId },

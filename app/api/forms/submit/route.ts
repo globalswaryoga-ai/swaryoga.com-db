@@ -19,6 +19,7 @@ import bcrypt from 'bcryptjs';
 import { notifyFormSubmission } from '@/lib/notifications';
 import { randomInt } from 'crypto';
 import { saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { createSubmission, getFormById } from '@/lib/bunny-forms-db';
 
 export const dynamic = 'force-dynamic';
 import { pushLeadToGoogleContacts } from '@/lib/googleContactsManager';
@@ -323,7 +324,9 @@ export async function POST(request: NextRequest) {
       courseName,
       paymentMode,
       message,
+      dynamicAnswers,
       workshopScheduleId,
+      registrationFormId,
     } = body;
 
     // Validate required fields
@@ -337,6 +340,19 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email format');
     }
 
+    if (registrationFormId != null && typeof registrationFormId !== 'string') {
+      return apiError('VALIDATION_ERROR', 'Invalid CRM registration form ID');
+    }
+    const linkedFormId = typeof registrationFormId === 'string' ? registrationFormId.trim() : '';
+    if (linkedFormId && formType !== 'workshop') {
+      return apiError('VALIDATION_ERROR', 'A CRM registration form can only be attached to workshop submissions');
+    }
+    if (linkedFormId) {
+      const linkedForm = await getFormById(linkedFormId);
+      if (!linkedForm?.isActive) {
+        return apiError('REGISTRATION_FORM_UNAVAILABLE', 'The selected CRM registration form is unavailable. Please use an updated link.');
+      }
+    }
 
     const cleanedEmail = email.trim().toLowerCase();
     const cleanedPhone = normalizePhone(phone);
@@ -367,6 +383,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create/Update CRM Lead
+    let savedLeadId = '';
     try {
       const meta = {
         formType: formType || 'form-link',
@@ -384,6 +401,7 @@ export async function POST(request: NextRequest) {
         workshopMode: workshopMode || '',
         educationStatus: educationStatus || '',
         batchPreference: batchPreference || '',
+        registrationFormId: linkedFormId,
         workshopScheduleId: workshopScheduleId || '',
         participantStatus: participantStatus || '',
         city: city || '',
@@ -398,6 +416,7 @@ export async function POST(request: NextRequest) {
         courseName: courseName || '',
         paymentMode: paymentMode || '',
         message: message || '',
+        dynamicAnswers: dynamicAnswers || {},
         submittedAt: new Date(),
       };
 
@@ -416,9 +435,55 @@ export async function POST(request: NextRequest) {
         ...(user?._id ? { linkedUserId: user._id, isLinkedToAccount: true } : {}),
       }, existingLead?._id);
       leadNumber = savedLead.leadNumber;
+      savedLeadId = String(savedLead._id);
     } catch (leadError) {
       logError('forms/createLead', leadError);
       return apiError('Your account may already exist, but the CRM form record could not be saved. Please retry with the same email.', 503);
+    }
+
+    if (linkedFormId) {
+      try {
+        await createSubmission({
+          formId: linkedFormId,
+          leadId: savedLeadId,
+          name: cleanedName,
+          mobile: cleanedPhone,
+          email: cleanedEmail,
+          gender: gender || '',
+          city: city || '',
+          answers: {
+            formType,
+            source: source || 'form-link',
+            workshopName: workshopName || '',
+            workshopLanguage: workshopLanguage || '',
+            workshopMode: workshopMode || '',
+            educationStatus: educationStatus || '',
+            batchPreference: batchPreference || '',
+            workshopScheduleId: workshopScheduleId || '',
+            participantStatus: participantStatus || '',
+            country: country || '',
+            state: state || '',
+            age: age || '',
+            profession: profession || '',
+            interest: interest || '',
+            timeAvailable: timeAvailable || '',
+            videoOnDuringClass: videoOnDuringClass || '',
+            regularAttendance: regularAttendance || '',
+            healthIssues: healthIssues || '',
+            deviceForWorkshop: deviceForWorkshop || '',
+            donationReady: donationReady || '',
+            awarenessConfirmed: Boolean(awarenessConfirmed),
+            finalConfirmation: Boolean(finalConfirmation),
+            message: message || '',
+            dynamicAnswers: dynamicAnswers || {},
+          },
+          formData: JSON.stringify(body),
+          createdAt: new Date().toISOString(),
+        });
+      } catch (submissionError) {
+        logError('forms/createRegistrationSubmission', submissionError);
+        return apiError('Your CRM lead was saved, but its registration-form row could not be saved. Please retry using the same link.', 503);
+      }
     }
 
     // Auto-join Global Community

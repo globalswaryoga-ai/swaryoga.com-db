@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -16,6 +16,11 @@ interface FormLink {
   color: string;
   baseUrl: string;
   params?: { key: string; label: string; options?: string[] }[];
+}
+
+interface RegistrationFormOption {
+  formId: string;
+  workshopName: string;
 }
 
 const FORM_LINKS: FormLink[] = [
@@ -89,6 +94,31 @@ export default function AdminFormLinksPage() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [selectedWorkshops, setSelectedWorkshops] = useState<Record<string, string>>({});
   const [customSource, setCustomSource] = useState('');
+  const [registrationForms, setRegistrationForms] = useState<RegistrationFormOption[]>([]);
+  const [selectedRegistrationFormId, setSelectedRegistrationFormId] = useState('');
+  const [registrationFormsLoading, setRegistrationFormsLoading] = useState(false);
+  const [registrationFormsError, setRegistrationFormsError] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setRegistrationFormsLoading(true);
+    fetch('/api/admin/crm/form-link-options', { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not load registration forms');
+        if (active) setRegistrationForms(Array.isArray(result.data) ? result.data : []);
+      })
+      .catch((error) => {
+        if (active) setRegistrationFormsError(error instanceof Error ? error.message : 'Could not load registration forms');
+      })
+      .finally(() => {
+        if (active) setRegistrationFormsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
   
   const getColor = (color: string) => {
     const colors: Record<string, { bg: string; border: string; text: string; gradient: string }> = {
@@ -111,6 +141,9 @@ export default function AdminFormLinksPage() {
     
     if (form.type === 'workshop' && selectedWorkshops[form.type]) {
       params.set('workshop', selectedWorkshops[form.type]);
+    }
+    if (form.type === 'workshop' && selectedRegistrationFormId) {
+      params.set('registrationFormId', selectedRegistrationFormId);
     }
     
     const queryString = params.toString();
@@ -238,6 +271,32 @@ export default function AdminFormLinksPage() {
                       )}
                     </div>
                   ))}
+
+                  {form.type === 'workshop' && (
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Save submissions to CRM registration form</label>
+                      <select
+                        value={selectedRegistrationFormId}
+                        onChange={(event) => setSelectedRegistrationFormId(event.target.value)}
+                        disabled={registrationFormsLoading || registrationForms.length === 0}
+                        className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-slate-100"
+                      >
+                        <option value="">Do not attach a registration form</option>
+                        {registrationForms.map((registrationForm) => (
+                          <option key={registrationForm.formId} value={registrationForm.formId}>
+                            {registrationForm.workshopName} ({registrationForm.formId})
+                          </option>
+                        ))}
+                      </select>
+                      {registrationFormsError ? (
+                        <p role="alert" className="mt-2 text-xs text-red-700">{registrationFormsError}</p>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {registrationFormsLoading ? 'Loading available registration forms…' : 'Selected submissions will appear with Google responses in that form’s Data section.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   
                   {/* URL Display */}
                   <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
@@ -285,14 +344,12 @@ export default function AdminFormLinksPage() {
           <p className="text-white/80 mb-6">Copy all form links as formatted text for sharing</p>
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm mb-6">
             <pre className="text-sm font-mono whitespace-pre-wrap">
-{FORM_LINKS.map(form => `${form.title}:\nhttps://swaryoga.com${form.baseUrl}${customSource ? `?source=${customSource}` : ''}\n`).join('\n')}
+{FORM_LINKS.map(form => `${form.title}:\n${buildUrl(form)}\n`).join('\n')}
             </pre>
           </div>
           <button
             onClick={() => {
-              const allLinks = FORM_LINKS.map(form => 
-                `${form.title}:\nhttps://swaryoga.com${form.baseUrl}${customSource ? `?source=${customSource}` : ''}`
-              ).join('\n\n');
+              const allLinks = FORM_LINKS.map(form => `${form.title}:\n${buildUrl(form)}`).join('\n\n');
               navigator.clipboard.writeText(allLinks);
               setCopiedUrl('all');
               setTimeout(() => setCopiedUrl(null), 2000);

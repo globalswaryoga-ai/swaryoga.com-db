@@ -79,6 +79,28 @@ does not claim that every historical contact has already been reconciled.
 Live deployment, the Google OAuth reconnect and the user's saved approval-stage
 configuration remain separate prerequisites for unattended end-to-end operation.
 
+### Google Forms registration import recovery — October 11, 2026
+
+The registration data section reads saved Bunny SQL records; refreshing that
+section alone does not fetch new Google responses. The Google connection panel
+therefore provides an explicit **Import from Google** action, while the scheduled
+Google Forms cron continues to import forms in the background. Imports compare
+Google response IDs with saved submissions and process only missing or
+incompletely linked responses, so earlier saved responses cannot consume the
+whole run before newer responses are reached. Per-form sync status records the
+response total, saved total, last run/success and recent error for diagnosis.
+
+CRM submissions and Google responses are both displayed for a selected form when
+their saved `form_id` matches that form. Public website workshop registrations
+can now be generated from Form Links Manager with an explicit active CRM
+registration form selected. In the registration setup panel, the batch is
+selected inline before saving its CRM or Google form connection; this avoids
+relying on a batch selection that is cleared when opening All Leads. The public
+link's form ID is validated and saved with the lead-linked CRM submission, so it
+appears with Google responses in the selected form's Data section. Links without
+a selected form continue to save ordinary CRM leads only; no association is
+guessed from a workshop name or language.
+
 ### Future Meta approval-only trigger — October 11, 2026
 
 AI-9 Start now saves the edited configuration and immediately runs the saved

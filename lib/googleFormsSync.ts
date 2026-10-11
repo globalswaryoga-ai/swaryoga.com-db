@@ -253,6 +253,44 @@ export async function persistGoogleFormSubmission(input: {
   return { id: String(savedId), inserted: Number(results[0].rowsAffected) > 0 };
 }
 
+/**
+ * Saved responses for a form, keyed by response ID → linked CRM lead ID.
+ *
+ * A sync that re-writes every response on every run spends its whole execution
+ * budget on records that are already saved, so it never reaches the newest
+ * responses. Reading what is already stored first lets a run process only the
+ * delta — and repair responses that were saved but never linked to a lead.
+ */
+export async function savedGoogleResponseLeadIds(formId: string): Promise<Map<string, string>> {
+  await ensureFormTables();
+  const result = await bunnyExecute({
+    sql: `SELECT form_data, lead_id FROM form_submissions
+      WHERE form_id = ? AND form_data != '' AND (source = 'google_forms' OR id LIKE 'gform_%')`,
+    args: [formId],
+  });
+  return new Map(result.rows.map(row => [String(row.form_data || ''), String(row.lead_id || '')]));
+}
+
+/**
+ * Responses that still need work on this run.
+ *
+ * A response needs work when it was never saved, or when it was saved but never
+ * linked to a CRM lead (an earlier run that was cut off mid-write). Re-wrapping
+ * the saved-and-linked ones is what previously burned the whole execution
+ * budget, so the tail of the response list was never imported. `refreshAll`
+ * re-processes everything, e.g. after the form's questions changed.
+ */
+export function pendingGoogleFormLeads<
+  T extends { responseId: string; email?: string; mobile?: string },
+>(leads: T[], savedLeadIds: Map<string, string>, refreshAll = false): { pending: T[]; alreadySaved: number } {
+  if (refreshAll) return { pending: [...leads], alreadySaved: 0 };
+  const pending = leads.filter(lead => {
+    if (!savedLeadIds.has(lead.responseId)) return true;
+    return !savedLeadIds.get(lead.responseId) && Boolean(lead.email || lead.mobile);
+  });
+  return { pending, alreadySaved: leads.length - pending.length };
+}
+
 export function collectGoogleFormTargets(
   registeredForms: Array<{ formId?: string; workshopName?: string; isActive?: boolean }>,
   savedState: Record<string, unknown> | null,

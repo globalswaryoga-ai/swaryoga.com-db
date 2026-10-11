@@ -171,6 +171,14 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Google Form Import Recovery and CRM Source Verification (Session: October 11, 2026) — Commit `pending`
+
+- Google Form imports process only missing or incompletely linked response IDs, allowing each run to reach responses added after the existing saved set.
+- The registration form panel provides an explicit Google import action and per-form last-run/count/error status; refreshing saved data alone does not contact Google.
+- The All Leads setup panel now has an inline batch selector before connecting a CRM or Google form, avoiding a required batch that had been cleared by opening that tab.
+- CRM submissions and Google responses remain visible together when both are saved under the selected form ID. Form Links Manager can attach an explicitly selected active CRM registration form to a public workshop link; submissions validate and save that form ID with the lead.
+- Added regression coverage proving CRM and Google submissions for the same form both remain in All Leads Data. Focused Google sync, mapping, and registration-lead tests pass (22 tests).
+
 ### QR WhatsApp Old Chats and Bunny Number Folders (Session: September 29, 2026) — Commit `ca6b6704`, `9ad85fe2`
 
 - QR inbox reads now merge Super Admin history stored under both `admin` and `admincrm`, restoring the old Bunny chats for the connected number.

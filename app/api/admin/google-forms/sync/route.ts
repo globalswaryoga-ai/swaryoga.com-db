@@ -15,8 +15,11 @@ import {
   extractGoogleFormId,
   fetchGoogleFormResponses,
   mapGoogleFormResponses,
+  pendingGoogleFormLeads,
   persistGoogleFormSubmission,
+  savedGoogleResponseLeadIds,
 } from '@/lib/googleFormsSync';
+import { recordGoogleFormSyncResult, recordGoogleFormSyncError } from '@/lib/googleFormSyncStatus';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -63,6 +66,7 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
 
   const accounts = await resolveGoogleAccounts(scope);
   if (!accounts.length) {
+    await recordGoogleFormSyncError({ formId, scope, error: 'Google Account not connected. Reconnect Google Forms.' });
     return NextResponse.json({ error: 'Google Account not connected. Reconnect Google Forms.', needsAuth: true }, { status: 401 });
   }
 
@@ -87,10 +91,9 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
   }
 
   if (!formData) {
-    return NextResponse.json({
-      error: `Could not access the Google Form. Ensure a connected account has edit access. ${accountErrors.join('; ')}`.trim(),
-      needsAuth: true,
-    }, { status: 403 });
+    const accessError = `Could not access the Google Form. Ensure a connected account has edit access. ${accountErrors.join('; ')}`.trim();
+    await recordGoogleFormSyncError({ formId, scope, error: accessError });
+    return NextResponse.json({ error: accessError, needsAuth: true }, { status: 403 });
   }
 
   const responses = await fetchGoogleFormResponses(formId, accessToken);
@@ -152,18 +155,30 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
     });
   }
 
-  const existingLeads = (await loadBunnyLeads()).filter((lead: any) =>
-    registrationLeadOwned(lead, {
-      userId: accountUserId,
-      superAdmin: scope === 'shared',
-    }),
+  // Only the delta is written: responses already saved and already linked to a
+  // CRM lead are skipped, so the run always reaches the newest responses.
+  const savedResponses = await savedGoogleResponseLeadIds(formId);
+  const refreshAll = url.searchParams.get('refresh') === '1';
+  const { pending: pendingLeads, alreadySaved: alreadySavedCount } = pendingGoogleFormLeads(
+    leads,
+    savedResponses,
+    refreshAll,
   );
+
+  const existingLeads = pendingLeads.length
+    ? (await loadBunnyLeads()).filter((lead: any) =>
+        registrationLeadOwned(lead, {
+          userId: accountUserId,
+          superAdmin: scope === 'shared',
+        }),
+      )
+    : [];
   const errors: Array<{ responseId: string; stage: 'submission' | 'lead'; error: string }> = [];
   let persistedSubmissions = 0;
   let insertedSubmissions = 0;
   let syncedLeads = 0;
 
-  for (const lead of leads) {
+  for (const lead of pendingLeads) {
     try {
       const saved = await persistGoogleFormSubmission({
         formId,
@@ -271,13 +286,36 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
     args: [formId, formId],
   });
 
+  const savedCount = Number((await bunnyExecute({
+    sql: `SELECT COUNT(DISTINCT form_data) AS saved FROM form_submissions
+      WHERE form_id = ? AND form_data != '' AND (source = 'google_forms' OR id LIKE 'gform_%')`,
+    args: [formId],
+  })).rows[0]?.saved ?? 0);
+
   const summary = {
     responseCount: responses.length,
+    alreadySaved: alreadySavedCount,
+    pendingResponses: pendingLeads.length,
+    savedCount,
     persistedSubmissions,
     insertedSubmissions,
     syncedLeads,
     failures: errors,
   };
+
+  // Recorded for every run so the CRM can show why responses were or were not imported.
+  await recordGoogleFormSyncResult({
+    formId,
+    scope,
+    formName: formTitle,
+    responseCount: responses.length,
+    savedCount,
+    importedCount: insertedSubmissions,
+    error: errors.length
+      ? `${errors.length} response(s) failed: ${errors.slice(0, 3).map(item => item.error).join('; ')}`
+      : undefined,
+  });
+
   if (errors.length) {
     return NextResponse.json({
       error: 'Google Forms sync completed with persistence failures; retry the sync after correcting the reported writes.',
@@ -312,8 +350,15 @@ export async function GET(request: NextRequest) {
     return await syncGoogleForm(request, scope);
   } catch (error) {
     console.error('[Google Forms Sync] Failed:', error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Google Forms sync failed.',
-    }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Google Forms sync failed.';
+    const failedFormId = extractGoogleFormId(request.nextUrl.searchParams.get('url'));
+    if (failedFormId) {
+      try {
+        await recordGoogleFormSyncError({ formId: failedFormId, scope, error: message });
+      } catch (statusError) {
+        console.error('[Google Forms Sync] Could not record sync status:', statusError);
+      }
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

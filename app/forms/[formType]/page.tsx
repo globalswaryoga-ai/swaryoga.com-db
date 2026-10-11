@@ -815,6 +815,7 @@ function DynamicFormPage() {
   const workshopParam = searchParams.get('workshop');
   const sourceParam = searchParams.get('source');
   const refParam = searchParams.get('ref');
+  const registrationFormId = searchParams.get('registrationFormId');
   const langParam = searchParams.get('lang') || searchParams.get('language');
   
   const config = FORM_CONFIGS[formType] || FORM_CONFIGS.lead;
@@ -1541,6 +1542,7 @@ function DynamicFormPage() {
         ...(config.fields.includes('paymentMode') && { paymentMode }),
         ...(config.fields.includes('message') && { message }),
         dynamicAnswers,
+        ...(formType === 'workshop' && registrationFormId && { registrationFormId }),
       };
       
       const response = await fetch('/api/forms/submit', {

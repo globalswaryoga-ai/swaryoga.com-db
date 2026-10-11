@@ -3,6 +3,9 @@ import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registr
 
 import React from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download } from 'lucide-react';
+import { useGoogleFormSync } from '@/hooks/useGoogleFormSync';
+import { completeGoogleFormMapping, unmappedCrmFields } from '@/lib/googleFormFieldMapping';
+import { GoogleFormSyncStatusBanner } from './_GoogleFormSyncStatus';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -62,16 +65,38 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
   const [isMergeModalOpen, setIsMergeModalOpen] = React.useState(false);
   const [isSavingConnection, setIsSavingConnection] = React.useState(false);
+
+  // The data section reads saved Bunny submissions, so an import must use the
+  // form connection saved on this batch.
+  const googleFormId = formSource === 'google'
+    ? String(googleFormUrl || selectedWorkshop?.formId || '').trim()
+    : '';
+  const {
+    status: googleSyncStatus,
+    isSyncing: isImportingGoogleForm,
+    isLoadingStatus: isLoadingGoogleSyncStatus,
+    syncForm: syncGoogleForm,
+  } = useGoogleFormSync(googleFormId);
+  const unmappedCount = unmappedCrmFields(crmFields, fieldMapping).length;
   const saveConnection = async (openData = false) => {
     if (isSavingConnection) return;
     const formId = String(formSource === 'google' ? googleFormUrl : selectedFormId).trim();
-    if (!selectedWorkshop) { toast.error('Select a batch before connecting a form.'); return; }
+    if (!selectedWorkshop) { toast.error('Choose a batch in the selector above before connecting a form.'); return; }
     if (!formId) { toast.error('Select a registration form first.'); return; }
     setIsSavingConnection(true);
     try {
       await saveWorkshopSettings({
         ...selectedWorkshop, formId,
-        metadata: { ...selectedWorkshop.metadata, formSource, mainFilter: leadsFilter, subFilter: leadsSubFilter },
+        metadata: {
+          ...selectedWorkshop.metadata,
+          formSource,
+          mainFilter: leadsFilter,
+          subFilter: leadsSubFilter,
+          // Without this the batch loses the mapping the user just configured,
+          // which makes every mapped field fall back to "-- Ignore --".
+          googleFormMapping: fieldMapping,
+          crmFields,
+        },
       });
       toast.success('Form connection saved permanently for this batch.');
       setRefreshLeadsCounter((previous: number) => previous + 1);
@@ -79,6 +104,43 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save form connection. Please retry.');
     } finally { setIsSavingConnection(false); }
+  };
+
+  // Auto-fill a mapping whenever the selected form's questions change, so a newly
+  // connected form never renders as all-ignored. Manual choices survive because
+  // this only runs when the question set itself changes.
+  const autoMappedQuestionSet = React.useRef('');
+  React.useEffect(() => {
+    const titles = Object.values(googleFormQuestionMap).map(String).sort().join('\u0000');
+    if (!titles || titles === autoMappedQuestionSet.current) return;
+    autoMappedQuestionSet.current = titles;
+    setFieldMapping((current: Record<string, string>) => {
+      const completed = completeGoogleFormMapping(crmFields, googleFormQuestionMap, current);
+      return JSON.stringify(completed) === JSON.stringify(current) ? current : completed;
+    });
+  }, [googleFormQuestionMap, crmFields, setFieldMapping]);
+
+  const handleSyncLeads = async () => {
+    if (!googleFormId) {
+      toast.error('Connect and save a Google Form for this batch first.');
+      return;
+    }
+    toast.info('Importing new responses from Google Forms...');
+    try {
+      const outcome = await syncGoogleForm({ name: selectedWorkshop?.name });
+      if (Object.keys(outcome.questionMap).length > 0) setGoogleFormQuestionMap(outcome.questionMap);
+      setRefreshLeadsCounter((previous: number) => previous + 1);
+      const summary = outcome.summary;
+      if (outcome.error) {
+        toast.error(`Imported ${summary?.insertedSubmissions ?? 0} new response(s), but the run reported: ${outcome.error}`);
+      } else if (summary) {
+        toast.success(`Google Forms: ${summary.savedCount} of ${summary.responseCount} responses saved (${summary.insertedSubmissions} new).`);
+      } else {
+        toast.success('Google Forms import finished.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Google Forms import failed.');
+    }
   };
   const [mergeTargetId, setMergeTargetId] = React.useState('');
   const [mergeSourceIds, setMergeSourceIds] = React.useState<string[]>([]);
@@ -157,6 +219,23 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <>
                 <div className="p-6 space-y-6">
                   <div className="space-y-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-2">
+                      <label htmlFor="registration-batch" className="text-sm font-bold text-slate-700">Select batch for this form connection</label>
+                      <select
+                        id="registration-batch"
+                        value={selectedWorkshop?.id || ''}
+                        onChange={event => setSelectedWorkshop(availableMergeBatches.find((batch: any) => batch.id === event.target.value) || null)}
+                        disabled={isSavingConnection || availableMergeBatches.length === 0}
+                        className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm bg-white disabled:bg-slate-100"
+                      >
+                        <option value="">{availableMergeBatches.length ? 'Select a batch...' : 'No batches available for this language'}</option>
+                        {availableMergeBatches.map((batch: any) => (
+                          <option key={batch.id} value={batch.id}>{batch.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-600">The form connection and its submissions are saved under this batch.</p>
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-bold text-slate-700">Workshop Registration Form</label>
                       <span className="text-xs text-slate-500 font-medium">Data Source Selection</span>
@@ -211,6 +290,16 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             </button>
                           </div>
                         )}
+
+                        {/* Import history: what Google holds vs. what Bunny has saved */}
+                        <GoogleFormSyncStatusBanner
+                          status={googleSyncStatus}
+                          isLoading={isLoadingGoogleSyncStatus}
+                          isSyncing={isImportingGoogleForm}
+                          unmappedCount={unmappedCount}
+                          onSync={() => void handleSyncLeads()}
+                          disabled={isSavingConnection}
+                        />
 
                         {/* Quick Switch Buttons */}
                         <div className="flex flex-wrap gap-2 mb-2 bg-indigo-50 p-2 rounded-xl border border-indigo-100">
@@ -650,15 +739,13 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     {/* AI-7 and AI-1A sync buttons hidden as they now run automatically from the backend */}
                     
                     <button
-                      onClick={() => {
-                        if (p.toast) p.toast.info('Syncing leads from Google Forms...');
-                        if (p.setRefreshLeadsCounter) p.setRefreshLeadsCounter((prev: number) => prev + 1);
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 shrink-0 mr-2"
-                      title="Manually fetch latest leads from Google Forms"
+                      onClick={() => void handleSyncLeads()}
+                      disabled={isImportingGoogleForm || !googleFormId}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 shrink-0 mr-2"
+                      title="Import new responses from Google Forms into Bunny, then refresh this list"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                      Sync Leads
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isImportingGoogleForm ? 'animate-spin' : ''}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                      {isImportingGoogleForm ? 'Importing…' : 'Sync Leads'}
                     </button>
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2 shrink-0">
                       <span className="text-xs font-bold text-indigo-700 whitespace-nowrap">AI-1</span>
