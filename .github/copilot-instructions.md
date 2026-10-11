@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Incomplete Answer Rule Draft Autosave (Session: October 11, 2026) — Commit `225c80f8`
+
+- Leads Management no longer treats partially entered question/answer/category rules as failed saves with an unusable Retry button. Incomplete edits save as a batch-worker draft and restore on reopening.
+- Draft saves preserve the last valid runtime conditions and activation flag. Completing a valid rule clears the draft; explicit Save/Run still rejects incomplete or ambiguous rules.
+- Four focused configuration tests pass, including preservation of active answers during partial edits; changed-path editor diagnostics and whitespace checks are clean.
+
 ### Production Form Schema Resolution Follow-up (Session: October 11, 2026) — Commit `5a356d53`
 
 - Production audience logs still reported `duplicate column name: lead_id` after the first schema-verification guard. A zero-row column SELECT now verifies resolution when the remote PRAGMA listing does not show the column; genuinely missing columns still throw the original migration error.
