@@ -8,6 +8,7 @@ export type MetaTriggerRun = {
   scheduledAt: string;
   senderNumber?: string;
   status: string;
+  lastError?: string;
   retryableCount: number;
   evidence: string;
   stats: { total: number; sent: number; failed: number; delivered: number; wrongNumber: number; pending: number; cancelled: number; unverified: number };
@@ -49,7 +50,7 @@ export function MetaTriggerReportTable({ runs, busy, onView, onAction }: {
                 <td className="p-3">{run.stats.delivered}</td>
                 <td className="p-3">{run.stats.wrongNumber}</td>
                 <td className="p-3">{run.stats.pending}</td>
-                <td className="p-3">{run.status}{run.stats.unverified > 0 && <span className="block text-xs text-amber-700">{run.stats.unverified} unverified</span>}</td>
+                <td className="p-3">{run.status}{run.lastError && <span className="block text-xs text-red-700">{run.lastError}</span>}{run.stats.unverified > 0 && <span className="block text-xs text-amber-700">{run.stats.unverified} unverified</span>}</td>
                 <td className="p-3">
                   <div className="flex flex-wrap gap-2">
                     <button className="font-semibold text-blue-700" onClick={() => onView(run.id)}>View Details</button>

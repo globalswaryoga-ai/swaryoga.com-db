@@ -7,7 +7,7 @@ import { registrationWorkshops, type RegistrationState } from '@/lib/registratio
 import { registrationTargetMatches } from '@/lib/registrationRules';
 import { readRegistrationDecisions } from '@/lib/registrationAiConfig';
 import { matchesMetaBatch } from '@/lib/registrationMetaReport';
-import { isFutureMetaAutomationLead, META_APPROVAL_STAGES } from '@/lib/registrationMetaAutomation';
+import { isFutureMetaAutomationLead, isManualApprovalAutomationLead, META_APPROVAL_STAGES } from '@/lib/registrationMetaAutomation';
 
 export async function resolveRegistrationTemplate(nameOrId: string, owner: string, superAdmin: boolean) {
   const result = await bunnyExecute({
@@ -64,6 +64,51 @@ export async function queueRegistrationTemplate({
   return { runId, queued: Number(results[0].rowsAffected) ? unique.size : 0 };
 }
 
+async function markLeadAutomation(lead: RegistrationRecord, patch: RegistrationRecord, now: Date) {
+  lead.metadata = { ...lead.metadata, ...patch,
+    ...(patch.wtLastTemplates ? { wtLastTemplates: { ...lead.metadata?.wtLastTemplates, ...patch.wtLastTemplates } } : {}) };
+  await bunnyExecute({
+    sql: 'UPDATE leads_sql SET data_json = json_patch(data_json, ?), updated_at = ? WHERE document_id = ?',
+    args: [JSON.stringify({ metadata: patch }), now.toISOString(), String(lead._id)],
+  });
+}
+
+/**
+ * Returns where a contact already received this template (manual bulk broadcast, any owner, or the inbox),
+ * so automation never resends to people who were messaged before the trigger existed.
+ */
+export async function findPreviousTemplateSend(phone: string, template: RegistrationRecord): Promise<string | null> {
+  const last10 = String(phone || '').replace(/\D/g, '').slice(-10);
+  if (last10.length < 10) return null;
+  const ids = [String(template._id), String(template.templateName)];
+  await ensureBroadcastSchema();
+  const broadcast = await bunnyExecute({
+    sql: `SELECT r.document_id FROM broadcast_run_messages_sql m
+      JOIN broadcast_runs_sql r ON r.document_id = m.run_id
+      WHERE substr(m.phone_number, -10) = ?
+      AND (r.template_id IN (?, ?) OR json_extract(r.data_json, '$.templateSnapshot.templateName') = ?)
+      AND ((m.wa_message_id IS NOT NULL AND m.wa_message_id != '') OR LOWER(m.status) IN ('sent', 'delivered', 'read'))
+      LIMIT 1`,
+    args: [last10, ...ids, String(template.templateName)],
+  });
+  if (broadcast.rows.length) return `broadcast ${String(broadcast.rows[0].document_id)}`;
+  try {
+    const inbox = await bunnyExecute({
+      sql: `SELECT document_id FROM meta_messages_sql WHERE substr(phone_number, -10) = ? AND direction = 'outbound'
+        AND LOWER(status) != 'failed'
+        AND (json_extract(data_json, '$.metadata.templateId') IN (?, ?)
+          OR json_extract(data_json, '$.metadata.template.templateName') = ?
+          OR json_extract(data_json, '$.metadata.templateName') = ?)
+        LIMIT 1`,
+      args: [last10, ...ids, String(template.templateName), String(template.templateName)],
+    });
+    if (inbox.rows.length) return 'Meta inbox history';
+  } catch (error) {
+    if (!/no such table/i.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
+  return null;
+}
+
 export async function processRegistrationApprovals(state: RegistrationState, leads: RegistrationRecord[], owner: string, superAdmin: boolean, now = new Date()) {
   const results: Array<{ workshopId: string; queued: number }> = [];
   for (const workshop of registrationWorkshops(state)) {
@@ -97,37 +142,40 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
         });
       }
       const settings = workshop.metadata?.wtSettings;
-      if (!isFutureMetaAutomationLead(lead, workshop.metadata || {}) || lead.status !== 'approved' ||
-          !META_APPROVAL_STAGES.every(key => lead.metadata?.ai9PassedStages?.[key] === true)) continue;
+      if (lead.status !== 'approved') continue;
+      const manual = isManualApprovalAutomationLead(lead, workshop.metadata || {});
+      if (!manual && (!isFutureMetaAutomationLead(lead, workshop.metadata || {}) ||
+          !META_APPROVAL_STAGES.every(key => lead.metadata?.ai9PassedStages?.[key] === true))) continue;
       const stage = settings?.approved;
       const triggerConfig = workshop.metadata?.ai9EConfig;
-      if (!stage?.template || !triggerConfig?.isActive) continue;
-      const triggerEvaluation = evaluateMetaLead(lead, triggerConfig, 'eligible', 'pending', 'rejected');
-      if (triggerEvaluation && triggerEvaluation.status !== 'eligible') continue;
-      const eligible = lead.status === 'approved'
-        ? lead.metadata?.ai9WEligible === true || lead.metadata?.wtAutoEligible === true
-        : lead.metadata?.wtAutoEligible === true;
-      if (!eligible) continue;
-      const event = lead.status === 'approved' ? lead.metadata?.approvedAt : lead.metadata?.wtEligibleAt;
+      if (!stage?.template || (!manual && !triggerConfig?.isActive)) continue;
+      if (!manual && triggerConfig?.isActive) {
+        const triggerEvaluation = evaluateMetaLead(lead, triggerConfig, 'eligible', 'pending', 'rejected');
+        if (triggerEvaluation && triggerEvaluation.status !== 'eligible') continue;
+      }
+      if (lead.metadata?.ai9WEligible !== true && lead.metadata?.wtAutoEligible !== true) continue;
+      const event = lead.metadata?.approvedAt;
       if (!event || !Number.isFinite(new Date(event).getTime())) continue;
       if (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed') continue;
       const delay = Number(stage.delay ?? 5);
       if (!Number.isFinite(delay) || delay < 0) throw new Error(`Invalid WhatsApp delay for ${workshop.name}`);
       const template = await resolveRegistrationTemplate(stage.template, owner, superAdmin);
       if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id]) continue;
-      await ensureBroadcastSchema();
-      const accepted = await bunnyExecute({
-        sql: `SELECT m.document_id FROM broadcast_run_messages_sql m
-          JOIN broadcast_runs_sql r ON r.document_id = m.run_id
-          WHERE m.phone_number = ? AND r.created_by_user_id = ? AND r.template_id = ?
-          AND m.wa_message_id IS NOT NULL AND m.wa_message_id != '' LIMIT 1`,
-        args: [normalizePhone(lead.phoneNumber || lead.mobile), owner, template._id],
-      });
-      if (accepted.rows.length) continue;
+      const phone = normalizePhone(lead.phoneNumber || lead.mobile);
+      const previous = await findPreviousTemplateSend(phone, template);
+      if (previous) {
+        await markLeadAutomation(lead, { wtStatus: 'skipped', wtSkipReason: `Already messaged with ${template.templateName} (${previous})`,
+          wtLastTemplates: { [template.templateName]: now.toISOString() } }, now);
+        continue;
+      }
       const result = await queueRegistrationTemplate({
         leads: [lead], template, owner, eventKey: `${workshop.id}:${lead._id}:meta-approved`,
         dueAt: new Date(new Date(event).getTime() + delay * 60000),
       });
+      if (result.queued) {
+        await markLeadAutomation(lead, { wtStatus: 'queued', wtQueuedRunId: result.runId, wtQueuedAt: now.toISOString(),
+          wtApprovalSource: manual ? 'manual' : 'ai9' }, now);
+      }
       results.push({ workshopId: String(workshop.id), queued: result.queued });
     }
   }

@@ -171,6 +171,18 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Leads Approved Trigger Trace and Empty-Run Status Fix (Session: September 29, 2026) — Commit `pending`
+
+- Manual approval in Meta Leads now marks `approvalSource: manual` and queues the AI-9W Approved template once after activation; AI-9 approvals keep the four-stage gate.
+- Leads record `wtStatus` (`queued`/`skipped`), `wtQueuedRunId`, and skip reasons; contacts already sent the same template (including manual broadcasts) are skipped, not resent.
+- Broadcast runs with zero recipients now finish as `failed` with a reason instead of `completed`; the Trigger Report labels old empty runs `no_recipients` and shows `lastError`.
+- Delivery receipts continue updating run messages through the Meta webhook.
+
+### Meta Leads Date & Time Invalid Date Fix (Session: October 2026) — Commit `pending`
+
+- Six archived Meta leads stored `createdAt` as Mongo extended JSON (`{$date:{$numberLong}}`), which rendered as `Invalid Date`.
+- Added `lib/leadDate.ts`; `loadBunnyLeads()` and Meta lead ingestion now normalize dates to ISO with SQL `created_at` fallback.
+- Meta Leads Date & Time, sorting, and scheduled-run times now show `Not recorded` instead of `Invalid Date`; covered by `tests/lead-date.test.ts`.
 ### Preserve-First Production Deployment Verification (Session: October 11, 2026) — Commit `ca06c797`
 
 - Pushed `fc5c66b6` and final serialization follow-up `ca06c797` on the existing work branch; promoted the exact Ready Git preview to production deployment `dpl_AsXvftzPWY7698ora2fqzb2ZccHE`.

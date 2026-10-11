@@ -45,6 +45,11 @@ export async function POST(request: Request) {
         metadata.approvedAt = lead.status === 'approved' && lead.metadata?.approvedAt ? lead.metadata.approvedAt : now;
         metadata.ai9WEligible = true;
         metadata.wtAutoEligible = true;
+        if (lead.status !== 'approved') {
+          metadata.approvalSource = 'manual';
+          metadata.manualApprovedAt = now;
+          if (metadata.wtStatus === 'failed') delete metadata.wtStatus;
+        }
       } else if (update.status.includes('pending')) {
         metadata.wtEligibleAt = now;
         metadata.wtAutoEligible = true;

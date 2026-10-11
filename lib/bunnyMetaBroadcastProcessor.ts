@@ -88,7 +88,8 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       const pending = await broadcastRunMessageFind({ runId, status: 'pending' }, { limit: Math.min(Math.max(options?.perRunMessageLimit ?? 50, 1), 1000) });
       if (!pending.length) {
         const stats = await markRunStatsBunny(runId);
-        await broadcastRunUpdateOne(runId, { status: stats.pending ? 'running' : 'completed', completedAt: stats.pending ? undefined : now, stats });
+        const final = finalRunStatus(stats);
+        await broadcastRunUpdateOne(runId, { ...final, completedAt: stats.pending ? undefined : now, stats });
         output.runResults.push(stat);
         continue;
       }
@@ -191,8 +192,9 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       }
 
       const stats = await markRunStatsBunny(runId);
+      const final = stats.pending === 0 ? finalRunStatus(stats) : { status: 'scheduled' };
       await broadcastRunUpdateOne(runId, {
-        status: stats.pending === 0 ? 'completed' : 'scheduled',
+        ...final,
         completedAt: stats.pending === 0 ? now : undefined,
         stats,
       });
@@ -204,4 +206,13 @@ export async function processDueBunnyMetaBroadcasts(options?: {
     output.runResults.push(stat);
   }
   return output;
+}
+
+/** Never report a run as completed when no WhatsApp message was accepted by Meta. */
+export function finalRunStatus(stats: { total: number; pending: number; sent: number; failed: number; skipped: number; blocked?: number }): { status: string; lastError?: string } {
+  if (stats.pending) return { status: 'running' };
+  if (!stats.total) return { status: 'failed', lastError: 'No recipients were queued for this run.' };
+  if (stats.sent) return { status: 'completed' };
+  if (stats.failed) return { status: 'failed', lastError: 'Meta did not accept any message in this run.' };
+  return { status: 'skipped', lastError: 'All recipients were skipped (already messaged or blocked).' };
 }

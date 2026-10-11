@@ -6,6 +6,7 @@ import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation
 import { metaLeadBucket, metaLeadCounts } from '@/lib/registrationMetaReport';
 import { MetaTriggerReportTable, type MetaTriggerAction } from './_MetaTriggerReportTable';
 import { registrationPage } from '@/lib/registrationPagination';
+import { formatLeadDate, leadDateMs } from '@/lib/leadDate';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
 import React, { useState, useEffect, useRef } from 'react';
@@ -578,7 +579,7 @@ export function MetaLeadsTab({
             }
         });
         setAi9EConfig(newAI9EConfig);
-        alert('Saved: only leads arriving after activation and passing all four AI-9 stages will receive the approved template. Pending/rejected leads and old bulk recipients will not be sent automatically.');
+        alert('Saved: leads approved after activation (all four AI-9 stages, or manually marked Approved) receive the approved template once. Pending/rejected leads and contacts already sent this template, including manual broadcasts, are skipped.');
         setShowWTSettingsPopup(false);
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
@@ -694,7 +695,7 @@ export function MetaLeadsTab({
     filteredLeads.sort((a: any, b: any) => {
         if (a.status === 'old_data' && b.status !== 'old_data') return 1;
         if (a.status !== 'old_data' && b.status === 'old_data') return -1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (leadDateMs(b.createdAt) ?? 0) - (leadDateMs(a.createdAt) ?? 0);
     });
 
     // Checkbox toggles
@@ -766,7 +767,7 @@ export function MetaLeadsTab({
             <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">
                 {selectedWorkshop?.metadata?.metaAutomation?.enabled && ai9EConfig?.isActive &&
                     !metaApprovalConfigurationError({ ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, facebookFormId: formId, wtSettings })
-                    ? 'Automatic WhatsApp is enabled for new leads only, after all four AI-9 stages approve. Old bulk recipients, pending and rejected leads are excluded.'
+                    ? 'Automatic WhatsApp is enabled: leads approved after activation (by AI-9 or manually) receive the template once. Contacts already sent this template, pending and rejected leads are excluded.'
                     : 'Automatic WhatsApp is not enabled. Connect a saved batch, configure and start AI-9A–D, then save AI-9W settings. Existing leads will not be resent.'}
             </div>
             {loadError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>}
@@ -1288,7 +1289,7 @@ export function MetaLeadsTab({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(lead.createdAt).toLocaleString()}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{formatLeadDate(lead.createdAt, lead.metadata?.createdTime, lead.metadata?.created_time, lead.updatedAt)}</td>
                                         <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-800">
                                             <div className="flex items-center gap-2">
                                                 {lead.name || answers['full_name'] || answers['name'] || '-'}
@@ -1477,7 +1478,7 @@ export function MetaLeadsTab({
                                 <div className="animate-fade-in space-y-6">
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800 shadow-inner">
                                         <strong className="block mb-1 text-emerald-900">Approved Lead Trigger:</strong>
-                                        New leads must pass all four AI-9 stages after activation. Manually marking a lead Approved does not bypass these checks.
+                                        New leads must pass all four AI-9 stages after activation, or be manually marked Approved by an admin. Each approved lead receives the template once after the delay; contacts already sent this template (including manual broadcasts) are skipped.
                                     </div>
                                     
                                     <div>
@@ -2258,7 +2259,7 @@ export function MetaLeadsTab({
                                                         </span>
                                                     </div>
                                                     <p className="text-xs font-medium text-slate-500 flex items-center gap-3">
-                                                        <span><Clock size={12} className="inline mr-1" />{new Date(run.scheduledAt).toLocaleString()}</span>
+                                                        <span><Clock size={12} className="inline mr-1" />{formatLeadDate(run.scheduledAt)}</span>
                                                         <span><span className="font-semibold text-emerald-600">{run.stats?.sent || 0} Sent</span> • <span className="font-semibold text-rose-500">{run.stats?.failed || 0} Failed</span></span>
                                                     </p>
                                                     {run.evidence === 'legacy_header_only' && <p className="mt-2 text-xs text-amber-700">Historical run header only. Recipient delivery evidence is unavailable.</p>}

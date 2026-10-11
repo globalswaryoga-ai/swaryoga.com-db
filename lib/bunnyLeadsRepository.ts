@@ -1,9 +1,10 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import type { RegistrationRecord } from '@/lib/registrationRules';
 import { registrationPhone } from '@/lib/registrationLeads';
+import { leadDateIso, leadDateMs } from '@/lib/leadDate';
 
 function parse(value: unknown): any | null { try { return JSON.parse(String(value)); } catch { return null; } }
-function dateMs(value: any) { const raw = value?.$date || value; const time = new Date(raw || 0).getTime(); return Number.isFinite(time) ? time : 0; }
+function dateMs(value: any) { return leadDateMs(value) ?? 0; }
 function values(value: string | null) { return value ? value.split(',').map((item) => item.trim()).filter(Boolean) : []; }
 function owned(lead: any, visibleUserIds: string[] | null, viewerUserId: string) {
   if (visibleUserIds === null) return true;
@@ -14,7 +15,7 @@ export async function loadBunnyLeads() {
   const result = await bunnyExecute('SELECT document_id, data_json, created_at, updated_at FROM leads_sql');
   return result.rows.map((row: any) => {
     const lead = parse(row.data_json) || {};
-    return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id), createdAt: lead.createdAt || row.created_at, updatedAt: lead.updatedAt || row.updated_at };
+    return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id), createdAt: leadDateIso(lead.createdAt) || leadDateIso(row.created_at) || lead.createdAt || row.created_at, updatedAt: leadDateIso(lead.updatedAt) || leadDateIso(row.updated_at) || lead.updatedAt || row.updated_at };
   }).filter(lead => !lead.mergedIntoLeadId);
 }
 

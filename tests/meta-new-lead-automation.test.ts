@@ -2,7 +2,10 @@
 jest.mock('@/lib/bunnyDatabase', () => ({ bunnyExecute: jest.fn(), bunnyBatch: jest.fn(), getBunnyDatabase: jest.fn() }));
 jest.mock('@/lib/bunnyBroadcastRepository', () => ({ ensureBroadcastSchema: jest.fn(async () => {}) }));
 jest.mock('@/lib/bunny-storage', () => ({ fetchFromStorage: jest.fn() }));
+jest.mock('@/lib/whatsappAccounts', () => ({ getMetaCredentialsForTenant: jest.fn() }));
+jest.mock('@/lib/bunnyMetaWhatsAppRepository', () => ({ upsertBunnyMetaMessage: jest.fn() }));
 jest.mock('@/lib/whatsapp', () => ({
+  buildCloudTemplateSendInput: jest.fn(), sendWhatsAppTemplate: jest.fn(),
   normalizePhone: (value: unknown) => {
     const digits = String(value || '').replace(/\D/g, '');
     return digits.length === 10 ? `91${digits}` : digits;
@@ -18,6 +21,7 @@ import { processRegistrationApprovals } from '@/lib/registrationAutomation';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation';
 import { parseRegistrationValue } from '@/lib/registrationValues';
+import { finalRunStatus } from '@/lib/bunnyMetaBroadcastProcessor';
 
 const config = () => ({ isActive: true, filters: [{ question: 'Ready', options: [
   { answer: 'Yes', category: 'approved' }, { answer: 'No', category: 'rejected' },
@@ -100,19 +104,47 @@ describe('Future-only four-stage Meta automation', () => {
     });
   });
 
-  it('does not bypass four-stage proof for manually approved or blocked leads', async () => {
-    const lead = await persistMetaFormLead(input());
-    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
-      '$.status','approved','$.metadata.ai9WEligible',json('true'),'$.metadata.approvedAt','2026-10-12T01:00:00Z')
-      WHERE document_id = ?`, args: [lead._id] });
+  it('queues a manually approved lead once, but never blocked or pre-activation approvals', async () => {
+    const lead = await persistMetaFormLead(input('manual', 'Maybe'));
     const state = { crm_workshops: [{ id: 'batch', metadata: metadata() }] };
+    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
+      '$.status','approved','$.metadata.ai9WEligible',json('true'),'$.metadata.approvedAt','2026-10-10T01:00:00Z',
+      '$.metadata.approvalSource','manual','$.metadata.manualApprovedAt','2026-10-10T01:00:00Z') WHERE document_id = ?`, args: [lead._id] });
     await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
     expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(0);
     await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
-      '$.status','new','$.isBlocked',json('true')) WHERE document_id = ?`, args: [lead._id] });
+      '$.metadata.approvedAt','2026-10-12T01:00:00Z','$.metadata.manualApprovedAt','2026-10-12T01:00:00Z') WHERE document_id = ?`, args: [lead._id] });
+    for (let replay = 0; replay < 3; replay++) {
+      await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
+    }
+    expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(1);
+    expect((await client.execute('SELECT document_id FROM broadcast_run_messages_sql')).rows).toHaveLength(1);
+    const queued = (await loadBunnyLeads())[0];
+    expect(queued.metadata.wtStatus).toBe('queued');
+    expect(queued.metadata.wtQueuedRunId).toMatch(/^registration_/);
+    expect(queued.metadata.wtApprovalSource).toBe('manual');
+
+    await client.execute('DELETE FROM broadcast_runs_sql');
+    await client.execute('DELETE FROM broadcast_run_messages_sql');
+    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,'$.isBlocked',json('true'),
+      '$.metadata.wtStatus',NULL,'$.metadata.wtQueuedRunId',NULL) WHERE document_id = ?`, args: [lead._id] });
     await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
-    expect((await loadBunnyLeads())[0].status).toBe('new');
     expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(0);
+  });
+
+  it('skips contacts already messaged by another owner\'s manual broadcast of the same template', async () => {
+    const lead = await persistMetaFormLead(input('manual', 'Maybe'));
+    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
+      '$.status','approved','$.metadata.ai9WEligible',json('true'),'$.metadata.approvedAt','2026-10-12T01:00:00Z',
+      '$.metadata.approvalSource','manual') WHERE document_id = ?`, args: [lead._id] });
+    await client.execute(`INSERT INTO broadcast_runs_sql(document_id,created_by_user_id,template_id) VALUES ('manual-bulk','another-admin','welcome')`);
+    await client.execute(`INSERT INTO broadcast_run_messages_sql(document_id,run_id,phone_number,status,wa_message_id) VALUES ('m','manual-bulk','9876543210','delivered','')`);
+    await processRegistrationApprovals({ crm_workshops: [{ id: 'batch', metadata: metadata() }] },
+      await loadBunnyLeads(), 'admincrm', true);
+    expect((await client.execute("SELECT document_id FROM broadcast_runs_sql WHERE document_id != 'manual-bulk'")).rows).toHaveLength(0);
+    const skipped = (await loadBunnyLeads())[0];
+    expect(skipped.metadata.wtStatus).toBe('skipped');
+    expect(skipped.metadata.wtSkipReason).toContain('manual-bulk');
   });
 
   it('uses one queue identity even if concurrent workers observe different approval times', async () => {
@@ -148,5 +180,14 @@ describe('Future-only four-stage Meta automation', () => {
     await processRegistrationApprovals({ crm_workshops: [{ id: 'batch', metadata: saved }] },
       await loadBunnyLeads(), 'admincrm', true);
     expect((await client.execute("SELECT document_id FROM broadcast_runs_sql WHERE document_id != 'bulk'")).rows).toHaveLength(0);
+  });
+
+  it('never reports an empty or unsent run as completed', () => {
+    const base = { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 };
+    expect(finalRunStatus(base).status).toBe('failed');
+    expect(finalRunStatus({ ...base, total: 2, skipped: 2 }).status).toBe('skipped');
+    expect(finalRunStatus({ ...base, total: 2, failed: 2 }).status).toBe('failed');
+    expect(finalRunStatus({ ...base, total: 2, sent: 1, failed: 1 }).status).toBe('completed');
+    expect(finalRunStatus({ ...base, total: 1, pending: 1 }).status).toBe('running');
   });
 });

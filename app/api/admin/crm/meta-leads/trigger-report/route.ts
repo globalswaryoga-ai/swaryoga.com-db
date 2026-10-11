@@ -47,7 +47,9 @@ export async function GET(request: Request) {
       }));
       return {
         id: run.document_id, name: run.name, template: snapshot.templateSnapshot?.templateName || run.template_id,
-        status: run.status, senderNumber: snapshot.senderNumber || '', createdAt: run.created_at,
+        status: !leads.length && run.status === 'completed' ? 'no_recipients' : run.status,
+        lastError: String(snapshot.lastError || (!leads.length ? 'No recipients were queued for this run.' : '')),
+        senderNumber: snapshot.senderNumber || '', createdAt: run.created_at,
         reportFolder: snapshot.reportFolder || '',
         retryableCount: leads.filter(message => message.status === 'failed' && !message.waMessageId && !triggerWrongNumber(message)).length,
         scheduledAt: run.scheduled_at || run.created_at, stats: triggerMessageStats(leads).stats,

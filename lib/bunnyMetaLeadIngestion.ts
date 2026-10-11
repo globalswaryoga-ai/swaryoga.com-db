@@ -3,6 +3,7 @@ import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { getBunnyLeadById } from '@/lib/bunnyLeadsRepository';
 import { normalizePhone } from '@/lib/whatsapp';
 import type { RegistrationRecord } from '@/lib/registrationRules';
+import { leadDateIso } from '@/lib/leadDate';
 import { persistBunnyContact } from '@/lib/bunnyContactIdentity';
 
 export async function persistMetaFormLead(input: RegistrationRecord) {
@@ -30,7 +31,7 @@ export async function persistMetaFormLead(input: RegistrationRecord) {
     const row = result.rows[0];
     if (!row) return undefined;
     const lead = JSON.parse(String(row.data_json));
-    return { ...lead, _id: String(row.document_id), createdAt: lead.createdAt || row.created_at };
+    return { ...lead, _id: String(row.document_id), createdAt: leadDateIso(lead.createdAt) || leadDateIso(row.created_at) || lead.createdAt || row.created_at };
   };
   let existing = await findExisting();
   const now = new Date().toISOString();

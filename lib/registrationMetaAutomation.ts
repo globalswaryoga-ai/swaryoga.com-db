@@ -27,3 +27,18 @@ export function isFutureMetaAutomationLead(lead: RegistrationRecord, metadata: R
   const createdAt = Date.parse(lead.createdAt);
   return !lead.isBlocked && Number.isFinite(startsAt) && Number.isFinite(createdAt) && createdAt > startsAt;
 }
+
+/**
+ * An administrator manually approved this lead after automation was enabled. Manual approval is the
+ * approval decision, so AI-9A–D proof is not required; the form, template and activation must still exist.
+ */
+export function isManualApprovalAutomationLead(lead: RegistrationRecord, metadata: RegistrationRecord): boolean {
+  const policy = metadata.metaAutomation;
+  if (!policy?.enabled || lead.isBlocked || lead.status !== 'approved') return false;
+  if (lead.metadata?.approvalSource !== 'manual') return false;
+  if (!metadata.facebookFormId && !metadata.metaFormId) return false;
+  if (!metadata.wtSettings?.approved?.template) return false;
+  const startsAt = Date.parse(policy.startsAt);
+  const approvedAt = Date.parse(lead.metadata?.manualApprovedAt || lead.metadata?.approvedAt);
+  return Number.isFinite(startsAt) && Number.isFinite(approvedAt) && approvedAt >= startsAt;
+}
