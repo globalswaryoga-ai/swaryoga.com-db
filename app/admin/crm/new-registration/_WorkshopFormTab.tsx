@@ -1,5 +1,5 @@
 'use client';
-import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
+import { registrationFetch as fetch, saveRegistrationState, saveRegistrationSnapshot } from '@/lib/registrationClient';
 
 import React from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download } from 'lucide-react';
@@ -1153,7 +1153,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               </button>
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
-                onClick={() => {
+                onClick={async () => {
                   const target = workshops.find((w: any) => w.id === mergeTargetId);
                   const sources = workshops.filter((w: any) => mergeSourceIds.includes(w.id));
                   if (!target || sources.length === 0) return;
@@ -1179,21 +1179,22 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         return w;
                       });
                     
-                    setWorkshops(newWorkshops);
-                    
                     if (typeof window !== 'undefined') {
                       const langMatch = (p.selectedDashboardLang || '').match(/^(English|Hindi|Marathi|Kannada)/i);
                       const langPrefix = langMatch ? langMatch[1].toLowerCase() : 'english';
-                      localStorage.setItem(`crm_${langPrefix}_workshops`, JSON.stringify(newWorkshops));
-                      const t = localStorage.getItem('crm_token');
-                      if (t) {
-                        fetch('/api/admin/crm/new-registration/state', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                          body: JSON.stringify({ [`crm_${langPrefix}_workshops`]: JSON.stringify(newWorkshops) })
-                        }).catch(console.error);
+                      try {
+                        await saveRegistrationSnapshot(
+                          { [`crm_${langPrefix}_workshops`]: JSON.stringify(newWorkshops) },
+                          { [`crm_${langPrefix}_workshops`]: JSON.stringify(workshops) },
+                          { allowBatchRemoval: true },
+                        );
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : 'Batches were not merged.');
+                        return;
                       }
+                      localStorage.setItem(`crm_${langPrefix}_workshops`, JSON.stringify(newWorkshops));
                     }
+                    setWorkshops(newWorkshops);
                     
                     setIsMergeModalOpen(false);
                     setMergeTargetId('');

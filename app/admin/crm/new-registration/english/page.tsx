@@ -1,12 +1,13 @@
 'use client';
 import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
 import { registrationFetch as fetch, saveRegistrationState, saveRegistrationWorkshop, saveRegistrationSnapshot } from '@/lib/registrationClient';
-import { createRegistrationAutosave } from '@/lib/registrationAutosave';
+import { createRegistrationAutosave, type RegistrationSaveStatus } from '@/lib/registrationAutosave';
 import { restoreRegistrationWorkshop } from '@/lib/registrationValues';
 import { useRegistrationLeads } from '@/hooks/useRegistrationLeads';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab, MetaLeadsTab, LeadsManagementTab, WhatsAppMessengerTab } from '../_LazyRegistrationTabs';
 import { RegistrationWorkflow } from '../_RegistrationWorkflow';
+import { AutosaveStatus } from '../_AutosaveStatus';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 
@@ -292,7 +293,8 @@ export default function NewRegistrationPage() {
     setIsAi7Processing(true);
     toast.info(`🤖 AI-7 processing ${targetLeads.length} leads...`);
 
-    setTimeout(() => {
+    setTimeout(async () => {
+                try {
       const tagData: Record<string, { count: number, month: string, batch: string }> = {};
 
       setLeadsData(prev => prev.map(lead => {
@@ -344,7 +346,7 @@ export default function NewRegistrationPage() {
         Object.entries(tagData).forEach(([tag, info]) => {
           const existing = newWorkshops.find(w => w.name.toLowerCase() === tag.toLowerCase());
           if (existing) {
-            existing.leads = (existing.leads || 0) + info.count;
+            newWorkshops[newWorkshops.indexOf(existing)] = { ...existing, leads: (existing.leads || 0) + info.count };
             hasChanges = true;
           } else {
             newWorkshops.unshift({
@@ -369,18 +371,19 @@ export default function NewRegistrationPage() {
         if (hasChanges) {
           setWorkshops(newWorkshops);
           localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-          fetch('/api/admin/crm/new-registration/state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-          }).catch(console.error);
+          await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
         }
       }
 
       setIsAi7Processing(false);
       setActiveTab('my_data');
       toast.success(`🤖 AI-7 categorized ${targetLeads.length} leads and sent all data to My Data!`);
-    }, 1500);
+
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Batch changes were not saved.');
+                  setIsAi7Processing(false);
+                }
+              }, 1500);
   };
 
   useEffect(() => {
@@ -571,13 +574,8 @@ export default function NewRegistrationPage() {
         if (addedCount > 0) {
           localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
           // Sync to backend
-          fetch('/api/admin/crm/new-registration/state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-          }).catch(err => console.error('Auto-sync error:', err));
+          saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(prevWorkshops) }, { allowBatchRemoval: newWorkshops.length < prevWorkshops.length }).then(() => toast.success('AI-1A batches saved successfully.')).catch(error => toast.error(error.message));
           
-          toast.success(`🤖 AI-1A Auto-Worker: Created or updated batches from new leads!`);
           return newWorkshops;
         }
         return prevWorkshops;
@@ -804,7 +802,21 @@ export default function NewRegistrationPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const autosave = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot));
+  const [saveStatus, setSaveStatus] = useState<RegistrationSaveStatus>('idle');
+  const [saveError, setSaveError] = useState('');
+  const autosave = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot, (status, error) => {
+    setSaveStatus(status);
+    setSaveError(error || '');
+  }));
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (saveStatus !== 'saving' && saveStatus !== 'error') return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [saveStatus]);
 
   useRegistrationLeads({
     token, formId: linkedFormId, language: selectedDashboardLang,
@@ -997,6 +1009,14 @@ export default function NewRegistrationPage() {
             const data = await res.json();
             if (data) {
               autosave.current.hydrate(data);
+              if (data.crm_english_registration_layout) {
+                const layout = typeof data.crm_english_registration_layout === 'string' ? JSON.parse(data.crm_english_registration_layout) : data.crm_english_registration_layout;
+                if (layout.sidebarPosition === 'left' || layout.sidebarPosition === 'right') setSidebarPosition(layout.sidebarPosition);
+                if (typeof layout.sidebarWidth === 'number' && Number.isFinite(layout.sidebarWidth)) setSidebarWidth(Math.max(200, Math.min(600, layout.sidebarWidth)));
+                if (typeof layout.isSidebarCollapsed === 'boolean') setIsSidebarCollapsed(layout.isSidebarCollapsed);
+                if (typeof layout.isMapDataCollapsed === 'boolean') setIsMapDataCollapsed(layout.isMapDataCollapsed);
+                if (typeof layout.isStatsCollapsed === 'boolean') setIsStatsCollapsed(layout.isStatsCollapsed);
+              }
               if (data.crm_english_workshops || data.crm_workshops) {
                 try {
                   const savedWorkshops = data.crm_english_workshops || data.crm_workshops;
@@ -1103,6 +1123,7 @@ export default function NewRegistrationPage() {
         stateObj[k] = v;
       };
 
+      setAndCollect('crm_english_registration_layout', safeStringify({ sidebarPosition, sidebarWidth, isSidebarCollapsed, isMapDataCollapsed, isStatsCollapsed }));
       setAndCollect('crm_english_workshops', safeStringify(workshops));
       setAndCollect('crm_english_ai_worker_active', String(isAiWorkerActive));
       setAndCollect('crm_english_approved_ai_active', String(isApprovedAiWorkerActive));
@@ -1132,7 +1153,7 @@ export default function NewRegistrationPage() {
 
       void autosave.current.save(stateObj).catch(error => toast.error(error.message));
     }
-  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
+  }, [sidebarPosition, sidebarWidth, isSidebarCollapsed, isMapDataCollapsed, isStatsCollapsed, workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 
   useEffect(() => {
     if (selectedWorkshop?.formId) {
@@ -1289,26 +1310,24 @@ export default function NewRegistrationPage() {
     
     if (typeof window !== 'undefined') {
       localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-      if (token) {
-        fetch('/api/admin/crm/new-registration/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-        }).catch(console.error);
-      }
+
     }
   };
 
-  const handleDeleteBatch = (e: React.MouseEvent, id: string) => {
+  const handleDeleteBatch = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this batch?')) {
-      setWorkshops((workshops || []).filter(w => w && w.id !== id));
+    if (!confirm('Are you sure you want to delete this batch?')) return;
+    const next = (workshops || []).filter(w => w && w.id !== id);
+    try {
+      await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(next) },
+        { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: true });
+      setWorkshops(next);
       if (selectedWorkshop?.id === id) {
         setSelectedWorkshop(null);
         setActiveTab('details');
       }
       toast.success('Batch deleted');
-    }
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Batch was not deleted.'); }
   };
 
   const handleEditBatch = (e: React.MouseEvent, w: any) => {
@@ -1329,12 +1348,8 @@ export default function NewRegistrationPage() {
 
     localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
     try {
-      await fetch('/api/admin/crm/new-registration/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-      });
-    } catch (err) { }
+      await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Batch changes were not saved.'); }
   };
 
   const handleMoveBatchDown = async (e: React.MouseEvent, index: number) => {
@@ -1348,12 +1363,8 @@ export default function NewRegistrationPage() {
 
     localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
     try {
-      await fetch('/api/admin/crm/new-registration/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-      });
-    } catch (err) { }
+      await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Batch changes were not saved.'); }
   };
 
   // State for Zoom meetings & message numbers per lead (used in Closing tab)
@@ -1743,11 +1754,7 @@ export default function NewRegistrationPage() {
         localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
 
         // Sync to backend
-        await fetch('/api/admin/crm/new-registration/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-        });
+        await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
 
         toast.success(`AI-1A created ${addedCount} new batches successfully!`);
       } else {
@@ -1960,22 +1967,24 @@ export default function NewRegistrationPage() {
                         </span>
                         {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
                           <button
-                            onClick={(e) => {
+                            onClick={async e => {
+                try {
                               e.stopPropagation();
                               if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
                                 const newWorkshops = workshops.filter((w: any) => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_'));
                                 setWorkshops(newWorkshops);
                                 localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-                                fetch('/api/admin/crm/new-registration/state', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-                                }).catch(console.error);
+                                await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
                                 
                                 if (selectedWorkshop) setSelectedWorkshop(null);
                                 toast.success(`Cleared all ${selectedDashboardLang} batches!`);
                               }
-                            }}
+
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Batch changes were not saved.');
+                  setIsAi7Processing(false);
+                }
+              }}
                             className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
                           >
                             <Trash2 size={10} /> Clear All
@@ -2042,7 +2051,8 @@ export default function NewRegistrationPage() {
                             >
                             </button>
                             <button
-                              onClick={(e) => {
+                              onClick={async e => {
+                try {
                                 e.stopPropagation();
                                 const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the target batch:", batch.name);
                                 if (newName && newName !== batch.name) {
@@ -2069,11 +2079,7 @@ export default function NewRegistrationPage() {
                                         localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
                                         const t = localStorage.getItem('crm_token');
                                         if (t) {
-                                          fetch('/api/admin/crm/new-registration/state', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                                            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-                                          }).catch(console.error);
+                                          await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
                                         }
                                       }
                                       if (selectedWorkshop?.id === batch.id) {
@@ -2085,29 +2091,36 @@ export default function NewRegistrationPage() {
                                     if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(prev => prev ? { ...prev, name: newName } : prev);
                                   }
                                 }
-                              }}
+
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Batch changes were not saved.');
+                  setIsAi7Processing(false);
+                }
+              }}
                               className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
                               title="Rename or Merge Batch"
                             >
                               <Edit2 size={12} />
                             </button>
                             <button
-                              onClick={(e) => {
+                              onClick={async e => {
+                try {
                                 e.stopPropagation();
                                 if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
                                   const newWorkshops = workshops.filter((w: any) => w.id !== batch.id);
                                   setWorkshops(newWorkshops);
                                   localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-                                  fetch('/api/admin/crm/new-registration/state', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
-                                  }).catch(console.error);
+                                  await saveRegistrationSnapshot({ crm_english_workshops: safeStringify(newWorkshops) }, { crm_english_workshops: safeStringify(workshops) }, { allowBatchRemoval: newWorkshops.length < workshops.length });
                                   
                                   if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
                                   toast.success(`Deleted batch ${batch.name}`);
                                 }
-                              }}
+
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Batch changes were not saved.');
+                  setIsAi7Processing(false);
+                }
+              }}
                               className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"
                               title="Delete Batch"
                             >
@@ -2142,6 +2155,9 @@ export default function NewRegistrationPage() {
               </p>
             </div>
           </div>
+          <AutosaveStatus status={saveStatus} error={saveError} retry={() => {
+            void autosave.current.retry().catch(error => toast.error(error.message));
+          }} />
           <RegistrationWorkflow activeTab={activeTab} />
 
           {/* Top Navigation Tabs */}

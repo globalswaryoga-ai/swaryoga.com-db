@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Users, FileCheck, RefreshCw, CheckCircle2, Filter } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useOfferRecords } from '@/hooks/useOfferRecords';
+import { useOfferAutosave } from '@/hooks/useOfferAutosave';
+import { offerAutosave, offerStorage as localStorage } from '@/lib/workshopOfferClient';
 
 export default function OfferDetailsTab({ 
   leads, 
@@ -14,7 +16,7 @@ export default function OfferDetailsTab({
 }: { 
   leads: any[]; 
   selectedWorkshop: any;
-  saveWorkshopSettings?: () => Promise<void>;
+  saveWorkshopSettings?: () => Promise<unknown>;
   selectedDashboardLang: string;
   setSelectedDashboardLang: (lang: string) => void;
   workshops: any[];
@@ -96,7 +98,10 @@ export default function OfferDetailsTab({
     });
   }, [leads, selectedWorkshop]);
 
-  const [drafts, setLeadData] = useState<Record<string, any>>({});
+  const [drafts, setLeadData] = useState<Record<string, any>>(() => {
+    try { return JSON.parse(localStorage.getItem('crm_offer_payment_drafts') || '{}'); } catch { return {}; }
+  });
+  const draftStatus = useOfferAutosave(React.useMemo(() => ({ crm_offer_payment_drafts: drafts }), [drafts]), offerAutosave.status().loaded);
   const leadData = { ...store.records, ...drafts };
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   
@@ -153,7 +158,10 @@ export default function OfferDetailsTab({
 
   return (
     <div className="flex flex-col h-full bg-white shadow-sm overflow-hidden">
-      {store.error && <div role="alert" className="p-3 bg-red-50 text-red-700">{store.error}</div>}
+      {(store.error || draftStatus.error) && <div role="alert" className="p-3 bg-red-50 text-red-700">{store.error || draftStatus.error}
+        <button className="ml-3 underline" onClick={() => { void (store.error ? store.retry() : draftStatus.retry()).catch(error => toast.error(error.message)); }}>Retry save</button>
+      </div>}
+      <div role="status" className="text-xs text-slate-500 px-3">{draftStatus.saving || draftStatus.pending ? 'Saving editable drafts…' : 'Draft edits save automatically. Confirm payments and receipt actions explicitly.'}</div>
       {Object.values(store.records).some(record => record.needsVerification) && <div className="p-3 bg-amber-50 text-amber-800">Recovered legacy payment drafts are preserved. Verify the amount, date and payment mode, then confirm receipt of payment before issuing documents.</div>}
       
       {/* Header Filters */}

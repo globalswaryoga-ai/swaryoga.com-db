@@ -11,10 +11,11 @@ import {
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import RegistrationNewBatch from '@/components/admin/crm/RegistrationNewBatch';
 import { workshopSessionCalendar } from '@/lib/workshopSessionUtils';
+import { createWorkshopAutosave, WorkshopAutosaveStatus } from '@/lib/workshopAutosave';
 import { DEFAULT_RECORDING_ACCESS } from '@/lib/workshopRecordingPolicy';
 import { buildWorkshopAttendanceReport, attendanceReportTable, reportCsv } from '@/lib/workshopAttendanceReport';
 
-interface Cohort { _id: string; name: string; startDate: string; timezone?: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
+interface Cohort { _id: string; name: string; startDate: string; timezone?: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoSyncZoomAttendance?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
@@ -41,6 +42,25 @@ interface Recording {
     [key: string]: any;
   };
 }
+type CohortEditSnapshot = { cohortId: string; values: Record<string, any> };
+type StudentEditSnapshot = { cohortId: string; studentId: string; values: Record<string, any> };
+type AttendanceSnapshot = { cohortId: string; studentId: string; classDurationMinutes: string; rows: AttendanceChartRow[] };
+type RecordingUrlsSnapshot = { id: string; classDate: string; dayNumber?: number; youtubeSpeakerUrl: string; youtubeGalleryUrl: string; bunnySpeakerUrl: string };
+
+function AutosaveIndicator({ status, error, onRetry }: { status: WorkshopAutosaveStatus; error?: string; onRetry?: () => void }) {
+  if (status === 'idle') return null;
+  return (
+    <div role="status" aria-live="polite" className={`flex items-center gap-2 text-xs font-semibold ${status === 'error' ? 'text-red-700' : status === 'saved' ? 'text-emerald-700' : 'text-slate-500'}`}>
+      {status === 'saving' && <RefreshCw size={13} className="animate-spin" />}
+      {status === 'saved' && <CheckCircle2 size={13} />}
+      {status === 'error' && <AlertCircle size={13} />}
+      <span>{status === 'saving' ? 'Saving…' : status === 'saved' ? 'All changes saved' : error || 'Save failed'}</span>
+      {status === 'error' && onRetry && <button type="button" onClick={onRetry} className="underline underline-offset-2">Retry</button>}
+    </div>
+  );
+}
+
+const workshopValuesEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
 function toDateKey(value: unknown): string | null {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -64,6 +84,11 @@ export default function WorkshopManagementPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
+  const studentEditDraftRef = useRef(studentEditForm);
+  const studentEditBaselineRef = useRef<{ cohortId: string; studentId: string; expectedUpdatedAt?: string; values: Record<string, any> } | null>(null);
+  const [studentAutosaveStatus, setStudentAutosaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [studentAutosaveError, setStudentAutosaveError] = useState('');
+  const [savingStudentEdit, setSavingStudentEdit] = useState(false);
   
   // Message Sending State
   const [messageModal, setMessageModal] = useState<{ student: Student, channel: 'qr' | 'meta' | 'email' } | null>(null);
@@ -104,20 +129,31 @@ export default function WorkshopManagementPage() {
   const [studentImportMapping, setStudentImportMapping] = useState({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
   const [selectedImportFields, setSelectedImportFields] = useState<string[]>(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
   const [googleFormLink, setGoogleFormLink] = useState('');
+  const googleFormDraftRef = useRef(googleFormLink);
+  const googleFormBaselineRef = useRef<{ cohortId: string; values: Record<string, any>; metadata?: Record<string, any>; serverValues?: Record<string, any> } | null>(null);
+  const [googleFormAutosaveStatus, setGoogleFormAutosaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [googleFormAutosaveError, setGoogleFormAutosaveError] = useState('');
   
   // Actions State
   const [syncingWhatsapp, setSyncingWhatsapp] = useState(false);
   const [syncingZoomAttendance, setSyncingZoomAttendance] = useState(false);
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [attendanceChart, setAttendanceChart] = useState<AttendanceChartRow[]>([]);
+  const attendanceChartDraftRef = useRef<AttendanceChartRow[]>([]);
   const [chartClassDuration, setChartClassDuration] = useState('60');
   const [savingChart, setSavingChart] = useState(false);
+  const [attendanceAutosaveStatus, setAttendanceAutosaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [attendanceAutosaveError, setAttendanceAutosaveError] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [runningWorker, setRunningWorker] = useState(false);
 
   // New Features State
   const [communities, setCommunities] = useState<any[]>([]);
-  const [recordingSetup, setRecordingSetup] = useState({ zoomMeetingId: '', communityId: '', thumbnailUrl: '', youtubePlaylistName: '' });
+  const [recordingSetup, setRecordingSetup] = useState({ zoomMeetingId: '', zoomJoinUrl: '', communityId: '', thumbnailUrl: '', youtubePlaylistName: '' });
+  const recordingSetupDraftRef = useRef(recordingSetup);
+  const recordingSetupBaselineRef = useRef<{ cohortId: string; values: Record<string, any>; metadata?: Record<string, any>; serverValues?: Record<string, any> } | null>(null);
+  const [recordingSetupAutosaveStatus, setRecordingSetupAutosaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [recordingSetupAutosaveError, setRecordingSetupAutosaveError] = useState('');
   const [savingRecordingSetup, setSavingRecordingSetup] = useState(false);
   const [systemFormLink, setSystemFormLink] = useState('');
   const [syncingSystemForm, setSyncingSystemForm] = useState(false);
@@ -126,14 +162,18 @@ export default function WorkshopManagementPage() {
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
   const [recordingAccess, setRecordingAccess] = useState({ ...DEFAULT_RECORDING_ACCESS });
   const [editCohortForm, setEditCohortForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: [] as string[], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', autoSendRecordings: false, autoSyncZoomAttendance: true, autoRecoverZoomTrash: false, daySubjects: Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' })) });
-  const [zoomMeetingIdInput, setZoomMeetingIdInput] = useState('');
-  const [zoomJoinUrlInput, setZoomJoinUrlInput] = useState('');
+  const recordingAccessDraftRef = useRef(recordingAccess);
+  const editCohortDraftRef = useRef(editCohortForm);
+  const cohortEditBaselineRef = useRef<{ cohortId: string; values: Record<string, any>; metadata: Record<string, any>; serverValues?: Record<string, any> } | null>(null);
+  const cohortEditHydrationRef = useRef<string | null>(null);
+  const [cohortAutosaveStatus, setCohortAutosaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [cohortAutosaveError, setCohortAutosaveError] = useState('');
   const [savingZoomConfig, setSavingZoomConfig] = useState(false);
-  const [editingRecordingUrls, setEditingRecordingUrls] = useState<{ id: string; classDate: string; dayNumber?: number; youtubeSpeakerUrl: string; youtubeGalleryUrl: string; bunnySpeakerUrl: string; } | null>(null);
+  const [editingRecordingUrls, setEditingRecordingUrls] = useState<RecordingUrlsSnapshot | null>(null);
   const [savingRecordingUrls, setSavingRecordingUrls] = useState(false);
-  const [autoSaveUrls, setAutoSaveUrls] = useState(true);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<WorkshopAutosaveStatus>('idle');
+  const [autoSaveError, setAutoSaveError] = useState('');
+  const recordingUrlsBaselineRef = useRef<{ id: string; values: Record<string, any> } | null>(null);
   const [editingDateModal, setEditingDateModal] = useState<{ classDate: string; dayNumber: number | null; isHoliday: boolean; } | null>(null);
   const [savingDateModal, setSavingDateModal] = useState(false);
   const [showHolidayPicker, setShowHolidayPicker] = useState(false);
@@ -149,25 +189,277 @@ export default function WorkshopManagementPage() {
     }
   }, [form.startDate, form.holidayDates]);
 
-  // Auto-calculate end date for Edit form
-  useEffect(() => {
-    if (editCohortForm.startDate) {
-      const start = new Date(editCohortForm.startDate);
-      if (!isNaN(start.getTime())) {
-        const calendar = workshopSessionCalendar(editCohortForm.startDate, editCohortForm.holidayDates);
-        setEditCohortForm(prev => ({ ...prev, endDate: calendar[calendar.length - 1].classDate }));
-      }
-    }
-  }, [editCohortForm.startDate, editCohortForm.holidayDates]);
   const [savingEditCohort, setSavingEditCohort] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
+  const loadSequenceRef = useRef(0);
+  const draftChangeSequenceRef = useRef(0);
+  const cohortEditAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<CohortEditSnapshot>> | null>(null);
+  const studentAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<StudentEditSnapshot>> | null>(null);
+  const attendanceAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<AttendanceSnapshot>> | null>(null);
+  const googleFormAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<{ cohortId: string; value: string }>> | null>(null);
+  const recordingSetupAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<{ cohortId: string; values: Record<string, any> }>> | null>(null);
+  const recordingUrlsAutosaveRef = useRef<ReturnType<typeof createWorkshopAutosave<RecordingUrlsSnapshot>> | null>(null);
+
+  const persistCohortValues = async (
+    cohortId: string,
+    values: Record<string, any>,
+    baselineRef: React.MutableRefObject<{ cohortId: string; values: Record<string, any>; metadata?: Record<string, any>; serverValues?: Record<string, any> } | null>,
+  ) => {
+    const baseline = baselineRef.current;
+    if (!baseline || baseline.cohortId !== cohortId) throw new Error('Workshop settings have not finished loading.');
+    const changes = Object.fromEntries(Object.entries(values).filter(([key, value]) => !workshopValuesEqual(value, baseline.values[key])));
+    if (!Object.keys(changes).length) return;
+    const previous: Record<string, any> = {};
+    const payloadChanges = { ...changes };
+    for (const key of Object.keys(changes)) {
+      if (key === 'recordingAccess') {
+        previous.metadata = baseline.metadata || {};
+        payloadChanges.metadata = { ...(baseline.metadata || {}), recordingAccess: changes.recordingAccess };
+        delete payloadChanges.recordingAccess;
+      } else previous[key] = baseline.serverValues && Object.prototype.hasOwnProperty.call(baseline.serverValues, key)
+        ? baseline.serverValues[key]
+        : baseline.values[key];
+    }
+    const res = await fetch('/api/admin/crm/workshop-management', {
+      method: 'PATCH',
+      headers,
+      keepalive: true,
+      body: JSON.stringify({ cohortId, ...payloadChanges, previous }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Workshop settings could not be saved.');
+    baselineRef.current = {
+      ...baseline,
+      values: { ...baseline.values, ...changes },
+      metadata: data.cohort?.metadata || baseline.metadata || {},
+      serverValues: { ...(baseline.serverValues || baseline.values), ...Object.fromEntries(Object.keys(changes).filter(key => key !== 'recordingAccess').map(key => [key, changes[key]])) },
+    };
+    if (data.cohort) {
+      setSelected((current) => current?._id === cohortId ? data.cohort : current);
+      setCohorts((current) => current.map((item) => item._id === cohortId ? data.cohort : item));
+    }
+  };
+
+  if (!cohortEditAutosaveRef.current) {
+    cohortEditAutosaveRef.current = createWorkshopAutosave(async ({ cohortId, values }) => {
+      await persistCohortValues(cohortId, values, cohortEditBaselineRef);
+    }, (status, error) => {
+      setCohortAutosaveStatus(status);
+      setCohortAutosaveError(error || '');
+    });
+  }
+  if (!studentAutosaveRef.current) {
+    studentAutosaveRef.current = createWorkshopAutosave(async ({ cohortId, studentId, values }) => {
+      const baseline = studentEditBaselineRef.current;
+      if (!baseline || baseline.cohortId !== cohortId || baseline.studentId !== studentId) throw new Error('Student edit is no longer active.');
+      const patch = Object.fromEntries(Object.entries(values).filter(([key, value]) => !workshopValuesEqual(value, baseline.values[key])));
+      if (!Object.keys(patch).length) return;
+      const res = await fetch('/api/admin/crm/workshop-management/students', {
+        method: 'PATCH',
+        headers,
+        keepalive: true,
+        body: JSON.stringify({ id: studentId, cohortId, ...patch, expectedUpdatedAt: baseline.expectedUpdatedAt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Student changes could not be saved.');
+      studentEditBaselineRef.current = {
+        ...baseline,
+        values: { ...baseline.values, ...patch },
+        expectedUpdatedAt: data.student?.updated_at || baseline.expectedUpdatedAt,
+      };
+    }, (status, error) => {
+      setStudentAutosaveStatus(status);
+      setStudentAutosaveError(error || '');
+    });
+  }
+  if (!attendanceAutosaveRef.current) {
+    attendanceAutosaveRef.current = createWorkshopAutosave(async ({ cohortId, studentId, classDurationMinutes, rows }) => {
+      const res = await fetch('/api/admin/crm/workshop-management/attendance/bulk', {
+        method: 'POST',
+        headers,
+        keepalive: true,
+        body: JSON.stringify({ cohortId, studentId, classDurationMinutes, rows }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Attendance changes could not be saved.');
+    }, (status, error) => {
+      setAttendanceAutosaveStatus(status);
+      setAttendanceAutosaveError(error || '');
+    });
+  }
+  if (!googleFormAutosaveRef.current) {
+    googleFormAutosaveRef.current = createWorkshopAutosave(async ({ cohortId, value }) => {
+      const baseline = googleFormBaselineRef.current;
+      if (!baseline || baseline.cohortId !== cohortId) throw new Error('Workshop settings have not finished loading.');
+      const nextValue = value.trim();
+      if (nextValue && !/^https?:\/\//i.test(nextValue)) throw new Error('Form link must begin with http:// or https://');
+      await persistCohortValues(cohortId, { googleFormLink: nextValue }, googleFormBaselineRef);
+    }, (status, error) => {
+      setGoogleFormAutosaveStatus(status);
+      setGoogleFormAutosaveError(error || '');
+    });
+  }
+  if (!recordingSetupAutosaveRef.current) {
+    recordingSetupAutosaveRef.current = createWorkshopAutosave(async ({ cohortId, values }) => {
+      await persistCohortValues(cohortId, values, recordingSetupBaselineRef);
+    }, (status, error) => {
+      setRecordingSetupAutosaveStatus(status);
+      setRecordingSetupAutosaveError(error || '');
+    });
+  }
+  if (!recordingUrlsAutosaveRef.current) {
+    recordingUrlsAutosaveRef.current = createWorkshopAutosave(async (urls) => {
+      const baseline = recordingUrlsBaselineRef.current;
+      if (!baseline || baseline.id !== urls.id) throw new Error('Recording edit is no longer active.');
+      const ytSpeaker = urls.youtubeSpeakerUrl.trim();
+      const ytGallery = urls.youtubeGalleryUrl.trim();
+      const bunnySpeaker = urls.bunnySpeakerUrl.trim();
+      const updates = {
+        youtubeSpeakerUrl: ytSpeaker ? getYoutubeUrl(ytSpeaker) : null,
+        youtubeSpeakerId: ytSpeaker ? normalizeYt(ytSpeaker) || null : null,
+        youtubeGalleryUrl: ytGallery ? getYoutubeUrl(ytGallery) : null,
+        youtubeGalleryId: ytGallery ? normalizeYt(ytGallery) || null : null,
+        bunnySpeakerUrl: bunnySpeaker || null,
+      };
+      const res = await fetch('/api/admin/crm/workshop-management/recordings', {
+        method: 'PATCH',
+        headers,
+        keepalive: true,
+        body: JSON.stringify({ id: urls.id, ...updates, previous: baseline.values }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Recording URLs could not be saved.');
+      if (recordingUrlsBaselineRef.current === baseline) {
+        recordingUrlsBaselineRef.current = { id: urls.id, values: updates };
+      }
+      setRecordings((current) => current.map((recording) => recording._id === urls.id ? {
+        ...recording,
+        youtubeSpeakerUrl: updates.youtubeSpeakerUrl || undefined,
+        youtubeSpeakerId: updates.youtubeSpeakerId || undefined,
+        youtubeGalleryUrl: updates.youtubeGalleryUrl || undefined,
+        youtubeGalleryId: updates.youtubeGalleryId || undefined,
+        bunnySpeakerUrl: updates.bunnySpeakerUrl || undefined,
+      } : recording));
+    }, (status, error) => {
+      setAutoSaveStatus(status);
+      setAutoSaveError(error || '');
+    });
+  }
+
+  const updateEditCohortForm = (update: Partial<typeof editCohortForm> | ((current: typeof editCohortForm) => typeof editCohortForm)) => {
+    if (savingEditCohort) return;
+    draftChangeSequenceRef.current += 1;
+    const current = editCohortDraftRef.current;
+    let next = typeof update === 'function' ? update(current) : { ...current, ...update };
+    if (next.startDate !== current.startDate || !workshopValuesEqual(next.holidayDates, current.holidayDates)) {
+      try {
+        const calendar = workshopSessionCalendar(next.startDate, next.holidayDates);
+        next = { ...next, endDate: calendar[calendar.length - 1].classDate };
+      } catch {}
+    }
+    editCohortDraftRef.current = next;
+    setEditCohortForm(next);
+  };
+
+  const updateStudentEditForm = (update: Partial<typeof studentEditForm>) => {
+    if (savingStudentEdit) return;
+    draftChangeSequenceRef.current += 1;
+    const next = { ...studentEditDraftRef.current, ...update };
+    studentEditDraftRef.current = next;
+    setStudentEditForm(next);
+    if (selected && editingStudent) {
+      studentAutosaveRef.current?.schedule({ cohortId: selected._id, studentId: editingStudent._id, values: next });
+    }
+  };
+
+  const applyStudentEditToList = (studentId: string) => {
+    const expectedUpdatedAt = studentEditBaselineRef.current?.expectedUpdatedAt;
+    setStudents((current) => current.map((item) => item._id === studentId
+      ? { ...item, ...studentEditDraftRef.current, ...(expectedUpdatedAt ? { updated_at: expectedUpdatedAt } : {}) }
+      : item));
+  };
+
+  const updateRecordingAccess = (update: Partial<typeof recordingAccess>) => {
+    if (savingEditCohort) return;
+    draftChangeSequenceRef.current += 1;
+    const next = { ...recordingAccessDraftRef.current, ...update };
+    recordingAccessDraftRef.current = next;
+    setRecordingAccess(next);
+  };
+
+  const updateRecordingSetup = (update: Partial<typeof recordingSetup>) => {
+    if (savingRecordingSetup || savingZoomConfig) return;
+    draftChangeSequenceRef.current += 1;
+    const next = { ...recordingSetupDraftRef.current, ...update };
+    recordingSetupDraftRef.current = next;
+    setRecordingSetup(next);
+    if (selected) recordingSetupAutosaveRef.current?.schedule({ cohortId: selected._id, values: next });
+  };
+
+  const updateGoogleFormLink = (value: string) => {
+    draftChangeSequenceRef.current += 1;
+    googleFormDraftRef.current = value;
+    setGoogleFormLink(value);
+    if (selected) googleFormAutosaveRef.current?.schedule({ cohortId: selected._id, value });
+  };
+
+  useEffect(() => {
+    if (!editingCohort) return;
+    if (cohortEditHydrationRef.current === editingCohort._id) {
+      cohortEditHydrationRef.current = null;
+      return;
+    }
+    cohortEditAutosaveRef.current?.schedule({
+      cohortId: editingCohort._id,
+      values: { ...editCohortForm, recordingAccess },
+    });
+  }, [editingCohort, editCohortForm, recordingAccess]);
+
+  useEffect(() => {
+    const flush = () => {
+      void Promise.all([
+        cohortEditAutosaveRef.current?.flush(),
+        studentAutosaveRef.current?.flush(),
+        attendanceAutosaveRef.current?.flush(),
+        googleFormAutosaveRef.current?.flush(),
+        recordingSetupAutosaveRef.current?.flush(),
+      ]).catch(() => undefined);
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      flush();
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
   const load = async (cohortId?: string) => {
+    const requestSequence = ++loadSequenceRef.current;
     try {
+      if (cohortId) {
+        await Promise.all([
+          cohortEditAutosaveRef.current?.flush(),
+          studentAutosaveRef.current?.flush(),
+          attendanceAutosaveRef.current?.flush(),
+          googleFormAutosaveRef.current?.flush(),
+          recordingSetupAutosaveRef.current?.flush(),
+          recordingUrlsAutosaveRef.current?.flush(),
+        ]);
+      }
+      if (requestSequence !== loadSequenceRef.current) return;
+      const draftSequence = draftChangeSequenceRef.current;
       const res = await fetch(`/api/admin/crm/workshop-management${cohortId ? `?cohortId=${cohortId}` : ''}`, { headers });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Workshop API returned ${res.status}`);
+      if (requestSequence !== loadSequenceRef.current) return;
+      if (draftSequence !== draftChangeSequenceRef.current) {
+        void load(cohortId);
+        return;
+      }
       setLoadError('');
       if (cohortId) {
         if (data.cohort) setSelected(data.cohort);
@@ -176,19 +468,86 @@ export default function WorkshopManagementPage() {
         setAttendance(data.attendance || []);
         setRecordings(data.recordings || []);
         setGoogleFormLink(data.cohort?.googleFormLink || '');
+        googleFormDraftRef.current = data.cohort?.googleFormLink || '';
+        googleFormBaselineRef.current = { cohortId, values: { googleFormLink: data.cohort?.googleFormLink || '' }, serverValues: { googleFormLink: data.cohort?.googleFormLink ?? null } };
         setRecordingSetup({
           zoomMeetingId: data.cohort?.zoomMeetingId || '',
+          zoomJoinUrl: data.cohort?.zoomJoinUrl || '',
           communityId: data.zoomMapping?.communityId || data.cohort?.communityId || '',
           thumbnailUrl: data.zoomMapping?.thumbnailUrl || data.cohort?.thumbnailUrl || '',
           youtubePlaylistName: data.zoomMapping?.youtubePlaylistName || data.cohort?.youtubePlaylistName || ''
         });
+        recordingSetupDraftRef.current = {
+          zoomMeetingId: data.cohort?.zoomMeetingId || '',
+          zoomJoinUrl: data.cohort?.zoomJoinUrl || '',
+          communityId: data.zoomMapping?.communityId || data.cohort?.communityId || '',
+          thumbnailUrl: data.zoomMapping?.thumbnailUrl || data.cohort?.thumbnailUrl || '',
+          youtubePlaylistName: data.zoomMapping?.youtubePlaylistName || data.cohort?.youtubePlaylistName || '',
+        };
+        recordingSetupBaselineRef.current = {
+          cohortId,
+          values: { ...recordingSetupDraftRef.current },
+          serverValues: {
+            zoomMeetingId: data.cohort?.zoomMeetingId ?? null,
+            zoomJoinUrl: data.cohort?.zoomJoinUrl ?? null,
+            communityId: data.cohort?.communityId ?? null,
+            thumbnailUrl: data.cohort?.thumbnailUrl ?? null,
+            youtubePlaylistName: data.cohort?.youtubePlaylistName ?? null,
+          },
+        };
         if (data.students?.length && !attendanceForm.studentId) setAttendanceForm((prev) => ({ ...prev, studentId: data.students[0]._id }));
       } else {
         setCohorts(data.cohorts || []);
       }
     } catch (error) {
+      if (requestSequence !== loadSequenceRef.current) return;
       setLoadError(error instanceof Error ? error.message : 'Could not load workshops');
     }
+  };
+
+  const selectWorkshop = async (cohort: Cohort) => {
+    try {
+      await Promise.all([
+        cohortEditAutosaveRef.current?.flush(),
+        studentAutosaveRef.current?.flush(),
+        attendanceAutosaveRef.current?.flush(),
+        googleFormAutosaveRef.current?.flush(),
+        recordingSetupAutosaveRef.current?.flush(),
+        recordingUrlsAutosaveRef.current?.flush(),
+      ]);
+    } catch {
+      return;
+    }
+    setSelected(cohort);
+    const setup = {
+      zoomMeetingId: cohort.zoomMeetingId || '',
+      zoomJoinUrl: cohort.zoomJoinUrl || '',
+      communityId: cohort.communityId || '',
+      thumbnailUrl: cohort.thumbnailUrl || '',
+      youtubePlaylistName: cohort.youtubePlaylistName || '',
+    };
+    setRecordingSetup(setup);
+    recordingSetupDraftRef.current = setup;
+    recordingSetupBaselineRef.current = {
+      cohortId: cohort._id,
+      values: setup,
+      serverValues: {
+        zoomMeetingId: cohort.zoomMeetingId ?? null,
+        zoomJoinUrl: cohort.zoomJoinUrl ?? null,
+        communityId: cohort.communityId ?? null,
+        thumbnailUrl: cohort.thumbnailUrl ?? null,
+        youtubePlaylistName: cohort.youtubePlaylistName ?? null,
+      },
+    };
+    googleFormDraftRef.current = cohort.googleFormLink || '';
+    setGoogleFormLink(googleFormDraftRef.current);
+    googleFormBaselineRef.current = {
+      cohortId: cohort._id,
+      values: { googleFormLink: cohort.googleFormLink || '' },
+      serverValues: { googleFormLink: cohort.googleFormLink ?? null },
+    };
+    setActiveTab('students');
+    void load(cohort._id);
   };
 
   useEffect(() => { 
@@ -202,13 +561,6 @@ export default function WorkshopManagementPage() {
     const timer = window.setInterval(refreshRecordings, 60_000);
     return () => window.clearInterval(timer);
   }, [selected?._id]);
-
-  useEffect(() => {
-    if (selected) {
-      setZoomMeetingIdInput(selected.zoomMeetingId || '');
-      setZoomJoinUrlInput(selected.zoomJoinUrl || '');
-    }
-  }, [selected?._id, selected?.zoomMeetingId, selected?.zoomJoinUrl]);
 
   const addHolidayDateField = () => {
     setForm((prev) => {
@@ -341,13 +693,100 @@ export default function WorkshopManagementPage() {
   const saveStudentEdit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingStudent || !selected) return;
-    const res = await fetch('/api/admin/crm/workshop-management/students', {
-      method: 'PATCH', headers, body: JSON.stringify({ id: editingStudent._id, ...studentEditForm }),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Could not update student'); return; }
-    setEditingStudent(null);
-    await load(selected._id);
+    setSavingStudentEdit(true);
+    try {
+      await studentAutosaveRef.current?.flush();
+      applyStudentEditToList(editingStudent._id);
+      setStudentAutosaveError('');
+    } catch (error) {
+      setStudentAutosaveStatus('error');
+      setStudentAutosaveError(error instanceof Error ? error.message : 'Could not update student');
+    } finally {
+      setSavingStudentEdit(false);
+    }
+  };
+
+  const openStudentEditor = async (current: Student) => {
+    if (editingStudent && (await studentAutosaveRef.current?.flush().then(() => true).catch(() => false)) === false) return;
+    const values = {
+      name: current.name,
+      email: current.email || '',
+      phone: current.phone || '',
+      whatsappNumber: current.whatsappNumber || '',
+      active: current.active,
+    };
+    studentEditDraftRef.current = values;
+    studentEditBaselineRef.current = {
+      cohortId: selected?._id || '',
+      studentId: current._id,
+      expectedUpdatedAt: (current as any).updated_at,
+      values: { ...values },
+    };
+    setStudentEditForm(values);
+    setStudentAutosaveStatus('idle');
+    setStudentAutosaveError('');
+    setEditingStudent(current);
+  };
+
+  const closeStudentEditor = async () => {
+    if (!editingStudent || !selected) {
+      setEditingStudent(null);
+      return;
+    }
+    setSavingStudentEdit(true);
+    try {
+      await studentAutosaveRef.current?.flush();
+      applyStudentEditToList(editingStudent._id);
+      setEditingStudent(null);
+      studentEditBaselineRef.current = null;
+    } catch (error) {
+      setStudentAutosaveStatus('error');
+      setStudentAutosaveError(error instanceof Error ? error.message : 'Could not save student changes');
+    } finally {
+      setSavingStudentEdit(false);
+    }
+  };
+
+  const updateAttendanceChart = (rows: AttendanceChartRow[]) => {
+    if (savingChart) return;
+    draftChangeSequenceRef.current += 1;
+    attendanceChartDraftRef.current = rows;
+    setAttendanceChart(rows);
+    if (selected && detailStudent) {
+      attendanceAutosaveRef.current?.schedule({
+        cohortId: selected._id,
+        studentId: detailStudent._id,
+        classDurationMinutes: chartClassDuration,
+        rows,
+      });
+    }
+  };
+
+  const updateChartClassDuration = (value: string) => {
+    if (savingChart) return;
+    draftChangeSequenceRef.current += 1;
+    setChartClassDuration(value);
+    if (selected && detailStudent) {
+      attendanceAutosaveRef.current?.schedule({
+        cohortId: selected._id,
+        studentId: detailStudent._id,
+        classDurationMinutes: value,
+        rows: attendanceChartDraftRef.current,
+      });
+    }
+  };
+
+  const closeAttendanceChart = async () => {
+    setSavingChart(true);
+    try {
+      await attendanceAutosaveRef.current?.flush();
+      setDetailStudent(null);
+    } catch (error) {
+      setAttendanceAutosaveStatus('error');
+      setAttendanceAutosaveError(error instanceof Error ? error.message : 'Could not save attendance changes');
+    } finally {
+      setSavingChart(false);
+    }
   };
 
   const removeSelectedStudents = async () => {
@@ -417,18 +856,10 @@ export default function WorkshopManagementPage() {
     if (!selected?._id) return;
     setSavingRecordingSetup(true);
     try {
-      const res = await fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ cohortId: selected._id, ...recordingSetup }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save recording setup');
-      alert('Recording setup saved successfully!');
-      if (data.cohort) setSelected(data.cohort);
-      await load(selected._id);
+      await recordingSetupAutosaveRef.current?.flush();
     } catch (error: any) {
-      alert(error.message);
+      setRecordingSetupAutosaveStatus('error');
+      setRecordingSetupAutosaveError(error.message || 'Failed to save recording setup');
     } finally {
       setSavingRecordingSetup(false);
     }
@@ -505,9 +936,8 @@ export default function WorkshopManagementPage() {
 
   const handleEditCohort = (c: Cohort, e: React.MouseEvent) => {
     e.stopPropagation();
-    setEditingCohort(c);
-    setRecordingAccess({ ...DEFAULT_RECORDING_ACCESS, ...c.metadata?.recordingAccess });
-    setEditCohortForm({
+    const access = { ...DEFAULT_RECORDING_ACCESS, ...c.metadata?.recordingAccess };
+    const draft = {
       name: c.name,
       startDate: c.startDate ? c.startDate.slice(0, 10) : '',
       endDate: c.endDate ? c.endDate.slice(0, 10) : '',
@@ -530,25 +960,64 @@ export default function WorkshopManagementPage() {
           return { day: i + 1, subject: found?.subject || '' };
         });
       })(),
-    });
+    };
+    setEditingCohort(c);
+    cohortEditHydrationRef.current = c._id;
+    setRecordingAccess(access);
+    recordingAccessDraftRef.current = access;
+    setEditCohortForm(draft);
+    editCohortDraftRef.current = draft;
+    cohortEditBaselineRef.current = {
+      cohortId: c._id,
+      values: { ...draft, recordingAccess: access },
+      serverValues: {
+        name: c.name,
+        startDate: c.startDate ? c.startDate.slice(0, 10) : '',
+        endDate: c.endDate ? c.endDate.slice(0, 10) : null,
+        holidayDates: c.holidayDates || [],
+        classStartTime: c.classStartTime || null,
+        classEndTime: c.classEndTime || null,
+        zoomMeetingId: c.zoomMeetingId || null,
+        zoomJoinUrl: c.zoomJoinUrl || null,
+        whatsappGroupLink: c.whatsappGroupLink || null,
+        googleFormLink: c.googleFormLink || null,
+        youtubePlaylistName: c.youtubePlaylistName || null,
+        thumbnailUrl: c.thumbnailUrl || null,
+        autoSendRecordings: c.autoSendRecordings === true,
+        autoSyncZoomAttendance: c.autoSyncZoomAttendance !== false,
+        autoRecoverZoomTrash: c.autoRecoverZoomTrash === true,
+        daySubjects: c.daySubjects || [],
+      },
+      metadata: c.metadata || {},
+    };
+    setCohortAutosaveStatus('idle');
+    setCohortAutosaveError('');
   };
 
   const handleSaveEditCohort = async () => {
     if (!editingCohort) return;
     setSavingEditCohort(true);
     try {
-      const res = await fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ ...editCohortForm, recordingAccess, cohortId: editingCohort._id, _fullEdit: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save');
-      setCohorts(prev => prev.map(c => c._id === editingCohort._id ? data.cohort : c));
-      if (selected?._id === editingCohort._id) setSelected(data.cohort);
+      await cohortEditAutosaveRef.current?.flush();
       setEditingCohort(null);
+      cohortEditBaselineRef.current = null;
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save changes');
+      setCohortAutosaveStatus('error');
+      setCohortAutosaveError(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSavingEditCohort(false);
+    }
+  };
+
+  const closeEditCohort = async () => {
+    setSavingEditCohort(true);
+    try {
+      await cohortEditAutosaveRef.current?.flush();
+      setEditingCohort(null);
+      cohortEditBaselineRef.current = null;
+    } catch (error) {
+      setCohortAutosaveStatus('error');
+      setCohortAutosaveError(error instanceof Error ? error.message : 'Could not save workshop changes');
     } finally {
       setSavingEditCohort(false);
     }
@@ -573,21 +1042,11 @@ export default function WorkshopManagementPage() {
 
   const saveGoogleFormLink = async () => {
     if (!selected) return;
-    const link = googleFormLink.trim();
-    if (link && !/^https?:\/\//i.test(link)) {
-      alert('Please enter a valid Google Forms link beginning with https://');
-      return;
-    }
-    const res = await fetch('/api/admin/crm/workshop-management', {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ cohortId: selected._id, googleFormLink: link }),
-    });
-    const data = await res.json();
-    if (!res.ok) alert(data.error || 'Could not save Google Forms link');
-    else {
-      setSelected(data.cohort);
-      alert("Settings saved successfully.");
+    try {
+      await googleFormAutosaveRef.current?.flush();
+    } catch (error) {
+      setGoogleFormAutosaveStatus('error');
+      setGoogleFormAutosaveError(error instanceof Error ? error.message : 'Could not save Google Forms link');
     }
   };
 
@@ -748,18 +1207,23 @@ export default function WorkshopManagementPage() {
       rows.push({ classDate: date, dayNumber: holiday ? dayNumber : dayNumber, holiday, durationMinutes: saved ? String(Math.round((saved.durationSeconds || 0) / 60)) : '0', status: holiday ? 'holiday' : saved?.joined ? 'joined' : 'absent' });
     }
     setDetailStudent(currentStudent);
+    attendanceChartDraftRef.current = rows;
     setAttendanceChart(rows);
   };
 
   const saveStudentChart = async () => {
     if (!selected || !detailStudent) return;
     setSavingChart(true);
-    const res = await fetch('/api/admin/crm/workshop-management/attendance/bulk', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, studentId: detailStudent._id, classDurationMinutes: chartClassDuration, rows: attendanceChart }) });
-    const data = await res.json();
-    setSavingChart(false);
-    if (!res.ok) { alert(data.error || 'Could not save attendance chart'); return; }
-    await load(selected._id);
-    alert(`Saved ${data.saved || 0} class attendance records.`);
+    try {
+      await attendanceAutosaveRef.current?.flush();
+      await load(selected._id);
+      setDetailStudent(null);
+    } catch (error) {
+      setAttendanceAutosaveStatus('error');
+      setAttendanceAutosaveError(error instanceof Error ? error.message : 'Could not save attendance chart');
+    } finally {
+      setSavingChart(false);
+    }
   };
 
   const getYoutubeUrl = (idOrUrl?: string) => {
@@ -829,30 +1293,28 @@ export default function WorkshopManagementPage() {
     if (!selected) return;
     setSavingZoomConfig(true);
     try {
-      const res = await fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          cohortId: selected._id,
-          zoomMeetingId: zoomMeetingIdInput.trim() || null,
-          zoomJoinUrl: zoomJoinUrlInput.trim() || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save Zoom settings');
-      setSelected(data.cohort);
-      setCohorts(prev => prev.map(c => c._id === data.cohort._id ? { ...c, zoomMeetingId: data.cohort.zoomMeetingId, zoomJoinUrl: data.cohort.zoomJoinUrl } : c));
-      alert('Zoom Meeting ID & Link saved successfully! Recordings will auto-sync.');
-    } catch (err: any) {
-      alert(err.message || 'Failed to save Zoom settings');
+      await recordingSetupAutosaveRef.current?.flush();
+    } catch (error) {
+      setRecordingSetupAutosaveStatus('error');
+      setRecordingSetupAutosaveError(error instanceof Error ? error.message : 'Failed to save Zoom settings');
     } finally {
       setSavingZoomConfig(false);
     }
   };
 
   const openEditUrlsModal = (recording: Recording) => {
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     setAutoSaveStatus('idle');
+    setAutoSaveError('');
+    recordingUrlsBaselineRef.current = {
+      id: recording._id,
+      values: {
+        youtubeSpeakerUrl: recording.youtubeSpeakerUrl ?? null,
+        youtubeSpeakerId: recording.youtubeSpeakerId ?? null,
+        youtubeGalleryUrl: recording.youtubeGalleryUrl ?? null,
+        youtubeGalleryId: recording.youtubeGalleryId ?? null,
+        bunnySpeakerUrl: recording.bunnySpeakerUrl ?? null,
+      },
+    };
     setEditingRecordingUrls({
       id: recording._id,
       classDate: recording.classDate,
@@ -880,86 +1342,44 @@ export default function WorkshopManagementPage() {
     }
   };
 
-  const performAutoSaveUrls = async (urls: {
-    id: string;
-    classDate: string;
-    dayNumber?: number;
-    youtubeSpeakerUrl: string;
-    youtubeGalleryUrl: string;
-    bunnySpeakerUrl: string;
-  }) => {
-    setAutoSaveStatus('saving');
-    try {
-      const ytSpeaker = urls.youtubeSpeakerUrl.trim();
-      const ytGallery = urls.youtubeGalleryUrl.trim();
-      const bunnySpeaker = urls.bunnySpeakerUrl.trim();
-
-      const res = await fetch('/api/admin/crm/workshop-management/recordings', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          id: urls.id,
-          youtubeSpeakerUrl: ytSpeaker ? getYoutubeUrl(ytSpeaker) : null,
-          youtubeSpeakerId: ytSpeaker ? (normalizeYt(ytSpeaker) || null) : null,
-          youtubeGalleryUrl: ytGallery ? getYoutubeUrl(ytGallery) : null,
-          youtubeGalleryId: ytGallery ? (normalizeYt(ytGallery) || null) : null,
-          bunnySpeakerUrl: bunnySpeaker || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to auto-save URLs');
-
-      setRecordings((prev) =>
-        prev.map((r) => {
-          if (r._id !== urls.id) return r;
-          return {
-            ...r,
-            youtubeSpeakerUrl: ytSpeaker ? getYoutubeUrl(ytSpeaker) : undefined,
-            youtubeSpeakerId: ytSpeaker ? (normalizeYt(ytSpeaker) || undefined) : undefined,
-            youtubeGalleryUrl: ytGallery ? getYoutubeUrl(ytGallery) : undefined,
-            youtubeGalleryId: ytGallery ? (normalizeYt(ytGallery) || undefined) : undefined,
-            bunnySpeakerUrl: bunnySpeaker || undefined,
-          };
-        })
-      );
-      setAutoSaveStatus('saved');
-    } catch (err: any) {
-      setAutoSaveStatus('error');
-    }
-  };
-
   const handleUrlsInputChange = (field: 'youtubeSpeakerUrl' | 'youtubeGalleryUrl' | 'bunnySpeakerUrl', val: string) => {
-    if (!editingRecordingUrls) return;
+    if (!editingRecordingUrls || savingRecordingUrls) return;
+    draftChangeSequenceRef.current += 1;
     const updated = { ...editingRecordingUrls, [field]: val };
     setEditingRecordingUrls(updated);
-    if (!autoSaveUrls) return;
-    setAutoSaveStatus('saving');
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      void performAutoSaveUrls(updated);
-    }, 600);
+    recordingUrlsAutosaveRef.current?.schedule(updated);
   };
 
   const handleUrlsInputBlur = () => {
-    if (!editingRecordingUrls || !autoSaveUrls) return;
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-    void performAutoSaveUrls(editingRecordingUrls);
+    if (!editingRecordingUrls) return;
+    void recordingUrlsAutosaveRef.current?.flush().catch(() => undefined);
   };
 
   const saveRecordingUrlsModal = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!editingRecordingUrls || !selected) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     setSavingRecordingUrls(true);
     try {
-      await performAutoSaveUrls(editingRecordingUrls);
-      if (selected) await load(selected._id);
+      await recordingUrlsAutosaveRef.current?.flush();
       setEditingRecordingUrls(null);
-    } catch (err: any) {
-      alert(err.message || 'Failed to save URLs');
+      recordingUrlsBaselineRef.current = null;
+    } catch (error) {
+      setAutoSaveStatus('error');
+      setAutoSaveError(error instanceof Error ? error.message : 'Failed to save URLs');
+    } finally {
+      setSavingRecordingUrls(false);
+    }
+  };
+
+  const closeRecordingUrlsModal = async () => {
+    setSavingRecordingUrls(true);
+    try {
+      await recordingUrlsAutosaveRef.current?.flush();
+      setEditingRecordingUrls(null);
+      recordingUrlsBaselineRef.current = null;
+    } catch (error) {
+      setAutoSaveStatus('error');
+      setAutoSaveError(error instanceof Error ? error.message : 'Could not save recording URLs');
     } finally {
       setSavingRecordingUrls(false);
     }
@@ -1089,17 +1509,7 @@ export default function WorkshopManagementPage() {
                     ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10'
                     : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
                 }`}
-                  onClick={() => {
-                    setSelected(c);
-                    setRecordingSetup({
-                      zoomMeetingId: c.zoomMeetingId || '',
-                      communityId: c.communityId || '',
-                      thumbnailUrl: c.thumbnailUrl || '',
-                      youtubePlaylistName: c.youtubePlaylistName || ''
-                    });
-                    setActiveTab('students');
-                    void load(c._id);
-                  }}
+                  onClick={() => { void selectWorkshop(c); }}
                 >
                   <p className={`font-bold truncate pr-14 ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>{c.name}</p>
                   <div className="flex items-center gap-2 mt-2">
@@ -1368,10 +1778,7 @@ export default function WorkshopManagementPage() {
                                     <td className="p-4 whitespace-nowrap">
                                       <div className="flex items-center gap-1.5">
                                         <button
-                                          onClick={() => {
-                                            setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
-                                            setEditingStudent(s);
-                                          }}
+                                          onClick={() => openStudentEditor(s)}
                                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
                                           title="Edit student details"
                                         >
@@ -1468,8 +1875,8 @@ export default function WorkshopManagementPage() {
                           <input
                             type="text"
                             placeholder="e.g. 85155446286"
-                            value={zoomMeetingIdInput}
-                            onChange={(e) => setZoomMeetingIdInput(e.target.value)}
+                            value={recordingSetup.zoomMeetingId}
+                            onChange={(e) => updateRecordingSetup({ zoomMeetingId: e.target.value })}
                             className="w-full font-mono text-sm rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
@@ -1477,11 +1884,11 @@ export default function WorkshopManagementPage() {
                         <div className="md:col-span-6">
                           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                             <span>Zoom Join Link</span>
-                            {zoomJoinUrlInput && (
+                            {recordingSetup.zoomJoinUrl && (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  navigator.clipboard.writeText(zoomJoinUrlInput);
+                                  navigator.clipboard.writeText(recordingSetup.zoomJoinUrl);
                                   alert('Zoom Join Link copied!');
                                 }}
                                 className="text-[11px] font-semibold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
@@ -1493,13 +1900,14 @@ export default function WorkshopManagementPage() {
                           <input
                             type="url"
                             placeholder="https://us06web.zoom.us/j/85155446286?pwd=..."
-                            value={zoomJoinUrlInput}
-                            onChange={(e) => setZoomJoinUrlInput(e.target.value)}
+                            value={recordingSetup.zoomJoinUrl}
+                            onChange={(e) => updateRecordingSetup({ zoomJoinUrl: e.target.value })}
                             className="w-full text-sm rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
 
                         <div className="md:col-span-2">
+                          <AutosaveIndicator status={recordingSetupAutosaveStatus} error={recordingSetupAutosaveError} onRetry={() => { void recordingSetupAutosaveRef.current?.retry().catch(() => undefined); }} />
                           <button
                             type="button"
                             onClick={saveZoomConfig}
@@ -1507,7 +1915,7 @@ export default function WorkshopManagementPage() {
                             className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <Save size={13} />
-                            {savingZoomConfig ? 'Saving...' : 'Save Settings'}
+                            {savingZoomConfig ? 'Saving...' : 'Save Now'}
                           </button>
                         </div>
                       </div>
@@ -1776,9 +2184,10 @@ export default function WorkshopManagementPage() {
                       </div>
                       <div className="space-y-4">
                         <label className="block text-sm font-bold text-slate-700">CRM Form URL</label>
-                        <input type="url" placeholder="https://swaryoga.com/enquiry?w=..." value={googleFormLink} onChange={(e) => setGoogleFormLink(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        <input type="url" placeholder="https://swaryoga.com/enquiry?w=..." value={googleFormLink} onChange={(e) => updateGoogleFormLink(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        <AutosaveIndicator status={googleFormAutosaveStatus} error={googleFormAutosaveError} onRetry={() => { void googleFormAutosaveRef.current?.retry().catch(() => undefined); }} />
                         <div className="flex gap-3">
-                          <button type="button" onClick={saveGoogleFormLink} className="flex-1 rounded-xl bg-slate-800 text-white font-bold py-2.5 hover:bg-slate-900 transition-colors text-sm">Save Link</button>
+                          <button type="button" onClick={saveGoogleFormLink} className="flex-1 rounded-xl bg-slate-800 text-white font-bold py-2.5 hover:bg-slate-900 transition-colors text-sm">Save Now</button>
                           <button type="button" onClick={() => { if (googleFormLink) window.open(googleFormLink, '_blank'); }} className="flex-1 rounded-xl border border-slate-200 text-slate-700 font-bold py-2.5 hover:bg-slate-50 transition-colors text-sm">Open Form</button>
                         </div>
                       </div>
@@ -1825,10 +2234,10 @@ export default function WorkshopManagementPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                           <label className="block text-sm font-bold text-slate-700">Zoom Meeting ID</label>
-                          <input type="text" placeholder="123456789" value={recordingSetup.zoomMeetingId} onChange={(e) => setRecordingSetup({...recordingSetup, zoomMeetingId: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          <input type="text" placeholder="123456789" value={recordingSetup.zoomMeetingId} onChange={(e) => updateRecordingSetup({ zoomMeetingId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                           
                           <label className="block text-sm font-bold text-slate-700 mt-4">Community</label>
-                          <select value={recordingSetup.communityId} onChange={(e) => setRecordingSetup({...recordingSetup, communityId: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm">
+                          <select value={recordingSetup.communityId} onChange={(e) => updateRecordingSetup({ communityId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm">
                             <option value="">-- Select Community --</option>
                             {communities.map((c: any) => (
                               <option key={c.id} value={c.id}>{c.name}</option>
@@ -1837,15 +2246,16 @@ export default function WorkshopManagementPage() {
                         </div>
                         <div className="space-y-4">
                           <label className="block text-sm font-bold text-slate-700">YouTube Playlist Name (Optional)</label>
-                          <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={recordingSetup.youtubePlaylistName} onChange={(e) => setRecordingSetup({...recordingSetup, youtubePlaylistName: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={recordingSetup.youtubePlaylistName} onChange={(e) => updateRecordingSetup({ youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
 
                           <label className="block text-sm font-bold text-slate-700 mt-4">Thumbnail URL (Optional)</label>
-                          <input type="url" placeholder="https://..." value={recordingSetup.thumbnailUrl} onChange={(e) => setRecordingSetup({...recordingSetup, thumbnailUrl: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          <input type="url" placeholder="https://..." value={recordingSetup.thumbnailUrl} onChange={(e) => updateRecordingSetup({ thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                         </div>
                       </div>
                       <div className="mt-6 flex justify-end">
+                        <AutosaveIndicator status={recordingSetupAutosaveStatus} error={recordingSetupAutosaveError} onRetry={() => { void recordingSetupAutosaveRef.current?.retry().catch(() => undefined); }} />
                         <button type="button" onClick={saveRecordingSetup} disabled={savingRecordingSetup} className="rounded-xl bg-blue-600 text-white font-bold px-6 py-2.5 hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
-                          {savingRecordingSetup ? 'Saving...' : 'Save Recording Setup'}
+                          {savingRecordingSetup ? 'Saving...' : 'Save Now'}
                         </button>
                       </div>
                     </div>
@@ -2081,10 +2491,7 @@ export default function WorkshopManagementPage() {
                                   <td className="px-4 py-4 whitespace-nowrap no-print">
                                     <div className="flex items-center gap-1.5">
                                       <button
-                                        onClick={() => {
-                                          setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
-                                          setEditingStudent(s);
-                                        }}
+                                        onClick={() => openStudentEditor(s)}
                                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
                                         title="Edit student details"
                                       >
@@ -2262,33 +2669,34 @@ export default function WorkshopManagementPage() {
           <form onSubmit={saveStudentEdit} className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-bold text-slate-800 text-lg">Edit Student</h3>
-              <button type="button" onClick={() => setEditingStudent(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+              <button type="button" onClick={() => void closeStudentEditor()} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Name</label>
-                <input type="text" required value={studentEditForm.name} onChange={(e) => setStudentEditForm({ ...studentEditForm, name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                <input type="text" required value={studentEditForm.name} onChange={(e) => updateStudentEditForm({ name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email</label>
-                <input type="email" value={studentEditForm.email} onChange={(e) => setStudentEditForm({ ...studentEditForm, email: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                <input type="email" value={studentEditForm.email} onChange={(e) => updateStudentEditForm({ email: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone</label>
-                <input type="tel" value={studentEditForm.phone} onChange={(e) => setStudentEditForm({ ...studentEditForm, phone: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                <input type="tel" value={studentEditForm.phone} onChange={(e) => updateStudentEditForm({ phone: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">WhatsApp Number</label>
-                <input type="tel" value={studentEditForm.whatsappNumber} onChange={(e) => setStudentEditForm({ ...studentEditForm, whatsappNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                <input type="tel" value={studentEditForm.whatsappNumber} onChange={(e) => updateStudentEditForm({ whatsappNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
               </div>
               <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-white transition-colors">
-                <input type="checkbox" checked={studentEditForm.active} onChange={(e) => setStudentEditForm({ ...studentEditForm, active: e.target.checked })} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                <input type="checkbox" checked={studentEditForm.active} onChange={(e) => updateStudentEditForm({ active: e.target.checked })} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                 <span className="font-bold text-slate-700 text-sm">Active Student</span>
               </label>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
-              <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
-              <button type="submit" className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors">Save Changes</button>
+              <AutosaveIndicator status={studentAutosaveStatus} error={studentAutosaveError} onRetry={() => { void studentAutosaveRef.current?.retry().catch(() => undefined); }} />
+              <button type="button" onClick={() => void closeStudentEditor()} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Close</button>
+              <button type="submit" disabled={savingStudentEdit} className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-60">{savingStudentEdit ? 'Saving...' : 'Save Now'}</button>
             </div>
           </form>
         </div>
@@ -2332,27 +2740,27 @@ export default function WorkshopManagementPage() {
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800">Edit Workshop</h2>
-              <button onClick={() => setEditingCohort(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+              <button onClick={() => void closeEditCohort()} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="grid gap-5 sm:grid-cols-2">
                 {([['name','Workshop Name','text'],['startDate','Start Date','date'],['endDate','End Date','date'],['classStartTime','Start Time','time'],['classEndTime','End Time','time'],['zoomMeetingId','Zoom Meeting ID','text'],['zoomJoinUrl','Zoom Join Link','url'],['whatsappGroupLink','WA Group Link','url'],['googleFormLink','CRM Form URL','url']] as const).map(([key, label, type]) => (
                   <div key={key} className={key === 'name' ? 'sm:col-span-2' : ''}>
                     <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{label}</label>
-                    <input type={type} value={editCohortForm[key as keyof typeof editCohortForm] as string} onChange={(e) => setEditCohortForm({ ...editCohortForm, [key]: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                    <input type={type} value={editCohortForm[key as keyof typeof editCohortForm] as string} onChange={(e) => updateEditCohortForm({ [key]: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                   </div>
                 ))}
 
                 <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
                   <div className="mb-3 flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Holiday Dates (3 to 6)</label>
-                    <button type="button" onClick={() => setEditCohortForm(prev => ({ ...prev, holidayDates: [...prev.holidayDates, ''] }))} disabled={editCohortForm.holidayDates.length >= 6} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">+ Add Holiday</button>
+                    <button type="button" onClick={() => updateEditCohortForm(prev => ({ ...prev, holidayDates: [...prev.holidayDates, ''] }))} disabled={editCohortForm.holidayDates.length >= 6} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">+ Add Holiday</button>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {editCohortForm.holidayDates.map((value, index) => (
                       <div key={`edit-holiday-${index}`} className="flex items-center gap-2">
-                        <input type="date" value={value} onChange={(e) => setEditCohortForm((prev) => ({ ...prev, holidayDates: prev.holidayDates.map((date, dateIndex) => dateIndex === index ? e.target.value : date) }))} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
-                        <button type="button" onClick={() => setEditCohortForm(prev => ({ ...prev, holidayDates: prev.holidayDates.filter((_, i) => i !== index) }))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                        <input type="date" value={value} onChange={(e) => updateEditCohortForm((prev) => ({ ...prev, holidayDates: prev.holidayDates.map((date, dateIndex) => dateIndex === index ? e.target.value : date) }))} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
+                        <button type="button" onClick={() => updateEditCohortForm(prev => ({ ...prev, holidayDates: prev.holidayDates.filter((_, i) => i !== index) }))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     ))}
                   </div>
@@ -2364,11 +2772,11 @@ export default function WorkshopManagementPage() {
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-slate-500 mb-1">YouTube Playlist Name</label>
-                      <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={editCohortForm.youtubePlaylistName} onChange={(e) => setEditCohortForm({ ...editCohortForm, youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                      <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={editCohortForm.youtubePlaylistName} onChange={(e) => updateEditCohortForm({ youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-500 mb-1">Thumbnail URL</label>
-                      <input type="url" placeholder="https://..." value={editCohortForm.thumbnailUrl} onChange={(e) => setEditCohortForm({ ...editCohortForm, thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                      <input type="url" placeholder="https://..." value={editCohortForm.thumbnailUrl} onChange={(e) => updateEditCohortForm({ thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                     </div>
                   </div>
                 </div>
@@ -2384,7 +2792,7 @@ export default function WorkshopManagementPage() {
                           type="text"
                           placeholder="Subject name"
                           value={ds.subject}
-                          onChange={(e) => setEditCohortForm(prev => ({ ...prev, daySubjects: prev.daySubjects.map((d, i) => i === idx ? { ...d, subject: e.target.value } : d) }))}
+                          onChange={(e) => updateEditCohortForm(prev => ({ ...prev, daySubjects: prev.daySubjects.map((d, i) => i === idx ? { ...d, subject: e.target.value } : d) }))}
                           className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400"
                         />
                       </div>
@@ -2396,44 +2804,45 @@ export default function WorkshopManagementPage() {
                 <div className="sm:col-span-2 rounded-xl border border-indigo-100 p-4 space-y-3">
                   <h3 className="font-bold text-indigo-900">Recording access · shared 14-session allowance</h3>
                   <label className="flex gap-2 items-center">
-                    <input type="checkbox" checked={recordingAccess.enabled} onChange={e => setRecordingAccess({ ...recordingAccess, enabled: e.target.checked })} />
+                    <input type="checkbox" checked={recordingAccess.enabled} onChange={e => updateRecordingAccess({ enabled: e.target.checked })} />
                     Enable keyword requests and attendance-based recording access
                   </label>
                   <p className="text-xs text-slate-600">Only verified absent or incomplete attendance qualifies. Automatic delivery and requests use the same allowance; repeated requests for one class do not use another day. Missing attendance is not treated as absence.</p>
                   <label className="block text-sm">Recording days allowed
-                    <select value={recordingAccess.maxDays} onChange={e => setRecordingAccess({ ...recordingAccess, maxDays: Number(e.target.value) })} className="block rounded border p-2 mt-1">
+                    <select value={recordingAccess.maxDays} onChange={e => updateRecordingAccess({ maxDays: Number(e.target.value) })} className="block rounded border p-2 mt-1">
                       {[3, 4, 5].map(days => <option key={days} value={days}>{days} of 14 sessions</option>)}
                     </select>
                   </label>
                   <label className="block text-sm">Minutes required to complete attendance
-                    <input type="number" min={1} max={240} value={recordingAccess.minimumMinutes} onChange={e => setRecordingAccess({ ...recordingAccess, minimumMinutes: Number(e.target.value) })} className="block rounded border p-2 mt-1" />
+                    <input type="number" min={1} max={240} value={recordingAccess.minimumMinutes} onChange={e => updateRecordingAccess({ minimumMinutes: Number(e.target.value) })} className="block rounded border p-2 mt-1" />
                   </label>
                   <label className="block text-sm">Keywords or template-button payloads (comma-separated)
-                    <input value={recordingAccess.keywords.join(', ')} onChange={e => setRecordingAccess({ ...recordingAccess, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) })} className="block w-full rounded border p-2 mt-1" />
+                    <input value={recordingAccess.keywords.join(', ')} onChange={e => updateRecordingAccess({ keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) })} className="block w-full rounded border p-2 mt-1" />
                   </label>
                   <label className="block text-sm">Approved Meta recording template name or ID
-                    <input value={recordingAccess.templateId} onChange={e => setRecordingAccess({ ...recordingAccess, templateId: e.target.value })} className="block w-full rounded border p-2 mt-1" />
+                    <input value={recordingAccess.templateId} onChange={e => updateRecordingAccess({ templateId: e.target.value })} className="block w-full rounded border p-2 mt-1" />
                   </label>
                   <p className="text-xs text-slate-500">Template body must have one variable {'{{1}}'} for the saved recording links. Delivery uses Meta WhatsApp, not an unrestricted group broadcast. Enable automatic sending separately below.</p>
                 </div>
                 <div className="sm:col-span-2 flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100">
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
-                    <input type="checkbox" checked={editCohortForm.autoSendRecordings} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoSendRecordings: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <input type="checkbox" checked={editCohortForm.autoSendRecordings} onChange={(e) => updateEditCohortForm({ autoSendRecordings: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
                     <span className="font-bold text-violet-900 text-sm">Automatically send recordings by WhatsApp</span>
                   </label>
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
-                    <input type="checkbox" checked={editCohortForm.autoSyncZoomAttendance} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoSyncZoomAttendance: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <input type="checkbox" checked={editCohortForm.autoSyncZoomAttendance} onChange={(e) => updateEditCohortForm({ autoSyncZoomAttendance: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
                     <span className="font-bold text-violet-900 text-sm">Auto Sync Zoom Attendance</span>
                   </label>
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
-                    <input type="checkbox" checked={editCohortForm.autoRecoverZoomTrash} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoRecoverZoomTrash: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <input type="checkbox" checked={editCohortForm.autoRecoverZoomTrash} onChange={(e) => updateEditCohortForm({ autoRecoverZoomTrash: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
                     <span className="font-bold text-violet-900 text-sm">Auto-Recover Zoom Trash (Sync Deleted)</span>
                   </label>
                 </div>
               </div>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
-              <button onClick={() => setEditingCohort(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+              <AutosaveIndicator status={cohortAutosaveStatus} error={cohortAutosaveError} onRetry={() => { void cohortEditAutosaveRef.current?.retry().catch(() => undefined); }} />
+              <button onClick={() => void closeEditCohort()} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Close</button>
               <button onClick={handleSaveEditCohort} disabled={savingEditCohort} className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
                 {savingEditCohort ? 'Saving...' : 'Save Changes'}
               </button>
@@ -2617,7 +3026,7 @@ export default function WorkshopManagementPage() {
                   {(detailStudent.phone || detailStudent.whatsappNumber) && <span className="flex items-center gap-1"><Phone size={14}/> {detailStudent.phone || detailStudent.whatsappNumber}</span>}
                 </p>
               </div>
-              <button onClick={() => setDetailStudent(null)} className="p-2 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"><X size={20}/></button>
+              <button onClick={() => void closeAttendanceChart()} className="p-2 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"><X size={20}/></button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-slate-50/50">
@@ -2632,10 +3041,11 @@ export default function WorkshopManagementPage() {
                 <div className="flex items-center gap-3">
                   <label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-2">
                     Class Duration (Mins)
-                    <input type="number" min={1} value={chartClassDuration} onChange={(e) => setChartClassDuration(e.target.value)} className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800" />
+                    <input type="number" min={1} value={chartClassDuration} onChange={(e) => updateChartClassDuration(e.target.value)} className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800" />
                   </label>
+                  <AutosaveIndicator status={attendanceAutosaveStatus} error={attendanceAutosaveError} onRetry={() => { void attendanceAutosaveRef.current?.retry().catch(() => undefined); }} />
                   <button type="button" onClick={() => void saveStudentChart()} disabled={savingChart} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2 font-bold text-white shadow-sm transition-colors disabled:opacity-50">
-                    {savingChart ? 'Saving...' : 'Save Changes'}
+                    {savingChart ? 'Saving...' : 'Save Now'}
                   </button>
                 </div>
               </div>
@@ -2671,12 +3081,12 @@ export default function WorkshopManagementPage() {
                         </td>
                         <td className="p-4 text-center">
                           {row.holiday ? '—' : (
-                            <input type="number" min={0} value={row.durationMinutes} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-20 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-2 py-1.5 text-center font-bold" />
+                            <input type="number" min={0} value={row.durationMinutes} onChange={(e) => updateAttendanceChart(attendanceChart.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-20 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-2 py-1.5 text-center font-bold" />
                           )}
                         </td>
                         <td className="p-4">
                           {row.holiday ? '—' : (
-                            <select value={row.status} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-3 py-1.5 font-semibold text-slate-700">
+                            <select value={row.status} onChange={(e) => updateAttendanceChart(attendanceChart.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-3 py-1.5 font-semibold text-slate-700">
                               <option value="joined">Mark Present</option>
                               <option value="absent">Mark Absent</option>
                             </select>
@@ -2804,33 +3214,15 @@ export default function WorkshopManagementPage() {
                   <h3 className="text-base font-bold text-slate-900">
                     Day {editingRecordingUrls.dayNumber || '–'} Recording URLs
                   </h3>
-                  <button
-                    type="button"
-                    onClick={() => setAutoSaveUrls(!autoSaveUrls)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
-                      autoSaveUrls
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
-                    }`}
-                    title="Toggle auto-saving of pasted or typed recording URLs"
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${autoSaveUrls ? 'bg-emerald-600 animate-pulse' : 'bg-slate-400'}`} />
-                    Auto-Save: {autoSaveUrls ? 'ON' : 'OFF'}
-                  </button>
+                  <AutosaveIndicator status={autoSaveStatus} error={autoSaveError} onRetry={() => { void recordingUrlsAutosaveRef.current?.retry().catch(() => undefined); }} />
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {new Date(editingRecordingUrls.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
-              <button 
-                type="button" 
-                onClick={() => {
-                  if (autoSaveTimerRef.current) {
-                    clearTimeout(autoSaveTimerRef.current);
-                    if (editingRecordingUrls && autoSaveUrls) void performAutoSaveUrls(editingRecordingUrls);
-                  }
-                  setEditingRecordingUrls(null);
-                }} 
+              <button
+                type="button"
+                onClick={() => void closeRecordingUrlsModal()}
                 className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200"
               >
                 <X size={18}/>
@@ -2840,21 +3232,7 @@ export default function WorkshopManagementPage() {
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Provide YouTube &amp; Bunny URLs. Links auto-save immediately as you paste or type.</span>
                 <div className="flex-shrink-0 ml-2">
-                  {autoSaveStatus === 'saving' && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 animate-pulse">
-                      <RefreshCw size={11} className="animate-spin" /> Auto-saving...
-                    </span>
-                  )}
-                  {autoSaveStatus === 'saved' && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 animate-in fade-in">
-                      <CheckCircle2 size={12} /> Auto-Saved ✓
-                    </span>
-                  )}
-                  {autoSaveStatus === 'error' && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600">
-                      <AlertCircle size={12} /> Save error
-                    </span>
-                  )}
+                  <AutosaveIndicator status={autoSaveStatus} error={autoSaveError} onRetry={() => { void recordingUrlsAutosaveRef.current?.retry().catch(() => undefined); }} />
                 </div>
               </div>
 
@@ -2947,32 +3325,18 @@ export default function WorkshopManagementPage() {
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div className="text-xs text-slate-400">
-                  {autoSaveUrls ? (
-                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                      <CheckCircle2 size={12}/> Auto-save enabled
-                    </span>
-                  ) : (
-                    <span>Click Save URLs to update</span>
-                  )}
-                </div>
+                <div className="text-xs text-slate-400">URL changes save automatically.</div>
                 <div className="flex items-center gap-2">
                   <button 
                     type="button" 
-                    onClick={() => {
-                      if (autoSaveTimerRef.current) {
-                        clearTimeout(autoSaveTimerRef.current);
-                        if (editingRecordingUrls && autoSaveUrls) void performAutoSaveUrls(editingRecordingUrls);
-                      }
-                      setEditingRecordingUrls(null);
-                    }} 
+                    onClick={() => void closeRecordingUrlsModal()}
                     className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                   >
                     Close
                   </button>
                   <button 
                     type="submit" 
-                    disabled={savingRecordingUrls || autoSaveStatus === 'saving'}
+                    disabled={savingRecordingUrls}
                     className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                   >
                     {savingRecordingUrls ? (
@@ -2984,7 +3348,7 @@ export default function WorkshopManagementPage() {
                         <CheckCircle2 size={13} /> Saved ✓
                       </>
                     ) : (
-                      'Save URLs'
+                      'Save Now'
                     )}
                   </button>
                 </div>

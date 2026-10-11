@@ -30,8 +30,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid registration settings' }, { status: 400 });
     }
     const decisions = Object.entries(body).filter(([key]) => key.startsWith('crm_ai_decision_'));
-    if (!autosave && Object.keys(body).length > 10 && Object.keys(body).some(key => /^crm_(english|hindi|marathi|kannada)_workshops$|^crm_offers$/.test(key))) {
-      return NextResponse.json({ error: 'This page is using an outdated bulk autosave. Reload the page; saved data has not been changed.' }, { status: 409 });
+    if (!autosave && Object.keys(body).some(key => /^crm_(english|hindi|marathi|kannada)_workshops$|^crm_workshops$|^crm_offers$/.test(key))) {
+      return NextResponse.json({ error: 'This batch-list save has no saved version. Reload the page; newer settings and records have been preserved.' }, { status: 409 });
     }
     for (const [key, value] of Object.entries(body)) {
       if (!key.startsWith('crm_ai_config_')) continue;
@@ -40,6 +40,9 @@ export async function POST(request: Request) {
       }
       try { validateRegistrationConditions(value.conditions); }
       catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid AI answer rules' }, { status: 400 }); }
+    }
+    if (!autosave && Object.keys(body).some(key => key === 'crm_custom_categories' || key.startsWith('crm_ai_config_'))) {
+      return NextResponse.json({ error: 'This category or rule save has no saved version. Reload; newer settings have been preserved.' }, { status: 409 });
     }
     if (decisions.some(([, value]) => !value || typeof value !== 'object' || Array.isArray(value) ||
         REGISTRATION_GATE_FIELDS.some(field => field in value))) {
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Autosave requires the previous saved settings. Use explicit controls for lead decisions.' }, { status: 400 });
       }
       try {
-        const saved = await saveRegistrationSnapshotIfUnchanged(body, payload.previous, scope);
+        const saved = await saveRegistrationSnapshotIfUnchanged(body, payload.previous, scope, payload.allowBatchRemoval === true);
         return NextResponse.json({ success: true, saved });
       } catch (error) {
         if (error instanceof RegistrationSnapshotConflict) return NextResponse.json({ error: error.message }, { status: 409 });

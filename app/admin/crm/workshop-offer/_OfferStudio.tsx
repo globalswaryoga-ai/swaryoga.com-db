@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Download, Save, Sparkles, FileCheck, Palette, Image as ImageIcon, Video } from 'lucide-react';
-import { offerFetch, offerJson } from '@/lib/workshopOfferClient';
+import { offerAutosave, offerFetch, offerJson, offerStorage } from '@/lib/workshopOfferClient';
 import { useOfferRecords } from '@/hooks/useOfferRecords';
+import { useOfferAutosave } from '@/hooks/useOfferAutosave';
 import type { OfferDesign } from '@/lib/workshopOfferDesign';
 
 type Lead = { id: string; name?: string; mobile?: string; phoneNumber?: string; email?: string; leadId?: string };
@@ -17,6 +18,10 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
   const store = useOfferRecords();
   const [design, setDesign] = useState<StudioDesign | null>(null);
   const [saved, setSaved] = useState<StudioDesign[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, StudioDesign>>(() => {
+    try { return JSON.parse(offerStorage.getItem('crm_offer_studio_drafts') || '{}'); } catch { return {}; }
+  });
+  const draftStatus = useOfferAutosave({ crm_offer_studio_drafts: drafts }, offerAutosave.status().loaded);
   const [prompt, setPrompt] = useState('');
   const [language, setLanguage] = useState('English');
   const [media, setMedia] = useState('copy');
@@ -37,9 +42,10 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
   const refresh = async () => {
     const response = await offerJson<{ data: StudioDesign[] }>('designs');
     setSaved(response.data.filter(row => ['ad', 'receipt', 'certificate'].includes(row.kind)));
+    setDesign(previous => response.data.find(row => row.id === previous?.id && row.status === 'final') || previous);
   };
   useEffect(() => {
-    setDesign(defaultDesign());
+    setDesign(Object.values(drafts).find(row => row.status === 'draft') || defaultDesign());
     void refresh().catch(error => setError(String(error.message)));
     void offerJson<{ data: typeof templates }>('delivery').then(response => setTemplates(response.data)).catch(error => setError(String(error.message)));
     void offerJson<{ connected: boolean }>('canva').then(result => setCanvaConnected(result.connected)).catch(error => setError(String(error.message)));
@@ -125,7 +131,12 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
     catch (error) { setError(error instanceof Error ? error.message : 'Action failed'); }
     finally { setBusy(false); }
   };
-  const update = (patch: Partial<OfferDesign>) => setDesign(previous => previous ? { ...previous, ...patch } : previous);
+  const update = (patch: Partial<OfferDesign>) => {
+    if (!design || design.status === 'final') return;
+    const updated = { ...design, ...patch };
+    setDesign(updated);
+    setDrafts(previous => ({ ...previous, [updated.id]: updated }));
+  };
   const makeDocument = (lead: Lead, kind: 'receipt' | 'certificate') => {
     const record = store.records[lead.id];
     setApproved(false);
@@ -148,7 +159,10 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
         window.location.assign(response.url);
       })}>{canvaConnected ? 'Reconnect Canva' : 'Connect Canva'}</button>
     </div>
-    {(error || store.error) && <div role="alert" className="rounded-lg bg-red-50 text-red-700 p-3">{error || store.error}</div>}
+    {(error || store.error || draftStatus.error) && <div role="alert" className="rounded-lg bg-red-50 text-red-700 p-3">{error || store.error || draftStatus.error}
+      {draftStatus.error && <button className="ml-3 underline" onClick={() => { void draftStatus.retry().catch(error => setError(error.message)); }}>Retry draft save</button>}
+    </div>}
+    <p role="status" className="text-xs text-slate-500">{draftStatus.saving || draftStatus.pending ? 'Saving editable design draft…' : 'Edits save automatically as drafts. Finalize PDF and send remain explicit.'}</p>
     {notice && <div role="status" className="rounded-lg bg-emerald-50 text-emerald-800 p-3">{notice}</div>}
     <div className="rounded-xl border bg-white p-4">
       <h3 className="font-semibold mb-3">Confirmed payments ready for documents</h3>
@@ -165,7 +179,7 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
       <aside className="bg-white rounded-xl border p-4 space-y-4">
         <h3 className="font-bold flex gap-2 items-center"><Palette size={18} /> Editing sidebar</h3>
         <button className="w-full border rounded-lg p-2" onClick={() => { setApproved(false); setDesign(defaultDesign()); }}>New advertisement</button>
-        <label className="block text-sm font-medium">Saved designs<select className="mt-1 w-full border rounded-lg p-2" value={design?.id || ''} onChange={event => { const row = saved.find(row => row.id === event.target.value); if (row) { setApproved(false); setDesign(row); } }}>
+        <label className="block text-sm font-medium">Saved designs<select className="mt-1 w-full border rounded-lg p-2" value={design?.id || ''} onChange={event => { const row = saved.find(row => row.id === event.target.value); if (row) { setApproved(false); setDesign(row.status === 'final' ? row : drafts[row.id] || row); } }}>
           <option value="">Select a saved design…</option>{saved.map(row => <option key={row.id} value={row.id}>{row.title} · {row.status}</option>)}
         </select></label>
         <fieldset disabled={busy || finalized} className="space-y-3">
@@ -177,11 +191,13 @@ export function OfferStudio({ leads }: { leads: Lead[] }) {
         {design?.kind === 'certificate' && !finalized && <label className="flex gap-2 text-sm"><input type="checkbox" checked={approved} onChange={event => setApproved(event.target.checked)} />I verified participation and approve certificate eligibility.</label>}
         <div className="flex gap-2">
           <button disabled={busy || finalized || !design} className="flex gap-1 items-center border rounded-lg p-2" onClick={() => void act(async () => {
-            const response = await offerJson<{ data: StudioDesign }>('designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { ...design, status: 'draft' }, approveCertificate: approved }) });
+            await offerAutosave.save({});
+            const response = await offerJson<{ data: StudioDesign }>('designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { ...design, status: 'draft' }, previous: saved.find(row => row.id === design?.id) || {}, approveCertificate: approved }) });
             setDesign(response.data); await refresh(); setNotice('Draft saved permanently in Bunny.');
           })}><Save size={16} />Save draft</button>
           <button disabled={busy || finalized || !design || renderedId !== design.id || (design.kind !== 'ad' && !design.documentNumber)} className="flex gap-1 items-center bg-indigo-600 text-white rounded-lg p-2" onClick={() => void act(async () => {
-            const response = await offerJson<{ data: StudioDesign }>('designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { ...design, status: 'final' }, png: canvas.current!.toDataURL('image/png'), approveCertificate: approved }) });
+            await offerAutosave.save({});
+            const response = await offerJson<{ data: StudioDesign }>('designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { ...design, status: 'final' }, previous: saved.find(row => row.id === design?.id) || {}, png: canvas.current!.toDataURL('image/png'), approveCertificate: approved }) });
             setDesign(response.data); await refresh(); await store.reload(); setNotice('Final PDF saved in Bunny. No WhatsApp message was sent.');
           })}><FileCheck size={16} />Finalize PDF</button>
         </div>

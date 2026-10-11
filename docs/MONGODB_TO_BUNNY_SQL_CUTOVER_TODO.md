@@ -5,6 +5,43 @@
 
 ## Registration repair clarification
 
+### Durable autosave and saved Meta recovery — October 11, 2026
+
+Registration batch edits, My Data lists, category names/order and valid question
+rules now save automatically with serialized version checks. Failed edits remain
+pending for Retry rather than being forgotten. Sidebar position/width and collapsed
+sections are stored with the registration settings. Mount/hydration does not upload
+browser defaults. Wait for the saved indicator before closing; unsaved/in-flight
+registration changes warn before leaving.
+
+Unversioned batch/category/rule writes from older deployed tabs return an explicit
+409. Whole-list autosave cannot replace an existing batch's form/AI metadata, even
+when it has the latest list version; those settings use the batch-settings endpoint.
+Removing a batch requires the confirmed Delete/Merge path. Source lead records,
+form responses and decision history are not deleted by these operations.
+
+Meta stage drafts autosave valid edits without starting processing. Start/run and
+WhatsApp activation remain explicit. Historical settings may survive in a selected
+batch snapshot after an older whole-list write loses its metadata; recovery must
+match the exact batch ID, preserve the live form mapping, and obtain authorization
+before restoring active automation switches. Never invent missing rules or resend
+messages just to repair counters.
+
+Workshop Offer has independent transactional version checks for settings, record
+corrections and draft payments/designs. Offer-scoped response corrections/removals
+are overlays, not source-record deletion. Final documents, financial finalization,
+deletions and delivery still require explicit confirmation.
+
+Workshop Students, cohort settings and recording-link drafts also use debounced,
+serialized saves with visible Retry and flush-on-close behavior. Conflicting edits
+are rejected instead of replacing another saved version. Existing enrollment
+removals and recording delivery actions remain deliberate.
+
+Form-column migrations now verify the schema again after a concurrent ALTER
+failure. A column created by another serverless instance is accepted only when
+actually present; a missing column still fails visibly. This addresses the observed
+registration cron `duplicate column name: lead_id` error without resetting forms.
+
 ### Chatbot and workshop recording access — October 11, 2026
 
 Chatbot flow CRUD now treats Bunny SQL as authoritative. SQL failures are explicit;
@@ -107,6 +144,12 @@ Mobile/WhatsApp field mapping, including CRM answers nested under
 `dynamicAnswers.dynamicAnswers`. Trigger preview distinguishes no saved batch
 responses from responses without eligible unique WhatsApp numbers. Invalid,
 blocked and duplicate numbers remain excluded.
+
+The audience API returns a recipient-only projection (mapped identity, phone,
+category membership, ownership and display filters) rather than duplicating raw
+answers and decision/workshop history for every batch. Full source records remain
+in Bunny and server scheduling reloads them for validation. This keeps the saved
+audience response below the serverless response-size limit for the audited data.
 
 ### Future Meta approval-only trigger — October 11, 2026
 

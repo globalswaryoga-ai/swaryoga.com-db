@@ -4,6 +4,8 @@ import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, C
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
+import { useOfferAutosave } from '@/hooks/useOfferAutosave';
+import { offerAutosave } from '@/lib/workshopOfferClient';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -86,6 +88,7 @@ export function LeadsManagementTab({
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
+  const [restoredSettingsBatchId, setRestoredSettingsBatchId] = useState<string>();
   const [activeTab, setActiveTab] = useState('new_leads');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
@@ -248,6 +251,11 @@ export function LeadsManagementTab({
     }
     return {};
   });
+  const categoryStatus = useOfferAutosave(React.useMemo(() => ({
+    crm_custom_categories: customCategories,
+    crm_ai_settings_v3: aiSettings,
+    crm_ai4_decisions: batchDecisions,
+  }), [customCategories, aiSettings, batchDecisions]), offerAutosave.status().loaded && restoredSettingsBatchId === activeBatchId);
 
   const saveAiFilter = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C', conditions: FilterCondition[]) => {
     const newSettings = { ...aiSettings, [type]: conditions };
@@ -287,7 +295,7 @@ export function LeadsManagementTab({
       });
       setBatchDecisions(newDecisions);
       if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-      toast.success(`🤖 ${type} filters cleared. Leads reset!`);
+      toast.info(`${type} rule changes queued. Check the save status before leaving.`);
       setActiveModal(null);
       return;
     }
@@ -401,16 +409,17 @@ export function LeadsManagementTab({
 
     setBatchDecisions(newDecisions);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-    toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending.`);
+    toast.info(`${type} evaluated: ${approvedCount} approved, ${pendingCount} pending. Changes are awaiting save confirmation.`);
 
     setActiveModal(null);
   };
 
   React.useEffect(() => {
-    if (activeBatch?.metadata?.aiSettings) {
+    if (!localStorage.getItem('crm_ai_settings_v3') && activeBatch?.metadata?.aiSettings) {
       setAiSettings(activeBatch.metadata.aiSettings);
     }
-  }, [activeBatch]);
+    setRestoredSettingsBatchId(activeBatchId);
+  }, [activeBatchId]);
 
   // AI-4B Background Worker (Runs every 10 minutes)
   React.useEffect(() => {
@@ -664,7 +673,7 @@ export function LeadsManagementTab({
       if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(nd));
       return nd;
     });
-    toast.success(`Zoom Meeting Status: ${status}`);
+    toast.info(`Zoom status change queued: ${status}. Check the save status before leaving.`);
   };
 
   return (
@@ -687,8 +696,19 @@ export function LeadsManagementTab({
                 : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
             >
-              <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
+              {React.createElement(tab.icon || FileText, { size: 16, className: activeTab === tab.id ? 'text-white' : 'text-slate-400' })}
               <span className="flex-1">{tab.label}</span>
+              {customCategories.some(category => category.id === tab.id) && <span className="flex gap-2">
+                <span role="button" aria-label={`Rename ${tab.label}`} onClick={event => {
+                  event.stopPropagation();
+                  const name = window.prompt('Category name', tab.label);
+                  if (name?.trim()) setCustomCategories(previous => previous.map(category => category.id === tab.id ? { ...category, label: name.trim() } : category));
+                }}>Edit</span>
+                <span role="button" aria-label={`Delete ${tab.label}`} onClick={event => {
+                  event.stopPropagation();
+                  if (window.confirm(`Delete category "${tab.label}"? Saved lead decisions will remain.`)) setCustomCategories(previous => previous.filter(category => category.id !== tab.id));
+                }}>×</span>
+              </span>}
               {activeBatchId && tabCounts[tab.id] !== undefined && (
                 <span className={`ml-auto text-[11px] font-black px-2 py-0.5 rounded-full ${activeTab === tab.id
                     ? 'bg-white/20 text-white'
@@ -699,6 +719,11 @@ export function LeadsManagementTab({
               )}
             </button>
           ))}
+          <button className="w-full px-3 py-2 text-sm text-indigo-700" onClick={() => {
+            const label = window.prompt('New category name');
+            if (label?.trim()) setCustomCategories(previous => [...previous, { id: `offer_category_${crypto.randomUUID()}`, label: label.trim() }]);
+          }}>+ Add category</button>
+          {categoryStatus.error && <div role="alert" className="text-xs p-3 text-red-700">{categoryStatus.error}<button className="ml-2 underline" onClick={() => { void categoryStatus.retry().catch(error => toast.error(error.message)); }}>Retry save</button></div>}
         </div>
       </aside>
 
@@ -965,7 +990,7 @@ export function LeadsManagementTab({
                                           const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
                                           setBatchDecisions(newDecisions);
                                           if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                          toast.success('Lead marked as Registered!');
+                                          toast.info('Registration change queued. Check the save status before leaving.');
                                         }}
                                         className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
                                       >
@@ -977,7 +1002,7 @@ export function LeadsManagementTab({
                                           const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
                                           setBatchDecisions(newDecisions);
                                           if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                          toast.success('Lead marked as Rejected!');
+                                          toast.info('Rejection change queued. Check the save status before leaving.');
                                         }}
                                         className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
                                       >

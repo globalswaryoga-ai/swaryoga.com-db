@@ -65,7 +65,8 @@ export async function writeRegistrationState(patch: RegistrationState, scope = '
   })));
 }
 
-export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationState, previous: RegistrationState, scope = 'shared') {
+export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationState, previous: RegistrationState, scope = 'shared',
+  allowBatchRemoval = false) {
   await ensureState(scope);
   const transaction = await getBunnyDatabase().transaction('write');
   try {
@@ -77,6 +78,24 @@ export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationSta
       const current = result.rows.length ? JSON.parse(String(result.rows[0].value_json)) : undefined;
       if (!registrationStoredValuesEqual(current, previous[key]) && !registrationStoredValuesEqual(current, value)) {
         throw new RegistrationSnapshotConflict(`Saved setting ${key} changed in another update. Reload before editing; your saved data has been preserved.`);
+      }
+      if (/^crm_(english|hindi|marathi|kannada)_workshops$|^crm_workshops$/.test(key)) {
+        const existing = parseRegistrationValue<Array<Record<string, unknown>>>(current, []);
+        const edited = parseRegistrationValue<Array<Record<string, unknown>>>(value, []);
+        if (!Array.isArray(existing) || !Array.isArray(edited)) throw new Error('Invalid workshop list');
+        const byId = new Map(existing.map(workshop => [workshop.id, workshop]));
+        const editedIds = new Set(edited.map(workshop => workshop.id));
+        if (!allowBatchRemoval && existing.some(workshop => !editedIds.has(workshop.id))) {
+          throw new RegistrationSnapshotConflict('Automatic saving cannot remove saved batches. Use the confirmed Delete or Merge control; your batches have been preserved.');
+        }
+        for (const workshop of edited) {
+          const savedWorkshop = byId.get(workshop.id);
+          if (!savedWorkshop) continue;
+          if (!registrationStoredValuesEqual(savedWorkshop.metadata, workshop.metadata) ||
+              !registrationStoredValuesEqual(savedWorkshop.formId, workshop.formId)) {
+            throw new RegistrationSnapshotConflict('A batch-list update cannot replace saved form or AI settings. Use the batch settings control; your saved configuration has been preserved.');
+          }
+        }
       }
     }
     for (const [key, value] of Object.entries(patch)) {

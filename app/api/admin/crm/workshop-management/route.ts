@@ -75,6 +75,38 @@ export async function PATCH(request: NextRequest) {
     if (body.zoomMeetingId !== undefined) {
       updates.zoomMeetingId = body.zoomMeetingId ? String(body.zoomMeetingId).trim() : null;
     }
+    if (body.zoomJoinUrl !== undefined) {
+      const value = String(body.zoomJoinUrl || '').trim();
+      if (value && !/^https?:\/\//i.test(value)) return NextResponse.json({ error: 'Zoom link must begin with http:// or https://' }, { status: 400 });
+      updates.zoomJoinUrl = value || null;
+    }
+    if (body.startDate !== undefined) {
+      const value = String(body.startDate || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`)))
+        return NextResponse.json({ error: 'A valid workshop start date is required' }, { status: 400 });
+      updates.startDate = value;
+    }
+    if (body.endDate !== undefined) updates.endDate = body.endDate ? String(body.endDate).slice(0, 10) : null;
+    if (body.holidayDates !== undefined) {
+      if (!Array.isArray(body.holidayDates) || body.holidayDates.some((value: unknown) => value && !/^\d{4}-\d{2}-\d{2}$/.test(String(value))))
+        return NextResponse.json({ error: 'Holiday dates must be a list of valid dates' }, { status: 400 });
+      updates.holidayDates = body.holidayDates.filter(Boolean);
+    }
+    if (body.classStartTime !== undefined) updates.classStartTime = body.classStartTime || null;
+    if (body.classEndTime !== undefined) updates.classEndTime = body.classEndTime || null;
+    if (body.whatsappGroupLink !== undefined) updates.whatsappGroupLink = body.whatsappGroupLink || null;
+    if (body.daySubjects !== undefined) {
+      if (!Array.isArray(body.daySubjects)) return NextResponse.json({ error: 'Day subjects must be a list' }, { status: 400 });
+      updates.daySubjects = body.daySubjects;
+    }
+    for (const key of ['aiWorkerEnabled', 'autoSyncWhatsappGroup', 'autoSendRecordings', 'autoSyncZoomAttendance', 'autoRecoverZoomTrash']) {
+      if (body[key] !== undefined) updates[key] = body[key] === true;
+    }
+    if (body.name !== undefined) {
+      const value = String(body.name || '').trim();
+      if (!value) return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
+      updates.name = value;
+    }
     if (body.youtubePlaylistName !== undefined) {
       updates.youtubePlaylistName = body.youtubePlaylistName ? String(body.youtubePlaylistName).trim() : null;
     }
@@ -92,10 +124,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
+    const previous = body.previous && typeof body.previous === 'object' ? body.previous : undefined;
+    const expectedPrevious = previous
+      ? Object.fromEntries(Object.keys(updates).filter(key => Object.prototype.hasOwnProperty.call(previous, key)).map(key => [key, previous[key]]))
+      : undefined;
     let cohort: any = null;
     if (Object.keys(updates).length > 0) {
-      cohort = await updateCohort(body.cohortId, updates);
-      if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      cohort = await updateCohort(body.cohortId, updates, expectedPrevious);
+      if (!cohort) {
+        const current = await getCohort(body.cohortId);
+        if (!current) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+        if (expectedPrevious && Object.keys(expectedPrevious).length)
+          return NextResponse.json({ error: 'This setting changed elsewhere. Reload the workshop before saving again.', cohort: current }, { status: 409 });
+        return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      }
     } else {
       cohort = await getCohort(body.cohortId);
     }

@@ -1,5 +1,6 @@
 import { bunnyBatch, bunnyExecute, getBunnyDatabase } from './bunnyDatabase';
 import { readRegistrationState } from './registrationState';
+import { registrationStoredValuesEqual } from './registrationWorkshopMerge';
 
 export async function initOfferSchema() {
   await bunnyBatch([
@@ -23,13 +24,28 @@ export async function readOfferState(scope: string): Promise<Record<string, unkn
   return Object.fromEntries(existing.rows.filter(row => row.state_key !== '__initialized').map(row => [String(row.state_key), JSON.parse(String(row.value_json))]));
 }
 
-export async function writeOfferState(scope: string, patch: Record<string, unknown>) {
+export async function writeOfferState(scope: string, patch: Record<string, unknown>, previous: Record<string, unknown>) {
   await initOfferSchema();
-  if (!Object.keys(patch).length) return;
-  await bunnyBatch(Object.entries(patch).map(([key, value]) => ({
-    sql: 'INSERT INTO workshop_offer_state_sql(scope,state_key,value_json) VALUES (?,?,?) ON CONFLICT(scope,state_key) DO UPDATE SET value_json=excluded.value_json',
-    args: [scope, key, JSON.stringify(value)],
-  })));
+  const transaction = await getBunnyDatabase().transaction('write');
+  try {
+    for (const key of Object.keys(patch)) {
+      const result = await transaction.execute({ sql: 'SELECT value_json FROM workshop_offer_state_sql WHERE scope=? AND state_key=?', args: [scope, key] });
+      const row = result.rows[0];
+      const expectedExists = Object.prototype.hasOwnProperty.call(previous, key);
+      if (!!row !== expectedExists || (row && !registrationStoredValuesEqual(JSON.parse(String(row.value_json)), previous[key]))) {
+        throw new Error('Offer settings changed in another tab. Reload to review the latest values before retrying.');
+      }
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      await transaction.execute({
+        sql: 'INSERT INTO workshop_offer_state_sql(scope,state_key,value_json) VALUES (?,?,?) ON CONFLICT(scope,state_key) DO UPDATE SET value_json=excluded.value_json',
+        args: [scope, key, JSON.stringify(value)],
+      });
+    }
+    await transaction.commit();
+    return patch;
+  } catch (error) { await transaction.rollback(); throw error; }
+  finally { transaction.close(); }
 }
 
 export async function listOfferRecords(scope: string): Promise<Record<string, Record<string, unknown>>> {
@@ -86,19 +102,35 @@ export async function listOfferDesigns(scope: string) {
   return rows.rows.map(row => JSON.parse(String(row.data_json)));
 }
 
-export async function saveOfferDesign(scope: string, id: string, kind: string, data: Record<string, unknown>) {
+export async function saveOfferDesign(scope: string, id: string, kind: string, data: Record<string, unknown>, previous?: Record<string, unknown>) {
   await initOfferSchema();
+  if (previous) {
+    const transaction = await getBunnyDatabase().transaction('write');
+    try {
+      const result = await transaction.execute({ sql: 'SELECT data_json FROM workshop_offer_designs_sql WHERE scope=? AND id=?', args: [scope, id] });
+      const current = result.rows[0] ? JSON.parse(String(result.rows[0].data_json)) : {};
+      if (!registrationStoredValuesEqual(current, previous)) throw new Error('Design changed in another tab; reload to review the latest draft.');
+      await transaction.execute({
+        sql: 'INSERT INTO workshop_offer_designs_sql(scope,id,kind,data_json,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(scope,id) DO UPDATE SET data_json=excluded.data_json,updated_at=excluded.updated_at',
+        args: [scope, id, kind, JSON.stringify({ ...data, id, kind }), new Date().toISOString()],
+      });
+      await transaction.commit();
+    } catch (error) { await transaction.rollback(); throw error; }
+    finally { transaction.close(); }
+    return;
+  }
   await bunnyExecute({
     sql: 'INSERT INTO workshop_offer_designs_sql(scope,id,kind,data_json,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(scope,id) DO UPDATE SET data_json=excluded.data_json,updated_at=excluded.updated_at',
     args: [scope, id, kind, JSON.stringify({ ...data, id, kind }), new Date().toISOString()],
   });
 }
 
-export async function finalizeOfferDocument(scope: string, id: string, kind: string, design: Record<string, unknown>, leadId: string, expected: Record<string, unknown>, patch: Record<string, unknown>) {
+export async function finalizeOfferDocument(scope: string, id: string, kind: string, design: Record<string, unknown>, leadId: string, expected: Record<string, unknown>, patch: Record<string, unknown>, expectedDesign?: Record<string, unknown>) {
   const transaction = await getBunnyDatabase().transaction('write');
   try {
     const record = await transaction.execute({ sql: 'SELECT data_json FROM workshop_offer_records_sql WHERE scope=? AND lead_id=?', args: [scope, leadId] });
     const existing = await transaction.execute({ sql: 'SELECT data_json FROM workshop_offer_designs_sql WHERE scope=? AND id=?', args: [scope, id] });
+    if (expectedDesign && !registrationStoredValuesEqual(existing.rows[0] ? JSON.parse(String(existing.rows[0].data_json)) : {}, expectedDesign)) throw new Error('Design changed in another tab; reload before finalizing.');
     if (String(record.rows[0]?.data_json) !== JSON.stringify(expected)) throw new Error('Payment changed during document creation. Refresh and retry.');
     if (existing.rows[0] && JSON.parse(String(existing.rows[0].data_json)).status === 'final') throw new Error('This payment already has a final document.');
     const now = new Date().toISOString();

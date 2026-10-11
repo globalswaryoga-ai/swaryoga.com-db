@@ -104,11 +104,7 @@ async function initializeFormTables() {
     },
   ]);
 
-  try {
-    await bunnyExecute('ALTER TABLE enquiry_forms ADD COLUMN url_image TEXT DEFAULT ""');
-  } catch (e) {
-    // Column might already exist
-  }
+  await ensureFormColumn('enquiry_forms', 'url_image', "TEXT DEFAULT ''");
 
   const columns = await bunnyExecute('PRAGMA table_info(form_submissions)');
   const names = new Set(columns.rows.map(row => String(row.name)));
@@ -118,10 +114,21 @@ async function initializeFormTables() {
     ['raw_answers', "TEXT DEFAULT '{}'"],
     ['lead_id', "TEXT DEFAULT ''"],
   ]) {
-    if (!names.has(name)) await bunnyExecute(`ALTER TABLE form_submissions ADD COLUMN ${name} ${definition}`);
+    if (!names.has(name)) await ensureFormColumn('form_submissions', name, definition);
   }
 
   tablesReady = true;
+}
+
+async function ensureFormColumn(table: string, name: string, definition: string) {
+  const columns = await bunnyExecute(`PRAGMA table_info(${table})`);
+  if (columns.rows.some(row => String(row.name) === name)) return;
+  try {
+    await bunnyExecute(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  } catch (error) {
+    const current = await bunnyExecute(`PRAGMA table_info(${table})`);
+    if (!current.rows.some(row => String(row.name) === name)) throw error;
+  }
 }
 
 // ─── Row converters ───────────────────────────────────────────────────────────

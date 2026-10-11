@@ -18,11 +18,12 @@ export async function saveRegistrationState(state: Record<string, unknown>) {
   return data;
 }
 
-export async function saveRegistrationSnapshot(patch: Record<string, unknown>, previous: Record<string, unknown>) {
+export async function saveRegistrationSnapshot(patch: Record<string, unknown>, previous: Record<string, unknown>,
+  options?: { allowBatchRemoval?: boolean }) {
   const response = await registrationFetch('/api/admin/crm/new-registration/state', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'autosave', patch, previous }),
+    body: JSON.stringify({ action: 'autosave', patch, previous, ...options }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Registration changes were not saved. Reload and retry.');

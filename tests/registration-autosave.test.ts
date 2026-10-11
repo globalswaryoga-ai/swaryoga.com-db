@@ -30,4 +30,29 @@ describe('Preserve-first browser autosave', () => {
     await saver.save({ crm_setting: 'before' });
     await expect(saver.save({ crm_setting: 'edit' })).rejects.toThrow('Saved data changed');
   });
+  it('retains a failed edit and retries it without requiring another change', async () => {
+    const send = jest.fn().mockRejectedValueOnce(new Error('SQL unavailable')).mockImplementation(async patch => patch);
+    const status = jest.fn();
+    const saver = createRegistrationAutosave(send, status);
+    saver.hydrate({ crm_setting: 'old' });
+    await saver.save({ crm_setting: 'old' });
+    await expect(saver.save({ crm_setting: 'new' })).rejects.toThrow('SQL unavailable');
+    await saver.retry();
+    expect(send).toHaveBeenLastCalledWith({ crm_setting: 'new' }, { crm_setting: 'old' });
+    expect(status).toHaveBeenLastCalledWith('saved');
+  });
+  it('serializes edits arriving during a save and keeps the most recent value', async () => {
+    let release!: (patch: Record<string, unknown>) => void;
+    const send = jest.fn().mockImplementationOnce(() => new Promise(resolve => { release = resolve; }))
+      .mockImplementation(async patch => patch);
+    const saver = createRegistrationAutosave(send);
+    saver.hydrate({ crm_setting: 'old' });
+    await saver.save({ crm_setting: 'old' });
+    const first = saver.save({ crm_setting: 'first' });
+    await Promise.resolve();
+    const second = saver.save({ crm_setting: 'second' });
+    release({ crm_setting: 'first' });
+    await Promise.all([first, second]);
+    expect(send).toHaveBeenLastCalledWith({ crm_setting: 'second' }, { crm_setting: 'first' });
+  });
 });

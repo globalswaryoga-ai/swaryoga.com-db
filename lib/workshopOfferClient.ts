@@ -1,4 +1,18 @@
 'use client';
+import { createOfferAutosave } from '@/lib/workshopOfferAutosave';
+
+let loadedCacheScope = '';
+export const offerAutosave = createOfferAutosave(async (patch, previous) => {
+  if (loadedCacheScope !== cachePrefix()) throw new Error('Your CRM account changed. Reload before saving offer settings.');
+  const response = await window.fetch('/api/admin/crm/workshop-offer/state', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${offerToken()}` },
+    body: JSON.stringify({ action: 'autosave', patch, previous }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Offer changes were not saved. Retry before leaving.');
+  for (const [key, value] of Object.entries(data.saved || {})) offerStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+  return data.saved;
+});
 
 export function offerToken() {
   return window.localStorage.getItem('crm_token') || window.localStorage.getItem('adminToken') || window.localStorage.getItem('token') || '';
@@ -29,8 +43,8 @@ export async function offerFetch(input: RequestInfo | URL, init: RequestInit = {
   if (url === '/api/admin/crm/new-registration/state') {
     url = '/api/admin/crm/workshop-offer/state';
     if (init.body && typeof init.body === 'string') {
-      const patch = JSON.parse(init.body);
-      init = { ...init, body: JSON.stringify(Object.fromEntries(Object.entries(patch).filter(([key]) => key.startsWith('crm_') && !/token|secret|password/i.test(key)))) };
+      await offerAutosave.save(JSON.parse(init.body));
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   }
   if (url.startsWith('/api/admin/google-forms/sync?') && (!init.method || init.method === 'GET')) {
@@ -41,7 +55,16 @@ export async function offerFetch(input: RequestInfo | URL, init: RequestInit = {
     const params = new URL(url, window.location.origin).searchParams;
     url = `/api/admin/crm/new-registration/leads?formId=${encodeURIComponent(params.get('workshopId') || '')}`;
   }
-  return window.fetch(url, { ...init, headers });
+  const response = await window.fetch(url, { ...init, headers, cache: 'no-store' });
+  if (url === '/api/admin/crm/workshop-offer/state' && (!init.method || init.method === 'GET') && response.ok) {
+    const state = await response.clone().json();
+    if (loadedCacheScope && loadedCacheScope !== cachePrefix()) throw new Error('Your CRM account changed. Reload the browser before editing offers.');
+    loadedCacheScope = cachePrefix();
+    offerAutosave.hydrate(state);
+    for (const key of Object.keys(window.localStorage).filter(key => key.startsWith(cachePrefix() + 'crm_'))) window.localStorage.removeItem(key);
+    for (const [key, value] of Object.entries(state)) offerStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+  }
+  return response;
 }
 
 export async function offerJson<T>(path: string, init?: RequestInit): Promise<T> {

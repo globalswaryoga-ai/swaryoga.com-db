@@ -8,7 +8,7 @@ jest.mock('@/lib/registrationAuth', () => ({
 }));
 import { createClient, type Client } from '@libsql/client';
 import { bunnyExecute, getBunnyDatabase } from '@/lib/bunnyDatabase';
-import { registrationAudienceRows, registrationAudienceMatches, registrationAudienceForBatch, registrationRecipients } from '@/lib/registrationAudience';
+import { registrationAudienceRows, registrationAudienceMatches, registrationAudienceForBatch, registrationAudiencePayload, registrationRecipients } from '@/lib/registrationAudience';
 import { mapRegistrationRecipients } from '@/lib/registrationAudienceRepository';
 import { registrationDecisionKey } from '@/lib/registrationAiConfig';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
@@ -21,6 +21,30 @@ const submission = (id: string, phone = '+91 9876543210') => ({ id, formId: 'goo
 const forms = [{ formId: 'google-form', workshopName: 'Hindi Workshop' }];
 
 describe('Saved response-to-Meta recipient mapping', () => {
+  it('keeps the browser audience under the serverless response limit without losing recipients or categories', () => {
+    const rawAnswer = 'x'.repeat(20000);
+    const state = { [registrationDecisionKey(batch.id, 'response')]: {
+      status: 'approval_1', copies: ['pending_leads_1'], history: [rawAnswer], reason: rawAnswer,
+    } };
+    const rows = registrationAudienceRows(state, [], [{
+      ...submission('response'), dynamicAnswers: { 'Contact for WhatsApp': '+91 9876543210', rawAnswer },
+    }], forms, [batch]);
+    const payload = registrationAudiencePayload(Array.from({ length: 1548 }, () => rows[0]), [
+      { ...batch, metadata: { rawAnswer } },
+    ]);
+    expect(Buffer.byteLength(JSON.stringify(payload))).toBeLessThan(4_000_000);
+    expect(payload.data).toHaveLength(1548);
+    expect(payload.data[0]).not.toHaveProperty('_rawRecord');
+    expect(payload.data[0].registrationDecision).not.toHaveProperty('history');
+    expect(payload.workshops[0]).toEqual({
+      id: batch.id, name: batch.name, language: batch.language, formId: batch.formId,
+    });
+    expect(registrationAudienceMatches(payload.data[0], 'approval_1')).toBe(true);
+    expect(registrationAudienceMatches(payload.data[0], 'pending_leads_1')).toBe(true);
+    expect(registrationRecipients(payload.data)).toHaveLength(1);
+    expect(rows[0]._rawRecord.rawAnswer).toBe(rawAnswer);
+  });
+
   it('loads approval decisions by batch/response, not contact ID or browser cache', () => {
     const state = { [registrationDecisionKey(batch.id, 'response')]: { status: 'approval_1' } };
     const rows = registrationAudienceRows(state, [], [submission('response')], forms, [batch]);

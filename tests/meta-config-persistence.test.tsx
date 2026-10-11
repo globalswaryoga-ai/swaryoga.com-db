@@ -1,5 +1,5 @@
 jest.mock('@/lib/registrationClient', () => ({ registrationFetch: jest.fn(), saveRegistrationState: jest.fn() }));
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MetaLeadsTab } from '@/app/admin/crm/new-registration/_MetaLeadsTab';
 import { registrationFetch } from '@/lib/registrationClient';
 
@@ -36,6 +36,28 @@ describe('Meta saved question configuration', () => {
     await screen.findByText('Bunny save failed');
     expect(screen.getByRole('button', { name: 'Start AI-9A Processing' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Active (Click to Stop)' })).not.toBeInTheDocument();
+  });
+  it('does not discard an edited answer when another stage is saved', async () => {
+    const metadata = { ai9AConfig: { filters: [{ question: 'Ready?', options: [{ answer: 'Yes', category: 'approved' }] }] } };
+    const { rerender } = render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata }} saveWorkshopSettings={jest.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Config AI-9A (New Leads)' }));
+    fireEvent.change(screen.getByDisplayValue('Yes'), { target: { value: 'My new answer' } });
+    rerender(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: { ...metadata, ai9BConfig: { filters: [] } } }} saveWorkshopSettings={jest.fn()} />);
+    expect(screen.getByDisplayValue('My new answer')).toBeInTheDocument();
+    await act(async () => {});
+  });
+  it('autosaves edited rules without activating or running an inactive stage', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: {
+      ai9AConfig: { isActive: false, filters: [{ question: 'Ready?', options: [{ answer: 'Yes', category: 'approved' }] }] },
+    } }} saveWorkshopSettings={save} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Config AI-9A (New Leads)' }));
+    fireEvent.change(screen.getByDisplayValue('Yes'), { target: { value: 'Yes please' } });
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ ai9AConfig: expect.objectContaining({ isActive: false,
+        filters: [expect.objectContaining({ options: [{ answer: 'Yes please', category: 'approved' }] })] }) }),
+    })), { timeout: 1500 });
+    expect(registrationFetch).not.toHaveBeenCalledWith('/api/admin/crm/meta-leads/bulk-update', expect.anything());
   });
   it.each(['B'])('saves AI-9%s before running the authoritative batch and reports moved leads', async stage => {
     const save = jest.fn().mockResolvedValue(undefined);

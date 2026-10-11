@@ -75,6 +75,25 @@ describe('Durable registration configuration in SQL', () => {
       crm_hindi_workshops: '[{"id":"new"}]', crm_meta_rules: { active: true },
     });
   });
+  it('does not let a hydrated list replace saved Meta settings even with the current version', async () => {
+      const current = [{ id: 'batch', formId: 'google-form', metadata: {
+        facebookFormId: 'saved-meta-form', ai9BConfig: { isActive: true, filters: [{ question: 'Ready?', keyword: 'Yes' }] },
+      } }];
+      await writeRegistrationState({ crm_hindi_workshops: current });
+      await expect(saveRegistrationSnapshotIfUnchanged({
+        crm_hindi_workshops: [{ id: 'batch', formId: 'google-form', metadata: {} }],
+      }, { crm_hindi_workshops: current })).rejects.toThrow('configuration has been preserved');
+      client.close();
+      client = createClient({ url: `file:${databasePath}` });
+      expect((await readRegistrationState()).crm_hindi_workshops).toEqual(current);
+      const reordered = [{ ...current[0], name: 'Renamed batch', leads: 58 }];
+      await saveRegistrationSnapshotIfUnchanged({ crm_hindi_workshops: reordered }, { crm_hindi_workshops: current });
+      expect((await readRegistrationState()).crm_hindi_workshops).toEqual(reordered);
+      await expect(saveRegistrationSnapshotIfUnchanged({ crm_hindi_workshops: [] },
+        { crm_hindi_workshops: reordered })).rejects.toThrow('cannot remove saved batches');
+      await saveRegistrationSnapshotIfUnchanged({ crm_hindi_workshops: [] }, { crm_hindi_workshops: reordered }, 'shared', true);
+      expect((await readRegistrationState()).crm_hindi_workshops).toEqual([]);
+  });
   it('accepts an already-saved batch regardless of string versus object serialization', async () => {
     const old = '[{"id":"batch"}]';
     const current = [{ id: 'batch', metadata: { ai9DConfig: { isActive: true } } }];

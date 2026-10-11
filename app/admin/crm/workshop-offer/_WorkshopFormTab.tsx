@@ -89,21 +89,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     w && w.id && isBatchMatchingLanguage(w) && !String(w.id).startsWith('master_')
   );
 
-  React.useEffect(() => {
-    // Auto-run AI-2 on load and every 5 minutes
-    if (setWorkshops) {
-      // Sync immediately on mount
-      setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
-      
-      // And sync every 5 minutes
-      const interval = setInterval(() => {
-        setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
-      }, 5 * 60 * 1000); 
-      
-      return () => clearInterval(interval);
-    }
-  }, [setWorkshops]);
-
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -374,14 +359,14 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                           <div className="flex justify-end mt-4">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
+                                if (!await saveWorkshopSettings()) return;
                                 if (formSource === 'google') {
                                   setLinkedFormId(googleFormUrl);
                                 } else {
                                   setLinkedFormId(selectedFormId);
                                 }
 
-                                toast.success('Form configuration saved & mapped!');
                                 setRefreshLeadsCounter(prev => prev + 1);
 
                                 // Make sure we go to my_data tab as requested
@@ -596,7 +581,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         }
 
                         if (p.saveWorkshopSettings) {
-                          await p.saveWorkshopSettings();
+                          if (!await p.saveWorkshopSettings()) return;
                         }
                         toast.success('Form saved! Mapping fields and fetching leads...');
                         if (p.setActiveTab) {
@@ -635,10 +620,10 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       <ArrowLeftRight size={14} /> Merge Data
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (setWorkshops) {
                           setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
-                          toast.success('🤖 AI-2: Successfully processed! All batches and forms are now available in Leads Management.');
+                          toast.info('AI-2 batch changes queued. Check the save status before leaving.');
                         }
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
@@ -865,17 +850,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                                       suppressContentEditableWarning
                                       onBlur={(e) => {
                                         const newValue = e.currentTarget.textContent || '';
-                                        if (newValue !== val && newValue !== '-') {
-                                          setLeadsData(prev => (prev || []).filter(Boolean).map(l => {
-                                            if (!l) return l;
-                                            if (l.id === lead.id) {
-                                              const updated = { ...l };
-                                              if (updated.dynamicAnswers && col in updated.dynamicAnswers) updated.dynamicAnswers = { ...updated.dynamicAnswers, [col]: newValue };
-                                              if (updated._rawRecord) updated._rawRecord = { ...updated._rawRecord, [col]: newValue };
-                                              return updated;
-                                            }
-                                            return l;
-                                          }));
+                                        if (newValue !== val) {
+                                          p.editLeadAnswer?.(lead.id, col, newValue);
                                         }
                                       }}
                                     >{val}</div>
@@ -991,7 +967,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               </button>
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
-                onClick={() => {
+                onClick={async () => {
                   const target = workshops.find((w: any) => w.id === mergeTargetId);
                   const sources = workshops.filter((w: any) => mergeSourceIds.includes(w.id));
                   if (!target || sources.length === 0) return;
@@ -1017,37 +993,18 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         return w;
                       });
                     
-                    setWorkshops(newWorkshops);
-                    
-                    if (typeof window !== 'undefined') {
-                      localStorage.setItem('crm_offers', JSON.stringify(newWorkshops));
-                      const t = localStorage.getItem('crm_token');
-                      if (t) {
-                        fetch('/api/admin/crm/new-registration/state', {
+                    try {
+                        await fetch('/api/admin/crm/new-registration/state', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+                          headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
-                        }).catch(console.error);
-                      }
-                    }
+                        });
+                    } catch (error) { toast.error(error instanceof Error ? error.message : 'Batch merge was not saved.'); return; }
+                    setWorkshops(newWorkshops);
                     
                     setIsMergeModalOpen(false);
                     setMergeTargetId('');
                     setMergeSourceIds([]);
-                    
-                    const targetPayload = newWorkshops.find((w: any) => w.id === mergeTargetId);
-                    if (targetPayload) {
-                      fetch('/api/admin/crm/workshop-management', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...targetPayload, cohortId: mergeTargetId, _fullEdit: true })
-                      }).catch(console.error);
-                    }
-                    sources.forEach((src: any) => {
-                      fetch(`/api/admin/crm/workshop-management?cohortId=${src.id}`, {
-                        method: 'DELETE'
-                      }).catch(console.error);
-                    });
                     
                     if (mergeSourceIds.includes(selectedWorkshop?.id)) {
                       setSelectedWorkshop(newWorkshops.find((w: any) => w.id === mergeTargetId) || null);

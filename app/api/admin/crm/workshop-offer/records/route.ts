@@ -3,6 +3,7 @@ import { registrationViewer } from '@/lib/registrationAuth';
 import { listOfferRecords, patchOfferRecord } from '@/lib/workshopOfferRepository';
 import { validateOfferTransition } from '@/lib/workshopOfferWorkflow';
 import { offerContact } from '@/lib/workshopOfferContacts';
+import { registrationStoredValuesEqual } from '@/lib/registrationWorkshopMerge';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -20,7 +21,7 @@ export async function PATCH(request: Request) {
   const viewer = registrationViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const { leadId, patch } = await request.json();
+    const { leadId, patch, previous } = await request.json();
     const allowed = ['amount', 'status', 'date', 'paymentMode', 'remark', 'pushedToReceipts', 'pushedToCreateReceipts', 'batchId', 'workshopName'];
     if (typeof leadId !== 'string' || !leadId || leadId.length > 200 || !patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(key => !allowed.includes(key)) || JSON.stringify(patch).length > 8000) {
       return NextResponse.json({ error: 'Invalid offer update' }, { status: 400 });
@@ -28,10 +29,12 @@ export async function PATCH(request: Request) {
     const scope = viewer.superAdmin ? 'shared' : viewer.userId;
     if (!await offerContact(leadId, viewer)) return NextResponse.json({ error: 'Saved form response not found in your account' }, { status: 404 });
     const records = await listOfferRecords(scope);
+    if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return NextResponse.json({ error: 'Reload payment records before editing.' }, { status: 409 });
+    if (!registrationStoredValuesEqual(records[leadId] || {}, previous)) return NextResponse.json({ error: 'Payment changed in another tab; reload to review it before retrying.' }, { status: 409 });
     try { validateOfferTransition(records[leadId] || {}, patch); }
     catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid payment' }, { status: 400 }); }
     await patchOfferRecord(scope, leadId, { ...patch, needsVerification: patch.status === 'received' ? false : records[leadId]?.needsVerification || false, updatedByUserId: viewer.userId }, records[leadId] || {});
-    return NextResponse.json({ success: true, data: { ...records[leadId], ...patch } });
+    return NextResponse.json({ success: true, data: { ...records[leadId], ...patch, needsVerification: patch.status === 'received' ? false : records[leadId]?.needsVerification || false, updatedByUserId: viewer.userId } });
   } catch (error) {
     console.error('[offer record save]', error);
     if (error instanceof Error && error.message.startsWith('Payment changed')) return NextResponse.json({ error: error.message }, { status: 409 });

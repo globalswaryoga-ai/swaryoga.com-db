@@ -44,8 +44,8 @@ describe('Isolated permanent offer SQL data', () => {
   afterEach(() => client.close());
   it('imports only offer settings and does not overwrite registration or another tenant', async () => {
     expect(await readOfferState('shared')).toEqual({ crm_offers: '[]' });
-    await writeOfferState('shared', { crm_offer_question: 'Ready?' });
-    await writeOfferState('tenant', { crm_offer_question: 'Different?' });
+    await writeOfferState('shared', { crm_offer_question: 'Ready?' }, {});
+    await writeOfferState('tenant', { crm_offer_question: 'Different?' }, {});
     expect((await readOfferState('shared')).crm_offer_question).toBe('Ready?');
     expect((await readOfferState('tenant')).crm_offer_question).toBe('Different?');
     expect((await readOfferState('shared')).crm_registration_private).toBeUndefined();
@@ -76,7 +76,7 @@ describe('Isolated permanent offer SQL data', () => {
     expect((await listOfferRecords('shared')).r1.receiptNumber).toBe('SW-R-1');
   });
   it('discovers only saved offer forms for the existing background sync worker', async () => {
-    await writeOfferState('shared', { crm_offers: JSON.stringify([{ formId: 'o'.repeat(35), name: 'Offer', metadata: { formSource: 'google' } }]) });
+    await writeOfferState('shared', { crm_offers: JSON.stringify([{ formId: 'o'.repeat(35), name: 'Offer', metadata: { formSource: 'google' } }]) }, {});
     const targets = await savedOfferGoogleTargets();
     expect(collectGoogleFormTargets([], { crm_workshops: targets[0].batches })).toEqual([{ formId: 'o'.repeat(35), name: 'Offer' }]);
   });

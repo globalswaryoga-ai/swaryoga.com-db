@@ -75,12 +75,29 @@ export async function PATCH(request: NextRequest) {
   
   args.push(new Date().toISOString());
   args.push(body.id);
-  
-  await bunnyExecute({
-    sql: `UPDATE workshop_recordings_sql SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`,
-    args
+  const previous = body.previous && typeof body.previous === 'object' ? body.previous : undefined;
+  const previousColumns: Record<string, string> = {
+    youtubeSpeakerUrl: 'youtube_speaker_url',
+    youtubeSpeakerId: 'youtube_speaker_id',
+    youtubeGalleryUrl: 'youtube_gallery_url',
+    youtubeGalleryId: 'youtube_gallery_id',
+    bunnySpeakerUrl: 'bunny_speaker_url',
+    bunnyGalleryUrl: 'bunny_gallery_url',
+  };
+  const guarded = Object.entries(previousColumns).filter(([key, column]) =>
+    previous && Object.prototype.hasOwnProperty.call(previous, key) && sets.some((set) => set.startsWith(`${column} = `)),
+  );
+  const result = await bunnyExecute({
+    sql: `UPDATE workshop_recordings_sql SET ${sets.join(', ')}, updated_at = ? WHERE id = ?${guarded.length ? ` AND ${guarded.map(([, column]) => `${column} IS ?`).join(' AND ')}` : ''}`,
+    args: [...args, ...guarded.map(([key]) => previous[key])],
   });
-  
+  if (guarded.length && Number(result.rowsAffected || 0) === 0) {
+    const exists = await bunnyExecute({ sql: 'SELECT id FROM workshop_recordings_sql WHERE id = ?', args: [body.id] });
+    return exists.rows.length
+      ? NextResponse.json({ error: 'Recording URLs changed elsewhere. Reload the recording before retrying.' }, { status: 409 })
+      : NextResponse.json({ error: 'Recording not found' }, { status: 404 });
+  }
+
   return NextResponse.json({ success: true });
 }
 

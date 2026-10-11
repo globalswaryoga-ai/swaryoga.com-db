@@ -7,6 +7,7 @@ import { validateOfferDesign } from '@/lib/workshopOfferDesign';
 import { uploadUserFile } from '@/lib/bunny-storage';
 import { offerAmount } from '@/lib/workshopOfferWorkflow';
 import { offerContact } from '@/lib/workshopOfferContacts';
+import { registrationStoredValuesEqual } from '@/lib/registrationWorkshopMerge';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
       if (design.kind === 'receipt') design.subtitle = `${contact.name || 'Participant'}\nAmount received: INR ${offerAmount(record.amount).toFixed(2)}\nDate: ${record.date}\nPayment mode: ${record.paymentMode}\n${record.workshopName || 'Swar Yoga Workshop'}`;
     }
     const existing = (await listOfferDesigns(scope)).find(row => row.id === design.id);
+    if (!body.previous || !registrationStoredValuesEqual(existing || {}, body.previous)) {
+      return NextResponse.json({ error: 'Design changed or was not loaded. Reload to review the newest draft before saving.' }, { status: 409 });
+    }
     if (existing?.status === 'final') return NextResponse.json({ error: 'This document is already finalized. Open its saved PDF; no duplicate was created.' }, { status: 409 });
     if (design.status === 'final' && design.kind !== 'ad' && (!existing || body.design.subtitle !== design.subtitle || body.design.documentNumber !== design.documentNumber)) {
       return NextResponse.json({ error: 'Save the document draft first to restore the verified payment details and document number, then finalize its preview.' }, { status: 409 });
@@ -65,12 +69,12 @@ export async function POST(request: Request) {
     if (design.leadId && record && design.status === 'final') {
       await finalizeOfferDocument(scope, design.id, design.kind, saved, design.leadId, record, design.kind === 'receipt'
         ? { receiptNumber: design.documentNumber, receiptDesignId: design.id, receiptUrl: design.fileUrl }
-        : { certificateNumber: design.documentNumber, certificateDesignId: design.id, certificateUrl: design.fileUrl, certificateApprovedBy: viewer.userId });
-    } else await saveOfferDesign(scope, design.id, design.kind, saved);
+        : { certificateNumber: design.documentNumber, certificateDesignId: design.id, certificateUrl: design.fileUrl, certificateApprovedBy: viewer.userId }, body.previous);
+    } else await saveOfferDesign(scope, design.id, design.kind, saved, body.previous);
     return NextResponse.json({ success: true, data: saved });
   } catch (error) {
     console.error('[offer design save]', error);
-    if (error instanceof Error && /Payment changed|already has/.test(error.message)) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (error instanceof Error && /Payment changed|already has|Design changed/.test(error.message)) return NextResponse.json({ error: error.message }, { status: 409 });
     return NextResponse.json({ error: 'Design or artifact could not be saved. No message was sent.' }, { status: 503 });
   }
 }

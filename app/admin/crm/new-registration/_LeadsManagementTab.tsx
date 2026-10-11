@@ -1,4 +1,6 @@
-import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
+import { registrationFetch as fetch, saveRegistrationState, saveRegistrationSnapshot } from '@/lib/registrationClient';
+import { createRegistrationAutosave, type RegistrationSaveStatus } from '@/lib/registrationAutosave';
+import { AutosaveStatus } from './_AutosaveStatus';
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
@@ -94,6 +96,14 @@ export function LeadsManagementTab({
   const [savingGate, setSavingGate] = useState(false);
   const gateSaveRef = React.useRef(false);
   const gateVersionRef = React.useRef(0);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsStatus, setSettingsStatus] = useState<RegistrationSaveStatus>('idle');
+  const [settingsError, setSettingsError] = useState('');
+  const settingsSaver = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot, (status, error) => {
+    setSettingsStatus(status);
+    setSettingsError(error || '');
+  }));
+  const aiStateRef = React.useRef<Record<string, unknown>>({});
 
 
   const syncStateToBackend = (key: string, data: any) => {
@@ -145,9 +155,7 @@ export function LeadsManagementTab({
       const saved = localStorage.getItem('crm_custom_categories');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure all system tabs from INITIAL are present
-        const missing = INITIAL_CUSTOM_CATEGORIES.filter(ic => !parsed.find((p: any) => p.id === ic.id));
-        return [...parsed, ...missing];
+        if (Array.isArray(parsed)) return parsed;
       }
     }
     return INITIAL_CUSTOM_CATEGORIES;
@@ -186,14 +194,14 @@ export function LeadsManagementTab({
       })
       .then(data => {
         if (data) {
+          settingsSaver.current.hydrate(data);
           if (data.crm_custom_categories) {
             try {
               let parsed = typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories;
               
               if (!Array.isArray(parsed)) throw new Error('Saved categories are invalid');
               
-              const missing = INITIAL_CUSTOM_CATEGORIES.filter(ic => !parsed.find((p: any) => p.id === ic.id));
-              const finalCategories = [...parsed, ...missing];
+              const finalCategories = parsed;
               setCustomCategories(finalCategories);
               
             } catch (error) {
@@ -202,6 +210,11 @@ export function LeadsManagementTab({
           } else {
              setCustomCategories(INITIAL_CUSTOM_CATEGORIES);
           }
+          const categories = data.crm_custom_categories
+            ? (typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories)
+            : INITIAL_CUSTOM_CATEGORIES;
+          void settingsSaver.current.save({ crm_custom_categories: categories });
+          setSettingsLoaded(true);
           if (data.crm_ai4_decisions) {
             try {
               const parsed = typeof data.crm_ai4_decisions === 'string' ? JSON.parse(data.crm_ai4_decisions) : data.crm_ai4_decisions;
@@ -292,21 +305,27 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiConfig = async (type: string, conditions: FilterCondition[]) => {
+  const saveAiConfig = async (type: string, conditions: FilterCondition[], automatic = false) => {
     if (!configLoaded) throw new Error('Wait for saved AI settings to load before changing them');
     validateRegistrationConditions(conditions);
     if (configSaveRef.current) throw new Error('A configuration save is already in progress');
     configSaveRef.current = true;
     setSavingConfig(true);
     try {
-      await saveRegistrationState({
-        [registrationAiConfigKey(activeBatchId, type)]: { conditions, copyMode: modalCopyMode, autoEnabled: conditions.some(condition => condition.question?.trim() || condition.directMoveCategory), matchMode: 'all_questions_any_answer' },
-      });
+      const key = registrationAiConfigKey(activeBatchId, type);
+      const previous = aiStateRef.current[key];
+      const previousConfig = (typeof previous === 'string' ? JSON.parse(previous) : previous) as { autoEnabled?: boolean } | undefined;
+      const saved = await saveRegistrationSnapshot({
+        [key]: { conditions, copyMode: modalCopyMode,
+          autoEnabled: automatic ? previousConfig?.autoEnabled === true : conditions.some(condition => condition.question?.trim() || condition.directMoveCategory),
+          matchMode: 'all_questions_any_answer' },
+      }, { [key]: previous });
+      aiStateRef.current = { ...aiStateRef.current, ...saved };
       const newSettings = { ...aiSettings, [type]: conditions };
       setAiSettings(newSettings);
       const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
       setAiCopyModes(updatedCopyModes);
-      toast.success(`${type} configuration saved in Bunny Database until you change it.`);
+      if (!automatic) toast.success(`${type} configuration saved in Bunny Database until you change it.`);
     } finally {
       setSavingConfig(false);
       configSaveRef.current = false;
@@ -344,6 +363,7 @@ export function LeadsManagementTab({
         if (!response.ok) throw new Error(state.error || 'Failed to load saved AI configuration');
         const saved = readRegistrationAiConfig(state, activeBatchId, activeBatch?.metadata);
         if (!controller.signal.aborted) {
+          aiStateRef.current = state;
           setAiSettings(saved.settings);
           setAiCopyModes(saved.copyModes);
           setBatchDecisions(readRegistrationDecisions(state, activeBatchId));
@@ -353,6 +373,49 @@ export function LeadsManagementTab({
       .catch(error => { if (!controller.signal.aborted) toast.error(error.message); });
     return () => controller.abort();
   }, [activeBatchId]);
+
+  const modalSnapshotRef = React.useRef('');
+  useEffect(() => {
+    const snapshot = JSON.stringify({ activeBatchId, activeModal, modalConditions, modalCopyMode });
+    if (!activeModal || !configLoaded) {
+      modalSnapshotRef.current = snapshot;
+      return;
+    }
+    if (!modalSnapshotRef.current || JSON.parse(modalSnapshotRef.current).activeModal !== activeModal ||
+        JSON.parse(modalSnapshotRef.current).activeBatchId !== activeBatchId) {
+      modalSnapshotRef.current = snapshot;
+      return;
+    }
+    if (snapshot === modalSnapshotRef.current) return;
+    try { validateRegistrationConditions(modalConditions); }
+    catch (error) {
+      setSettingsStatus('error');
+      setSettingsError(error instanceof Error ? error.message : 'Complete the answer rules before they can be saved.');
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (configSaveRef.current) return;
+      setSettingsStatus('saving');
+      void saveAiConfig(activeModal, modalConditions, true).then(() => {
+        modalSnapshotRef.current = snapshot;
+        setSettingsStatus('saved');
+        setSettingsError('');
+      }).catch(error => {
+        setSettingsStatus('error');
+        setSettingsError(error.message);
+        toast.error(error.message);
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [activeBatchId, activeModal, modalConditions, modalCopyMode, configLoaded, savingConfig]);
+
+  const closeAiModal = async () => {
+    try {
+      const snapshot = JSON.stringify({ activeBatchId, activeModal, modalConditions, modalCopyMode });
+      if (activeModal && snapshot !== modalSnapshotRef.current) await saveAiConfig(activeModal, modalConditions, true);
+      setActiveModal(null);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'The edited rules were not saved.'); }
+  };
 
 
   useEffect(() => {
@@ -578,42 +641,59 @@ export function LeadsManagementTab({
 
 
   // Category Management Methods
-  const saveCategory = (e: React.FormEvent) => {
+  const saveCategories = async (categories: typeof customCategories) => {
+    if (!settingsLoaded) throw new Error('Wait for saved categories to load before editing.');
+    setCustomCategories(categories);
+    await settingsSaver.current.save({ crm_custom_categories: categories });
+  };
+  const categoryDraftId = React.useRef('');
+  useEffect(() => { categoryDraftId.current = editingCategory?.id || `custom_${Date.now()}`; }, [isCategoryModalOpen, editingCategory?.id]);
+  const saveCategory = async (e: React.FormEvent, close = true) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
     const label = formData.get('label') as string;
     const aiAssign = formData.get('aiAssign') as string;
+    if (!label.trim()) {
+      setSettingsStatus('error');
+      setSettingsError('Enter a category name before it can be saved.');
+      return;
+    }
     
     let newCats = [...customCategories];
-    if (editingCategory?.id) {
-      newCats = newCats.map(c => c.id === editingCategory.id ? { ...c, label, aiAssignment: aiAssign } : c);
+    const id = editingCategory?.id || categoryDraftId.current;
+    if (newCats.some(c => c.id === id)) {
+      newCats = newCats.map(c => c.id === id ? { ...c, label, aiAssignment: aiAssign } : c);
     } else {
       newCats.push({
-        id: 'custom_' + Date.now(),
+        id,
         label,
         icon: Clock,
         isSystem: false,
         aiAssignment: aiAssign
       });
     }
-    setCustomCategories(newCats);
-    syncStateToBackend('crm_custom_categories', newCats);
-    setIsCategoryModalOpen(false);
-    setEditingCategory(null);
-    toast.success('Category saved!');
+    try {
+      await saveCategories(newCats);
+      if (close) {
+        setIsCategoryModalOpen(false);
+        setEditingCategory(null);
+        toast.success('Category saved!');
+      }
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Category was not saved.'); }
   };
 
-  const deleteCategory = (id: string, e: React.MouseEvent) => {
+  const deleteCategory = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Delete this category?')) return;
     const newCats = customCategories.filter(c => c.id !== id);
-    setCustomCategories(newCats);
-    syncStateToBackend('crm_custom_categories', newCats);
-    if (activeTab === id) setActiveTab('new_leads');
+    try {
+      await saveCategories(newCats);
+      if (activeTab === id) setActiveTab('new_leads');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Category was not removed.'); }
   };
 
   
-  const moveCategory = (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
+  const moveCategory = async (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
     e.stopPropagation();
     const newCats = [...customCategories];
     if (direction === 'up' && index > 0) {
@@ -621,8 +701,8 @@ export function LeadsManagementTab({
     } else if (direction === 'down' && index < newCats.length - 1) {
       [newCats[index + 1], newCats[index]] = [newCats[index], newCats[index + 1]];
     }
-    setCustomCategories(newCats);
-    syncStateToBackend('crm_custom_categories', newCats);
+    try { await saveCategories(newCats); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Category order was not saved.'); }
   };
 
   // Render the Category Modal
@@ -643,7 +723,8 @@ export function LeadsManagementTab({
               <X className="h-5 w-5" />
             </button>
           </div>
-          <form onSubmit={saveCategory} className="p-4 space-y-4">
+          <form onSubmit={saveCategory} onChange={event => { void saveCategory(event, false); }} className="p-4 space-y-4">
+            <p className="text-xs text-slate-500">Category edits save automatically. Closing does not undo saved changes.</p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
               <input type="text" name="label" defaultValue={editingCategory?.label} required className="w-full p-2 border rounded-lg" />
@@ -668,6 +749,13 @@ export function LeadsManagementTab({
   };
 
   return (
+    <div>
+    <AutosaveStatus status={settingsStatus} error={settingsError} retry={() => {
+      const retry = activeModal ? saveAiConfig(activeModal, modalConditions, true) : settingsSaver.current.retry();
+      void retry.then(() => { setSettingsStatus('saved'); setSettingsError(''); }).catch(error => {
+        setSettingsStatus('error'); setSettingsError(error.message); toast.error(error.message);
+      });
+    }} />
     <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
 
       {/* Sidebar Section */}
@@ -684,7 +772,7 @@ export function LeadsManagementTab({
         <div className="p-3 flex-1 overflow-y-auto space-y-1">
           <div className="flex items-center justify-between px-2 mb-2">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dynamic</h3>
-            <button onClick={() => { setEditingCategory(null); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors">
+            <button aria-label="Add category" onClick={() => { setEditingCategory(null); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors">
               <Plus className="h-4 w-4" />
             </button>
           </div>
@@ -1125,7 +1213,7 @@ export function LeadsManagementTab({
                 🤖 {activeModal} Configuration | {activeBatchName} - {SIDEBAR_TABS.find(t => t.id === activeTab)?.label || activeTab}
               </h2>
               <button
-                onClick={() => setActiveModal(null)}
+                onClick={() => { void closeAiModal(); }}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1"
               >
                 &times;
@@ -1177,7 +1265,7 @@ export function LeadsManagementTab({
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-white flex justify-between gap-2">
-              <button onClick={() => setActiveModal(null)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">
+              <button onClick={() => { void closeAiModal(); }} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">
                 Cancel
               </button>
               <div className="flex gap-2">
@@ -1231,6 +1319,7 @@ export function LeadsManagementTab({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

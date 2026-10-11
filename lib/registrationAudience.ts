@@ -43,6 +43,41 @@ export function registrationAudienceForBatch(rows: RegistrationRecord[], batchId
   );
 }
 
+export function registrationAudiencePayload(rows: RegistrationAudienceRow[], workshops: RegistrationRecord[]) {
+  return {
+    data: rows.map(row => ({
+      id: row.id,
+      responseId: row.responseId,
+      registrationBatchId: row.registrationBatchId,
+      leadId: row.leadId,
+      name: row.name,
+      email: row.email,
+      phoneNumber: row.phoneNumber,
+      status: row.status,
+      isBlocked: row.isBlocked,
+      workshopId: row.workshopId,
+      workshopName: row.workshopName,
+      formId: row.formId,
+      language: row.language,
+      assignedToUserId: row.assignedToUserId,
+      labels: row.labels,
+      deliveryStatus: row.deliveryStatus,
+      registrationDecision: {
+        status: row.registrationDecision?.status,
+        copies: row.registrationDecision?.copies,
+        isRejected: row.registrationDecision?.isRejected,
+        isRegistered: row.registrationDecision?.isRegistered,
+      },
+    })),
+    workshops: workshops.map(workshop => ({
+      id: workshop.id,
+      name: workshop.name,
+      language: workshop.language,
+      formId: workshop.formId,
+    })),
+  };
+}
+
 export function registrationRecipients(rows: RegistrationRecord[]) {
   const unique = new Map<string, RegistrationRecord>();
   for (const row of rows) {

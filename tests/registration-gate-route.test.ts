@@ -52,6 +52,16 @@ describe('Authenticated registration gate saves', () => {
     expect(saveRegistrationGate).not.toHaveBeenCalled();
   });
 
+  it.each(['english', 'hindi', 'marathi', 'kannada'])('rejects even a single unversioned %s batch-list write', async language => {
+    const response = await saveState(new Request('https://example.test/api/state', {
+      method: 'POST',
+      body: JSON.stringify({ [`crm_${language}_workshops`]: JSON.stringify([{ id: 'batch', metadata: {} }]) }),
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('preserved') });
+    expect(writeRegistrationState).not.toHaveBeenCalled();
+  });
+
   it('does not allow form approval to bypass Zoom through the endpoint', async () => {
     expect((await POST(request('approve'))).status).toBe(409);
     expect(saveRegistrationGate).not.toHaveBeenCalled();

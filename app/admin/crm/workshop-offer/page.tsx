@@ -1,7 +1,6 @@
 'use client';
 import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
-import { createRegistrationAutosave } from '@/lib/registrationAutosave';
-import { saveRegistrationSnapshot } from '@/lib/registrationClient';
+import { useOfferAutosave } from '@/hooks/useOfferAutosave';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab } from './_WorkshopFormTab';
 import { LeadsManagementTab } from './_LeadsManagementTab';
@@ -61,6 +60,13 @@ export default function WorkshopOfferPage() {
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [activeLinkedSheetId, setActiveLinkedSheetId] = useState<string>('');
   const [leadsData, setLeadsData] = useState<any[]>([]);
+  const [leadEdits, setLeadEdits] = useState<Record<string, Record<string, string>>>({});
+  const [hiddenLeadIds, setHiddenLeadIds] = useState<string[]>([]);
+  const [restoredBatchId, setRestoredBatchId] = useState<string | undefined>();
+  const editableLeads = useMemo(() => leadsData.filter(lead => !hiddenLeadIds.includes(lead.id)).map(lead => {
+    const edits = leadEdits[lead.id];
+    return edits ? { ...lead, dynamicAnswers: { ...lead.dynamicAnswers, ...edits }, _rawRecord: { ...lead._rawRecord, ...edits } } : lead;
+  }), [leadsData, leadEdits, hiddenLeadIds]);
   const leadsDataRef = React.useRef(leadsData);
   useEffect(() => { leadsDataRef.current = leadsData; }, [leadsData]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
@@ -85,8 +91,8 @@ export default function WorkshopOfferPage() {
 
   const displayLeads = useMemo(() => {
     const currentBaseLang = getBaseLanguage(selectedDashboardLang);
-    return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
-  }, [leadsData, selectedDashboardLang]);
+    return editableLeads.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
+  }, [editableLeads, selectedDashboardLang]);
 
   const getDynamicBatchLeads = (batch: any) => {
     if (!batch) return 0;
@@ -248,14 +254,14 @@ export default function WorkshopOfferPage() {
 
   const handleApprove = (id: string) => {
     setCrmLeadIds(prev => [...prev, id]);
-    toast.success('Moved 1 lead to Leads Management!');
+    toast.info('Lead move queued. Check the save status before leaving.');
     setSelectedRowIds(prev => prev.filter(i => i !== id));
   };
 
   const handleApproveBulk = () => {
     if (selectedRowIds.length === 0) return;
     setCrmLeadIds(prev => [...prev, ...selectedRowIds]);
-    toast.success(`Moved ${selectedRowIds.length} leads to Leads Management!`);
+    toast.info(`${selectedRowIds.length} lead moves queued. Check the save status before leaving.`);
     setSelectedRowIds([]);
   };
 
@@ -366,7 +372,7 @@ export default function WorkshopOfferPage() {
       }
 
       setIsAi7Processing(false);
-      toast.success(`🤖 AI-7 categorized ${targetLeads.length} leads and updated batch cards!`);
+      toast.info(`AI-7 categorized ${targetLeads.length} leads. Batch changes are awaiting save confirmation.`);
     }, 1500);
   };
 
@@ -564,7 +570,7 @@ export default function WorkshopOfferPage() {
             body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
           }).catch(err => console.error('Auto-sync error:', err));
           
-          toast.success(`🤖 AI-1A Auto-Worker: Created or updated batches from new leads!`);
+          toast.info('AI-1A batch changes queued. Check the save status before leaving.');
           return newWorkshops;
         }
         return prevWorkshops;
@@ -813,7 +819,6 @@ export default function WorkshopOfferPage() {
             const json = await res.json();
             const fetchedLeads = json.data || [];
             setLeadsData(fetchedLeads);
-            setWorkshops(prev => (prev || []).map(w => w?.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
             setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
           } else {
             const errorData = await res.json().catch(() => null);
@@ -859,7 +864,6 @@ export default function WorkshopOfferPage() {
               fetchedLeads = mappedLeads;
               if (json.linkedSheetId) setActiveLinkedSheetId(json.linkedSheetId);
               if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
-              if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
             } else if (syncRes.status === 401) {
               throw new Error('Sign in again to load saved offer form responses');
             } else {
@@ -871,38 +875,6 @@ export default function WorkshopOfferPage() {
           // No mock fallback — if API returned no data, show empty state
 
           setLeadsData(fetchedLeads);
-          setWorkshops(prev => {
-            const updated = (prev || []).map(w => {
-              if (w.id.startsWith('batch_') && w.formId === linkedFormId) {
-                if (w.formFilterKeyword) {
-                  const keywords = w.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                  const ai7MappedQuestion = w.metadata?.googleFormMapping?.['AI-7'] || w.metadata?.googleFormMapping?.['ai7'];
-                  const count = fetchedLeads.filter((lead: any) => {
-                    if (lead._rawRecord) {
-                      if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                        return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-                      } else {
-                        return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
-                      }
-                    }
-                    return true;
-                  }).length;
-                  return { ...w, leads: count };
-                }
-              } else if (w.formId === linkedFormId) {
-                return { ...w, leads: fetchedLeads.length };
-              }
-              return w;
-            });
-            // Also update selectedWorkshop if it's currently selected
-            if (selectedWorkshop) {
-              const updatedSelected = updated.find(w => w.id === selectedWorkshop.id);
-              if (updatedSelected) {
-                setSelectedWorkshop(updatedSelected);
-              }
-            }
-            return updated;
-          });
         } else {
           const res = await fetch(`/api/admin/enquiries?workshopId=${linkedFormId}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -911,8 +883,6 @@ export default function WorkshopOfferPage() {
             const json = await res.json();
             const fetchedLeads = json.data || [];
             setLeadsData(fetchedLeads);
-            setWorkshops(prev => (prev || []).map(w => w?.id === selectedWorkshop?.id ? { ...w, leads: fetchedLeads.length } : w));
-            setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop?.id ? { ...prev, leads: fetchedLeads.length } : prev);
           }
         }
       } catch (e) {
@@ -927,7 +897,6 @@ export default function WorkshopOfferPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const autosave = React.useRef(createRegistrationAutosave(saveRegistrationSnapshot));
 
   const workshopsRef = React.useRef(workshops);
   const leadsFilterRef = React.useRef(leadsFilter);
@@ -1119,18 +1088,23 @@ export default function WorkshopOfferPage() {
           if (res.ok) {
             const data = await res.json();
             if (data) {
-              autosave.current.hydrate(data);
-              if (data.crm_offers) setWorkshops(JSON.parse(data.crm_offers));
-              if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
-              if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
-              if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
-              if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
+              const decode = (value: any) => typeof value === 'string' ? JSON.parse(value) : value;
+              const savedWorkshops = decode(data.crm_offers || []);
+              setWorkshops(Array.isArray(savedWorkshops) ? savedWorkshops : []);
+              setSelectedWorkshop(null);
+              setIsAiWorkerActive(String(data.crm_ai_worker_active) === 'true');
+              setIsApprovedAiWorkerActive(String(data.crm_approved_ai_active) === 'true');
+              setIsRegisteredAiWorkerActive(String(data.crm_registered_ai_active) === 'true');
+              setIsAi7Active(String(data.crm_ai_7_active) === 'true');
+              setLeadEdits(decode(data.crm_offer_lead_edits || {}));
+              setHiddenLeadIds(decode(data.crm_offer_hidden_lead_ids || []));
               // Restore selected form/workshop from DB (overrides localStorage if present)
               const langSuffixStr = `_${selectedDashboardLang}`;
               if (data['crm_offer_selected_workshop' + langSuffixStr]) {
                 try {
-                  const sw = JSON.parse(data['crm_offer_selected_workshop' + langSuffixStr]);
-                  if (sw?.id) setSelectedWorkshop(sw);
+                  const sw = decode(data['crm_offer_selected_workshop' + langSuffixStr]);
+                  const canonical = savedWorkshops.find((batch: any) => batch?.id === sw?.id);
+                  if (canonical) setSelectedWorkshop(canonical);
                 } catch (_) {}
               }
               const restoredSource = data['crm_offer_form_source' + langSuffixStr];
@@ -1167,10 +1141,7 @@ export default function WorkshopOfferPage() {
         const searchParams = new URLSearchParams(window.location.search);
         if (searchParams?.get('success') === 'google_forms_connected') {
           const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
-          toast.success('🎉 Google Account connected! Swar Yoga Form saved & data loaded automatically.');
-          setFormSource('google');
-          setGoogleFormUrl(defaultUrl);
-          setLinkedFormId(defaultUrl);
+          toast.info('Google authorization returned. Select and save the form connection to verify it.');
           setActiveTab('forms');
           setIsFormSetupCollapsed(false);
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -1184,12 +1155,10 @@ export default function WorkshopOfferPage() {
     // Enable persistence only after the saved server state has been restored.
   }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
+  const offerSnapshot = useMemo(() => {
       const stateObj: Record<string, string> = {};
 
       const setAndCollect = (k: string, v: string) => {
-        localStorage.setItem(k, v);
         stateObj[k] = v;
       };
 
@@ -1197,12 +1166,19 @@ export default function WorkshopOfferPage() {
       setAndCollect('crm_ai_worker_active', String(isAiWorkerActive));
       setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
+      setAndCollect('crm_ai_7_active', String(isAi7Active));
+      setAndCollect('crm_offer_lead_edits', JSON.stringify(leadEdits));
+      setAndCollect('crm_offer_hidden_lead_ids', JSON.stringify(hiddenLeadIds));
       // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
       const langSuffixStr = `_${selectedDashboardLang}`;
-      if (selectedWorkshop) setAndCollect('crm_offer_selected_workshop' + langSuffixStr, JSON.stringify(selectedWorkshop));
-      if (googleFormUrl) setAndCollect('crm_offer_google_form_url' + langSuffixStr, googleFormUrl);
-      if (formSource) setAndCollect('crm_offer_form_source' + langSuffixStr, formSource);
-      if (selectedFormId) setAndCollect('crm_offer_selected_form_id' + langSuffixStr, selectedFormId);
+      setAndCollect('crm_offer_google_form_url' + langSuffixStr, googleFormUrl);
+      setAndCollect('crm_offer_form_source' + langSuffixStr, formSource);
+      setAndCollect('crm_offer_selected_form_id' + langSuffixStr, selectedFormId);
+      if (selectedWorkshop) {
+        setAndCollect('crm_offer_field_mapping_' + selectedWorkshop.id, JSON.stringify(fieldMapping));
+        setAndCollect('crm_offer_crm_fields_' + selectedWorkshop.id, JSON.stringify(crmFields));
+        setAndCollect('crm_offer_filters_' + selectedWorkshop.id, JSON.stringify({ main: leadsFilter, sub: leadsSubFilter, search: leadsSubSubFilter }));
+      }
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
@@ -1220,9 +1196,9 @@ export default function WorkshopOfferPage() {
         setAndCollect('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
       }
 
-      void autosave.current.save(stateObj).catch(error => toast.error(error.message));
-    }
-  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
+      return stateObj;
+  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, isAi7Active, approvalAiInsights, pendingAiInsights, registeredAiInsights, selectedWorkshop, googleFormUrl, formSource, selectedFormId, selectedDashboardLang, fieldMapping, crmFields, leadEdits, hiddenLeadIds, leadsFilter, leadsSubFilter, leadsSubSubFilter]);
+  const saveStatus = useOfferAutosave(offerSnapshot, isLoaded && restoredBatchId === selectedWorkshop?.id);
 
   useEffect(() => {
     if (selectedWorkshop?.formId) {
@@ -1240,14 +1216,21 @@ export default function WorkshopOfferPage() {
         setSelectedFormId(selectedWorkshop.formId);
       }
 
-      if (selectedWorkshop.metadata?.googleFormMapping) {
+      const savedMapping = localStorage.getItem('crm_offer_field_mapping_' + selectedWorkshop.id);
+      const savedFields = localStorage.getItem('crm_offer_crm_fields_' + selectedWorkshop.id);
+      if (savedMapping) {
+        setFieldMapping(JSON.parse(savedMapping));
+      } else if (selectedWorkshop.metadata?.googleFormMapping) {
         setFieldMapping(selectedWorkshop.metadata.googleFormMapping);
       } else {
         setFieldMapping(prev => Object.keys(prev).length === 0 ? prev : {});
       }
+      setCrmFields(savedFields ? JSON.parse(savedFields) : selectedWorkshop.metadata?.crmFields || []);
 
-      setLeadsFilter(selectedWorkshop.metadata?.mainFilter || '');
-      setLeadsSubFilter(selectedWorkshop.metadata?.subFilter || '');
+      const savedFilters = JSON.parse(localStorage.getItem('crm_offer_filters_' + selectedWorkshop.id) || '{}');
+      setLeadsFilter(savedFilters.main ?? selectedWorkshop.metadata?.mainFilter ?? '');
+      setLeadsSubFilter(savedFilters.sub ?? selectedWorkshop.metadata?.subFilter ?? '');
+      setLeadsSubSubFilter(savedFilters.search || '');
 
       const suffix = `_${selectedWorkshop?.id}`;
 
@@ -1263,6 +1246,7 @@ export default function WorkshopOfferPage() {
       setCrmLeadIds(loadList('crm_lead_ids'));
       setApprovedLeadIds(loadList('crm_approved_ids'));
       setPendingLeadIds(loadList('crm_pending_ids'));
+      setPending2LeadIds(loadList('crm_pending2_ids'));
       setRegisteredLeadIds(loadList('crm_registered_ids'));
       setRejectedLeadIds(loadList('crm_rejected_ids'));
       setStudentKotaLeadIds(loadList('crm_student_kota_ids'));
@@ -1285,6 +1269,7 @@ export default function WorkshopOfferPage() {
       setCrmLeadIds([]);
       setApprovedLeadIds([]);
       setPendingLeadIds([]);
+      setPending2LeadIds([]);
       setRegisteredLeadIds([]);
       setRejectedLeadIds([]);
       setStudentKotaLeadIds([]);
@@ -1295,9 +1280,11 @@ export default function WorkshopOfferPage() {
       setPendingAiInsights({});
       setRegisteredAiInsights({});
     }
+    setRestoredBatchId(selectedWorkshop?.id);
   }, [selectedWorkshop?.id, selectedWorkshop?.formId, isLoaded]);
 
   const saveWorkshopSettings = async () => {
+    try {
     let targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
 
     let currentWorkshops = [...workshops];
@@ -1325,39 +1312,26 @@ export default function WorkshopOfferPage() {
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: formSource === 'google' ? googleFormUrl : targetWorkshop.formId,
+      formId: formSource === 'google' ? googleFormUrl : selectedFormId,
       metadata: updatedMetadata
     };
 
     const newWorkshops = (currentWorkshops || []).map(w => w?.id === targetWorkshop.id ? updatedWorkshop : w);
+    await fetch('/api/admin/crm/new-registration/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
+    });
     setWorkshops(newWorkshops);
     setSelectedWorkshop(updatedWorkshop);
     setLinkedFormId(updatedWorkshop.formId);
 
-    localStorage.setItem('crm_offers', JSON.stringify(newWorkshops));
-    fetch('/api/admin/crm/new-registration/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
-    }).catch(console.error);
-
-    if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
-      try {
-        await fetch('/api/admin/crm/workshop-management', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            cohortId: targetWorkshop.id,
-            googleFormLink: googleFormUrl,
-            metadata: updatedMetadata
-          })
-        });
-      } catch (e) {
-        console.error('Failed to sync to workshop-management backend:', e);
-      }
-    }
-
     toast.success('Workshop settings saved successfully!');
+    return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Workshop settings were not saved.');
+      return false;
+    }
   };
 
   const handleDetailChange = (field: string, value: string) => {
@@ -1382,10 +1356,14 @@ export default function WorkshopOfferPage() {
     }
   };
 
-  const handleDeleteBatch = (e: React.MouseEvent, id: string) => {
+  const handleDeleteBatch = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this batch?')) {
-      setWorkshops((workshops || []).filter(w => w && w.id !== id));
+      const remaining = (workshops || []).filter(w => w && w.id !== id);
+      try {
+        await fetch('/api/admin/crm/new-registration/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crm_offers: remaining }) });
+      } catch (error) { toast.error(error instanceof Error ? error.message : 'Batch was not deleted'); return; }
+      setWorkshops(remaining);
       if (selectedWorkshop?.id === id) {
         setSelectedWorkshop(null);
         setActiveTab('offer_details');
@@ -1476,19 +1454,19 @@ export default function WorkshopOfferPage() {
     toast.success(`Successfully registered ${successCount}/${leadsToRegister.length} leads in Zoom!`);
   };
 
-  const handleBulkAction = (action: string) => {
+  const handleBulkAction = async (action: string) => {
     if (action === 'Delete') {
       if (selectedRowIds.length === 0) {
         toast.error('Please select at least one lead to delete.');
         return;
       }
-      if (confirm(`Are you sure you want to delete ${selectedRowIds.length} leads?`)) {
-        const newLeads = leadsData.filter(l => !selectedRowIds.includes(l.id));
-        setLeadsData(newLeads);
-        setWorkshops(prev => (prev || []).map(w => w?.id === selectedWorkshop?.id ? { ...w, leads: newLeads.length } : w));
-        setSelectedWorkshop(prev => prev ? { ...prev, leads: newLeads.length } : prev);
-        setApprovedLeadIds(approvedLeadIds.filter(id => !selectedRowIds.includes(id)));
-        toast.success(`Deleted ${selectedRowIds.length} leads successfully!`);
+      if (confirm(`Remove ${selectedRowIds.length} leads from Workshop Offer? Original form responses and CRM contacts will remain stored.`)) {
+        const hidden = Array.from(new Set([...hiddenLeadIds, ...selectedRowIds]));
+        try {
+          await fetch('/api/admin/crm/new-registration/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crm_offer_hidden_lead_ids: hidden }) });
+        } catch (error) { toast.error(error instanceof Error ? error.message : 'Lead removal was not saved'); return; }
+        setHiddenLeadIds(hidden);
+        toast.success(`Removed ${selectedRowIds.length} leads from Workshop Offer.`);
         setSelectedRowIds([]);
       }
     } else {
@@ -1549,7 +1527,7 @@ export default function WorkshopOfferPage() {
               setPendingLeadIds(prev => prev.filter(id => !selectedRowIds.includes(id)));
               setRegisteredLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
               setSelectedRowIds([]);
-              toast.success('Leads restored to Registered Forms!');
+              toast.info('Lead changes queued. Check the save status before leaving.');
             }
           }}
           className="flex items-center gap-1.5 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg text-xs font-bold transition-colors"
@@ -1578,7 +1556,7 @@ export default function WorkshopOfferPage() {
               if (selectedRowIds.length === 0) return;
               setClosedLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
               setSelectedRowIds([]);
-              toast.success('Leads Submitted & Moved to Workshop!');
+              toast.info('Workshop moves queued. Check the save status before leaving.');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-xs font-bold transition-colors ml-1"
           >
@@ -1601,7 +1579,7 @@ export default function WorkshopOfferPage() {
           if (selectedRowIds.length === 0) { toast.error("Select leads first"); return; }
           setStudentKotaLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
           setSelectedRowIds([]);
-          toast.success("Moved to Student Kota!");
+          toast.info('Student category changes queued. Check the save status before leaving.');
         }}
         className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
       >
@@ -1619,23 +1597,20 @@ export default function WorkshopOfferPage() {
     }
   }, [selectedWorkshop?.id]);
 
-  const saveAi1Column = () => {
+  const saveAi1Column = async () => {
     if (!selectedWorkshop) return;
     const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
     const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
-    setSelectedWorkshop(updatedWorkshop);
-    setWorkshops(prev => {
-      const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('crm_offers', JSON.stringify(newWorkshops));
-        fetch('/api/admin/crm/new-registration/state', {
+    const newWorkshops = workshops.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
+    try {
+        await fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
-        }).catch(console.error);
-      }
-      return newWorkshops;
-    });
+        });
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Column was not saved'); return; }
+    setSelectedWorkshop(updatedWorkshop);
+    setWorkshops(newWorkshops);
     toast.success('AI-1 Column setting saved permanently!');
   };
 
@@ -1855,12 +1830,18 @@ export default function WorkshopOfferPage() {
       showDynamicColumns={showDynamicColumns} dynamicColumns={dynamicColumns}
       colWidths={colWidths} setColWidths={setColWidths} setTab2SortOrder={setTab2SortOrder}
       setLeadsData={setLeadsData} handleApprove={handleApprove}
+      editLeadAnswer={(leadId: string, column: string, value: string) => setLeadEdits(previous => ({ ...previous, [leadId]: { ...previous[leadId], [column]: value } }))}
       selectedDashboardLang={selectedDashboardLang}
     />
   );
 
   return (
     <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+      {!isLoaded && <div className="fixed inset-0 z-[90] bg-white/60" aria-label="Loading saved offer settings" />}
+      <div role={saveStatus.error || !isLoaded ? 'alert' : 'status'} className={`fixed bottom-4 right-4 z-[100] rounded-lg border px-4 py-2 text-sm shadow-lg ${saveStatus.error || !isLoaded ? 'bg-red-50 border-red-200 text-red-800' : 'bg-white border-slate-200 text-slate-700'}`}>
+        {!isLoaded ? 'Saved settings have not loaded. Reload before editing.' : saveStatus.error ? `Not saved: ${saveStatus.error}` : saveStatus.saving || saveStatus.pending ? 'Saving offer changes…' : 'Offer autosave ready'}
+        {saveStatus.error && <button className="ml-3 underline font-bold" onClick={() => { void saveStatus.retry().catch(error => toast.error(error.message)); }}>Retry save</button>}
+      </div>
 
       {/* Global Sidebar for Batch Selection */}
       {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger' && activeTab !== 'offer_details' && activeTab !== 'received_amount' && activeTab !== 'create_receipts') && (
@@ -1991,7 +1972,7 @@ export default function WorkshopOfferPage() {
                                 }).catch(console.error);
                                 
                                 if (selectedWorkshop) setSelectedWorkshop(null);
-                                toast.success(`Cleared all ${selectedDashboardLang} batches!`);
+                                toast.info(`Batch removal queued. Check the save status before leaving.`);
                               }
                             }}
                             className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
@@ -2123,7 +2104,7 @@ export default function WorkshopOfferPage() {
                                   }).catch(console.error);
                                   
                                   if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
-                                  toast.success(`Deleted batch ${batch.name}`);
+                                  toast.info(`Batch removal queued. Check the save status before leaving.`);
                                 }
                               }}
                               className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"

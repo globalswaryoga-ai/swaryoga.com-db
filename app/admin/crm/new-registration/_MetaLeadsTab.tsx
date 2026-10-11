@@ -183,17 +183,57 @@ export function MetaLeadsTab({
 
     useEffect(() => {
         setFormId(selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '');
+    }, [selectedWorkshop?.id, selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId]);
+
+    useEffect(() => {
         setAi9AConfig(configCopy(selectedWorkshop?.metadata?.ai9AConfig));
+    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9AConfig)]);
+
+    useEffect(() => {
         setAi9BConfig(configCopy(selectedWorkshop?.metadata?.ai9BConfig));
+    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9BConfig)]);
+
+    useEffect(() => {
         setAi9EConfig(configCopy(selectedWorkshop?.metadata?.ai9EConfig));
+    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9EConfig)]);
+
+    useEffect(() => {
         setWtSettings({
             approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay ?? 5 },
             pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay ?? 30 }
         });
-    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9AConfig),
-        JSON.stringify(selectedWorkshop?.metadata?.ai9BConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9EConfig),
-        selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId,
-        JSON.stringify(selectedWorkshop?.metadata?.wtSettings)]);
+    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.wtSettings)]);
+
+    const draftKey = `${selectedWorkshop?.id || ''}:${activeAITab}`;
+    const activeDraft = activeAITab === 'AI-9A' ? ai9AConfig : activeAITab === 'AI-9B' ? ai9BConfig : ai9EConfig;
+    const activeDraftJson = JSON.stringify(activeDraft);
+    const metaDraftRef = useRef({ key: '', value: '' });
+    const metaDraftQueue = useRef(Promise.resolve());
+    useEffect(() => {
+        if (!showAI9Popup || metaDraftRef.current.key !== draftKey) {
+            metaDraftRef.current = { key: draftKey, value: activeDraftJson };
+            return;
+        }
+        if (metaDraftRef.current.value === activeDraftJson) return;
+        const timer = setTimeout(() => {
+            const config = JSON.parse(activeDraftJson);
+            const key = activeAITab === 'AI-9A' ? 'ai9AConfig' : activeAITab === 'AI-9B' ? 'ai9BConfig' : 'ai9EConfig';
+            metaDraftQueue.current = metaDraftQueue.current.then(async () => {
+                if (await saveMetaAIConfig(key, config)) {
+                    if (metaDraftRef.current.key === draftKey) metaDraftRef.current.value = activeDraftJson;
+                }
+            });
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [showAI9Popup, draftKey, activeDraftJson]);
+    const closeMetaConfig = async () => {
+        await metaDraftQueue.current;
+        if (metaDraftRef.current.key === draftKey && metaDraftRef.current.value !== activeDraftJson) {
+            const key = activeAITab === 'AI-9A' ? 'ai9AConfig' : activeAITab === 'AI-9B' ? 'ai9BConfig' : 'ai9EConfig';
+            if (!await saveMetaAIConfig(key, activeDraft, true)) return;
+        }
+        setShowAI9Popup(false);
+    };
 
     // Dummy Lead State
     const [showDummyPopup, setShowDummyPopup] = useState(false);
@@ -1609,7 +1649,7 @@ export function MetaLeadsTab({
                                 >
                                     <Save size={14} /> {savingAIConfig ? 'Saving...' : 'Save'}
                                 </button>
-                                <button onClick={() => setShowAI9Popup(false)} className="text-yellow-800 hover:text-yellow-900 hover:bg-yellow-500 p-1.5 rounded-full transition-colors">
+                                <button onClick={() => { void closeMetaConfig(); }} className="text-yellow-800 hover:text-yellow-900 hover:bg-yellow-500 p-1.5 rounded-full transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -1742,7 +1782,7 @@ export function MetaLeadsTab({
                         </div>
 
                         <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3">
-                            <button onClick={() => setShowAI9Popup(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">
+                            <button onClick={() => { void closeMetaConfig(); }} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">
                                 Cancel
                             </button>
                             <button 

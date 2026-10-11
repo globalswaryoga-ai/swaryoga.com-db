@@ -31,14 +31,6 @@ export function AITriggersPanel({
   const [savedAudience, setSavedAudience] = useState<RegistrationAudienceRow[]>([]);
   const [audienceLoading, setAudienceLoading] = useState(false);
   const [audienceError, setAudienceError] = useState('');
-  const matchingAudienceRows = React.useMemo(
-    () => registrationAudienceForBatch(savedAudience, selectedBatchId, targetCategory),
-    [savedAudience, selectedBatchId, targetCategory],
-  );
-  const filteredPreviewLeads = React.useMemo(
-    () => registrationRecipients(matchingAudienceRows),
-    [matchingAudienceRows],
-  );
   const decisionVersion = JSON.stringify(batchDecisions);
   
   const [template, setTemplate] = useState(() => {
@@ -50,6 +42,14 @@ export function AITriggersPanel({
     if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_category') || 'All Leads';
     return 'All Leads';
   });
+  const matchingAudienceRows = React.useMemo(
+    () => registrationAudienceForBatch(savedAudience, selectedBatchId, targetCategory),
+    [savedAudience, selectedBatchId, targetCategory],
+  );
+  const filteredPreviewLeads = React.useMemo(
+    () => registrationRecipients(matchingAudienceRows),
+    [matchingAudienceRows],
+  );
 
   useEffect(() => {
     const exactMatch = categoryOptions.find(category =>
