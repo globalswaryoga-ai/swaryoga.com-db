@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
 import { getViewerUserId } from '@/lib/crm-handlers';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,13 +19,26 @@ export const dynamic = 'force-dynamic';
 
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function loadBridgeSettings(userId: string): Promise<any> {
+  // Bunny SQL is the only settings store; a slow or failed lookup returns null.
+  try {
+    return await withTimeout(getBunnyCrmUserSettings(userId), 6000, 'Bunny settings');
+  } catch (err: any) {
+    console.warn('[bridge-download] Bunny settings unavailable:', err?.message);
+    return null;
+  }
+}
+
 async function resolveBridgeConfig(userId: string) {
-  await connectDB();
-  const CRMUserSettings = getCRMUserSettings();
-  const settings = await CRMUserSettings.findOne(
-    { userId },
-    { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1 }
-  ).lean() as any;
+  const settings = await loadBridgeSettings(userId);
 
   if (settings?.permanentTenantId) {
     return {

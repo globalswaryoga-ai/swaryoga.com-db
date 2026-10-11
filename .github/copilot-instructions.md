@@ -171,7 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### QR Inbox Direction, Group Merge/Move and Media Fixes (Session: September 29, 2026) — Commit `pending`
+### QR Inbox Bunny-Only Storage Reads (Session: September 29, 2026) — Commit `pending`
+
+- `qr/messages` now reads stored history only from Bunny SQL (`qr_messages_sql`) and the Bunny Storage archive manifest; MongoDB is no longer used.
+- `media/bridge-download` resolves bridge settings from Bunny SQL only.
+- All storage lookups have 6-second hard timeouts and degrade to empty results, so a storage outage no longer returns 500 (the inbox still shows live bridge messages).
+
+### QR Inbox Direction, Group Merge/Move and Media Fixes (Session: September 29, 2026) — Commit `cd5ec78b`
 
 - Bridge chats now carry `lastMessageFromMe`; QR Inbound/Outbound tabs and counts use a shared direction predicate instead of showing 0.
 - Bridge `/group-participants` returns per-participant results (`succeededCount`, `alreadyMemberCount`, `failedCount`, `results[].requested`).
