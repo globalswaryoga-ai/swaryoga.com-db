@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
         const mediaUpdate: any = {
           metaTemplateId: metaTemplate.id,
           metaTemplateName: metaTemplate.name,
+          language: metaTemplate.language,
           status: localStatus,
           metaStatus: metaTemplate.status,
           metaRejectionReason: metaTemplate.rejected_reason || null,
@@ -199,6 +200,8 @@ export async function POST(request: NextRequest) {
 
     const updated = await updateTemplate(templateId, {
       metaTemplateId: metaTemplate.id,
+      metaTemplateName: metaTemplate.name,
+      language: metaTemplate.language,
       status: localStatus,
       metaStatus: metaTemplate.status,
       metaRejectionReason: metaTemplate.rejected_reason || null,

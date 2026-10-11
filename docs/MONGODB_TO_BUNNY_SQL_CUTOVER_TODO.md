@@ -39,6 +39,13 @@ server-instance snapshot. Preview counts remain unique valid WhatsApp recipients
 not response totals; incomplete/blocked numbers are excluded and final-registration
 categories are not inferred from an earlier approval stage.
 
+Meta template sync updates the registered language as well as approval status.
+Message content language is not the provider translation code: the live
+`welcome_in_workshop_marathi_link_wt` template contains Marathi text but is
+registered as `en`. Sending the saved `mr` code caused Meta error 132001.
+The verified Bunny template record is corrected to `en`; failed report rows remain
+unchanged until an administrator deliberately retries them.
+
 Workshop Offer has independent transactional version checks for settings, record
 corrections and draft payments/designs. Offer-scoped response corrections/removals
 are overlays, not source-record deletion. Final documents, financial finalization,
