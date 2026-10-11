@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Production Form Schema Resolution Follow-up (Session: October 11, 2026) — Commit `5a356d53`
+
+- Production audience logs still reported `duplicate column name: lead_id` after the first schema-verification guard. A zero-row column SELECT now verifies resolution when the remote PRAGMA listing does not show the column; genuinely missing columns still throw the original migration error.
+- Added stale-schema-listing regression; 20 focused form/audience/sync tests pass. No source tables or responses were reset.
+- Autosave release `ae748186` is verified Ready on both production domains. Hindi Meta form/rules and WhatsApp activation were restored through the safe batch endpoint and survived a normal refresh; all 53 original Hindi batch IDs match the baseline. Audience availability and new automation execution remain under live verification.
+
 ### Durable Registration, Students and Offer Autosave (Session: October 11, 2026) — Commit `2f8b2320`
 
 - Registration My Data/batch lists, categories, valid AI rules and sidebar layout use versioned, serialized saves with visible status and failed-edit Retry. Meta draft saves do not activate processing; unrelated stage hydration no longer erases drafts.
