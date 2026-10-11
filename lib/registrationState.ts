@@ -2,6 +2,7 @@ import { bunnyBatch, bunnyExecute, getBunnyDatabase } from '@/lib/bunnyDatabase'
 import { fetchFromStorage } from '@/lib/bunny-storage';
 import { parseRegistrationValue } from '@/lib/registrationValues';
 import { registrationStoredValuesEqual } from '@/lib/registrationWorkshopMerge';
+import { unstable_noStore as noStore } from 'next/cache';
 export { parseRegistrationValue } from '@/lib/registrationValues';
 
 export type RegistrationState = Record<string, unknown>;
@@ -40,6 +41,7 @@ async function ensureState(scope: string) {
 }
 
 export async function readRegistrationState(scope = 'shared'): Promise<RegistrationState> {
+  noStore();
   await ensureState(scope);
   const result = await bunnyExecute({ sql: 'SELECT state_key, value_json FROM registration_state_sql WHERE scope = ?', args: [scope] });
   return Object.fromEntries(result.rows.filter(row => row.state_key !== '__initialized').map(row => [String(row.state_key), JSON.parse(String(row.value_json))]));

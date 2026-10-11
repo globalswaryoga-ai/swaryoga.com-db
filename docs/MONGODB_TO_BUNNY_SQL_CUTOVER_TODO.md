@@ -33,6 +33,12 @@ the processor continues using the last valid `conditions`. Completing the rule
 replaces the draft through normal versioned autosave; explicit Save/Run still
 requires complete, unambiguous routing.
 
+Authoritative registration-state reads explicitly opt out of Next.js data caching.
+Trigger audiences must see newly saved batches and decisions, not an older
+server-instance snapshot. Preview counts remain unique valid WhatsApp recipients,
+not response totals; incomplete/blocked numbers are excluded and final-registration
+categories are not inferred from an earlier approval stage.
+
 Workshop Offer has independent transactional version checks for settings, record
 corrections and draft payments/designs. Offer-scoped response corrections/removals
 are overlays, not source-record deletion. Final documents, financial finalization,

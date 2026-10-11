@@ -6,6 +6,7 @@ jest.mock('@/lib/bunnyDatabase', () => ({
   getBunnyDatabase: jest.fn(),
 }));
 jest.mock('@/lib/bunny-storage', () => ({ fetchFromStorage: jest.fn() }));
+jest.mock('next/cache', () => ({ unstable_noStore: jest.fn() }));
 
 import { createClient, type Client } from '@libsql/client';
 import { mkdtempSync, rmSync, rmdirSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { fetchFromStorage } from '@/lib/bunny-storage';
 import { mergeRegistrationState, readRegistrationDecisionState, readRegistrationState, replaceRegistrationStateIfUnchanged, saveRegistrationGate, writeRegistrationState, saveRegistrationSnapshotIfUnchanged } from '@/lib/registrationState';
 import { readRegistrationAiConfig, registrationAiConfigKey, registrationDecisionKey } from '@/lib/registrationAiConfig';
 import { processRegistrationFunnel } from '@/lib/registrationFunnel';
+import { unstable_noStore } from 'next/cache';
 
 describe('Durable registration configuration in SQL', () => {
   let client: Client;
@@ -40,6 +42,14 @@ describe('Durable registration configuration in SQL', () => {
     client.close();
     for (const suffix of ['', '-wal', '-shm']) rmSync(`${databasePath}${suffix}`, { force: true });
     rmdirSync(directory);
+  });
+
+  it('opts out of framework caching before reading the latest batch snapshot', async () => {
+    await readRegistrationState();
+    await writeRegistrationState({ crm_hindi_workshops: [{ id: 'hindi-new', name: 'Hindi Workshop' }] });
+    const state = await readRegistrationState();
+    expect(state.crm_hindi_workshops).toEqual([{ id: 'hindi-new', name: 'Hindi Workshop' }]);
+    expect(unstable_noStore).toHaveBeenCalledTimes(2);
   });
 
   it('keeps saved questions and answers after reopening the database and unrelated saves', async () => {
