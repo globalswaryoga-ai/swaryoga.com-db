@@ -176,6 +176,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Production audience logs still reported `duplicate column name: lead_id` after the first schema-verification guard. A zero-row column SELECT now verifies resolution when the remote PRAGMA listing does not show the column; genuinely missing columns still throw the original migration error.
 - Added stale-schema-listing regression; 20 focused form/audience/sync tests pass. No source tables or responses were reset.
 - Autosave release `ae748186` is verified Ready on both production domains. Hindi Meta form/rules and WhatsApp activation were restored through the safe batch endpoint and survived a normal refresh; all 53 original Hindi batch IDs match the baseline. Audience availability and new automation execution remain under live verification.
+- Final follow-up `aeaec915` is Ready on swaryoga.com and crm.swaryoga.com (`dpl_Cuu1wVWYrUKaHNwnxysCBztpQk7T`). Normal reload retains the restored active Hindi configuration; audience returns HTTP 200 with 1,007 rows (~614 KB). User-authorized AI run checked 99 leads, changed one status and queued 12 messages; subsequent report gained 11 sent records and one failure (not silently retried).
 
 ### Durable Registration, Students and Offer Autosave (Session: October 11, 2026) — Commit `2f8b2320`
 
