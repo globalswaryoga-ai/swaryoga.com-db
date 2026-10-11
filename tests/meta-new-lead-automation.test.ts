@@ -182,6 +182,28 @@ describe('Future-only four-stage Meta automation', () => {
     expect((await client.execute("SELECT document_id FROM broadcast_runs_sql WHERE document_id != 'bulk'")).rows).toHaveLength(0);
   });
 
+  it.each([
+    ['bulk approval without AI proof', {}],
+    ['AI approval', { ai9PassedStages: { ai9AConfig: true, ai9BConfig: true } }],
+  ])('queues leads approved just before activation once: %s', async (_label, extra) => {
+    const lead = await persistMetaFormLead(input('early', 'Yes', '2026-10-10T20:00:00Z'));
+    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json, '$.status','approved',
+      '$.metadata', json(?)) WHERE document_id = ?`, args: [JSON.stringify({ ...lead.metadata, ...extra,
+      ai9WEligible: true, approvedAt: '2026-10-10T23:00:00Z' }), lead._id] });
+    const state = { crm_workshops: [{ id: 'batch', metadata: metadata() }] };
+    for (let replay = 0; replay < 3; replay++) await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
+    expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(1);
+    expect((await loadBunnyLeads())[0].metadata.wtStatus).toBe('queued');
+  });
+
+  it('reads legacy Mongo creation dates', async () => {
+    const lead = await persistMetaFormLead(input());
+    await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json, '$.createdAt', json(?)) WHERE document_id = ?`,
+      args: [JSON.stringify({ $date: { $numberLong: String(Date.parse('2026-10-12T00:00:00Z')) } }), lead._id] });
+    await processRegistrationApprovals({ crm_workshops: [{ id: 'batch', metadata: metadata() }] }, await loadBunnyLeads(), 'admincrm', true);
+    expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(1);
+  });
+
   it('never reports an empty or unsent run as completed', () => {
     const base = { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 };
     expect(finalRunStatus(base).status).toBe('failed');

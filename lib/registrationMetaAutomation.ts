@@ -20,25 +20,57 @@ export function metaApprovalConfigurationError(metadata: RegistrationRecord): st
   return null;
 }
 
+/** Approvals made shortly before automation was switched on still belong to the activated batch. */
+export const APPROVAL_ACTIVATION_GRACE_MS = 6 * 60 * 60 * 1000;
+
+/** Parses ISO strings, epoch numbers and legacy Mongo `{ $date: { $numberLong } }` values. */
+export function parseLeadTime(value: unknown): number {
+  if (value && typeof value === 'object') {
+    const date = (value as RegistrationRecord).$date;
+    return parseLeadTime(date && typeof date === 'object' ? date.$numberLong : date);
+  }
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && /^\d{10,}$/.test(value)) return Number(value);
+  return typeof value === 'string' ? Date.parse(value) : NaN;
+}
+
+export function leadApprovedAt(lead: RegistrationRecord): number {
+  return parseLeadTime(lead.metadata?.manualApprovedAt || lead.metadata?.approvedAt);
+}
+
 export function isFutureMetaAutomationLead(lead: RegistrationRecord, metadata: RegistrationRecord): boolean {
   const policy = metadata.metaAutomation;
   if (!policy?.enabled || policy.approvalOnly !== true || metaApprovalConfigurationError(metadata)) return false;
-  const startsAt = Date.parse(policy.startsAt);
-  const createdAt = Date.parse(lead.createdAt);
+  const startsAt = parseLeadTime(policy.startsAt);
+  const createdAt = parseLeadTime(lead.createdAt);
   return !lead.isBlocked && Number.isFinite(startsAt) && Number.isFinite(createdAt) && createdAt > startsAt;
 }
 
+/** Lead was approved before automation was activated, but within the activation grace window. */
+export function isApprovedJustBeforeActivation(lead: RegistrationRecord, metadata: RegistrationRecord): boolean {
+  const policy = metadata.metaAutomation;
+  if (!policy?.enabled || lead.isBlocked || lead.status !== 'approved') return false;
+  if (!metadata.facebookFormId && !metadata.metaFormId) return false;
+  if (!metadata.wtSettings?.approved?.template) return false;
+  const startsAt = parseLeadTime(policy.startsAt);
+  const approvedAt = leadApprovedAt(lead);
+  return Number.isFinite(startsAt) && Number.isFinite(approvedAt) &&
+    approvedAt < startsAt && approvedAt >= startsAt - APPROVAL_ACTIVATION_GRACE_MS;
+}
+
 /**
- * An administrator manually approved this lead after automation was enabled. Manual approval is the
- * approval decision, so AI-9A/AI-9B proof is not required; the form, template and activation must still exist.
+ * An administrator approved this lead (explicitly, or without AI-9A/AI-9B proof) after automation was enabled,
+ * or just before enabling it. Manual approval is the approval decision, so AI-9A/AI-9B proof is not required;
+ * the form, template and activation must still exist.
  */
 export function isManualApprovalAutomationLead(lead: RegistrationRecord, metadata: RegistrationRecord): boolean {
   const policy = metadata.metaAutomation;
   if (!policy?.enabled || lead.isBlocked || lead.status !== 'approved') return false;
-  if (lead.metadata?.approvalSource !== 'manual') return false;
+  const passedAi = META_APPROVAL_STAGES.every(key => lead.metadata?.ai9PassedStages?.[key] === true);
+  if (lead.metadata?.approvalSource !== 'manual' && passedAi) return false;
   if (!metadata.facebookFormId && !metadata.metaFormId) return false;
   if (!metadata.wtSettings?.approved?.template) return false;
-  const startsAt = Date.parse(policy.startsAt);
-  const approvedAt = Date.parse(lead.metadata?.manualApprovedAt || lead.metadata?.approvedAt);
-  return Number.isFinite(startsAt) && Number.isFinite(approvedAt) && approvedAt >= startsAt;
+  const startsAt = parseLeadTime(policy.startsAt);
+  const approvedAt = leadApprovedAt(lead);
+  return Number.isFinite(startsAt) && Number.isFinite(approvedAt) && approvedAt >= startsAt - APPROVAL_ACTIVATION_GRACE_MS;
 }

@@ -7,7 +7,7 @@ import { registrationWorkshops, type RegistrationState } from '@/lib/registratio
 import { registrationTargetMatches } from '@/lib/registrationRules';
 import { readRegistrationDecisions } from '@/lib/registrationAiConfig';
 import { matchesMetaBatch } from '@/lib/registrationMetaReport';
-import { isFutureMetaAutomationLead, isManualApprovalAutomationLead, META_APPROVAL_STAGES } from '@/lib/registrationMetaAutomation';
+import { isApprovedJustBeforeActivation, isFutureMetaAutomationLead, isManualApprovalAutomationLead, META_APPROVAL_STAGES } from '@/lib/registrationMetaAutomation';
 
 export async function resolveRegistrationTemplate(nameOrId: string, owner: string, superAdmin: boolean) {
   const result = await bunnyExecute({
@@ -144,7 +144,8 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
       const settings = workshop.metadata?.wtSettings;
       if (lead.status !== 'approved') continue;
       const manual = isManualApprovalAutomationLead(lead, workshop.metadata || {});
-      if (!manual && (!isFutureMetaAutomationLead(lead, workshop.metadata || {}) ||
+      if (!manual && ((!isFutureMetaAutomationLead(lead, workshop.metadata || {}) &&
+          !isApprovedJustBeforeActivation(lead, workshop.metadata || {})) ||
           !META_APPROVAL_STAGES.every(key => lead.metadata?.ai9PassedStages?.[key] === true))) continue;
       const stage = settings?.approved;
       const triggerConfig = workshop.metadata?.ai9EConfig;

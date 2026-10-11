@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta AI-9W Pre-Activation Approval Trigger Fix (Session: October 11, 2026) — Commit `pending`
+
+- Leads approved up to 6 hours before automation activation (bulk/manual or AI-9A/B) are now auto-queued for the approved template once.
+- Lead dates now parse legacy Mongo `$date` values; duplicate protection still skips contacts already sent the template by manual broadcast.
+
 ### Meta AI-9 Two-Stage Approval Simplification (Session: October 11, 2026) — Commit `ecaace74`
 
 - Removed Stage 2 (AI-9C) and Stage 3 (AI-9D); after Stage 1 (AI-9B) leads become Approved, Pending, or Rejected.
