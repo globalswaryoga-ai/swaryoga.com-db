@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### All Leads Form Connection Without Batch Selection (Session: October 11, 2026) — Commit `cf63424d`
+
+- The All Leads form setup now defaults to an explicit language master-list target when no batch is selected; saving creates or updates that master list through the existing Bunny SQL workshop-settings flow.
+- CRM and Google form connections no longer fail with “Choose a batch” when All Leads clears the selected batch; users can still explicitly choose an existing batch.
+- Added a regression test for an empty batch list and updated the registration cutover guidance.
+
 ### Google Form Import Recovery and CRM Source Verification (Session: October 11, 2026) — Commit `e3aca4b3`
 
 - Google Form imports process only missing or incompletely linked response IDs, allowing each run to reach responses added after the existing saved set.
