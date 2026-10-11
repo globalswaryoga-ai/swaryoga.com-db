@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Approved Lead WhatsApp Sweep Every Minute (Session: October 2026) — Commit `pending`
+### Approved Lead WhatsApp Sweep Every Minute (Session: October 2026) — Commit `d8611442`
 
 - Changed `/api/cron/registration-automation` in `vercel.json` from every 5 minutes to every minute so approved leads are queued and sent the Approved template within about a minute.
 - Overlapping runs are safe: queue inserts use `ON CONFLICT DO NOTHING` and message sends use the atomic `pending → sending` claim.
