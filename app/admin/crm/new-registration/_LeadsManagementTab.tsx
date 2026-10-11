@@ -5,7 +5,7 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 import { registrationBatchRows } from '@/lib/registrationLeads';
-import { isCurrentRegistrationStage, isRegistrationStageCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
 import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
@@ -399,7 +399,7 @@ export function LeadsManagementTab({
     SIDEBAR_TABS.forEach(tab => {
       let count = 0;
       if (isRegistrationStageCategory(tab.id)) {
-        count = activeBatchLeads.filter(l => isCurrentRegistrationStage(batchDecisions[l.id] || {}, tab.id)).length;
+        count = activeBatchLeads.filter(l => isRegistrationStageMember(batchDecisions[l.id] || {}, tab.id)).length;
       } else if (tab.id === 'take_zoom_meeting') {
         count = activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {})).length;
       } else if (tab.id === 'new_leads') {
@@ -407,21 +407,23 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return String(dec.status || '').startsWith('pending') && !dec.isRejected;
+          return (String(dec.status || '').startsWith('pending') ||
+            (dec.copies || []).some((category: string) => category.startsWith('pending'))) && !dec.isRejected;
         }).length;
       } else if (tab.id === 'registered_leads') {
-        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
+        count = activeBatchLeads.filter(l =>
+          batchDecisions[l.id]?.isRegistered || batchDecisions[l.id]?.status === tab.id || batchDecisions[l.id]?.copies?.includes(tab.id)
+        ).length;
       } else if (tab.id === 'rejected_leads') {
-        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected).length;
+        count = activeBatchLeads.filter(l =>
+          batchDecisions[l.id]?.isRejected || batchDecisions[l.id]?.status === tab.id || batchDecisions[l.id]?.copies?.includes(tab.id)
+        ).length;
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
           const matches = dec.status === tab.id ||
-            dec.history?.includes(tab.id) ||
             dec.copies?.includes(tab.id) ||
-            (dec.sourceTabs && dec.sourceTabs.includes(tab.id)) ||
             getCategoryLabel(dec.status) === tab.label ||
-            (dec.history || []).some((h: string) => getCategoryLabel(h) === tab.label) ||
             (dec.copies || []).some((c: string) => getCategoryLabel(c) === tab.label);
           return matches && !dec.isRejected;
         }).length;
@@ -434,10 +436,13 @@ export function LeadsManagementTab({
   const currentTabLeads = React.useMemo(() => {
     const activeTabLabel = getCategoryLabel(activeTab);
     if (isRegistrationStageCategory(activeTab)) {
-      return activeBatchLeads.filter(l => isCurrentRegistrationStage(batchDecisions[l.id] || {}, activeTab));
+      return activeBatchLeads.filter(l => isRegistrationStageMember(batchDecisions[l.id] || {}, activeTab));
     }
     if (activeTab === 'take_zoom_meeting') {
-      return activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {}));
+      return activeBatchLeads.filter(l => {
+        const decision = batchDecisions[l.id] || {};
+        return needsZoomReview(decision) || decision.status === activeTab || decision.copies?.includes(activeTab);
+      });
     }
     if (activeTab === 'new_leads') {
       return activeBatchLeads; // Show ALL forms here - all original data is preserved
@@ -445,23 +450,25 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return String(dec.status || '').startsWith('pending') && !dec.isRejected;
+        return (String(dec.status || '').startsWith('pending') ||
+          (dec.copies || []).some((category: string) => category.startsWith('pending'))) && !dec.isRejected;
       });
     }
     if (activeTab === 'registered_leads') {
-      return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
+      return activeBatchLeads.filter(l =>
+        batchDecisions[l.id]?.isRegistered || batchDecisions[l.id]?.status === activeTab || batchDecisions[l.id]?.copies?.includes(activeTab)
+      );
     }
     if (activeTab === 'rejected_leads') {
-      return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected);
+      return activeBatchLeads.filter(l =>
+        batchDecisions[l.id]?.isRejected || batchDecisions[l.id]?.status === activeTab || batchDecisions[l.id]?.copies?.includes(activeTab)
+      );
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
       const matches = dec.status === activeTab ||
-        dec.history?.includes(activeTab) ||
         dec.copies?.includes(activeTab) ||
-        (dec.sourceTabs && dec.sourceTabs.includes(activeTab)) ||
         getCategoryLabel(dec.status) === activeTabLabel ||
-        (dec.history || []).some((h: string) => getCategoryLabel(h) === activeTabLabel) ||
         (dec.copies || []).some((c: string) => getCategoryLabel(c) === activeTabLabel);
 
       return matches && !dec.isRejected;
@@ -507,14 +514,24 @@ export function LeadsManagementTab({
     const newDecisions = { ...batchDecisions };
     selectedLeads.forEach(leadId => {
       const current = newDecisions[leadId] || {};
-      const oldStatus = current.status || 'new_leads';
-      const history = Array.from(new Set([...(current.history || []), oldStatus, targetStatus]));
-      newDecisions[leadId] = { ...current, status: targetStatus, reason: 'Manual Move', history };
+      newDecisions[leadId] = moveRegistrationDecisionToCategory(current, targetStatus, activeTab);
     });
     setBatchDecisions(newDecisions);
     syncStateToBackend('crm_ai4_decisions', newDecisions);
     setSelectedLeads([]);
     toast.success(`Moved ${selectedLeads.length} leads!`);
+  };
+  const handleCopySelected = (targetCategory: string) => {
+    if (!targetCategory) return;
+    const newDecisions = { ...batchDecisions };
+    selectedLeads.forEach(leadId => {
+      const current = newDecisions[leadId] || {};
+      newDecisions[leadId] = copyRegistrationDecisionToCategory(current, targetCategory);
+    });
+    setBatchDecisions(newDecisions);
+    syncStateToBackend('crm_ai4_decisions', newDecisions);
+    setSelectedLeads([]);
+    toast.success(`Copied ${selectedLeads.length} leads to ${getCategoryLabel(targetCategory)}!`);
   };
 
   const getAge = (raw: any) => getMappedValue(raw, 'Age', ['age']);
@@ -782,7 +799,7 @@ export function LeadsManagementTab({
                   <p className="text-sm text-slate-500">
                     Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Funnel-stage tabs show each lead’s current stage, not historical copies; All Batch Leads is the total, not unprocessed leads. Zoom, final approval, and group admission remain separate gates.</p>
+                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Funnel-stage tabs include the current stage and explicit copies, so counts can overlap; All Batch Leads is the total. Zoom, final approval, and group admission remain separate gates.</p>
                   <p className="mt-2 text-sm font-semibold text-slate-700">
                     Current status: Total {activeBatchLeads.length}
                     {' · Unprocessed '}{activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.status || batchDecisions[lead.id]?.status === 'new_leads').length}
@@ -821,21 +838,27 @@ export function LeadsManagementTab({
                         </button>
                       )}
                       {selectedLeads.length > 0 && (
-                        <div className="flex items-center gap-2 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
+                        <div className="flex flex-wrap items-center gap-2 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
                           <span className="text-xs font-bold text-indigo-800">{selectedLeads.length} selected</span>
-                          <select 
+                          <label className="sr-only" htmlFor="copy-selected-category">Copy selected leads</label>
+                          <select
+                            id="copy-selected-category"
                             className="text-sm rounded border-indigo-200 py-1 pl-2 pr-6 outline-none bg-white"
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleMoveSelected(e.target.value);
-                                e.target.value = "";
-                              }
-                            }}
+                            value=""
+                            onChange={e => handleCopySelected(e.target.value)}
+                          >
+                            <option value="">Copy to...</option>
+                            {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          </select>
+                          <label className="sr-only" htmlFor="move-selected-category">Move selected leads</label>
+                          <select
+                            id="move-selected-category"
+                            className="text-sm rounded border-indigo-200 py-1 pl-2 pr-6 outline-none bg-white"
+                            value=""
+                            onChange={e => handleMoveSelected(e.target.value)}
                           >
                             <option value="">Move to...</option>
-                            {SIDEBAR_TABS.map(t => (
-                              <option key={t.id} value={t.id}>{t.label}</option>
-                            ))}
+                            {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                           </select>
                         </div>
                       )}

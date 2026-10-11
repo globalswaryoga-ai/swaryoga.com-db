@@ -50,17 +50,25 @@ export async function processRegistrationFunnel({
         continue;
       }
       const category = evaluated.category || status;
+      const keepCopy = config.copyModes[type] !== false;
+      const previousCopies = previous.copies || [];
       const next = {
         status: category, reason: evaluated.reason, processedBy: type,
         screeningPassed: evaluated.passed, updatedAt: new Date().toISOString(),
         history: [...new Set([...(previous.history || []), status, category])],
-        keepCopy: config.copyModes[type] !== false,
-        ...(config.copyModes[type] !== false ? {
-          copies: [...new Set([...(previous.copies || []), category])],
+        keepCopy,
+        copies: keepCopy
+          ? [...new Set([...previousCopies, status, category])]
+          : previousCopies.filter((copy: string) => copy !== status),
+        ...(keepCopy ? {
           sourceTabs: [...new Set([...(previous.sourceTabs || []), status])],
         } : {}),
       };
-      if (previous.status === next.status && previous.reason === next.reason && previous.screeningPassed === next.screeningPassed) continue;
+      if (previous.status === next.status &&
+        previous.reason === next.reason &&
+        previous.screeningPassed === next.screeningPassed &&
+        previous.keepCopy === next.keepCopy &&
+        JSON.stringify(previous.copies || []) === JSON.stringify(next.copies)) continue;
       const key = registrationDecisionKey(String(workshop.id), String(row.id));
       patch[key] = next;
       processed++;

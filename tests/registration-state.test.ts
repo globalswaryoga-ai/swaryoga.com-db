@@ -168,6 +168,44 @@ describe('Durable registration configuration in SQL', () => {
     expect(await processRegistrationFunnel({ ...input, state })).toMatchObject({ processed: 0 });
   });
 
+  it('keeps source-stage membership in copy mode and removes it in move mode', async () => {
+    const copyKey = registrationDecisionKey('copy-batch', 'copy-response');
+    const moveKey = registrationDecisionKey('move-batch', 'move-response');
+    const conditions = [{ question: 'Ready', keyword: 'Yes', successCategory: 'approval_1' }];
+    const state = {
+      crm_hindi_workshops: [
+        { id: 'copy-batch', formId: 'copy-form', language: 'Hindi' },
+        { id: 'move-batch', formId: 'move-form', language: 'Hindi' },
+      ],
+      [registrationAiConfigKey('copy-batch', 'AI-4A')]: { conditions, copyMode: true },
+      [registrationAiConfigKey('move-batch', 'AI-4A')]: { conditions, copyMode: false },
+      [copyKey]: { status: 'pending_leads_1', copies: ['pending_leads_2'], history: ['new_leads'] },
+      [moveKey]: { status: 'pending_leads_1', copies: ['pending_leads_1', 'pending_leads_2'], history: ['new_leads'] },
+    };
+    await writeRegistrationState(state);
+    const submissions = [
+      { id: 'copy-response', formId: 'copy-form', dynamicAnswers: { Ready: 'Yes' } },
+      { id: 'move-response', formId: 'move-form', dynamicAnswers: { Ready: 'Yes' } },
+    ];
+    const forms = [
+      { formId: 'copy-form', workshopName: 'Hindi' },
+      { formId: 'move-form', workshopName: 'Hindi' },
+    ];
+    const common = { state, leads: [], forms, submissions, scope: 'shared', worker: 'AI-4A' };
+
+    const copied = await processRegistrationFunnel({ ...common, batchId: 'copy-batch' });
+    expect(copied.decisionPatch[copyKey]).toMatchObject({
+      status: 'approval_1',
+      copies: ['pending_leads_2', 'pending_leads_1', 'approval_1'],
+    });
+    const moved = await processRegistrationFunnel({ ...common, batchId: 'move-batch' });
+    expect(moved.decisionPatch[moveKey]).toMatchObject({
+      status: 'approval_1',
+      copies: ['pending_leads_2'],
+    });
+    expect(moved.decisionPatch[moveKey].history).toContain('pending_leads_1');
+  });
+
   it('does not initialize empty shared state when preserved configuration cannot be read', async () => {
     jest.mocked(fetchFromStorage).mockRejectedValue(new Error('Storage unavailable'));
     await expect(readRegistrationState()).rejects.toThrow('Storage unavailable');

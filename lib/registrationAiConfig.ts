@@ -17,13 +17,42 @@ export function isRegistrationStageCategory(categoryId: string) {
   return REGISTRATION_STAGE_CATEGORY.test(categoryId);
 }
 
-export function isCurrentRegistrationStage(
-  decision: { status?: string; isRejected?: boolean },
+export function isRegistrationStageMember(
+  decision: { status?: string; isRejected?: boolean; copies?: string[] },
   categoryId: string,
 ) {
   return isRegistrationStageCategory(categoryId) &&
-    decision.status === categoryId &&
-    !decision.isRejected;
+    (decision.copies?.includes(categoryId) === true ||
+      (!decision.isRejected && decision.status === categoryId));
+}
+
+export function copyRegistrationDecisionToCategory<T extends Record<string, any>>(decision: T, categoryId: string) {
+  return {
+    ...decision,
+    copies: [...new Set([...(decision.copies || []), categoryId])],
+    keepCopy: true,
+    reason: 'Manual Copy',
+    history: [...new Set([...(decision.history || []), categoryId])],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function moveRegistrationDecisionToCategory<T extends Record<string, any>>(
+  decision: T,
+  targetCategory: string,
+  sourceCategory: string,
+) {
+  const currentStatus = decision.status || 'new_leads';
+  const sourceCategories = new Set([currentStatus, sourceCategory]);
+  return {
+    ...decision,
+    status: targetCategory,
+    isRejected: targetCategory === 'rejected_leads',
+    copies: (decision.copies || []).filter((category: string) => !sourceCategories.has(category)),
+    reason: 'Manual Move',
+    history: [...new Set([...(decision.history || []), currentStatus, targetCategory])],
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export function registrationAiConfigKey(batchId: string, worker: string) {

@@ -15,7 +15,7 @@ jest.mock('@/lib/whatsapp', () => ({
 import { assembleRegistrationLeads, filterRegistrationLeads } from '@/lib/registrationLeads';
 import { evaluateMetaLead, registrationTargetMatches } from '@/lib/registrationRules';
 import { queueRegistrationTemplate, registrationTriggerDue, resolveRegistrationTemplate, processRegistrationApprovals } from '@/lib/registrationAutomation';
-import { isCurrentRegistrationStage, isRegistrationStageCategory, readRegistrationAiConfig, registrationAiConfigKey } from '@/lib/registrationAiConfig';
+import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, readRegistrationAiConfig, registrationAiConfigKey } from '@/lib/registrationAiConfig';
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
 
 describe('Bunny-only registration repairs', () => {
@@ -109,7 +109,7 @@ describe('Bunny-only registration repairs', () => {
     expect(() => registrationAiConfigKey('', 'AI-4')).toThrow('Select a batch');
   });
 
-  it('counts workflow stage tabs by current status instead of historical copies', () => {
+  it('shows explicit copied stage membership alongside the current stage', () => {
     const decisions = [
       ...Array.from({ length: 51 }, () => ({
         status: 'approval_1',
@@ -119,15 +119,33 @@ describe('Bunny-only registration repairs', () => {
       ...Array.from({ length: 7 }, () => ({
         status: 'pending_leads_1',
         history: ['pending_leads_1'],
-        copies: ['pending_leads_1'],
+        copies: [],
       })),
     ];
 
     expect(isRegistrationStageCategory('pending_leads_1')).toBe(true);
     expect(isRegistrationStageCategory('approval_1')).toBe(true);
     expect(isRegistrationStageCategory('registered_leads')).toBe(false);
-    expect(decisions.filter(decision => isCurrentRegistrationStage(decision, 'approval_1'))).toHaveLength(51);
-    expect(decisions.filter(decision => isCurrentRegistrationStage(decision, 'pending_leads_1'))).toHaveLength(7);
+    expect(decisions.filter(decision => isRegistrationStageMember(decision, 'approval_1'))).toHaveLength(51);
+    expect(decisions.filter(decision => isRegistrationStageMember(decision, 'pending_leads_1'))).toHaveLength(58);
+    expect(isRegistrationStageMember({ status: 'rejected_leads', isRejected: true, copies: ['approval_1'] }, 'approval_1')).toBe(true);
+  });
+
+  it('copies leads without changing their status and moves by removing only source membership', () => {
+    const original = { status: 'pending_leads_1', copies: ['pending_leads_1', 'approval_2'], history: ['new_leads'] };
+    const copied = copyRegistrationDecisionToCategory(original, 'approval_1');
+    expect(copied).toMatchObject({
+      status: 'pending_leads_1',
+      copies: ['pending_leads_1', 'approval_2', 'approval_1'],
+      history: ['new_leads', 'approval_1'],
+    });
+
+    const moved = moveRegistrationDecisionToCategory(copied, 'approval_3', 'pending_leads_1');
+    expect(moved).toMatchObject({
+      status: 'approval_3',
+      copies: ['approval_2', 'approval_1'],
+    });
+    expect(moved.history).toContain('pending_leads_1');
   });
 
   it('stops automatic Meta sends when AI-9E is off or its question rules fail', async () => {

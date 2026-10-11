@@ -429,10 +429,13 @@ Zoom meeting -> final approval -> WhatsApp group admission.
 
 ### Registration funnel stage counts — October 11, 2026
 
-Pending/approval funnel-stage tabs represent each lead's current saved stage.
-Historical `history` and `copies` remain preserved but no longer inflate these
-stage counts or keep a lead visible in an earlier stage after it advances.
-General custom categories retain their historical-copy behavior.
+Pending/approval funnel-stage tabs include each lead's current saved stage and
+explicit `copies` memberships; a copied lead may therefore appear in multiple
+stages, while history alone does not keep it visible in an earlier stage.
+Manual Copy adds a destination without changing status. Manual Move changes the
+status and removes the source-stage copy membership while retaining audit history
+and unrelated copies. The AI worker's per-stage Copy Ahead / Move Only setting
+uses the same membership rules.
 
 ## Live progress dashboard
 
