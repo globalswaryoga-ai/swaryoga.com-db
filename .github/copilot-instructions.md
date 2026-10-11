@@ -171,7 +171,15 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Autosave Stored-Value Serialization Compatibility (Session: October 11, 2026) — Commit `pending`
+### Preserve-First Production Deployment Verification (Session: October 11, 2026) — Commit `ca06c797`
+
+- Pushed `fc5c66b6` and final serialization follow-up `ca06c797` on the existing work branch; promoted the exact Ready Git preview to production deployment `dpl_AsXvftzPWY7698ora2fqzb2ZccHE`.
+- Verified production Ready with `swaryoga.com` and `crm.swaryoga.com` aliases. Registration and Chatbots return HTTP 200; unauthenticated state POST returns 401. Restored localhost returns HTTP 200.
+- Post-deployment SQL verification preserves every original lead ID: 5,841 baseline leads plus one new live lead, 925 unchanged form-response identities and 5 unchanged form identities. No source deletion/reset or manual send was performed.
+- Removed the temporary old-browser POST interception and verified normal production refresh: all 53 Hindi batches remain, with no semantic workshop/configuration/decision changes across refresh. One pre/post raw Hindi workshop hash differed during live activity; this is not claimed as byte-for-byte unchanged settings.
+- 160 focused tests across 20 suites and the final production build pass. Google still requires the externally configured callback/consent; incomplete historical Meta batch snapshots are not invented as valid saved batches.
+
+### Autosave Stored-Value Serialization Compatibility (Session: October 11, 2026) — Commit `ca06c797`
 
 - Shared stored-value comparison now treats JSON strings and decoded objects/arrays consistently on both client and server, preventing a confirmed stage save from producing a false stale-snapshot error.
 - Added a real-SQL regression for an already-persisted object batch followed by its string-form autosave; the newer stage configuration remains intact.

@@ -199,6 +199,14 @@ and 5 forms; exact identity hashes are retained privately for post-deploy
 verification. Missing historical settings are not invented from incomplete
 browser snapshots.
 
+Production release `ca06c797` is verified Ready as deployment
+`dpl_AsXvftzPWY7698ora2fqzb2ZccHE` on both CRM/website domains. Post-deploy
+identity checks retain all 5,841 original leads plus one newly arrived live
+lead, all 925 responses and all 5 forms. Normal browser refresh after removing
+temporary test interception retained 53 Hindi batches without semantic changes
+to workshop/configuration/decision state. One raw Hindi workshop hash changed
+during live activity, so byte-for-byte pre/post settings equality is not claimed.
+
 ### Meta trigger evidence and report lifecycle — October 11, 2026
 
 Current Meta status buckets reconcile all 56 audited leads. Cumulative stage
