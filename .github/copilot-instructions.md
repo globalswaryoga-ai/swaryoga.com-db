@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Persistent Meta AI-9A Auto-Sync Choice (Session: October 12, 2026) — Commit `f7153a49`
+
+- `_MetaLeadsTab.tsx` no longer switches Auto-Sync Off after a provider/network failure. It shows the error and retries on the next minute while the page is visible.
+- The toggle now saves per-batch `metadata.metaAutoSyncEnabled` through the existing versioned workshop-settings path. It defaults On, restores explicit Off across reloads, and retains the prior choice if persistence fails; AI rules and WhatsApp activation are unchanged.
+- 25 focused UI/state tests and the production build pass. Tests verify failure retry, saved Off after remount and failed-toggle-save behavior. No live broadcast, Google reconnect or source-data changes were performed.
+
 ### Meta Marathi Template Translation Repair (Session: October 11, 2026) — Commit `bc9a4009`
 
 - Read-only Meta verification confirms template `2186745855215092` (`welcome_in_workshop_marathi_link_wt`) is APPROVED with language `en`, despite Marathi body text. The saved `mr` translation caused all 18 run recipients to fail with error 132001.
