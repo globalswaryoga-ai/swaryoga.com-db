@@ -27,6 +27,12 @@ match the exact batch ID, preserve the live form mapping, and obtain authorizati
 before restoring active automation switches. Never invent missing rules or resend
 messages just to repair counters.
 
+Leads Management saves incomplete question/answer/category edits in a separate
+`draft` inside the batch worker configuration. Reopening restores the draft while
+the processor continues using the last valid `conditions`. Completing the rule
+replaces the draft through normal versioned autosave; explicit Save/Run still
+requires complete, unambiguous routing.
+
 Workshop Offer has independent transactional version checks for settings, record
 corrections and draft payments/designs. Offer-scoped response corrections/removals
 are overlays, not source-record deletion. Final documents, financial finalization,

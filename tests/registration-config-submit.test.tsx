@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LeadsManagementTab } from '@/app/admin/crm/new-registration/_LeadsManagementTab';
 import { registrationFetch, saveRegistrationSnapshot } from '@/lib/registrationClient';
+import { readRegistrationAiConfig, readRegistrationAiDraft } from '@/lib/registrationAiConfig';
 
 jest.mock('@/lib/registrationClient', () => ({ registrationFetch: jest.fn(), saveRegistrationState: jest.fn(), saveRegistrationSnapshot: jest.fn() }));
 const toast = { success: jest.fn(), error: jest.fn() };
@@ -65,5 +66,18 @@ describe('Leads Management configuration submit', () => {
     await screen.findByText('All changes saved to Bunny Database.');
     expect(saveRegistrationSnapshot).toHaveBeenCalledTimes(2);
     expect(jest.mocked(saveRegistrationSnapshot).mock.calls[1][0]).toEqual(jest.mocked(saveRegistrationSnapshot).mock.calls[0][0]);
+  });
+  it('saves incomplete answers as drafts without replacing active rules', async () => {
+    const { container } = render(<LeadsManagementTab workshops={[{ id: 'batch', name: 'Hindi Workshop', language: 'Hindi', formId: 'form' }]} selectedDashboardLang="Hindi Workshop" />);
+    await screen.findByRole('button', { name: /AI-4 Active/ });
+    fireEvent.click(screen.getByRole('button', { name: /AI-4 Active/ }));
+    const input = screen.getByDisplayValue('Yes');
+    fireEvent.change(input, { target: { value: '' } });
+    await waitFor(() => expect(saveRegistrationSnapshot).toHaveBeenCalled(), { timeout: 1500 });
+    const state = jest.mocked(saveRegistrationSnapshot).mock.calls[0][0];
+    expect(readRegistrationAiConfig(state, 'batch').settings['AI-4'][0].keyword).toBe('Yes');
+    expect(readRegistrationAiDraft(state, 'batch', 'AI-4')?.conditions[0].keyword).toBe('');
+    expect(container.textContent).not.toContain('Each answer rule needs');
+    expect(registrationFetch).not.toHaveBeenCalledWith('/api/admin/crm/new-registration/funnel', expect.anything());
   });
 });

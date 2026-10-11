@@ -7,7 +7,7 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 import { registrationBatchRows } from '@/lib/registrationLeads';
-import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationAiDraft, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
 import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
@@ -291,9 +291,10 @@ export function LeadsManagementTab({
   const [modalCopyMode, setModalCopyMode] = useState<boolean>(true);
 
   const openAiModal = (type: string) => {
-    const current = aiSettings[type] || [{ question: '', keyword: '' }];
+    const draft = readRegistrationAiDraft(aiStateRef.current, activeBatchId, type);
+    const current = draft?.conditions || aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({ ...c })));
-    setModalCopyMode(aiCopyModes[type] !== false); // Default to true (Save data here & forward copy ahead)
+    setModalCopyMode(draft?.copyMode ?? aiCopyModes[type] !== false); // Default to true (Save data here & forward copy ahead)
     setActiveModal(type);
   };
 
@@ -307,22 +308,29 @@ export function LeadsManagementTab({
 
   const saveAiConfig = async (type: string, conditions: FilterCondition[], automatic = false) => {
     if (!configLoaded) throw new Error('Wait for saved AI settings to load before changing them');
-    validateRegistrationConditions(conditions);
+    let incomplete = false;
+    try { validateRegistrationConditions(conditions); }
+    catch (error) {
+      if (!automatic) throw error;
+      incomplete = true;
+    }
     if (configSaveRef.current) throw new Error('A configuration save is already in progress');
     configSaveRef.current = true;
     setSavingConfig(true);
     try {
       const key = registrationAiConfigKey(activeBatchId, type);
       const previous = aiStateRef.current[key];
-      const previousConfig = (typeof previous === 'string' ? JSON.parse(previous) : previous) as { autoEnabled?: boolean } | undefined;
+      const previousConfig = (typeof previous === 'string' ? JSON.parse(previous) : previous) as Record<string, unknown> | undefined;
       const saved = await saveRegistrationSnapshot({
-        [key]: { conditions, copyMode: modalCopyMode,
+        [key]: incomplete ? { ...previousConfig, conditions: previousConfig?.conditions || [],
+          autoEnabled: previousConfig?.autoEnabled === true, draft: { conditions, copyMode: modalCopyMode } } :
+        { conditions, copyMode: modalCopyMode,
           autoEnabled: automatic ? previousConfig?.autoEnabled === true : conditions.some(condition => condition.question?.trim() || condition.directMoveCategory),
           matchMode: 'all_questions_any_answer' },
       }, { [key]: previous });
       aiStateRef.current = { ...aiStateRef.current, ...saved };
       const newSettings = { ...aiSettings, [type]: conditions };
-      setAiSettings(newSettings);
+      if (!incomplete) setAiSettings(newSettings);
       const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
       setAiCopyModes(updatedCopyModes);
       if (!automatic) toast.success(`${type} configuration saved in Bunny Database until you change it.`);
@@ -387,12 +395,6 @@ export function LeadsManagementTab({
       return;
     }
     if (snapshot === modalSnapshotRef.current) return;
-    try { validateRegistrationConditions(modalConditions); }
-    catch (error) {
-      setSettingsStatus('error');
-      setSettingsError(error instanceof Error ? error.message : 'Complete the answer rules before they can be saved.');
-      return;
-    }
     const timer = setTimeout(() => {
       if (configSaveRef.current) return;
       setSettingsStatus('saving');

@@ -60,6 +60,12 @@ export function registrationAiConfigKey(batchId: string, worker: string) {
   return `crm_ai_config_${batchId}_${worker}`;
 }
 
+export function readRegistrationAiDraft(state: RegistrationState, batchId: string, worker: string) {
+  const saved = parseRegistrationValue<{ draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(
+    state[registrationAiConfigKey(batchId, worker)], {});
+  return Array.isArray(saved.draft?.conditions) ? saved.draft : undefined;
+}
+
 export function validateRegistrationConditions(conditions: RegistrationFilterCondition[]) {
   const routes = new Map<string, string>();
   for (const condition of conditions) {
