@@ -171,7 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Daily Registration Automation Broadcast Report Row (Session: October 2026) — Commit `pending`
+### Approved Lead WhatsApp Sweep Every Minute (Session: October 2026) — Commit `pending`
+
+- Changed `/api/cron/registration-automation` in `vercel.json` from every 5 minutes to every minute so approved leads are queued and sent the Approved template within about a minute.
+- Overlapping runs are safe: queue inserts use `ON CONFLICT DO NOTHING` and message sends use the atomic `pending → sending` claim.
+
+### Daily Registration Automation Broadcast Report Row (Session: October 2026) — Commit `0e075215`
 
 - Automatic approval/trigger sends now append to one `Registration Automation — <date> · <template>` Broadcast Report run per IST day and template, so one View shows the whole day.
 - Added `due_at` to `broadcast_run_messages_sql`; the Bunny Meta processor sends only due messages and reschedules the day run to the next pending due time instead of completing it early.

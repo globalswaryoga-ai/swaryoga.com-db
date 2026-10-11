@@ -183,7 +183,7 @@
     },
     {
       "path": "/api/cron/registration-automation",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ],
   "headers": [
