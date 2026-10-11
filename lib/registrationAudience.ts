@@ -22,17 +22,11 @@ export function registrationAudienceRows(state: RegistrationState, leads: Regist
     const rows = new Map<string, RegistrationRecord>([...registrationBatchRows(responses, workshop), ...meta].map(row => [String(row.id), row]));
     return [...rows.values()].map(row => {
       const decision = decisions[row.id] || decisions[row.leadId] || {};
-      const raw = row._rawRecord || row.dynamicAnswers || {};
-      const mapping = workshop.metadata?.googleFormMapping || {};
-      const value = (keys: string[], fallback: unknown) => {
-        const column = keys.map(key => mapping[key]).find(Boolean);
-        return column ? raw[column] || fallback : fallback;
-      };
       return { ...row, id: `${workshop.id}:${row.id}`, responseId: String(row.id),
         registrationBatchId: String(workshop.id), workshopId: String(workshop.id), workshopName: workshop.name,
-        name: value(['Name', 'NAME'], row.name), email: value(['Email', 'EMAIL'], row.email),
+        name: row.name, email: row.email,
         language: workshop.language || row.language,
-        phoneNumber: registrationPhone(value(['Mobile', 'MOBILE', 'WhatsApp Number'], row.phoneNumber || row.mobile)),
+        phoneNumber: registrationPhone(row.phoneNumber || row.mobile),
         registrationDecision: decision, status: decision.status || row.status || 'new_leads' };
     });
   });
@@ -40,6 +34,13 @@ export function registrationAudienceRows(state: RegistrationState, leads: Regist
 
 export function registrationAudienceMatches(row: RegistrationRecord, category: string) {
   return registrationTargetMatches({ ...row, id: row.responseId }, { [row.responseId]: row.registrationDecision || {} }, category);
+}
+
+export function registrationAudienceForBatch(rows: RegistrationRecord[], batchId: string, category: string) {
+  return rows.filter(row =>
+    String(row.registrationBatchId || '') === String(batchId) &&
+    registrationAudienceMatches(row, category)
+  );
 }
 
 export function registrationRecipients(rows: RegistrationRecord[]) {

@@ -8,10 +8,11 @@ jest.mock('@/lib/registrationAuth', () => ({
 }));
 import { createClient, type Client } from '@libsql/client';
 import { bunnyExecute, getBunnyDatabase } from '@/lib/bunnyDatabase';
-import { registrationAudienceRows, registrationAudienceMatches, registrationRecipients } from '@/lib/registrationAudience';
+import { registrationAudienceRows, registrationAudienceMatches, registrationAudienceForBatch, registrationRecipients } from '@/lib/registrationAudience';
 import { mapRegistrationRecipients } from '@/lib/registrationAudienceRepository';
 import { registrationDecisionKey } from '@/lib/registrationAiConfig';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { assembleRegistrationLeads, registrationBatchRows } from '@/lib/registrationLeads';
 
 const batch = { id: 'hindi-batch', name: 'Hindi Workshop', language: 'Hindi', formId: 'google-form',
   metadata: { googleFormMapping: { Mobile: 'Contact for WhatsApp' } } };
@@ -42,6 +43,46 @@ describe('Saved response-to-Meta recipient mapping', () => {
     expect(rows.map(row => row.id)).toEqual(['hindi-batch:response', 'other:response']);
     expect(rows.filter(row => registrationAudienceMatches(row, 'Approvel-1'))).toHaveLength(1);
     expect(rows.filter(row => registrationAudienceMatches(row, 'Pending-1'))).toHaveLength(1);
+    expect(registrationAudienceForBatch(rows, batch.id, 'Approvel-1')).toHaveLength(1);
+    expect(registrationAudienceForBatch(rows, other.id, 'Approvel-1')).toHaveLength(0);
+  });
+
+  it('uses the same mapped nested CRM answers in All Leads Data and Trigger recipients', () => {
+    const mappedBatch = {
+      ...batch,
+      metadata: { googleFormMapping: {
+        Name: 'Full Name',
+        Email: 'Email Address',
+        Mobile: 'WhatsApp Contact',
+      } },
+    };
+    const nestedSubmission = {
+      ...submission('nested-response', ''),
+      dynamicAnswers: {
+        dynamicAnswers: {
+          'Full Name': 'Mapped Student',
+          'Email Address': 'student@example.com',
+          'WhatsApp Contact': '+91 9876543210',
+        },
+      },
+    };
+    const dataRows = registrationBatchRows(assembleRegistrationLeads([], [nestedSubmission], forms), mappedBatch);
+    const triggerRows = registrationAudienceRows({}, [], [nestedSubmission], forms, [mappedBatch]);
+    expect(dataRows[0]).toMatchObject({
+      name: 'Mapped Student',
+      email: 'student@example.com',
+      mobile: '+91 9876543210',
+      phoneNumber: '+91 9876543210',
+    });
+    expect(registrationRecipients(triggerRows).map(row => ({
+      name: row.name,
+      email: row.email,
+      phoneNumber: row.phoneNumber,
+    }))).toEqual([{
+      name: 'Mapped Student',
+      email: 'student@example.com',
+      phoneNumber: '919876543210',
+    }]);
   });
 
   it('deduplicates recipients without collapsing genuine response records or country codes', () => {

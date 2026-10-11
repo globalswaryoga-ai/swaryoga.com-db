@@ -40,16 +40,24 @@ export function registrationTargetMatches(lead: RegistrationRecord, decisions: R
   const isRejected = decision.isRejected || ['rejected', 'rejected_leads'].includes(status);
   const isRegistered = decision.isRegistered || ['registered', 'registered_leads'].includes(status);
   if (lead.isBlocked) return false;
+  const copies: string[] = Array.isArray(decision.copies) ? decision.copies : [];
+  if (category === 'Rejected leads' || category === 'rejected_leads') return Boolean(isRejected || copies.includes(category));
+  if (category === 'Registerd leads' || category === 'Registered leads' || category === 'registered_leads') {
+    return Boolean(isRegistered || copies.includes(category));
+  }
   if (category === 'All Leads') return !isRejected;
-  if (category === 'Rejected leads') return Boolean(isRejected);
   if (isRejected) return false;
-  if (category === 'Registerd leads' || category === 'Registered leads') return Boolean(isRegistered);
   if (isRegistered) return false;
-  if (category === 'New Leads') return ['new_leads', 'new', 'lead'].includes(status);
-  if (/^Pending(?: Leads)?-\d+$/i.test(category)) return status === `pending_leads_${category.split('-').pop()}`;
-  if (category === 'Pending Leads') return status.startsWith('pending');
+  if (copies.includes(category)) return true;
+  if (category === 'New Leads' || category === 'new_leads') return ['new_leads', 'new', 'lead'].includes(status);
+  if (/^pending_leads_\d+$/i.test(category)) return status.toLowerCase() === category.toLowerCase();
+  const pendingStage = category.match(/^Pending(?: Leads)?[- ](\d+)$/i);
+  if (pendingStage) return status === `pending_leads_${pendingStage[1]}`;
+  if (category === 'Pending Leads' || category === 'pending_leads') {
+    return status.startsWith('pending') || copies.some(copy => copy.startsWith('pending'));
+  }
   const approval = category.match(/^(?:Aprovel|Approvel|Approval)[ -](\d+)$/i);
   if (approval) return status === `approval_${approval[1]}`;
-  if (category.startsWith('approval_')) return status === category;
+  if (/^approval_\d+$/i.test(category)) return status.toLowerCase() === category.toLowerCase();
   return status === category;
 }

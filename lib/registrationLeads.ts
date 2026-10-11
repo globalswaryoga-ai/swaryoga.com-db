@@ -119,6 +119,36 @@ export function assembleRegistrationLeads(leads: LeadRecord[], submissions: Lead
   return rows;
 }
 
+function registrationMappedBatchFields(row: LeadRecord, workshop: LeadRecord): LeadRecord {
+  const source = row._rawRecord || row.dynamicAnswers || row.answers || {};
+  const raw = source && typeof source === 'object'
+    ? { ...source, ...(source.dynamicAnswers && typeof source.dynamicAnswers === 'object' ? source.dynamicAnswers : {}) }
+    : {};
+  const mapping = workshop.metadata?.googleFormMapping || {};
+  const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const answer = (aliases: string[], fallback: unknown) => {
+    const aliasSet = new Set(aliases.map(normalize));
+    const mappedQuestion = Object.entries(mapping).find(([field]) => aliasSet.has(normalize(field)))?.[1];
+    if (mappedQuestion && raw[String(mappedQuestion)] !== undefined && raw[String(mappedQuestion)] !== '') {
+      return raw[String(mappedQuestion)];
+    }
+    const directKey = Object.keys(raw).find(key => aliasSet.has(normalize(key)));
+    return directKey ? raw[directKey] : fallback;
+  };
+  const name = answer(['name', 'full name'], row.name || row.Name);
+  const email = answer(['email', 'email address'], row.email || row.Email);
+  const mobile = answer(['mobile', 'phone', 'phone number', 'whatsapp', 'whatsapp number', 'contact', 'contact number'],
+    row.phoneNumber || row.mobile || row.phone || row.whatsapp || row.WhatsApp || row.Contact);
+  return {
+    ...row,
+    name,
+    email,
+    mobile,
+    phoneNumber: mobile,
+    _rawRecord: raw,
+  };
+}
+
 export function filterRegistrationLeads(rows: LeadRecord[], formId: string, language: string) {
   return rows.filter(row => {
     if (formId) return registrationFormId(row.formId) === registrationFormId(formId) || row.workshopId === formId;
@@ -133,7 +163,7 @@ export function registrationBatchRows(rows: LeadRecord[], workshop: LeadRecord) 
   const scoped = filterRegistrationLeads(rows, String(workshop.formId), language).filter(row => {
     const rowLanguage = registrationLanguage(row.language || row.workshopName);
     return !language || !rowLanguage || language === rowLanguage;
-  });
+  }).map(row => registrationMappedBatchFields(row, workshop));
   const keyword = workshop.formFilterKeyword || workshop.metadata?.formFilterKeyword;
   if (!keyword) return scoped;
   const mappedQuestion = workshop.metadata?.googleFormMapping?.['AI-7'] || workshop.metadata?.googleFormMapping?.ai7;

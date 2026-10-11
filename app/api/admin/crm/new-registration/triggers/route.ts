@@ -6,7 +6,7 @@ import { readRegistrationState, replaceRegistrationStateIfUnchanged, parseRegist
 import { resolveRegistrationTemplate } from '@/lib/registrationAutomation';
 import { ensureBroadcastSchema } from '@/lib/bunnyBroadcastRepository';
 import { loadRegistrationAudience, mapRegistrationRecipients } from '@/lib/registrationAudienceRepository';
-import { registrationAudienceMatches } from '@/lib/registrationAudience';
+import { registrationAudienceForBatch } from '@/lib/registrationAudience';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,9 +29,8 @@ export async function POST(request: Request) {
     if (!workshop) return NextResponse.json({ error: 'Select a saved batch before scheduling.' }, { status: 400 });
     const wanted = new Set((body.leadIds || []).map(String));
     const responseIds = Array.isArray(body.responseIds) ? new Set(body.responseIds.map(String)) : null;
-    const selectedRows = rows.filter(row => row.registrationBatchId === body.batchId &&
-      (responseIds ? responseIds.has(row.responseId) : wanted.has(String(row.leadId))) &&
-      registrationAudienceMatches(row, body.targetCategory || 'All Leads'));
+    const selectedRows = registrationAudienceForBatch(rows, body.batchId, body.targetCategory || 'All Leads')
+      .filter(row => responseIds ? responseIds.has(row.responseId) : wanted.has(String(row.leadId)));
     if (!selectedRows.length) return NextResponse.json({ error: 'No saved responses match this batch/category.' }, { status: 400 });
     if (responseIds && [...responseIds].some(id => !selectedRows.some(row => row.responseId === id))) {
       return NextResponse.json({ error: 'Selected responses or categories changed. Reload the batch before scheduling.' }, { status: 409 });

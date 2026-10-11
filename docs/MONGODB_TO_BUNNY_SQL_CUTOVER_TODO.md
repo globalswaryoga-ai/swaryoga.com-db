@@ -102,6 +102,12 @@ responses in the selected form's Data section. Links without a selected form
 continue to save ordinary CRM leads only; no association is guessed from a
 workshop name or language.
 
+All Leads Data and Meta Trigger share the same batch-scoped Name, Email and
+Mobile/WhatsApp field mapping, including CRM answers nested under
+`dynamicAnswers.dynamicAnswers`. Trigger preview distinguishes no saved batch
+responses from responses without eligible unique WhatsApp numbers. Invalid,
+blocked and duplicate numbers remain excluded.
+
 ### Future Meta approval-only trigger — October 11, 2026
 
 AI-9 Start now saves the edited configuration and immediately runs the saved
@@ -436,6 +442,12 @@ Manual Copy adds a destination without changing status. Manual Move changes the
 status and removes the source-stage copy membership while retaining audit history
 and unrelated copies. The AI worker's per-stage Copy Ahead / Move Only setting
 uses the same membership rules.
+
+The Meta Trigger category selector is populated from the saved registration
+category list, including categories added or renamed in Leads Management.
+Schedules store stable category IDs, and recipient matching honors current
+status or explicit copy membership; historical decision records alone do not
+add recipients.
 
 ## Live progress dashboard
 

@@ -876,6 +876,7 @@ export function LeadsManagementTab({
                   <AITriggersPanel
                     workshops={workshops}
                     leadsData={activeBatchLeads}
+                    categoryOptions={customCategories}
                     selectedLanguage={selectedLanguage}
                     selectedBatchId={activeBatchId}
                     batchDecisions={batchDecisions}

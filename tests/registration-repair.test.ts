@@ -53,6 +53,21 @@ describe('Bunny-only registration repairs', () => {
     expect(evaluateMetaLead({}, config, 'approved', 'pending', 'rejected')?.status).toBe('pending');
     expect(registrationTargetMatches({ _id: 'a' }, { a: { status: 'pending_leads_2' } }, 'Pending Leads-1')).toBe(false);
     expect(registrationTargetMatches({ _id: 'a' }, { a: { status: 'pending_leads_2' } }, 'Pending Leads-2')).toBe(true);
+    expect(registrationTargetMatches(
+      { _id: 'a' },
+      { a: { status: 'approval_2', copies: ['pending_leads_1', 'custom_173'] } },
+      'pending_leads_1',
+    )).toBe(true);
+    expect(registrationTargetMatches(
+      { _id: 'a' },
+      { a: { status: 'approval_2', copies: ['pending_leads_1', 'custom_173'] } },
+      'custom_173',
+    )).toBe(true);
+    expect(registrationTargetMatches(
+      { _id: 'a' },
+      { a: { status: 'approval_2', history: ['custom_173'] } },
+      'custom_173',
+    )).toBe(false);
   });
 
   it('evaluates one-time and recurring triggers in the configured timezone', () => {

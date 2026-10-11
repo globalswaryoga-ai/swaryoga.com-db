@@ -4,17 +4,19 @@ import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
-import { registrationAudienceMatches, registrationRecipients, type RegistrationAudienceRow } from '@/lib/registrationAudience';
+import { registrationAudienceForBatch, registrationRecipients, type RegistrationAudienceRow } from '@/lib/registrationAudience';
 
 export function AITriggersPanel({ 
   workshops, 
   leadsData,
+  categoryOptions = [],
   selectedLanguage = 'English',
   selectedBatchId = '',
   batchDecisions = {}
 }: { 
   workshops: any[]; 
   leadsData: any[];
+  categoryOptions?: Array<{ id: string; label: string }>;
   selectedLanguage?: string;
   selectedBatchId?: string;
   batchDecisions?: Record<string, any>;
@@ -29,6 +31,14 @@ export function AITriggersPanel({
   const [savedAudience, setSavedAudience] = useState<RegistrationAudienceRow[]>([]);
   const [audienceLoading, setAudienceLoading] = useState(false);
   const [audienceError, setAudienceError] = useState('');
+  const matchingAudienceRows = React.useMemo(
+    () => registrationAudienceForBatch(savedAudience, selectedBatchId, targetCategory),
+    [savedAudience, selectedBatchId, targetCategory],
+  );
+  const filteredPreviewLeads = React.useMemo(
+    () => registrationRecipients(matchingAudienceRows),
+    [matchingAudienceRows],
+  );
   const decisionVersion = JSON.stringify(batchDecisions);
   
   const [template, setTemplate] = useState(() => {
@@ -40,6 +50,20 @@ export function AITriggersPanel({
     if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_category') || 'All Leads';
     return 'All Leads';
   });
+
+  useEffect(() => {
+    const exactMatch = categoryOptions.find(category =>
+      category.id === targetCategory || String(category.label || '').toLowerCase() === targetCategory.toLowerCase()
+    );
+    const pendingMatch = targetCategory.match(/^Pending(?: Leads)?[- ](\d+)$/i);
+    const approvalMatch = targetCategory.match(/^(?:Aprovel|Approvel|Approval)[ -](\d+)$/i);
+    const matchedCategory = exactMatch || categoryOptions.find(category =>
+      (pendingMatch && category.id === `pending_leads_${pendingMatch[1]}`) ||
+      (approvalMatch && category.id === `approval_${approvalMatch[1]}`) ||
+      (/^Registerd leads$/i.test(targetCategory) && category.id === 'registered_leads')
+    );
+    if (matchedCategory && matchedCategory.id !== targetCategory) setTargetCategory(matchedCategory.id);
+  }, [categoryOptions, targetCategory]);
   
   // Group State
   const [groups, setGroups] = useState<any[]>([]);
@@ -168,7 +192,7 @@ export function AITriggersPanel({
         setSaving(true);
 
         if (audienceLoading || audienceError) throw new Error(audienceError || 'Saved recipients are still loading.');
-        const matchingLeads = savedAudience.filter(lead => registrationAudienceMatches(lead, targetCategory));
+        const matchingLeads = matchingAudienceRows;
         const leadIds = matchingLeads.map(lead => lead.leadId || lead._id).filter(Boolean);
         if (!matchingLeads.length) throw new Error('No responses match this batch/category.');
         const response = await fetch('/api/admin/crm/new-registration/triggers', {
@@ -219,12 +243,6 @@ export function AITriggersPanel({
     }
   };
 
-  const filteredPreviewLeads = React.useMemo(
-    () => registrationRecipients(savedAudience.filter(lead => registrationAudienceMatches(lead, targetCategory))),
-    [savedAudience, targetCategory],
-  );
-
-
   const filteredWorkshops = React.useMemo(() => {
     if (!workshops) return [];
     return workshops.filter(w => 
@@ -259,7 +277,11 @@ export function AITriggersPanel({
           <div className="space-y-5">
             <MetaConnectionStatus />
             {audienceError && <p role="alert" className="text-sm text-red-700">{audienceError}</p>}
-            <p className="text-xs text-slate-500">{audienceLoading ? 'Loading saved batch recipients...' : `${filteredPreviewLeads.length} valid unique WhatsApp recipients. Saved form responses are linked to CRM contacts when you schedule; invalid or blocked numbers are excluded.`}</p>
+            <p className="text-xs text-slate-500">
+              {audienceLoading ? 'Loading saved batch recipients...' : savedAudience.length === 0
+                ? 'No saved responses found for this batch. Check its connected form and imported/saved data.'
+                : `${filteredPreviewLeads.length} valid unique WhatsApp recipients from ${matchingAudienceRows.length} saved responses in this category. Invalid or blocked numbers are excluded; if recipients are 0, check the batch Mobile/WhatsApp field mapping.`}
+            </p>
             {editingId && <button type="button" onClick={() => setEditingId(null)} className="text-xs text-indigo-700 underline">Cancel edit (existing schedule is unchanged)</button>}
             {/* Channel Selection */}
             <div>
@@ -335,15 +357,9 @@ export function AITriggersPanel({
                       <option value="All Leads">All Leads</option>
                       <option value="New Leads">New Leads</option>
                       <option value="Pending Leads">Pending Leads</option>
-                      <option value="Pending Leads-1">Pending Leads-1</option>
-                      <option value="Pending Leads-2">Pending Leads-2</option>
-                      <option value="Pending Leads-3">Pending Leads-3</option>
-                      <option value="Aprovel-1">Aprovel-1</option>
-                      <option value="Aprovel-2">Aprovel-2</option>
-                      <option value="Registerd leads">Registerd leads</option>
-                      <option value="Set zoom meeting">Set zoom meeting</option>
-                      <option value="Take Zoom Meeting">Take Zoom Meeting</option>
-                      <option value="Rejected leads">Rejected leads</option>
+                      {categoryOptions.filter(category => category.id && category.label).map(category => (
+                        <option key={category.id} value={category.id}>{category.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
