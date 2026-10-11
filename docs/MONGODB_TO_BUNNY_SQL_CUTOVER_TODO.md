@@ -427,6 +427,13 @@ Zoom meeting -> final approval -> WhatsApp group admission.
   scoped TypeScript/editor errors; unrelated baseline errors remain. No live
   production import or connection setting was changed.
 
+### Registration funnel stage counts — October 11, 2026
+
+Pending/approval funnel-stage tabs represent each lead's current saved stage.
+Historical `history` and `copies` remain preserved but no longer inflate these
+stage counts or keep a lead visible in an earlier stage after it advances.
+General custom categories retain their historical-copy behavior.
+
 ## Live progress dashboard
 
 - Admin view: `/admin/crm/database-migration`

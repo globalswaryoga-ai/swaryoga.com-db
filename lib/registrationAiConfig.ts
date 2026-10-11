@@ -11,6 +11,21 @@ export type RegistrationFilterCondition = {
   directMoveCategory?: string;
 };
 
+const REGISTRATION_STAGE_CATEGORY = /^(?:pending_leads_[1-4]|approval_[1-4])$/;
+
+export function isRegistrationStageCategory(categoryId: string) {
+  return REGISTRATION_STAGE_CATEGORY.test(categoryId);
+}
+
+export function isCurrentRegistrationStage(
+  decision: { status?: string; isRejected?: boolean },
+  categoryId: string,
+) {
+  return isRegistrationStageCategory(categoryId) &&
+    decision.status === categoryId &&
+    !decision.isRejected;
+}
+
 export function registrationAiConfigKey(batchId: string, worker: string) {
   if (!batchId || !/^AI-4[A-P]?$/.test(worker)) throw new Error('Select a batch and a valid AI worker before saving');
   return `crm_ai_config_${batchId}_${worker}`;

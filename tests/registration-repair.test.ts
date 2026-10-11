@@ -15,7 +15,7 @@ jest.mock('@/lib/whatsapp', () => ({
 import { assembleRegistrationLeads, filterRegistrationLeads } from '@/lib/registrationLeads';
 import { evaluateMetaLead, registrationTargetMatches } from '@/lib/registrationRules';
 import { queueRegistrationTemplate, registrationTriggerDue, resolveRegistrationTemplate, processRegistrationApprovals } from '@/lib/registrationAutomation';
-import { readRegistrationAiConfig, registrationAiConfigKey } from '@/lib/registrationAiConfig';
+import { isCurrentRegistrationStage, isRegistrationStageCategory, readRegistrationAiConfig, registrationAiConfigKey } from '@/lib/registrationAiConfig';
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
 
 describe('Bunny-only registration repairs', () => {
@@ -107,6 +107,27 @@ describe('Bunny-only registration repairs', () => {
     expect(readRegistrationAiConfig(state, 'batch-b').settings['AI-4']).toEqual([]);
     expect(readRegistrationAiConfig(state, 'batch-a')).toEqual(restored);
     expect(() => registrationAiConfigKey('', 'AI-4')).toThrow('Select a batch');
+  });
+
+  it('counts workflow stage tabs by current status instead of historical copies', () => {
+    const decisions = [
+      ...Array.from({ length: 51 }, () => ({
+        status: 'approval_1',
+        history: ['pending_leads_1', 'approval_1'],
+        copies: ['pending_leads_1', 'approval_1'],
+      })),
+      ...Array.from({ length: 7 }, () => ({
+        status: 'pending_leads_1',
+        history: ['pending_leads_1'],
+        copies: ['pending_leads_1'],
+      })),
+    ];
+
+    expect(isRegistrationStageCategory('pending_leads_1')).toBe(true);
+    expect(isRegistrationStageCategory('approval_1')).toBe(true);
+    expect(isRegistrationStageCategory('registered_leads')).toBe(false);
+    expect(decisions.filter(decision => isCurrentRegistrationStage(decision, 'approval_1'))).toHaveLength(51);
+    expect(decisions.filter(decision => isCurrentRegistrationStage(decision, 'pending_leads_1'))).toHaveLength(7);
   });
 
   it('stops automatic Meta sends when AI-9E is off or its question rules fail', async () => {

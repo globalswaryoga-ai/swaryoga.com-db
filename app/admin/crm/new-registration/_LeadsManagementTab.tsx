@@ -5,7 +5,7 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 import { registrationBatchRows } from '@/lib/registrationLeads';
-import { registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { isCurrentRegistrationStage, isRegistrationStageCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
 import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
@@ -398,34 +398,21 @@ export function LeadsManagementTab({
 
     SIDEBAR_TABS.forEach(tab => {
       let count = 0;
-      if (tab.id === 'take_zoom_meeting') {
+      if (isRegistrationStageCategory(tab.id)) {
+        count = activeBatchLeads.filter(l => isCurrentRegistrationStage(batchDecisions[l.id] || {}, tab.id)).length;
+      } else if (tab.id === 'take_zoom_meeting') {
         count = activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {})).length;
       } else if (tab.id === 'new_leads') {
         count = activeBatchLeads.length;
       } else if (tab.id === 'pending_leads') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected;
-        }).length;
-      } else if (tab.id === 'approval_1') {
-        count = activeBatchLeads.filter(l => {
-          const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected;
-        }).length;
-      } else if (tab.id === 'approval_2') {
-        count = activeBatchLeads.filter(l => {
-          const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected;
+          return String(dec.status || '').startsWith('pending') && !dec.isRejected;
         }).length;
       } else if (tab.id === 'registered_leads') {
         count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
       } else if (tab.id === 'rejected_leads') {
         count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected).length;
-      } else if (tab.id === 'pending_leads_3') {
-        count = activeBatchLeads.filter(l => {
-          const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3'));
-        }).length;
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
@@ -446,6 +433,9 @@ export function LeadsManagementTab({
 
   const currentTabLeads = React.useMemo(() => {
     const activeTabLabel = getCategoryLabel(activeTab);
+    if (isRegistrationStageCategory(activeTab)) {
+      return activeBatchLeads.filter(l => isCurrentRegistrationStage(batchDecisions[l.id] || {}, activeTab));
+    }
     if (activeTab === 'take_zoom_meeting') {
       return activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {}));
     }
@@ -455,19 +445,7 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected;
-      });
-    }
-    if (activeTab === 'approval_1') {
-      return activeBatchLeads.filter(l => {
-        const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected;
-      });
-    }
-    if (activeTab === 'approval_2') {
-      return activeBatchLeads.filter(l => {
-        const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected;
+        return String(dec.status || '').startsWith('pending') && !dec.isRejected;
       });
     }
     if (activeTab === 'registered_leads') {
@@ -475,12 +453,6 @@ export function LeadsManagementTab({
     }
     if (activeTab === 'rejected_leads') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected);
-    }
-    if (activeTab === 'pending_leads_3') {
-      return activeBatchLeads.filter(l => {
-        const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3'));
-      });
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
@@ -810,7 +782,7 @@ export function LeadsManagementTab({
                   <p className="text-sm text-slate-500">
                     Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Category copies/history can overlap; All Batch Leads is the total, not unprocessed leads. Zoom, final approval, and group admission remain separate gates.</p>
+                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Funnel-stage tabs show each lead’s current stage, not historical copies; All Batch Leads is the total, not unprocessed leads. Zoom, final approval, and group admission remain separate gates.</p>
                   <p className="mt-2 text-sm font-semibold text-slate-700">
                     Current status: Total {activeBatchLeads.length}
                     {' · Unprocessed '}{activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.status || batchDecisions[lead.id]?.status === 'new_leads').length}
