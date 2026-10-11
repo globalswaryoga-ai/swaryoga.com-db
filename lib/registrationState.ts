@@ -1,7 +1,7 @@
 import { bunnyBatch, bunnyExecute, getBunnyDatabase } from '@/lib/bunnyDatabase';
 import { fetchFromStorage } from '@/lib/bunny-storage';
 import { parseRegistrationValue } from '@/lib/registrationValues';
-import { registrationValuesEqual } from '@/lib/registrationWorkshopMerge';
+import { registrationStoredValuesEqual } from '@/lib/registrationWorkshopMerge';
 export { parseRegistrationValue } from '@/lib/registrationValues';
 
 export type RegistrationState = Record<string, unknown>;
@@ -75,7 +75,7 @@ export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationSta
         args: [scope, key],
       });
       const current = result.rows.length ? JSON.parse(String(result.rows[0].value_json)) : undefined;
-      if (!registrationValuesEqual(current, previous[key]) && !registrationValuesEqual(current, value)) {
+      if (!registrationStoredValuesEqual(current, previous[key]) && !registrationStoredValuesEqual(current, value)) {
         throw new RegistrationSnapshotConflict(`Saved setting ${key} changed in another update. Reload before editing; your saved data has been preserved.`);
       }
     }

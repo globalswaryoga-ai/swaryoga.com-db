@@ -1,13 +1,6 @@
-import { parseRegistrationValue } from '@/lib/registrationValues';
-import { registrationValuesEqual } from '@/lib/registrationWorkshopMerge';
+import { registrationStoredValuesEqual } from '@/lib/registrationWorkshopMerge';
 
 type State = Record<string, unknown>;
-const comparable = (value: unknown) => {
-  if (typeof value !== 'string' || !/^\s*[\[{"\d]|^(true|false|null)$/.test(value)) return value;
-  try { return parseRegistrationValue(value, value); }
-  catch { return value; }
-};
-
 export function createRegistrationAutosave(send: (patch: State, previous: State) => Promise<State>) {
   let saved: State | undefined;
   let rendered: State | undefined;
@@ -22,7 +15,7 @@ export function createRegistrationAutosave(send: (patch: State, previous: State)
       }
       const patch = Object.fromEntries(Object.entries(snapshot).filter(([key, value]) =>
         Object.prototype.hasOwnProperty.call(rendered, key) &&
-        !registrationValuesEqual(comparable(value), comparable(rendered?.[key]))));
+        !registrationStoredValuesEqual(value, rendered?.[key])));
       rendered = { ...snapshot };
       if (!Object.keys(patch).length) return Promise.resolve();
       const job = queue.then(async () => {

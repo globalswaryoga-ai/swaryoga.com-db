@@ -1,4 +1,16 @@
+import { parseRegistrationValue } from '@/lib/registrationValues';
+
 type Workshop = Record<string, unknown> & { metadata?: Record<string, unknown> };
+
+function storedValue(value: unknown) {
+  if (typeof value !== 'string' || !/^\s*[\[{"\d]|^(true|false|null)$/.test(value)) return value;
+  try { return parseRegistrationValue(value, value); }
+  catch { return value; }
+}
+
+export function registrationStoredValuesEqual(left: unknown, right: unknown) {
+  return registrationValuesEqual(storedValue(left), storedValue(right));
+}
 
 export function registrationValuesEqual(left: unknown, right: unknown): boolean {
   if (left === right) return true;

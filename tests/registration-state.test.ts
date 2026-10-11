@@ -75,6 +75,13 @@ describe('Durable registration configuration in SQL', () => {
       crm_hindi_workshops: '[{"id":"new"}]', crm_meta_rules: { active: true },
     });
   });
+  it('accepts an already-saved batch regardless of string versus object serialization', async () => {
+    const old = '[{"id":"batch"}]';
+    const current = [{ id: 'batch', metadata: { ai9DConfig: { isActive: true } } }];
+    await writeRegistrationState({ crm_hindi_workshops: current });
+    await saveRegistrationSnapshotIfUnchanged({ crm_hindi_workshops: JSON.stringify(current) }, { crm_hindi_workshops: old });
+    expect(JSON.parse(String((await readRegistrationState()).crm_hindi_workshops))).toEqual(current);
+  });
 
   it('does not copy shared configuration into a tenant scope', async () => {
     await writeRegistrationState({ crm_setting: 'shared' });
