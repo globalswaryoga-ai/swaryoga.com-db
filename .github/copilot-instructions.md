@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Trigger Phone Prefix Normalization and Verified Preview (Session: October 11, 2026) — Commit `a9fdf2a8`
+
+- Registration recipient normalization strips international dialing prefixes before deduplication, preserving country codes; tests cover equivalent `00977`/`+977` and Indian `0091` forms.
+- The deployed current-state guard now returns 1,548 audience rows including all seven Hindi batches. Browser verification shows Approval-3 Preview (30) and an enabled Schedule Broadcast button; no schedule was submitted.
+- Live selected-batch evidence: 41 Approval-3 responses, 8 repeated valid-number rows and 3 invalid/blocked rows yield 30 unique eligible numbers. Response records remain intact. The phone-prefix follow-up passes 33 focused tests.
+
 ### Trigger Current-State Read Guard (Session: October 11, 2026) — Commit `1717e1f8`
 
 - Shared registration-state reads now explicitly opt out of Next.js data caching. Production audience omitted all seven newly saved Hindi batches while the state endpoint and direct SQL showed them; the guard prevents older cached reads from supplying Trigger recipients.
