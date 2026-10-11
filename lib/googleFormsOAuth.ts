@@ -1,10 +1,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-// Prefer a dedicated Forms client, then the Google (Drive/Gmail/Contacts) client.
-// The shared GOOGLE_CLIENT_ID is reserved for YouTube/social media publishing.
+// Prefer dedicated Forms environment variables, then the general Google client.
+// Note: We deliberately exclude GOOGLE_DRIVE_* because that OAuth client does not have
+// the Google Forms API/redirect registered on swaryoga.com.
 const FORMS_CLIENT_ENV_PAIRS = [
   ['GOOGLE_FORMS_CLIENT_ID', 'GOOGLE_FORMS_CLIENT_SECRET'],
-  ['GOOGLE_DRIVE_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_SECRET'],
   ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
 ] as const;
 
@@ -17,7 +17,7 @@ export function googleFormsOAuthConfig() {
       return { clientId, clientSecret };
     }
   }
-  throw new Error('Configure GOOGLE_FORMS_CLIENT_ID/SECRET or GOOGLE_DRIVE_CLIENT_ID/SECRET for Google Forms.');
+  throw new Error('Configure both GOOGLE_FORMS_CLIENT_ID and GOOGLE_FORMS_CLIENT_SECRET for Google Forms.');
 }
 
 export function googleFormsRedirect(baseUrl: string) {

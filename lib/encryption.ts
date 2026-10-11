@@ -5,7 +5,7 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-32-character-encry
 
 // Ensure key is exactly 32 bytes
 const getEncryptionKey = (): Buffer => {
-  let key = ENCRYPTION_KEY;
+  let key = process.env.ENCRYPTION_KEY || ENCRYPTION_KEY;
   if (key.length < 32) {
     key = key.padEnd(32, '0');
   } else if (key.length > 32) {

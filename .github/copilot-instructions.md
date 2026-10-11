@@ -170,11 +170,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ---
 
-## 📋 Recent Changes Log
-### Google Forms OAuth Client Selection (Session: October 2026) — Commit `pending`
+### Google Forms OAuth Dedicated Client Selection (Session: October 2026)
 
-- `lib/googleFormsOAuth.ts` now uses `GOOGLE_FORMS_*`, then the Google Drive/Gmail client (`GOOGLE_DRIVE_*`), and only then the shared YouTube/social `GOOGLE_CLIENT_ID`.
-- Keeps Google Forms off the social-media OAuth client; `https://swaryoga.com/api/admin/google-form-oauth/callback` must be registered on the Drive client and the Google Forms API enabled in that project.
+- `lib/googleFormsOAuth.ts` checks `GOOGLE_FORMS_*` and falls back to `GOOGLE_CLIENT_*`.
+- It explicitly excludes `GOOGLE_DRIVE_*` because that separate client is for Google Drive/Gmail sync and is not configured for Forms API or callback.
+- `lib/bunnyDatabase.ts` adds automatic retry on transient HTTP 502/503 errors.
+- `lib/encryption.ts` resolves `process.env.ENCRYPTION_KEY` dynamically.
 
 ### Approved Lead WhatsApp Sweep Every Minute (Session: October 2026) — Commit `d8611442`
 

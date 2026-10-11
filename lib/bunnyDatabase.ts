@@ -36,6 +36,18 @@ export function getBunnyDatabase(): Client {
 export async function bunnyExecute(
   statement: InStatement | string,
 ): Promise<ResultSet> {
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      return await getBunnyDatabase().execute(statement);
+    } catch (err: any) {
+      attempts++;
+      const isRetryable = err?.status === 502 || err?.status === 503 || err?.status === 504 ||
+        err?.message?.includes('502') || err?.message?.includes('503') || err?.message?.includes('fetch failed');
+      if (attempts >= 3 || !isRetryable) throw err;
+      await new Promise(r => setTimeout(r, 200 * attempts));
+    }
+  }
   return getBunnyDatabase().execute(statement);
 }
 
@@ -44,6 +56,18 @@ export async function bunnyBatch(
   statements: InStatement[],
 ): Promise<ResultSet[]> {
   if (statements.length === 0) return [];
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      return await getBunnyDatabase().batch(statements, 'write');
+    } catch (err: any) {
+      attempts++;
+      const isRetryable = err?.status === 502 || err?.status === 503 || err?.status === 504 ||
+        err?.message?.includes('502') || err?.message?.includes('503') || err?.message?.includes('fetch failed');
+      if (attempts >= 3 || !isRetryable) throw err;
+      await new Promise(r => setTimeout(r, 200 * attempts));
+    }
+  }
   return getBunnyDatabase().batch(statements, 'write');
 }
 
