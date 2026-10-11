@@ -171,6 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### CRM Workflow Release Publication (Session: October 11, 2026) — Commit `35e0fc4a`
+
+- Committed and pushed the verified permanent-contact, recipient-mapping, approval/report, Google OAuth, workshop and native offer repairs on the existing work branch.
+- Release validation: 131 targeted tests across 27 suites pass; the final production build succeeds. Changed-path diagnostics are clean; unrelated repository-wide TypeScript baseline errors remain.
+- Vercel Git preview for this exact commit built Ready and was promoted through a production rebuild: `dpl_EqpGtsdPRhXvThDiatVAV9SPkvni`, verified Ready with swaryoga.com and crm.swaryoga.com aliases. Registration/Broadcast return HTTP 200; the new audience API returns 401 without authentication.
+- External Zoom worker installation, Google OAuth reconnect, configured AI-9 approval stages and historical duplicate reconciliation remain separate follow-ups. No live message or historical data cleanup was performed during publication.
+
 ### Automatic Permanent Contact Ingestion and Recipient Mapping (Session: October 11, 2026) — Commit `pending`
 
 - Added `lib/bunnyContactIdentity.ts`: normalized scoped email/WhatsApp claims, serialized transactional writes, permanent contact IDs and lead numbers. Google responses, CRM submissions, Meta ingress and lead saves now use it immediately, not only during broadcast selection.
