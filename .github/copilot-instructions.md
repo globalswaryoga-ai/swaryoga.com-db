@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Google Form Import Recovery and CRM Source Verification (Session: October 11, 2026) — Commit `pending`
+### Google Form Import Recovery and CRM Source Verification (Session: October 11, 2026) — Commit `e3aca4b3`
 
 - Google Form imports process only missing or incompletely linked response IDs, allowing each run to reach responses added after the existing saved set.
 - The registration form panel provides an explicit Google import action and per-form last-run/count/error status; refreshing saved data alone does not contact Google.
