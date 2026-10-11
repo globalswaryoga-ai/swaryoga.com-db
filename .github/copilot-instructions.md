@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Google Forms OAuth Client Selection (Session: October 2026) — Commit `pending`
+
+- `lib/googleFormsOAuth.ts` now uses `GOOGLE_FORMS_*`, then the Google Drive/Gmail client (`GOOGLE_DRIVE_*`), and only then the shared YouTube/social `GOOGLE_CLIENT_ID`.
+- Keeps Google Forms off the social-media OAuth client; `https://swaryoga.com/api/admin/google-form-oauth/callback` must be registered on the Drive client and the Google Forms API enabled in that project.
+
 ### Approved Lead WhatsApp Sweep Every Minute (Session: October 2026) — Commit `d8611442`
 
 - Changed `/api/cron/registration-automation` in `vercel.json` from every 5 minutes to every minute so approved leads are queued and sent the Approved template within about a minute.

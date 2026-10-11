@@ -1,11 +1,23 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
+// Prefer a dedicated Forms client, then the Google (Drive/Gmail/Contacts) client.
+// The shared GOOGLE_CLIENT_ID is reserved for YouTube/social media publishing.
+const FORMS_CLIENT_ENV_PAIRS = [
+  ['GOOGLE_FORMS_CLIENT_ID', 'GOOGLE_FORMS_CLIENT_SECRET'],
+  ['GOOGLE_DRIVE_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_SECRET'],
+  ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+] as const;
+
 export function googleFormsOAuthConfig() {
-  const dedicated = Boolean(process.env.GOOGLE_FORMS_CLIENT_ID || process.env.GOOGLE_FORMS_CLIENT_SECRET);
-  const clientId = (dedicated ? process.env.GOOGLE_FORMS_CLIENT_ID : process.env.GOOGLE_CLIENT_ID)?.trim();
-  const clientSecret = (dedicated ? process.env.GOOGLE_FORMS_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET)?.trim();
-  if (!clientId || !clientSecret) throw new Error('Configure both GOOGLE_FORMS_CLIENT_ID and GOOGLE_FORMS_CLIENT_SECRET for Google Forms.');
-  return { clientId, clientSecret };
+  for (const [idKey, secretKey] of FORMS_CLIENT_ENV_PAIRS) {
+    const clientId = process.env[idKey]?.trim();
+    const clientSecret = process.env[secretKey]?.trim();
+    if (clientId || clientSecret) {
+      if (!clientId || !clientSecret) throw new Error(`Configure both ${idKey} and ${secretKey} for Google Forms.`);
+      return { clientId, clientSecret };
+    }
+  }
+  throw new Error('Configure GOOGLE_FORMS_CLIENT_ID/SECRET or GOOGLE_DRIVE_CLIENT_ID/SECRET for Google Forms.');
 }
 
 export function googleFormsRedirect(baseUrl: string) {
