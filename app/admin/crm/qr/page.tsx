@@ -1190,8 +1190,10 @@ export default function QRWhatsAppPage() {
         if (res.ok) {
           const json = await res.json();
           const mergedChats = Array.isArray(json?.chats) ? json.chats : Array.isArray(json?.data?.chats) ? json.data.chats : [];
-          // The qr-bridge proxy merges the full Bunny history; use it when this endpoint is empty.
-          data = mergedChats.length ? { chats: mergedChats } : await bridgeCall('/chats');
+          // The qr-bridge proxy carries the full Bunny history; always merge it with live chats.
+          const history: any = await bridgeCall('/chats').catch(() => null);
+          const historyChats = Array.isArray(history?.chats) ? history.chats : Array.isArray(history) ? history : [];
+          data = { ...(history || {}), chats: [...mergedChats, ...historyChats] };
         } else {
           data = await bridgeCall('/chats');
         }
