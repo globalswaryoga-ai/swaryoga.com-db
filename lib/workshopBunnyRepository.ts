@@ -188,6 +188,9 @@ export async function upsertStudent(input: Record<string, any>, studentId = id()
     const emailRows = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1', args: [input.cohortId,input.email] });
     existingRows = emailRows;
   }
+  if (!existingRows.rows.length && input.phone) {
+    existingRows = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND phone = ? LIMIT 1', args: [input.cohortId, input.phone] });
+  }
   if (!existingRows.rows.length && input._id) {
     const idRows = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND id = ? LIMIT 1', args: [input.cohortId,input._id] });
     existingRows = idRows;
@@ -214,6 +217,30 @@ export async function upsertStudent(input: Record<string, any>, studentId = id()
     ]
   });
   return getStudent(actualId);
+}
+export async function insertWorkshopGroupStudents(students: Array<Record<string, any>>) {
+  await initWorkshopBunnySchema();
+  for (let offset = 0; offset < students.length; offset += 50) {
+    await bunnyBatch(students.slice(offset, offset + 50).map(input => ({
+      sql: `INSERT INTO workshop_students_sql (id,cohort_id,name,email,phone,whatsapp_jid,whatsapp_number,lead_id,lead_number,source,active,metadata_json,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
+      args: [input._id, input.cohortId, input.name, input.email || null, input.phone, input.whatsappJid, input.whatsappNumber,
+        input.leadId || null, input.leadNumber || null, 'whatsapp_group', 1, json(input.metadata, {}), now(), now()],
+    })));
+  }
+}
+export async function updateWorkshopGroupStudents(students: Array<Record<string, any>>) {
+  await initWorkshopBunnySchema();
+  for (let offset = 0; offset < students.length; offset += 50) {
+    const results = await bunnyBatch(students.slice(offset, offset + 50).map(input => ({
+      sql: `UPDATE workshop_students_sql SET name=?,email=?,phone=?,whatsapp_number=?,lead_id=?,lead_number=?,metadata_json=?,updated_at=?
+        WHERE id=? AND cohort_id=? AND updated_at IS ? AND active=1`,
+      args: [input.name, input.email || null, input.phone, input.whatsappNumber, input.leadId || null,
+        input.leadNumber || null, json(input.metadata, {}), now(), input._id, input.cohortId, input.expectedUpdatedAt],
+    })));
+    if (results.some(result => Number(result.rowsAffected || 0) === 0))
+      throw new Error('A student was edited during group sync. Retry; the newer details were preserved.');
+  }
 }
 export async function deactivateStudent(studentId: string) { await initWorkshopBunnySchema(); await bunnyExecute({ sql: 'UPDATE workshop_students_sql SET active = 0, updated_at = ? WHERE id = ?', args: [now(),studentId] }); }
 

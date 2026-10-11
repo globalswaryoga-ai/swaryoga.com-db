@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
   const decoded = admin(request);
   if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const body = await request.json();
+  if (body.autoSyncWhatsappGroup === undefined && body.whatsappGroupLink) body.autoSyncWhatsappGroup = true;
   try { return NextResponse.json({ cohort: await saveCohort(body, decoded.userId) }, { status: 201 }); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not save workshop' }, { status: 500 }); }
 }

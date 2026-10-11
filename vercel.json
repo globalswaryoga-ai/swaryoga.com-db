@@ -2,6 +2,12 @@
   "version": 2,
   "framework": "nextjs",
   "functions": {
+    "app/api/cron/workshop-whatsapp-students/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/admin/crm/workshop-management/students/sync-whatsapp/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/workshop-zoom-attendance/route.ts": {
       "maxDuration": 300
     },
@@ -85,6 +91,10 @@
     }
   },
   "crons": [
+    {
+      "path": "/api/cron/workshop-whatsapp-students",
+      "schedule": "*/15 * * * *"
+    },
     {
       "path": "/api/admin/crm/chatbot-actions/run",
       "schedule": "* * * * *"

@@ -1,37 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
-import { upsertStudent } from '@/lib/workshopBunnyRepository';
+import { registrationViewer } from '@/lib/registrationAuth';
+import { getCohort } from '@/lib/workshopBunnyRepository';
+import { syncWorkshopWhatsappStudents } from '@/lib/workshopWhatsappStudents';
 
-function isAdmin(request: NextRequest) {
-  const raw = request.headers.get('authorization') || '';
-  return verifyToken(raw.startsWith('Bearer ') ? raw.slice(7) : raw)?.isAdmin;
-}
-
-function phoneOf(value: unknown) {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits.length >= 10 && digits.length <= 15 ? digits : '';
-}
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const body = await request.json();
   const cohortId = String(body.cohortId || '').trim();
-  const participants = Array.isArray(body.participants) ? body.participants : [];
-  if (!cohortId || !participants.length) {
-    return NextResponse.json({ error: 'cohortId and group participants are required' }, { status: 400 });
+  if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
+  const cohort = await getCohort(cohortId);
+  if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+  if (!viewer.superAdmin && cohort.createdByUserId !== viewer.userId)
+    return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
+  try {
+    return NextResponse.json({ success: true, ...await syncWorkshopWhatsappStudents(cohortId, viewer) });
+  } catch (error) {
+    console.error('[workshop-whatsapp-students]', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'WhatsApp student sync failed' }, { status: 502 });
   }
-
-  const phones: string[] = Array.from(new Set<string>(participants.map((p: any) => phoneOf(p.phone || p.number || p.id || p.jid)).filter((phone): phone is string => Boolean(phone))));
-  const leadByPhone = new Map<string, any>();
-
-  let imported = 0;
-  for (const participant of participants) {
-    const phone = phoneOf(participant.phone || participant.number || participant.id || participant.jid);
-    if (!phone) continue;
-    const name = String(participant.name || participant.notify || phone).trim();
-    const whatsappJid = String(participant.jid || participant.id || `${phone}@s.whatsapp.net`);
-    await upsertStudent({ cohortId, name, phone, whatsappNumber: phone, whatsappJid, source: 'whatsapp_group', active: true });
-    imported++;
-  }
-  return NextResponse.json({ success: true, imported, matchedLeads: leadByPhone.size });
 }

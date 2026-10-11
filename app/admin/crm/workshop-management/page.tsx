@@ -1054,22 +1054,11 @@ export default function WorkshopManagementPage() {
     if (!selected) return;
     setSyncingWhatsapp(true);
     try {
-      const groupsRes = await fetch('/api/admin/crm/whatsapp/qr-bridge?path=%2Fgroups', { headers: { Authorization: `Bearer ${token}` } });
-      const groupsData = await groupsRes.json();
-      if (!groupsRes.ok) throw new Error(groupsData.error || 'QR WhatsApp is not connected. Scan the QR code first.');
-      const groups = groupsData.data?.groups || groupsData.groups || [];
-      const groupLink = selected.whatsappGroupLink || '';
-      const group = groups.find((item: any) => item.id === groupLink || item.inviteCode === groupLink || (groupLink && String(groupLink).includes(item.inviteCode)) || item.name === groupLink);
-      if (!group?.id) throw new Error('WhatsApp group was not found in the connected QR session. Make sure the account is a member of the group.');
-      const infoRes = await fetch(`/api/admin/crm/whatsapp/qr-bridge?path=${encodeURIComponent(`/group-info/${group.id}`)}`, { headers: { Authorization: `Bearer ${token}` } });
-      const infoData = await infoRes.json();
-      if (!infoRes.ok) throw new Error(infoData.error || 'Could not read WhatsApp group members.');
-      const participants = infoData.data?.participants || infoData.participants || group.participants || [];
-      const syncRes = await fetch('/api/admin/crm/workshop-management/students/sync-whatsapp', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, participants }) });
+      const syncRes = await fetch('/api/admin/crm/workshop-management/students/sync-whatsapp', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id }) });
       const syncData = await syncRes.json();
       if (!syncRes.ok) throw new Error(syncData.error || 'Could not sync group students');
       await load(selected._id);
-      alert(`Imported ${syncData.imported || 0} WhatsApp group participants. CRM matches: ${syncData.matchedLeads || 0}.`);
+      alert(`Saved ${syncData.imported || 0} students. CRM matches: ${syncData.matchedLeads || 0}. Unresolved WhatsApp numbers: ${syncData.unresolved || 0}. Previously removed students preserved: ${syncData.preservedRemoved || 0}.`);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not sync WhatsApp group');
     } finally {
@@ -2893,7 +2882,24 @@ export default function WorkshopManagementPage() {
                   {selected?.whatsappGroupLink ? (
                     <>
                       <h3 className="text-lg font-bold text-slate-800">Sync from WhatsApp Group</h3>
-                      <p className="text-sm text-slate-500">Automatically pull in all members from the connected WhatsApp group. Any new members will be added as students and synced to CRM Leads.</p>
+                      <p className="text-sm text-slate-500">Read group members using the workshop owner's QR session and fill missing name, email and place from matching CRM leads. Existing details and removed students are preserved. Unresolved WhatsApp LIDs are reported, not used as phone numbers.</p>
+                      <label className="flex items-center justify-center gap-2 mt-3 text-sm font-bold text-emerald-800">
+                        <input type="checkbox" checked={Boolean((selected as any).autoSyncWhatsappGroup)} disabled={syncingWhatsapp}
+                          onChange={async (event) => {
+                            setSyncingWhatsapp(true);
+                            try {
+                              const response = await fetch('/api/admin/crm/workshop-management', { method: 'PATCH', headers,
+                                body: JSON.stringify({ cohortId: selected._id, autoSyncWhatsappGroup: event.target.checked,
+                                  previous: { autoSyncWhatsappGroup: (selected as any).autoSyncWhatsappGroup } }) });
+                              const data = await response.json();
+                              if (!response.ok) throw new Error(data.error || 'Auto-Sync choice was not saved');
+                              await load(selected._id);
+                            } catch (error) { alert(error instanceof Error ? error.message : 'Auto-Sync choice was not saved'); }
+                            finally { setSyncingWhatsapp(false); }
+                          }} />
+                        Auto-Sync group students every 15 minutes (also while this page is closed)
+                      </label>
+                      {selected.metadata?.whatsappStudentSyncError && <p role="alert" className="mt-2 text-sm text-red-700">{selected.metadata.whatsappStudentSyncError}</p>}
                       <button onClick={syncWhatsappGroup} disabled={syncingWhatsapp} className="w-full mt-4 inline-flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-colors disabled:opacity-50">
                         <RefreshCw size={18} className={syncingWhatsapp ? 'animate-spin' : ''} />
                         {syncingWhatsapp ? 'Syncing WA...' : 'Sync WhatsApp Group'}
