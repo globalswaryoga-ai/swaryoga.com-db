@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Daily Registration Automation Broadcast Report Row (Session: October 2026) — Commit `pending`
+
+- Automatic approval/trigger sends now append to one `Registration Automation — <date> · <template>` Broadcast Report run per IST day and template, so one View shows the whole day.
+- Added `due_at` to `broadcast_run_messages_sql`; the Bunny Meta processor sends only due messages and reschedules the day run to the next pending due time instead of completing it early.
+- Recording-access sends keep one run per event; cancelled/deleted daily runs are never reopened, and manual broadcasts are never resent.
+
 ### Meta AI-9W Pre-Activation Approval Trigger Fix (Session: October 11, 2026) — Commit `pending`
 
 - Leads approved up to 6 hours before automation activation (bulk/manual or AI-9A/B) are now auto-queued for the approved template once.

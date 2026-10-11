@@ -68,8 +68,9 @@ describe('Bunny-only registration repairs', () => {
     expect(jest.mocked(bunnyExecute).mock.calls[0][0]).toEqual(expect.objectContaining({ sql: expect.stringContaining("UPPER(status) = 'APPROVED'") }));
   });
 
-  it('queues normalized recipients once using deterministic replay IDs', async () => {
-    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 1 }] as never);
+  it('groups daily registration sends into one report run and queues each recipient once', async () => {
+    jest.mocked(bunnyExecute).mockResolvedValue({ rows: [] } as never);
+    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 1 }, { rowsAffected: 1 }, { rowsAffected: 1 }] as never);
     const input = {
       leads: [{ _id: 'lead-1', phoneNumber: '9876543210' }, { _id: 'lead-2', phoneNumber: '+91 9876543210' }],
       template: { _id: 'approved', templateName: 'welcome' }, owner: 'admincrm',
@@ -77,11 +78,18 @@ describe('Bunny-only registration repairs', () => {
     };
     const first = await queueRegistrationTemplate(input);
     expect(first.queued).toBe(1);
-    expect(jest.mocked(bunnyBatch).mock.calls[0][0]).toHaveLength(2);
-    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 0 }] as never);
+    expect(first.runId).toMatch(/^registration_daily_/);
+    const statements = jest.mocked(bunnyBatch).mock.calls[0][0] as any[];
+    expect(statements).toHaveLength(3);
+    expect(statements[0].args).toContain('Registration Automation');
+    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 0 }, { rowsAffected: 0 }, { rowsAffected: 0 }] as never);
     const replay = await queueRegistrationTemplate(input);
     expect(replay.runId).toBe(first.runId);
     expect(replay.queued).toBe(0);
+    const otherLead = await queueRegistrationTemplate({ ...input, eventKey: 'approval-2', leads: [{ _id: 'lead-3', phoneNumber: '9876500000' }], dueAt: new Date('2026-10-05T15:00:00Z') });
+    expect(otherLead.runId).toBe(first.runId);
+    const nextDay = await queueRegistrationTemplate({ ...input, dueAt: new Date('2026-10-05T19:00:00Z') });
+    expect(nextDay.runId).not.toBe(first.runId);
   });
 
   it('restores saved batch-specific rules without overwriting other workers or batches', () => {

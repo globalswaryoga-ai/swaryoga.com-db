@@ -35,9 +35,54 @@ export async function queueRegistrationTemplate({
   dueAt: Date;
 }) {
   await ensureBroadcastSchema();
-  const hash = createHash('sha256').update(JSON.stringify([owner, template._id, eventKey])).digest('hex');
-  const runId = `registration_${hash}`;
+  // Recording-access runs carry per-event template variables, so they keep one run per event.
+  if (template.recordingAccess) return queueSingleEventRun({ leads, template, owner, eventKey, dueAt });
+  const day = new Date(dueAt.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+  const baseRunId = `registration_daily_${createHash('sha256').update(JSON.stringify([owner, template._id, day])).digest('hex')}`;
+  const existing = await bunnyExecute({
+    sql: `SELECT status, json_extract(data_json, '$.reportFolder') AS folder FROM broadcast_runs_sql WHERE document_id = ?`,
+    args: [baseRunId],
+  });
+  const closed = existing.rows[0] && (existing.rows[0].status === 'cancelled' || existing.rows[0].folder === 'deleted');
+  const runId = closed ? `${baseRunId}_${createHash('sha256').update(eventKey).digest('hex').slice(0, 12)}` : baseRunId;
   const now = new Date().toISOString();
+  const unique = eligibleRecipients(leads);
+  const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const due = dueAt.toISOString();
+  const results = await bunnyBatch([
+    {
+      sql: `INSERT INTO broadcast_runs_sql (document_id, broadcast_run_key, name, created_by_user_id,
+        created_by_label, mode, provider, status, template_id, scheduled_at, data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'schedule', 'meta', 'scheduled', ?, ?, ?, ?, ?)
+        ON CONFLICT(document_id) DO NOTHING`,
+      args: [runId, runId, `Registration Automation — ${label} · ${template.templateName}`, owner, 'Registration Automation', template._id, due,
+        JSON.stringify({ templateSnapshot: template, stats: { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 },
+          target: { type: 'registrationDaily', day } }), now, now],
+    },
+    ...[...unique.values()].map(lead => ({
+      sql: `INSERT INTO broadcast_run_messages_sql (document_id, run_id, lead_id, phone_number, status, due_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?) ON CONFLICT(document_id) DO NOTHING`,
+      args: [`${runId}_${createHash('sha256').update(JSON.stringify([eventKey, lead.phoneNumber])).digest('hex')}`,
+        runId, String(lead._id), lead.phoneNumber, due, now, now],
+    })),
+    {
+      // Reopen the day's run when new recipients arrive; never reopen cancelled or deleted runs.
+      sql: `UPDATE broadcast_runs_sql SET
+          status = 'scheduled', completed_at = NULL, updated_at = ?,
+          scheduled_at = (SELECT MIN(COALESCE(due_at, ?)) FROM broadcast_run_messages_sql WHERE run_id = ? AND status = 'pending')
+        WHERE document_id = ? AND status != 'cancelled'
+          AND COALESCE(json_extract(data_json, '$.reportFolder'), '') != 'deleted'
+          AND EXISTS (SELECT 1 FROM broadcast_run_messages_sql WHERE run_id = ? AND status = 'pending')`,
+      args: [now, due, runId, runId, runId],
+    },
+  ]);
+  const queued = results.slice(1, 1 + unique.size).reduce((sum, item) => sum + Number(item?.rowsAffected || 0), 0);
+  return { runId, queued };
+}
+
+const IST_OFFSET_MS = 330 * 60000;
+
+function eligibleRecipients(leads: RegistrationRecord[]) {
   const unique = new Map<string, RegistrationRecord>();
   for (const lead of leads) {
     const phone = normalizePhone(lead.phoneNumber || lead.mobile);
@@ -45,6 +90,16 @@ export async function queueRegistrationTemplate({
     if (!unique.has(phone)) unique.set(phone, { ...lead, phoneNumber: phone });
   }
   if (!unique.size) throw new Error('No eligible leads with a valid WhatsApp number');
+  return unique;
+}
+
+async function queueSingleEventRun({ leads, template, owner, eventKey, dueAt }: {
+  leads: RegistrationRecord[]; template: RegistrationRecord; owner: string; eventKey: string; dueAt: Date;
+}) {
+  const hash = createHash('sha256').update(JSON.stringify([owner, template._id, eventKey])).digest('hex');
+  const runId = `registration_${hash}`;
+  const now = new Date().toISOString();
+  const unique = eligibleRecipients(leads);
   const stats = { total: unique.size, pending: unique.size, sent: 0, failed: 0, skipped: 0 };
   const results = await bunnyBatch([
     {

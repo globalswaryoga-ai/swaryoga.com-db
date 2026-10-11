@@ -46,7 +46,7 @@ describe('Leads Management to Bunny Meta broadcast connection', () => {
     jest.mocked(bunnyExecute).mockResolvedValue({ rows: [{
       document_id: 'template', template_name: 'welcome', status: 'approved', data_json: '{}', language: 'en',
     }] } as never);
-    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 1 }] as never);
+    jest.mocked(bunnyBatch).mockResolvedValue([{ rowsAffected: 1 }, { rowsAffected: 1 }, { rowsAffected: 1 }] as never);
     jest.mocked(replaceRegistrationStateIfUnchanged).mockResolvedValue(true);
   });
 

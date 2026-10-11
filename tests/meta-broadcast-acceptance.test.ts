@@ -11,7 +11,7 @@ jest.mock('@/lib/workshopRecordingAccess', () => ({
 jest.mock('@/lib/bunnyBroadcastRepository', () => ({
   broadcastRunFind: jest.fn(), broadcastRunFindOne: jest.fn(), broadcastRunMessageFind: jest.fn(),
   broadcastRunMessageUpdateOne: jest.fn(), broadcastRunUpdateOne: jest.fn(),
-  getTemplateById: jest.fn(), markRunStatsBunny: jest.fn(),
+  getTemplateById: jest.fn(), markRunStatsBunny: jest.fn(), nextPendingDueAt: jest.fn(async () => undefined),
 }));
 
 import { processDueBunnyMetaBroadcasts } from '@/lib/bunnyMetaBroadcastProcessor';

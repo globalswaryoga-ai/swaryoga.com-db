@@ -58,6 +58,12 @@ async function initializeSchema() {
     { sql: `CREATE INDEX IF NOT EXISTS idx_brm_phone ON broadcast_run_messages_sql(phone_number)`, args: [] },
     { sql: `CREATE INDEX IF NOT EXISTS idx_brm_wa_msg ON broadcast_run_messages_sql(wa_message_id)`, args: [] },
   ]);
+  // Daily registration runs hold messages with individual due times.
+  try {
+    await bunnyExecute({ sql: 'ALTER TABLE broadcast_run_messages_sql ADD COLUMN due_at TEXT', args: [] });
+  } catch (error) {
+    if (!/duplicate column/i.test(String((error as Error)?.message || error))) throw error;
+  }
   schemaInitialised = true;
 }
 
@@ -188,10 +194,14 @@ export async function broadcastRunMessageInsertMany(docs: any[]) {
   await bunnyBatch(statements);
 }
 
-export async function broadcastRunMessageFind(filter: { runId: string; status?: string | string[] }, opts: { limit?: number } = {}): Promise<any[]> {
+export async function broadcastRunMessageFind(filter: { runId: string; status?: string | string[]; dueBefore?: Date }, opts: { limit?: number } = {}): Promise<any[]> {
   await ensureBroadcastSchema();
   const parts = ['run_id = ?'];
   const args: any[] = [filter.runId];
+  if (filter.dueBefore) {
+    parts.push('(due_at IS NULL OR due_at <= ?)');
+    args.push(filter.dueBefore.toISOString());
+  }
   if (filter.status) {
     if (Array.isArray(filter.status)) {
       parts.push(`status IN (${filter.status.map(() => '?').join(',')})`);
@@ -264,6 +274,14 @@ export async function broadcastRunMessageCountDocuments(filter: { runId: string;
   }
   const result = await bunnyExecute({ sql: `SELECT COUNT(*) as count FROM broadcast_run_messages_sql WHERE ${parts.join(' AND ')}`, args });
   return Number(result.rows[0]?.count ?? 0);
+}
+
+/** Earliest due time among a run's pending messages, used to reschedule daily runs with future work. */
+export async function nextPendingDueAt(runId: string): Promise<Date | undefined> {
+  await ensureBroadcastSchema();
+  const result = await bunnyExecute({ sql: `SELECT MIN(due_at) AS due FROM broadcast_run_messages_sql WHERE run_id = ? AND status = 'pending' AND due_at IS NOT NULL`, args: [runId] });
+  const due = result.rows[0]?.due;
+  return due ? new Date(String(due)) : undefined;
 }
 
 export async function markRunStatsBunny(runId: string) {

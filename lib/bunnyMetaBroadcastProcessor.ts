@@ -10,6 +10,7 @@ import {
   broadcastRunUpdateOne,
   getTemplateById,
   markRunStatsBunny,
+  nextPendingDueAt,
 } from '@/lib/bunnyBroadcastRepository';
 
 export type BunnyMetaBroadcastResult = {
@@ -85,11 +86,13 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       }
       await broadcastRunUpdateOne(runId, { status: 'running', startedAt: run.startedAt || now });
 
-      const pending = await broadcastRunMessageFind({ runId, status: 'pending' }, { limit: Math.min(Math.max(options?.perRunMessageLimit ?? 50, 1), 1000) });
+      const pending = await broadcastRunMessageFind({ runId, status: 'pending', dueBefore: now }, { limit: Math.min(Math.max(options?.perRunMessageLimit ?? 50, 1), 1000) });
       if (!pending.length) {
         const stats = await markRunStatsBunny(runId);
-        const final = finalRunStatus(stats);
-        await broadcastRunUpdateOne(runId, { ...final, completedAt: stats.pending ? undefined : now, stats });
+        const final = stats.pending ? { status: 'scheduled' } : finalRunStatus(stats);
+        const nextDue = stats.pending ? await nextPendingDueAt(runId) : undefined;
+        await broadcastRunUpdateOne(runId, { ...final, completedAt: stats.pending ? undefined : now, stats,
+          ...(nextDue && nextDue > now ? { scheduledAt: nextDue } : {}) });
         output.runResults.push(stat);
         continue;
       }
@@ -193,8 +196,10 @@ export async function processDueBunnyMetaBroadcasts(options?: {
 
       const stats = await markRunStatsBunny(runId);
       const final = stats.pending === 0 ? finalRunStatus(stats) : { status: 'scheduled' };
+      const nextDue = stats.pending ? await nextPendingDueAt(runId) : undefined;
       await broadcastRunUpdateOne(runId, {
         ...final,
+        ...(nextDue && nextDue > now ? { scheduledAt: nextDue } : {}),
         completedAt: stats.pending === 0 ? now : undefined,
         stats,
       });

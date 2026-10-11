@@ -54,9 +54,9 @@ describe('Future-only four-stage Meta automation', () => {
     await client.execute(`INSERT INTO whatsapp_templates_sql VALUES ('template','welcome','APPROVED','meta','admincrm','en','','{}')`);
     await client.execute(`CREATE TABLE broadcast_runs_sql (document_id TEXT PRIMARY KEY, broadcast_run_key TEXT,
       name TEXT, created_by_user_id TEXT, created_by_label TEXT, mode TEXT, provider TEXT, status TEXT,
-      template_id TEXT, scheduled_at TEXT, data_json TEXT, created_at TEXT, updated_at TEXT)`);
+      template_id TEXT, scheduled_at TEXT, completed_at TEXT, data_json TEXT, created_at TEXT, updated_at TEXT)`);
     await client.execute(`CREATE TABLE broadcast_run_messages_sql (document_id TEXT PRIMARY KEY, run_id TEXT,
-      lead_id TEXT, phone_number TEXT, status TEXT, wa_message_id TEXT, created_at TEXT, updated_at TEXT)`);
+      lead_id TEXT, phone_number TEXT, status TEXT, wa_message_id TEXT, due_at TEXT, created_at TEXT, updated_at TEXT)`);
   });
   afterEach(() => { client.close(); rmSync(databaseDirectory, { recursive: true }); });
 
