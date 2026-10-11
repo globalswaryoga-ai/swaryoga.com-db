@@ -171,6 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Workshop Group Student Auto-Sync and CRM Enrichment (Session: October 12, 2026) — Commit `38329612`
+
+- Replaced the broken `/groups` import with server-side saved-link resolution through the workshop owner's isolated bridge. Exact invite-code verification is cached; unresolved LIDs remain explicitly counted rather than fabricated as phone numbers.
+- Group students match scoped Bunny CRM lead phones/aliases and fill missing name, email, city, state and country. Batched deterministic inserts and version-guarded updates preserve populated details and manually removed enrollments; no leads, attendance, messages or group membership are deleted/sent.
+- Added the authenticated 15-minute group-student cron and a persisted On/Off checkbox with visible errors. Enabled the existing five Super Admin workshop group flags as requested; new workshops with a saved group link default On.
+- 11 focused tests, changed-path diagnostics and the production build pass. Slow initial row-by-row live validation was stopped and replaced with batched writes; final live import verification remains in progress. Documented QR connection, group-admin invite discovery and configured cron-secret prerequisites.
+
 ### Persistent Meta AI-9A Auto-Sync Choice (Session: October 12, 2026) — Commit `f7153a49`
 
 - `_MetaLeadsTab.tsx` no longer switches Auto-Sync Off after a provider/network failure. It shows the error and retries on the next minute while the page is visible.
