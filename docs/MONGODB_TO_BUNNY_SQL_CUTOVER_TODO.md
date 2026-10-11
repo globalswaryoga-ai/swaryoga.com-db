@@ -27,6 +27,13 @@ match the exact batch ID, preserve the live form mapping, and obtain authorizati
 before restoring active automation switches. Never invent missing rules or resend
 messages just to repair counters.
 
+Meta AI-9A Auto-Sync defaults to On and stores explicit On/Off choices in the
+selected batch's `metadata.metaAutoSyncEnabled` through versioned settings saves.
+Sync/network failures display an error without turning it Off; the visible page
+retries every minute. Refresh, reopening and deployment restore the saved choice.
+This browser polling switch does not disable server webhook ingestion or the
+independently configured classification/WhatsApp cron.
+
 Leads Management saves incomplete question/answer/category edits in a separate
 `draft` inside the batch worker configuration. Reopening restores the draft while
 the processor continues using the last valid `conditions`. Completing the rule

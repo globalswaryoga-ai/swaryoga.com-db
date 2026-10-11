@@ -12,6 +12,51 @@ describe('Meta saved question configuration', () => {
         : { success: true, data: [], summary: { triggeredLeads: 0, queuedLeads: 0, failedLeads: 0, legacyReportedSent: 0 } },
     } as Response));
   });
+  it('keeps Auto-Sync on after failures and retries on the next minute', async () => {
+    jest.useFakeTimers();
+    jest.mocked(registrationFetch).mockImplementation(async input => ({
+      ok: !String(input).endsWith('/sync'),
+      json: async () => String(input).endsWith('/sync')
+        ? { success: false, error: 'Temporary Meta outage' }
+        : { success: true, data: [], summary: {} },
+    } as Response));
+    const view = render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: { facebookFormId: 'form' } }} saveWorkshopSettings={jest.fn()} />);
+    try {
+      await act(async () => {});
+      expect(screen.getByRole('button', { name: 'AI-9A Auto-Sync (1m)' })).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Temporary Meta outage');
+      const calls = () => jest.mocked(registrationFetch).mock.calls.filter(([url]) => String(url).endsWith('/sync')).length;
+      expect(calls()).toBe(1);
+      await act(async () => { jest.advanceTimersByTime(60000); });
+      expect(calls()).toBe(2);
+      expect(screen.getByRole('button', { name: 'AI-9A Auto-Sync (1m)' })).toBeInTheDocument();
+    } finally {
+      view.unmount();
+      jest.useRealTimers();
+    }
+  });
+  it('persists an explicit Off choice and restores it after remount without syncing', async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+    const workshop = { id: 'batch', metadata: { facebookFormId: 'form', ai9AConfig: { isActive: true } } };
+    const first = render(<MetaLeadsTab selectedWorkshop={workshop} saveWorkshopSettings={save} />);
+    fireEvent.click(screen.getByRole('button', { name: 'AI-9A Auto-Sync (1m)' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({
+      ...workshop, metadata: { ...workshop.metadata, metaAutoSyncEnabled: false },
+    }));
+    first.unmount();
+    jest.mocked(registrationFetch).mockClear();
+    render(<MetaLeadsTab selectedWorkshop={save.mock.calls[0][0]} saveWorkshopSettings={save} />);
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'AI-9A Auto-Sync (Off)' })).toBeInTheDocument();
+    expect(jest.mocked(registrationFetch).mock.calls.some(([url]) => String(url).endsWith('/sync'))).toBe(false);
+  });
+  it('does not turn Off when saving the choice fails', async () => {
+    render(<MetaLeadsTab selectedWorkshop={{ id: 'batch', metadata: {} }}
+      saveWorkshopSettings={jest.fn().mockRejectedValue(new Error('Choice save failed'))} />);
+    fireEvent.click(screen.getByRole('button', { name: 'AI-9A Auto-Sync (1m)' }));
+    await screen.findByText(/Choice save failed/);
+    expect(screen.getByRole('button', { name: 'AI-9A Auto-Sync (1m)' })).toBeInTheDocument();
+  });
   it('retains a saved question absent from live fields and does not mutate the saved answer during edits', async () => {
     const workshop = { id: 'batch', metadata: { ai9AConfig: { filters: [{ question: 'Saved commitment question', options: [{ answer: 'Yes', category: 'approved' }] }] } } };
     const save = jest.fn().mockResolvedValue(undefined);

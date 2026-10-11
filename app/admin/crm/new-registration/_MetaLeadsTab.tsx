@@ -63,7 +63,28 @@ export function MetaLeadsTab({
 
 
 
-    const [isAutoSync, setIsAutoSync] = useState(true);
+    const isAutoSync = selectedWorkshop?.metadata?.metaAutoSyncEnabled !== false;
+    const [savingAutoSync, setSavingAutoSync] = useState(false);
+    const [syncError, setSyncError] = useState('');
+    const toggleAutoSync = async () => {
+        if (savingAutoSync) return;
+        if (!selectedWorkshop?.id || !saveWorkshopSettings) {
+            setSyncError('Select a saved workshop before changing Auto-Sync.');
+            return;
+        }
+        setSavingAutoSync(true);
+        setSyncError('');
+        try {
+            await saveWorkshopSettings({
+                ...selectedWorkshop,
+                metadata: { ...(selectedWorkshop.metadata || {}), metaAutoSyncEnabled: !isAutoSync },
+            });
+        } catch (error) {
+            setSyncError(error instanceof Error ? error.message : 'Auto-Sync choice was not saved. Please retry.');
+        } finally {
+            setSavingAutoSync(false);
+        }
+    };
     const [isSyncing, setIsSyncing] = useState(false);
     const syncingRef = useRef(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -437,19 +458,21 @@ export function MetaLeadsTab({
                 body: JSON.stringify({ formId, workshopId: selectedWorkshop?.id, workshopName: selectedWorkshop?.name })
             });
             const data = await res.json();
-            if (data.success) {
+            if (res.ok && data.success) {
+                setSyncError('');
                 setLastSyncTime(new Date());
                 if (!isAuto) {
                     alert(`AI-9A successfully synced ${data.syncedCount} new leads! Table will now refresh.`);
                 }
                 internalRefresh();
             } else {
-                if (!isAuto) alert(`Sync Failed: ${data.error}`);
-                setIsAutoSync(false);
+                const message = data.error || 'Meta sync failed. Please retry.';
+                setSyncError(message);
+                if (!isAuto) alert(`Sync Failed: ${message}`);
             }
         } catch (e: any) {
             if (!isAuto) alert(`Sync Failed: ${e.message}`);
-            setIsAutoSync(false);
+            setSyncError(e.message || 'Meta sync failed. Please retry.');
         } finally {
             syncingRef.current = false;
             setIsSyncing(false);
@@ -494,7 +517,7 @@ export function MetaLeadsTab({
             interval = setInterval(() => { if (!document.hidden) void syncLeads(true); }, 1 * 60 * 1000);
         }
         return () => clearInterval(interval);
-    }, [isAutoSync, formId]);
+    }, [isAutoSync, formId, selectedWorkshop?.id]);
 
     // Server cron handles automatic classification and delayed messages even when this page is closed.
     useEffect(() => {
@@ -968,12 +991,16 @@ export function MetaLeadsTab({
                         </button>
                         
                         <button 
-                            onClick={() => setIsAutoSync(!isAutoSync)}
+                            onClick={() => void toggleAutoSync()}
+                            disabled={savingAutoSync}
                             className={`px-3 py-1.5 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs shadow-sm ${isAutoSync ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}
                         >
                             <Bot size={14} className={isAutoSync ? "text-emerald-500 animate-pulse" : ""} />
-                            AI-9A Auto-Sync {isAutoSync ? '(1m)' : '(Off)'}
+                            AI-9A Auto-Sync {savingAutoSync ? '(Saving...)' : isAutoSync ? '(1m)' : '(Off)'}
                         </button>
+                        {syncError && <p role="alert" className="text-xs text-red-700">
+                            {syncError}{isAutoSync ? ' Auto-Sync remains on and retries every minute while this page is visible.' : ''}
+                        </p>}
                         
                         <input 
                             type="file" 
