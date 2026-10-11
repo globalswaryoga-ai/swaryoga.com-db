@@ -3,6 +3,8 @@ import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { createGoogleFormsOAuthState, googleFormsOAuthConfig, googleFormsRedirect } from '@/lib/googleFormsOAuth';
 
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -11,7 +13,9 @@ export async function GET(request: NextRequest) {
   if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
     const { clientId } = googleFormsOAuthConfig();
-    const redirectUri = googleFormsRedirect(request.nextUrl.origin);
+    const queryOrigin = request.nextUrl.searchParams.get('origin')?.trim();
+    const requestBase = queryOrigin || getRequestBaseUrl(request) || request.nextUrl.origin;
+    const redirectUri = googleFormsRedirect(requestBase);
     const state = createGoogleFormsOAuthState(getViewerUserId(decoded), isSuperAdmin(decoded), redirectUri);
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({

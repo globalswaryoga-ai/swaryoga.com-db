@@ -3,14 +3,19 @@ import { encryptCredential } from '@/lib/auth';
 import { upsertBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 import { requestGoogleFormsTokens, verifyGoogleFormsOAuthState } from '@/lib/googleFormsOAuth';
 
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const baseUrl = request.nextUrl.origin;
+  const baseUrl = getRequestBaseUrl(request) || request.nextUrl.origin;
   let response: NextResponse;
   try {
     const context = verifyGoogleFormsOAuthState(request.nextUrl.searchParams.get('state') || '', request.cookies.get('google_forms_oauth_state')?.value || '');
-    if (new URL(context.redirectUri).origin !== new URL(baseUrl).origin) throw new Error('Google callback origin does not match the authorized CRM.');
+    const contextRedirectUrl = new URL(context.redirectUri);
+    if (contextRedirectUrl.pathname !== '/api/admin/google-form-oauth/callback') {
+      throw new Error('Google callback path is invalid.');
+    }
     const error = request.nextUrl.searchParams.get('error');
     if (error) throw new Error(`Google consent failed (${error}).`);
     const code = request.nextUrl.searchParams.get('code');

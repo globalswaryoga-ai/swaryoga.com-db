@@ -44,6 +44,11 @@ describe('Dedicated Google Forms connection', () => {
     }
     expect(process.env.GOOGLE_CLIENT_ID).toBe('youtube-client');
   });
+  it('respects origin query parameter from client frontend', async () => {
+    const response = await authorize(new NextRequest('https://crm.example.test/api/admin/google-form-oauth?token=test&origin=https%3A%2F%2Fswaryoga.com'));
+    const url = new URL((await response.json()).authUrl);
+    expect(url.searchParams.get('redirect_uri')).toBe('https://swaryoga.com/api/admin/google-form-oauth/callback');
+  });
   it('rejects a partially configured dedicated client instead of mixing credentials', () => {
     delete process.env.GOOGLE_FORMS_CLIENT_SECRET;
     expect(googleFormsOAuthConfig).toThrow('both GOOGLE_FORMS_CLIENT_ID');
