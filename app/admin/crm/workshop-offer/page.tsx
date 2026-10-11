@@ -1,11 +1,12 @@
 'use client';
+import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab } from './_WorkshopFormTab';
 import { LeadsManagementTab } from './_LeadsManagementTab';
 import { WhatsAppMessengerTab } from './_WhatsAppMessengerTab';
 import OfferDetailsTab from './_OfferDetailsTab';
 import ReceivedAmountTab from './_ReceivedAmountTab';
-import { CanvaStudioTab } from './_CanvaStudioTab';
+import { OfferStudio } from './_OfferStudio';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import QRGroupSchedulerPage from '../qr/group-scheduler/page';
 
@@ -26,12 +27,13 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { offerFetch as fetch, offerJson, offerStorage as localStorage } from '@/lib/workshopOfferClient';
 
 export default function WorkshopOfferPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'offer_details' | 'received_amount' | 'create_receipts'>('create_receipts');
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'forms' | 'details' | 'closing' | 'leads_management' | 'whatsapp_messenger' | 'offer_details' | 'received_amount' | 'create_receipts' | 'wt_group_message'>('all_leads');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -57,6 +59,8 @@ export default function WorkshopOfferPage() {
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [activeLinkedSheetId, setActiveLinkedSheetId] = useState<string>('');
   const [leadsData, setLeadsData] = useState<any[]>([]);
+  const leadsDataRef = React.useRef(leadsData);
+  useEffect(() => { leadsDataRef.current = leadsData; }, [leadsData]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
   const getBaseLanguage = (langStr?: string): string => {
     if (!langStr) return 'english';
@@ -84,22 +88,10 @@ export default function WorkshopOfferPage() {
 
   const getDynamicBatchLeads = (batch: any) => {
     if (!batch) return 0;
-    if (!batch.formFilterKeyword) return batch.leads || 0;
-    
-    const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim());
-    
-    const ai7MappedQuestion = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.['ai7'];
-    
-    const matchedCount = (leadsData || []).filter((l: any) => {
-      if (!l) return false;
-      if (l._rawRecord && ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
-        return keywords.some((k: string) => isLeadMatchingKeyword(l._rawRecord[ai7MappedQuestion], k));
-      }
-      return false;
-    }).length;
-    
-    const totalCount = batch.leads || 0;
-    return `${matchedCount} / ${totalCount}`;
+    if (registrationFormId(batch.formId) !== registrationFormId(linkedFormId)) return batch.leads || 0;
+    const count = registrationSnapshotBatchCount(leadsData, batch);
+    const total = leadsData.filter(lead => registrationFormId(lead.formId) === registrationFormId(batch.formId)).length;
+    return batch.formFilterKeyword ? `${count} / ${total}` : count;
   };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -127,23 +119,22 @@ export default function WorkshopOfferPage() {
   const [isCanvaConnected, setIsCanvaConnected] = useState(false);
 
   useEffect(() => {
-    // Check if coming back from Canva OAuth
     const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'studio' || params.get('canva_connected') === 'true') setActiveTab('create_receipts');
     if (params.get('canva_connected') === 'true') {
-      localStorage.setItem('is_canva_connected', 'true');
-      setIsCanvaConnected(true);
-      // Clean up URL
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      setTimeout(() => {
-        toast.success('Successfully connected to Canva!');
-      }, 500);
-    } else {
-      // Check existing connection
-      const connected = localStorage.getItem('is_canva_connected') === 'true';
-      setIsCanvaConnected(connected);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [toast]);
+    void offerJson<{ connected: boolean }>('canva')
+      .then(result => setIsCanvaConnected(result.connected))
+      .catch(error => console.error('Canva connection status unavailable', error));
+  }, []);
+
+  const connectCanva = async () => {
+    try {
+      const result = await offerJson<{ url: string }>('canva', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connect' }) });
+      window.location.assign(result.url);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Canva connection failed'); }
+  };
 
   const [ai1ColumnInput, setAi1ColumnInput] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
@@ -868,18 +859,10 @@ export default function WorkshopOfferPage() {
               if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
               if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
             } else if (syncRes.status === 401) {
-              setNeedsGoogleAuth(true);
+              throw new Error('Sign in again to load saved offer form responses');
             } else {
               const err = await syncRes.json();
-              setGoogleAuthError(err.error || 'Failed to sync form');
-              // Fallback to webhook checking
-              const res = await fetch(`/api/admin/enquiries?workshopId=${encodeURIComponent(linkedFormId)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              if (res.ok) {
-                const json = await res.json();
-                fetchedLeads = json.data || [];
-              }
+              throw new Error(err.error || 'Saved form data could not be loaded');
             }
           }
 
@@ -932,6 +915,7 @@ export default function WorkshopOfferPage() {
         }
       } catch (e) {
         console.error(e);
+        toast.error(e instanceof Error ? e.message : 'Saved offer leads could not be loaded; existing data was kept.');
       } finally {
         setIsLoadingLeads(false);
       }
@@ -1029,99 +1013,29 @@ export default function WorkshopOfferPage() {
             }
           }
 
-          if (fetchedLeads.length > 0) {
-            setLeadsData((prevLeads: any[]) => {
-              const existingIds = new Set((prevLeads || []).filter(Boolean).map((l: any) => l?.id).filter(Boolean));
-              const newLeads = fetchedLeads.filter((l: any) => l && l.id && !existingIds.has(l.id));
-
-              if (newLeads.length > 0) {
-                const ws = (workshopsRef.current || []).find((w: any) => w.formId === linkedFormId);
-                let leadsToMove = newLeads;
-                const effectiveF1 = leadsFilterRef.current || ws?.metadata?.mainFilter || '';
-                const effectiveF2 = leadsSubFilterRef.current || ws?.metadata?.subFilter || '';
-                const effectiveF3 = leadsSubSubFilterRef.current || '';
-
-                if (effectiveF1 || effectiveF2 || effectiveF3) {
-                  leadsToMove = newLeads.filter((lead: any) => {
-                    const f1 = !effectiveF1 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF1.toLowerCase()));
-                    })();
-                    const f2 = !effectiveF2 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF2.toLowerCase()));
-                    })();
-                    const f3 = !effectiveF3 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF3.toLowerCase()));
-                    })();
-                    return f1 && f2 && f3;
-                  });
-                }
-
-                if (leadsToMove.length > 0) {
-                  setCrmLeadIds((prevCrm: string[]) => {
-                    const idsToMove = leadsToMove.map((l: any) => l?.id).filter(Boolean);
-                    const newCrmIds = Array.from(new Set([...prevCrm, ...idsToMove]));
-                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
-                    return newCrmIds;
-                  });
-                }
-
-                setWorkshops((prev: any[]) => {
-                  return (prev || []).map((w: any) => {
-                    if (w?.formId === currentFormId) {
-                      const f1 = w.formFilterKeyword || w.metadata?.mainFilter || '';
-                      const f2 = w.metadata?.subFilter || '';
-                      
-                      if (String(w.id).startsWith('master_')) {
-                        const matchedLangs = newLeads.filter((l: any) => matchesLanguage({ language: currentWorkshop?.language || selectedDashboardLang }, w.language));
-                        return { ...w, leads: (w.leads || 0) + matchedLangs.length };
-                      }
-
-                      if (!f1 && !f2) {
-                        return { ...w, leads: (w.leads || 0) + newLeads.length };
-                      }
-
-                      const matched = newLeads.filter((lead: any) => {
-                        const vals = [
-                          lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                          ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                          ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                        ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                        
-                        const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                        const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => isLeadMatchingKeyword(v, k)));
-                        const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
-                        return m1 && m2;
-                      });
-                      
-                      return { ...w, leads: (w.leads || 0) + matched.length };
-                    }
-                    return w;
-                  });
-                });
-
-                return [...(prevLeads || []).filter(Boolean), ...newLeads];
-              }
-
-              return prevLeads;
-            });
-
-            if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+          const previous = leadsDataRef.current;
+          const existingIds = new Set(previous.map(lead => lead.id));
+          const newLeads = fetchedLeads.filter(lead => !existingIds.has(lead.id));
+          const snapshot = mergeRegistrationSnapshot(previous, fetchedLeads, currentFormId);
+          leadsDataRef.current = snapshot;
+          setLeadsData(snapshot);
+          const ws = (workshopsRef.current || []).find((w: any) => w.formId === linkedFormId);
+          const matchingNewLeads = newLeads.filter(lead => registrationTextFiltersMatch(lead, [
+            leadsFilterRef.current || ws?.metadata?.mainFilter || '',
+            leadsSubFilterRef.current || ws?.metadata?.subFilter || '',
+            leadsSubSubFilterRef.current || '',
+          ]));
+          if (matchingNewLeads.length) {
+            setCrmLeadIds((previousIds: string[]) => Array.from(new Set([...previousIds, ...matchingNewLeads.map(lead => lead.id)])));
+            toast.success(`Saved ${newLeads.length} new responses; moved ${matchingNewLeads.length} matching your filter to My Data.`);
           }
+          setWorkshops((previousWorkshops: any[]) => previousWorkshops.map(workshop => {
+            if (registrationFormId(workshop.formId) !== registrationFormId(currentFormId)) return workshop;
+            const count = registrationSnapshotBatchCount(snapshot, workshop);
+            return count === workshop.leads ? workshop : { ...workshop, leads: count };
+          }));
+          if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+
         }
       } catch (err) {
         console.error("AI4 Fetch error", err);
@@ -1198,6 +1112,7 @@ export default function WorkshopOfferPage() {
       const loadFromApi = async () => {
         try {
           const res = await fetch('/api/admin/crm/new-registration/state');
+          if (!res.ok) throw new Error('Saved offer settings could not be loaded. Please retry before editing.');
           if (res.ok) {
             const data = await res.json();
             if (data) {
@@ -1214,24 +1129,27 @@ export default function WorkshopOfferPage() {
                   if (sw?.id) setSelectedWorkshop(sw);
                 } catch (_) {}
               }
-              if (data.crm_form_source === 'internal' || data.crm_form_source === 'google') {
-                setFormSource(data.crm_form_source as 'internal' | 'google');
+              const restoredSource = data['crm_offer_form_source' + langSuffixStr];
+              if (restoredSource === 'internal' || restoredSource === 'google') {
+                setFormSource(restoredSource);
               }
-              if (data.crm_google_form_url) {
-                setGoogleFormUrl(data.crm_google_form_url);
-                setLinkedFormId(data.crm_google_form_url);
+              if (data['crm_offer_google_form_url' + langSuffixStr]) {
+                setGoogleFormUrl(data['crm_offer_google_form_url' + langSuffixStr]);
+                setLinkedFormId(data['crm_offer_google_form_url' + langSuffixStr]);
               }
-              if (data.crm_selected_form_id) {
-                setSelectedFormId(data.crm_selected_form_id);
+              if (data['crm_offer_selected_form_id' + langSuffixStr]) {
+                setSelectedFormId(data['crm_offer_selected_form_id' + langSuffixStr]);
               }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
               }
             }
+            setIsLoaded(true);
           }
         } catch (e) {
-          console.error('API load failed, falling back to local', e);
+          console.error('Offer settings load failed', e);
+          toast.error('Saved offer settings could not be loaded. Editing is not being saved; reload to retry.');
         }
       };
 
@@ -1259,7 +1177,7 @@ export default function WorkshopOfferPage() {
       }
     } catch (e) { }
 
-    setIsLoaded(true);
+    // Enable persistence only after the saved server state has been restored.
   }, []);
 
   useEffect(() => {
@@ -1311,7 +1229,8 @@ export default function WorkshopOfferPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(stateObj)
-        }).catch(e => console.error('Failed to sync state to Bunny', e));
+        }).then(response => { if (!response.ok) throw new Error('Offer settings were not saved'); })
+          .catch(e => { console.error('Failed to sync offer state to Bunny', e); toast.error('Offer settings were not saved. Please retry.'); });
       }, 3000);
 
       return () => clearTimeout(timeoutId);
@@ -1389,7 +1308,7 @@ export default function WorkshopOfferPage() {
       setPendingAiInsights({});
       setRegisteredAiInsights({});
     }
-  }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
+  }, [selectedWorkshop?.id, selectedWorkshop?.formId, isLoaded]);
 
   const saveWorkshopSettings = async () => {
     let targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
@@ -1482,7 +1401,7 @@ export default function WorkshopOfferPage() {
       setWorkshops((workshops || []).filter(w => w && w.id !== id));
       if (selectedWorkshop?.id === id) {
         setSelectedWorkshop(null);
-        setActiveTab('details');
+        setActiveTab('offer_details');
       }
       toast.success('Batch deleted');
     }
@@ -1601,7 +1520,7 @@ export default function WorkshopOfferPage() {
     { id: 'our_workshops', label: 'Offers Batches', icon: Target },
     { id: 'offer_details', label: 'Offer details', icon: FileText },
     { id: 'received_amount', label: 'Received amount', icon: Handshake },
-    { id: 'create_receipts', label: 'Canva Studio', icon: FileText },
+    { id: 'create_receipts', label: 'Creative & Document Studio', icon: FileText },
     { id: 'wt_group_message', label: 'WT-Group message', icon: MessageSquare },
   ] as const;
 
@@ -1626,7 +1545,7 @@ export default function WorkshopOfferPage() {
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
-    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops" || tabId === "wt_group_message") return true;
+    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops" || tabId === "wt_group_message" || tabId === 'create_receipts') return true;
     return !!selectedWorkshop;
   };
 
@@ -1939,7 +1858,7 @@ export default function WorkshopOfferPage() {
       leadsSubSubFilter={leadsSubSubFilter}
       refreshLeadsCounter={refreshLeadsCounter} setRefreshLeadsCounter={setRefreshLeadsCounter}
       setIsLoadingGoogleForms={setIsLoadingGoogleForms} setGoogleFormsList={setGoogleFormsList}
-      setNeedsGoogleAuth={setNeedsGoogleAuth} setActiveTab={setActiveTab}
+      setNeedsGoogleAuth={setNeedsGoogleAuth}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
       Users={Users} leadsData={displayLeads} isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
@@ -2260,7 +2179,7 @@ export default function WorkshopOfferPage() {
               <button 
                 onClick={() => {
                   if (!isCanvaConnected) {
-                    window.location.href = '/api/admin/canva/oauth';
+                    void connectCanva();
                   } else {
                     toast.info("Canva is already connected. Ready to generate designs!");
                   }
@@ -2280,7 +2199,7 @@ export default function WorkshopOfferPage() {
               {isCanvaConnected && (
                 <>
                   <button
-                    onClick={() => window.location.href = '/api/admin/canva/oauth'}
+                    onClick={() => void connectCanva()}
                     className="p-2.5 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 text-xs font-bold rounded-lg transition-colors border border-slate-200"
                     title="Reconnect Canva"
                   >
@@ -2289,7 +2208,8 @@ export default function WorkshopOfferPage() {
                   <button
                     onClick={async () => {
                       if(confirm('Are you sure you want to disconnect Canva?')) {
-                        await fetch('/api/admin/canva/disconnect', { method: 'POST' });
+                        const response = await fetch('/api/admin/crm/workshop-offer/canva', { method: 'DELETE' });
+                        if (!response.ok) { toast.error('Canva disconnect failed'); return; }
                         window.location.reload();
                       }
                     }}
@@ -2313,7 +2233,7 @@ export default function WorkshopOfferPage() {
                   key={tab.id}
                   disabled={!canAccessTab(tab.id)}
                   onClick={() => {
-                    setActiveTab(tab.id as any);
+                    setActiveTab(tab.id);
                   }}
                   className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
                     ? 'border-blue-600 text-blue-700'
@@ -2359,7 +2279,7 @@ export default function WorkshopOfferPage() {
           )}
           {activeTab === 'create_receipts' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-y-auto animate-fade-in h-full w-full">
-              <CanvaStudioTab isCanvaConnected={isCanvaConnected} leadsData={leadsData} />
+              <OfferStudio leads={leadsData} />
             </div>
           )}
           {activeTab === 'wt_group_message' && (

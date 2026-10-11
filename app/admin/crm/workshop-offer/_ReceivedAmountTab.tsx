@@ -1,31 +1,24 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Handshake, Search, Calendar, ChevronRight, ChevronUp, ChevronDown, FileCheck } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { useOfferRecords } from '@/hooks/useOfferRecords';
 
 export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { leads: any[], selectedDashboardLang: string }) {
   const toast = useToast();
-  const [leadData, setLeadData] = useState<Record<string, any>>({});
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-09');
+  const store = useOfferRecords();
+  const leadData = store.records;
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   
   // Track offset in months from September 2026
   const [monthOffset, setMonthOffset] = useState<number>(0);
 
-  // Load pushed data from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('crm_offer_data');
-    if (saved) {
-      try {
-        setLeadData(JSON.parse(saved));
-      } catch(e) {}
-    }
-  }, []);
 
   // Generate 6 months based on the offset
   const months = useMemo(() => {
-    const result = [];
-    // Start at September 2026 (year 2026, month 8 in JS Date where month is 0-indexed)
-    const baseDate = new Date(2026, 8, 1);
+    const result: Array<{ id: string; label: string }> = [];
+    const now = new Date();
+    const baseDate = new Date(now.getFullYear(), now.getMonth(), 1);
     
     // Apply offset
     baseDate.setMonth(baseDate.getMonth() + monthOffset);
@@ -48,7 +41,7 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
   const receivedLeads = useMemo(() => {
     return leads.filter(l => {
       const data = leadData[l.id];
-      if (!data || !data.pushedToReceipts || data.status !== 'received') return false;
+      if (!data || data.status !== 'received') return false;
       
       // Filter by selected month based on the date they were pushed/received
       if (!data.date || !data.date.startsWith(selectedMonth)) return false;
@@ -62,7 +55,7 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
     return receivedLeads.reduce((sum, l) => {
       const amtStr = leadData[l.id]?.amount || '';
       // Extract numeric value from "₹1,500" or similar
-      const num = parseInt(amtStr.replace(/\D/g, ''), 10);
+      const num = Number(String(amtStr).replace(/[^\d.]/g, ''));
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
   }, [receivedLeads, leadData]);
@@ -75,6 +68,7 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
 
   return (
     <div className="flex flex-col h-full bg-white shadow-sm overflow-hidden animate-fade-in">
+      {store.error && <div role="alert" className="p-3 bg-red-50 text-red-700">{store.error}</div>}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         
         {/* Sidebar - Month Selection */}
@@ -138,24 +132,16 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
             </div>
             
             <button 
-              onClick={() => {
+              onClick={async () => {
                 if (selectedLeads.length === 0) {
                   toast.error('Please select at least one payment.');
                   return;
                 }
-                setLeadData(prev => {
-                  const updated = { ...prev };
-                  selectedLeads.forEach(id => {
-                    updated[id] = {
-                      ...(updated[id] || {}),
-                      pushedToCreateReceipts: true
-                    };
-                  });
-                  localStorage.setItem('crm_offer_data', JSON.stringify(updated));
-                  return updated;
-                });
-                setSelectedLeads([]);
-                toast.success(`Successfully pushed ${selectedLeads.length} payments to Create Receipts!`);
+                try {
+                  for (const id of selectedLeads) await store.save(id, { pushedToCreateReceipts: true });
+                  setSelectedLeads([]);
+                  toast.success('Payments queued for receipts in Bunny.');
+                } catch (error) { toast.error(error instanceof Error ? error.message : 'Payments were not saved'); }
               }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:scale-105 flex items-center gap-2"
             >

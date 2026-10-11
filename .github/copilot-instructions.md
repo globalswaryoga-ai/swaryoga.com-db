@@ -171,6 +171,85 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Automatic Permanent Contact Ingestion and Recipient Mapping (Session: October 11, 2026) — Commit `pending`
+
+- Added `lib/bunnyContactIdentity.ts`: normalized scoped email/WhatsApp claims, serialized transactional writes, permanent contact IDs and lead numbers. Google responses, CRM submissions, Meta ingress and lead saves now use it immediately, not only during broadcast selection.
+- The user requested automatic conflict merging. Existing duplicate contacts retain their original SQL records and IDs as historical aliases; active lead lists show the surviving contact. Block flags and accepted WhatsApp/template history are preserved. Form response identities and screening decisions are not collapsed or invented.
+- Saved submissions store `lead_id`; repeat Google sync updates the same response and contact. Invalid phone data with an email is saved with a validation warning; source responses are preserved even when contact linking fails visibly.
+- Broadcast and AI Triggers use authenticated canonical batch/response audiences instead of browser caches; scheduled responses resolve to permanent contacts. Batch IDs disambiguate duplicate names, category checks reject stale selections, and outbound phones are deduplicated with country codes intact.
+- Validation: 95 focused tests across 14 suites pass, including immediate CRM submission linking, ten simultaneous imports, email-only upgrades, email/phone conflict merges, tenant isolation and preserved response counts. Final production build succeeds; changed TypeScript paths are clean while repository-wide baseline errors remain. Live read-only check found 58 Hindi responses: 30 Pending-1 and 28 without a saved screening decision, not 28 approved. Pending selection resolves to 19 unique valid WhatsApp recipients (2 invalid/blocked responses and 9 repeated phones excluded). No live send or historical cleanup/deployment was performed.
+
+### Future-Only Four-Stage Meta Approval Trigger (Session: October 11, 2026) — Commit `pending`
+
+- Added approval-only Meta policy and server-stamped activation cutoff. All four saved active AI-9A–D stages must pass; pending, rejected, blocked, manually approved and old pre-activation leads cannot bypass the gate. Existing accepted bulk recipients are not resent.
+- Added scoped, compare-and-swap workshop settings saves across the four registration language pages; canonical reload ignores nameless/stale selected snapshots. AI-9W activates locally only after confirmed persistence and approved-template validation.
+- Unified Meta Instant Forms, leadgen, inbox leadgen and sync persistence in Bunny SQL with event/contact deduplication and status/creation-time preservation. Webhook persistence failures are retryable; removed the separate legacy automatic broadcast-list enrollment.
+- Manual AI processing now evaluates server-saved rules. Replayed/concurrent workers use one deterministic queue identity, and template-name/ID history is checked consistently. UI explains approval-only behavior, real cron intervals and missing cron configuration.
+- The user will configure all four stage rules. Activation, production deployment/cron verification and one consented new-lead delivery remain outstanding; no live messages or old-audience mutations were performed.
+- Validation: 59 targeted tests across 10 suites pass, including ten simultaneous ingress/worker replays, all-stage proof, old-audience exclusion, activation cutoff and conflict-safe saves. Production build succeeds; changed-path diagnostics are clean while unrelated full-repository TypeScript errors remain. Local registration returns 200, settings/health reject unauthenticated access with 401, and the browser now requests a real batch instead of restoring the nameless snapshot.
+
+### Google Forms OAuth Alignment and Saved-Response Parity (Session: October 11, 2026) — Commit `pending`
+
+- Google Forms authorization, callback, listing, sync and private-sheet reads now share dedicated `GOOGLE_FORMS_CLIENT_ID` / `GOOGLE_FORMS_CLIENT_SECRET` configuration. The Forms redirect no longer uses the YouTube redirect setting; YouTube configuration is unchanged.
+- OAuth binds signed, expiring browser state to the authenticated owner and saves encrypted offline credentials in canonical Bunny social accounts only after confirmed persistence. Listing/sync prefer the canonical connection, filter ownership, and deduplicate old token snapshots.
+- Google response persistence uses atomic response-ID writes and derives counts from saved identities. All four registration language pages and Workshop Offer refresh existing answers and batch counts from the saved snapshot; automatic discovery includes every language's saved workshop list.
+- Read-only live audit found legacy imports with different identities from canonical responses and missing definitions for some saved forms. Existing OAuth refresh returned `unauthorized_client`. Reconnection and authoritative Google response comparison are required before reconciling these uncertain older rows; none were deleted or guessed away.
+- Validation: 115 tests across 23 suites pass and the final production build succeeds. Changed TypeScript paths are clean; unrelated repository-wide errors remain. Restored localhost returns HTTP 200; unauthenticated Google listing returns 401. Changes are local and not deployed; no live Google sync, Meta send or financial mutation was triggered.
+
+### Meta Configuration, Totals and Trigger Evidence Reports (Session: October 11, 2026) — Commit `pending`
+
+- Saved AI-9 questions remain selectable when absent from current fields; edits clone saved configuration and activation waits for confirmed saves. Parent pages reject stale batches missing from saved workshop state instead of reporting a successful no-op.
+- Meta totals account for all 56 audited leads: 40 approved, 7 pending/new, 6 rejected, 1 in progress and 2 other/older statuses. Stage-history views are explicitly overlapping.
+- Reports and trigger cards share recipient-level Bunny evidence. The 40 historical sent flags lack provider-message rows and are labeled unverified, never automatically resent to repair a counter.
+- Added per-run CSV export, sender/date/count columns, recipient details, safe retry/reschedule/cancel and backend soft archival. Delete sets `reportFolder: deleted`; run/message records remain stored. Active sends block actions; retries exclude provider-accepted and wrong-number recipients.
+- Regression tests cover archive preservation, cancellation claims, failed-save UI and accepted Meta sends followed by inbox failures. The screenshot's Meta batch is still missing from saved workshop state; its automatic configuration must be restored before live automation can be certified.
+
+### Leads Management Question Routing and Submit Repair (Session: October 11, 2026) — Commit `pending`
+
+- Replaced repeated flat filter cards with one question card and multiple answer-to-category rows; existing saved question/answer/color settings remain in the same Bunny format.
+- AI-4 and stage workers match alternative answers to the same question with OR, require different questions with AND, and give matched Pending destinations priority. Pending answers do not pass screening or complete Zoom/final/group gates; ambiguous destinations require review.
+- Submit closes after confirmed configuration persistence, not after the full batch run. Processing is shown outside the popup; duplicate saves/runs are guarded and stale batch responses do not replace another batch's decisions.
+- Removed empty state-write round trips and the redundant full-state read after funnel execution. Explicit worker reruns can recheck that worker's earlier decisions; automatic runs still advance one stage only.
+- Renamed the total-preserving New Leads view to All Batch Leads and added current-status counts so historical copies are not mistaken for mutually exclusive totals. Changes remain local; no production batch or paid AI operation was triggered.
+- Validation: 41 focused tests across seven suites pass, including delayed batch-run popup behavior, exact answer alternatives, Pending priority, saved editor restoration and preservation of manual gates on rerun. Changed TypeScript paths and whitespace checks are clean; unrelated baseline errors remain. Local browser restored the actual three saved answers and showed 58 total / 30 pending / 28 unprocessed without changing records.
+
+### Legacy Creative Text-Only Routing Repair (Session: October 11, 2026) — Commit `pending`
+
+- Fixed legacy Meta AI intent detection for requests such as "create one image"; text replies must not invent completed image attachments.
+- Bounded chat history to eight text-only entries and added explicit oversized-request guidance. Reference photos are rejected before paid calls because the legacy generator ignored them; photo-preserving AI editing remains unconnected.
+- Added CRM admin authentication, corrected FLUX width/height inputs and return explicit failure when media generation or Bunny persistence fails instead of success-shaped text.
+- No paid generation or reference-photo editing was tested. The earlier native studio production build succeeded before this follow-up; these fixes remain local.
+
+### Bunny Offer Payments and CRM-Native Studio (Session: October 11, 2026) — Commit `pending`
+
+- Added isolated Bunny offer settings, payment records, design drafts and final PDFs; offer browser caches are user-scoped and no longer reuse registration caches. Saved Google/CRM reads use Bunny, and the ten-minute Google cron discovers saved offer batches without replacing existing targets.
+- Offer Details now saves actual admin-entered amounts/dates/payment modes. Amount Received reads permanent records, handles decimals and current months; legacy server payment data is preserved as drafts requiring verification rather than automatically trusted as received.
+- Replaced the Workshop Offer Canva iframe/popup studio with a native editable canvas sidebar, localized text, colors, typography, dimensions, PNG download and Bunny PDF persistence. Financial document identities are deterministic; final receipt links and payment snapshots commit atomically and cannot be reissued or silently edited.
+- Added authenticated AI copy/image/video jobs using existing text providers and configured Replicate; image/video status is asynchronous and media must reach Bunny. Canva connection now validates OAuth state, persists encrypted tokens, refreshes expired credentials and imports Canva exports; initial authorization still requires Canva consent.
+- Final documents can be approved and queued once through the existing Bunny Meta broadcast worker with a native PDF template header. Certificates require explicit participation approval; no live paid generation, message or group operation was tested. Video text compositing, offer browser-worker migration, spreadsheet ingestion and unattended document generation remain follow-up work; this is not a claim that the entire offer chain is automatic.
+- Validation: 53 focused tests pass across ten suites, covering payment validation/isolation/concurrency, document identity, Google discovery, PDF delivery queue/template payload and prior workshop behavior. Scoped TypeScript diagnostics and whitespace checks are clean; unrelated repository-wide type failures remain. Browser verified editable headline/typography, 1080×1080 canvas and enabled PNG export without live paid generation or sends. Production build succeeds. Local offer page returns HTTP 200 and health reports Bunny-only. Changes are local and not deployed.
+
+### Shareable Workshop Attendance Reports (Session: October 11, 2026) — Commit `pending`
+
+- Attendance Analytics now displays a workshop report heading, all 14 session dates, automatic day labels, compact duration badges, sticky student summaries, and provisional grades based on confirmed records only.
+- Missing attendance records display Pending rather than a false absence; future dates display Upcoming. Excel/CSV share the same filtered report data, with total minutes, attendance percentage, grades, and report notes in Excel.
+- Print / Save PDF preserves the workshop title and report notes, repeats table headers, and hides editing actions. Download uses the existing xlsx dependency; no database records are modified.
+### Workshop Session and Recording Reliability Repairs (Session: October 11, 2026) — Commit `pending`
+
+- Shared session calendar now supplies 14 actual classes excluding Sundays and configured holidays; the chart, end-date calculation, analytics, bulk save, and Zoom import use it. Reconnect intervals are unioned per student/date, with raw Zoom evidence retained and SQL conflict handling on the daily identity.
+- Attendance cron reads reports once per cohort rather than repeatedly for every date; cohort-local dates are used and report failures remain visible. Targeted tests cover duplicate joins, overlapping devices, retries, holidays, and late sessions.
+- External uploader follows Zoom pagination and a 30-day retry window, saves each completed destination, and requires YouTube Speaker/Gallery plus Bunny Speaker/MP3 before durable-save-then-Trash cleanup. Existing Bunny Gallery URLs are preserved; MP3 uses ffmpeg and appears in the UI.
+- Updated worker documentation and three-hour cron with a single-host overlap lock. Worker-host installation and live Zoom uploads/cleanup are not yet verified; Vercel website deployment does not deploy the external worker.
+- Removed premature Zoom deletion from link-only sync and the duplicate serverless uploader; extracted standalone Zoom token access so attendance/link sync do not import legacy upload dependencies. CRM-form student imports now read permanent Bunny form/lead data.
+- Validation: production Next.js build passes; 89 focused Jest tests across 19 suites and 3 recording safety tests pass; affected files have no TypeScript diagnostics. Repository-wide type checks and legacy integration suites still have unrelated baseline failures.
+- Localhost: with user approval, stopped only the old PM2 frontend and started this repaired worktree on port 3000 using a local symlink to the existing environment file (not committed). Workshop route returns HTTP 200; local health reports `ok` and `bunny_only`; local CRM access requires a separate browser login.
+
+### Registration Release Publication (Session: October 11, 2026) — Commit `93fc14b2`
+
+- Committed and pushed the saved-form, Bunny registration, AI scrutiny/manual gates, and Meta UI/broadcast repairs together. Local production build passed; 81 registration tests passed before publication.
+- Direct CLI production deployment was blocked by Vercel `TEAM_ACCESS_REQUIRED`; the exact Git-integrated Ready preview was promoted using Vercel's supported promotion command. Production rebuild is verified Ready on swaryoga.com and crm.swaryoga.com.
+- Local npm ENOENT was caused by running npm from the home directory rather than this repository; dependencies are already present and no reinstall or global cache deletion was needed.
+
 ### Saved CRM/Google Form Connection Repairs (Session: October 11, 2026) — Commit `pending`
 
 - Restored Connect CRM Form and its existing saved-form dropdown in `_WorkshopFormTab.tsx`, alongside Google selection. Save now waits for Bunny success before changing the batch connection, refreshing data, or showing confirmation; failed saves leave the prior connection intact.

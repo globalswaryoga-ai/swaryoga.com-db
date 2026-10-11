@@ -145,4 +145,23 @@ describe('Durable registration configuration in SQL', () => {
     const result = await client.execute('SELECT COUNT(*) AS count FROM registration_state_sql');
     expect(Number(result.rows[0].count)).toBe(0);
   });
+
+  it('rechecks only this worker previous decisions on explicit rerun and preserves manual gates', async () => {
+    const key = registrationDecisionKey('batch', 'response');
+    const state = {
+      crm_hindi_workshops: [{ id: 'batch', formId: 'form', language: 'Hindi' }],
+      [registrationAiConfigKey('batch', 'AI-4')]: {
+        autoEnabled: true, conditions: [{ question: 'Ready', keyword: 'Yes', successCategory: 'approval_1' }],
+      },
+      [key]: { status: 'pending_leads_1', processedBy: 'AI-4', zoomStatus: 'skipped' },
+    };
+    await writeRegistrationState(state);
+    const input = {
+      state, leads: [], forms: [{ formId: 'form', workshopName: 'Hindi' }],
+      submissions: [{ id: 'response', formId: 'form', dynamicAnswers: { Ready: 'Yes' } }], scope: 'shared',
+    };
+    expect(await processRegistrationFunnel(input)).toMatchObject({ processed: 0 });
+    expect(await processRegistrationFunnel({ ...input, worker: 'AI-4' })).toMatchObject({ processed: 1, passed: 1 });
+    expect((await readRegistrationState())[key]).toMatchObject({ status: 'approval_1', zoomStatus: 'skipped' });
+  });
 });

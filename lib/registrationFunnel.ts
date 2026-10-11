@@ -39,7 +39,8 @@ export async function processRegistrationFunnel({
       if (previous.isRejected || previous.isRegistered || previous.zoomStatus === 'rejected') continue;
       const status = previous.status || 'new_leads';
       // One stage per response per run; later stages must not bypass this stage's decision.
-      const candidate = enabledWorkers.find(([type]) => assignments[type] === status);
+      const candidate = enabledWorkers.find(([type]) =>
+        assignments[type] === status || (worker === type && previous.processedBy === type));
       if (!candidate) continue;
       const [type, conditions] = candidate;
       const evaluated = evaluateRegistrationConditions(row._rawRecord || {}, conditions);
@@ -67,5 +68,5 @@ export async function processRegistrationFunnel({
     }
   }
   if (Object.keys(patch).length) await mergeRegistrationState(patch, scope);
-  return { processed, passed, pending: processed - passed, errors };
+  return { processed, passed, pending: processed - passed, errors, decisionPatch: patch };
 }

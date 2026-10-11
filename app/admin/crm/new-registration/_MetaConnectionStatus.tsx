@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { registrationFetch } from '@/lib/registrationClient';
 import { RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 
-type Health = { healthy: boolean; latencyMs: number; qualityRating?: string; error?: string };
+type Health = { healthy: boolean; latencyMs: number; qualityRating?: string; error?: string; registrationAutomationConfigured?: boolean };
 
 export function MetaConnectionStatus() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -42,6 +42,9 @@ export function MetaConnectionStatus() {
               ? `Connected · API ${health.latencyMs} ms · Quality ${health.qualityRating || 'unknown'}`
               : health?.error || 'Not checked'}
           </p>
+          {health?.registrationAutomationConfigured === false && (
+            <p role="alert" className="text-xs text-amber-700">Automatic delivery is unavailable: the server cron secret is not configured.</p>
+          )}
         </div>
       </div>
       <button type="button" disabled={loading} onClick={() => void check()} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">

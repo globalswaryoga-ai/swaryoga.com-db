@@ -8,6 +8,8 @@ import {
   listBroadcastRuns,
   getTemplateById,
 } from '@/lib/bunnyBroadcastRepository';
+import { loadRegistrationAudience, mapRegistrationRecipients } from '@/lib/registrationAudienceRepository';
+import { registrationAudienceMatches } from '@/lib/registrationAudience';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const mode = String(body.mode || 'now');
+    if (template.status !== 'approved') return NextResponse.json({ error: 'Select a Meta-approved template before sending or scheduling.' }, { status: 400 });
     if (!['now', 'schedule', 'delay'].includes(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
     let scheduledAt: Date | null = null;
     if (mode === 'schedule') {
@@ -61,10 +64,11 @@ export async function POST(request: NextRequest) {
       scheduledAt = new Date(Date.now() + Math.max(1, seconds) * 1000);
     }
 
-    const allLeads = await loadBunnyLeads();
+    let allLeads = await loadBunnyLeads();
     const target = body.target || { type: 'filters', filters: {} };
     const csvContacts = Array.isArray(target.csvContacts) ? target.csvContacts : [];
     let leads = allLeads.filter((lead: any) => !lead.isBlocked && isOwned(lead, viewerUserId, superAdmin));
+    if (Array.isArray(target.registrationSelections) && !Array.isArray(target.leadIds)) leads = [];
 
     if (Array.isArray(target.leadIds)) {
       if (target.leadIds.length > 0) {
@@ -82,23 +86,41 @@ export async function POST(request: NextRequest) {
     } else if (target.type === 'broadcastList') {
       return NextResponse.json({ error: 'Broadcast lists are not yet migrated to Bunny SQL' }, { status: 400 });
     }
+    if (Array.isArray(target.registrationSelections)) {
+      if (!target.registrationSelections.length || target.registrationSelections.length > 5000) {
+        return NextResponse.json({ error: 'Select valid saved registration responses' }, { status: 400 });
+      }
+      const viewer = { userId: viewerUserId, superAdmin };
+      const { rows } = await loadRegistrationAudience(viewer);
+      const selected = target.registrationSelections.map((selection: any) => rows.find(row =>
+        row.registrationBatchId === selection.batchId && row.responseId === selection.responseId &&
+        registrationAudienceMatches(row, String(selection.category || 'All Leads'))));
+      if (selected.some((row: any) => !row)) return NextResponse.json({
+        error: 'Selected batch responses or categories changed. Reload recipients before sending.',
+      }, { status: 409 });
+      const mapped = await mapRegistrationRecipients(selected, viewer);
+      allLeads = await loadBunnyLeads();
+      const mappedIds = new Set(mapped.map(row => row.leadId));
+      leads.push(...allLeads.filter(lead => mappedIds.has(String(lead._id)) && !leads.some(item => item._id === lead._id)));
+    }
 
     for (const contact of csvContacts) {
       const phoneNumber = normalizePhone(contact.phoneNumber);
       if (phoneNumber.length < 10) continue;
-      let lead = allLeads.find((candidate: any) => normalizePhone(candidate.phoneNumber).slice(-10) === phoneNumber.slice(-10));
+      let lead = allLeads.find((candidate: any) => isOwned(candidate, viewerUserId, superAdmin) && normalizePhone(candidate.phoneNumber) === phoneNumber);
       if (!lead) {
         lead = await saveBunnyLead({ name: contact.name || 'CSV Import', phoneNumber, email: contact.email || undefined, status: 'csv-import', source: 'csv-broadcast', createdByUserId: viewerUserId, assignedToUserId: viewerUserId });
       }
-      if (!leads.some((candidate: any) => String(candidate._id) === String(lead._id))) leads.push(lead);
+      if (!lead.isBlocked && !leads.some((candidate: any) => String(candidate._id) === String(lead._id))) leads.push(lead);
     }
 
     const unique = new Map<string, any>();
     for (const lead of leads) {
       const phone = normalizePhone(lead.phoneNumber);
-      if (phone.length >= 10 && !unique.has(phone.slice(-10))) unique.set(phone.slice(-10), { ...lead, phoneNumber: phone });
+      if (!lead.isBlocked && phone.length >= 10 && phone.length <= 15 && !unique.has(phone)) unique.set(phone, { ...lead, phoneNumber: phone });
     }
     const finalLeads = [...unique.values()];
+    if (!finalLeads.length) return NextResponse.json({ error: 'No valid, unblocked WhatsApp recipients matched. No broadcast was created.' }, { status: 400 });
     const run = await broadcastRunCreate({
       name: String(body.name || '').trim() || `Broadcast ${new Date().toLocaleString('en-IN')}`,
       createdByUserId: viewerUserId,

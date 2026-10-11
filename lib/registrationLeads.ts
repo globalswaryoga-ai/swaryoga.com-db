@@ -1,5 +1,54 @@
 type LeadRecord = Record<string, any>;
 
+export function registrationPhone(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 10 ? `91${digits}` : digits;
+}
+
+export function uniqueRegistrationSubmissions(submissions: LeadRecord[]) {
+  const unique = new Map<string, LeadRecord>();
+  for (const submission of submissions) {
+    const google = submission.source === 'google_forms' || String(submission.id || '').startsWith('gform_');
+    const responseId = submission.responseId || (google ? submission.formData : '');
+    const key = `${registrationFormId(submission.formId)}\u0000${responseId || submission.id}`;
+    const previous = unique.get(key);
+    if (!previous || String(submission.id) < String(previous.id)) unique.set(key, submission);
+  }
+  return [...unique.values()];
+}
+
+export function mergeRegistrationSnapshot(previous: LeadRecord[], incoming: LeadRecord[], formId: string) {
+  const normalizedForm = registrationFormId(formId);
+  const otherForms = previous.filter(row => registrationFormId(row.formId) !== normalizedForm);
+  return [...otherForms, ...uniqueRegistrationSubmissions(incoming)];
+}
+
+export function registrationTextFiltersMatch(lead: LeadRecord, filters: string[]) {
+  const values = [lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+    ...Object.values(lead.dynamicAnswers || {}), ...Object.values(lead._rawRecord || {})]
+    .filter(Boolean).map(value => String(value).toLowerCase());
+  return filters.filter(Boolean).every(filter => values.some(value => value.includes(filter.toLowerCase())));
+}
+
+export function registrationSnapshotBatchCount(rows: LeadRecord[], batch: LeadRecord) {
+  const scoped = rows.filter(row => registrationFormId(row.formId) === registrationFormId(batch.formId));
+  const language = registrationLanguage(batch.language || batch.name);
+  const question = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.ai7;
+  const keywords = String(batch.formFilterKeyword || batch.metadata?.mainFilter || '').toLowerCase().split('|').map(value => value.trim()).filter(Boolean);
+  return scoped.filter(row => {
+    if (String(batch.id).startsWith('master_') && language && registrationLanguage(row.language || row.workshopName) !== language) return false;
+    const values = question ? [row._rawRecord?.[question]] : [
+      row.name, row.email, row.mobile, row.city, row.country, row.gender,
+      ...Object.values(row.dynamicAnswers || {}), ...Object.values(row._rawRecord || {}),
+    ];
+    const keywordMatches = !keywords.length || keywords.some(keyword => values.some(value => {
+      const text = String(value || '').toLowerCase().trim();
+      return text === keyword || (keyword.split(/\s+/).length <= 3 && text.includes(keyword));
+    }));
+    return keywordMatches && registrationTextFiltersMatch(row, [batch.metadata?.subFilter || '']);
+  }).length;
+}
+
 export function registrationLanguage(value: unknown): string {
   const text = String(value || '').toLowerCase();
   return ['english', 'hindi', 'marathi', 'kannada'].find(language => text.includes(language)) || '';
@@ -14,19 +63,24 @@ export function assembleRegistrationLeads(leads: LeadRecord[], submissions: Lead
   const formMap = new Map(forms.map(form => [form.formId, form]));
   const byPhone = new Map<string, number>();
   const byEmail = new Map<string, number>();
+  const byId = new Map<string, number>();
   leads.forEach((lead, index) => {
-    const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
+    const phone = registrationPhone(lead.phoneNumber);
     const email = String(lead.email || '').trim().toLowerCase();
     if (phone && !byPhone.has(phone)) byPhone.set(phone, index);
     if (email && !byEmail.has(email)) byEmail.set(email, index);
+    for (const alias of [lead._id, ...(lead.mergedLeadIds || [])]) byId.set(String(alias), index);
+    for (const alias of lead.contactPhones || []) if (!byPhone.has(alias)) byPhone.set(alias, index);
+    for (const alias of lead.contactEmails || []) if (!byEmail.has(alias)) byEmail.set(alias, index);
   });
   const represented = new Set<string>();
-  const rows: LeadRecord[] = submissions.map(submission => {
+  const submittedForms = new Set(submissions.map(submission => registrationFormId(submission.formId)));
+  const rows: LeadRecord[] = uniqueRegistrationSubmissions(submissions).map(submission => {
     const form = formMap.get(submission.formId);
-    const phone = String(submission.mobile || '').replace(/\D/g, '');
+    const phone = registrationPhone(submission.mobile);
     const email = String(submission.email || '').trim().toLowerCase();
     // Keep the first matching record, including when phone and email match different contacts.
-    const matchIndex = Math.min(byPhone.get(phone) ?? Infinity, byEmail.get(email) ?? Infinity);
+    const matchIndex = byId.get(String(submission.leadId)) ?? Math.min(byPhone.get(phone) ?? Infinity, byEmail.get(email) ?? Infinity);
     const lead = leads[matchIndex];
     if (lead) represented.add(String(lead._id));
     const metadata = lead?.metadata || {};
@@ -46,6 +100,9 @@ export function assembleRegistrationLeads(leads: LeadRecord[], submissions: Lead
   for (const lead of leads) {
     if (represented.has(String(lead._id))) continue;
     const metadata = lead.metadata?.lastEnquiry || lead.metadata || {};
+    const googleForm = lead.googleFormId || metadata.googleFormId || metadata.lastGoogleFormSubmission?.formId;
+    // A linked CRM contact is not an additional Google response.
+    if (googleForm && submittedForms.has(registrationFormId(googleForm))) continue;
     if (!['google_forms', 'website-form', 'form-link', 'workshop-registration-url', 'google_form', 'crm_form'].includes(lead.source) &&
         !(lead.labels || []).some((label: string) => ['enquiry', 'form-submission', 'Google Form Lead', 'workshop-registration'].includes(label))) continue;
     rows.push({

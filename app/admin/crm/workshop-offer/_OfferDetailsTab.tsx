@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Users, FileCheck, RefreshCw, CheckCircle2, Filter } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { useOfferRecords } from '@/hooks/useOfferRecords';
 
 export default function OfferDetailsTab({ 
   leads, 
@@ -19,7 +20,8 @@ export default function OfferDetailsTab({
   workshops: any[];
   setSelectedWorkshop: (workshop: any) => void;
 }) {
-  const { toast } = useToast();
+  const toast = useToast();
+  const store = useOfferRecords();
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
@@ -29,11 +31,11 @@ export default function OfferDetailsTab({
     if (isAutoSyncing) {
       interval = setInterval(() => {
         setLastSyncTime(new Date());
-        toast.success('🤖 AI Sync: Automatically checked offers for new payments and updates');
+        void store.reload();
       }, 10 * 60 * 1000); // 10 minutes
     }
     return () => clearInterval(interval);
-  }, [isAutoSyncing]);
+  }, [isAutoSyncing, store.reload]);
 
   const getBaseLanguage = (langStr?: string): string => {
     if (!langStr) return 'english';
@@ -94,51 +96,49 @@ export default function OfferDetailsTab({
     });
   }, [leads, selectedWorkshop]);
 
-  const [leadData, setLeadData] = useState<Record<string, any>>({});
+  const [drafts, setLeadData] = useState<Record<string, any>>({});
+  const leadData = { ...store.records, ...drafts };
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   
-  useEffect(() => {
-    const saved = localStorage.getItem('crm_offer_data');
-    if (saved) {
-      try {
-        setLeadData(JSON.parse(saved));
-      } catch(e) {}
-    }
-  }, []);
-
   const updateLeadData = (leadId: string, field: string, value: any) => {
     setLeadData(prev => {
       const updated = {
         ...prev,
-        [leadId]: { ...(prev[leadId] || {}), [field]: value }
+        [leadId]: { ...(store.records[leadId] || {}), ...(prev[leadId] || {}), [field]: value }
       };
-      localStorage.setItem('crm_offer_data', JSON.stringify(updated));
       return updated;
     });
   };
 
-  const handlePushToReceipts = () => {
+  const saveDrafts = async () => {
+    try {
+      for (const lead of filteredLeads) {
+        const draft = drafts[lead.id];
+        if (draft) await store.save(lead.id, Object.fromEntries(['amount', 'date', 'paymentMode', 'remark', 'status'].filter(key => key in draft).map(key => [key, draft[key]])));
+      }
+      toast.success('Offer details saved permanently in Bunny.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Offer details were not saved'); }
+  };
+  const handlePushToReceipts = async () => {
     if (selectedLeads.length === 0) {
       toast.error('Please select at least one lead first.');
       return;
     }
     const today = new Date().toISOString().split('T')[0];
-    setLeadData(prev => {
-      const updated = { ...prev };
-      selectedLeads.forEach(id => {
-        updated[id] = {
-          ...(updated[id] || {}),
+    try {
+      for (const id of selectedLeads) {
+        const current = leadData[id] || {};
+        await store.save(id, {
+          amount: current.amount || '', paymentMode: current.paymentMode || '', remark: current.remark || '',
           status: 'received',
           pushedToReceipts: true,
-          date: (updated[id]?.date) || today,
-          amount: (updated[id]?.amount) || getAutoAmount()
-        };
-      });
-      localStorage.setItem('crm_offer_data', JSON.stringify(updated));
-      return updated;
-    });
-    setSelectedLeads([]);
-    toast.success(`Successfully pushed ${selectedLeads.length} leads to Received Amount!`);
+          date: current.date || today, batchId: selectedWorkshop?.id || '', workshopName: selectedWorkshop?.name || '',
+        });
+      }
+      setSelectedLeads([]);
+      setLeadData({});
+      toast.success('Selected payments confirmed and saved in Bunny.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Payment confirmation failed'); }
   };
 
   const visibleLeads = filteredLeads;
@@ -153,6 +153,8 @@ export default function OfferDetailsTab({
 
   return (
     <div className="flex flex-col h-full bg-white shadow-sm overflow-hidden">
+      {store.error && <div role="alert" className="p-3 bg-red-50 text-red-700">{store.error}</div>}
+      {Object.values(store.records).some(record => record.needsVerification) && <div className="p-3 bg-amber-50 text-amber-800">Recovered legacy payment drafts are preserved. Verify the amount, date and payment mode, then confirm receipt of payment before issuing documents.</div>}
       
       {/* Header Filters */}
       <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0 z-10">
@@ -202,8 +204,8 @@ export default function OfferDetailsTab({
             })}
           </select>
           
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
-            Submit
+          <button onClick={() => void saveDrafts()} disabled={store.loading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
+            Save Details
           </button>
         </div>
 
@@ -235,13 +237,13 @@ export default function OfferDetailsTab({
               <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isAutoSyncing ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
             <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors flex items-center gap-1">
-              🤖 Auto AI Sync (10m)
+              Refresh saved payments (10m)
             </span>
           </label>
 
           <button onClick={handlePushToReceipts} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:scale-105 flex items-center gap-2">
             <FileCheck size={16} />
-            Push to Receipts {selectedLeads.length > 0 ? `(${selectedLeads.length})` : ''}
+            Confirm Amount Received {selectedLeads.length > 0 ? `(${selectedLeads.length})` : ''}
           </button>
         </div>
       </div>
@@ -327,7 +329,7 @@ export default function OfferDetailsTab({
                           <td className="px-4 py-3">
                             <input 
                               type="text" 
-                              value={rowData.amount !== undefined ? rowData.amount : getAutoAmount()}
+                              value={rowData.amount || ''}
                               onChange={(e) => updateLeadData(lead.id, 'amount', e.target.value)}
                               placeholder="₹0.00" 
                               className="w-24 border border-slate-300 rounded px-2 py-1 text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-none"

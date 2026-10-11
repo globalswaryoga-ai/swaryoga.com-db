@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
-import { connectDB } from '@/lib/db';
-import { upsertStudent } from '@/lib/workshopBunnyRepository';
+import { getCohort, upsertStudent } from '@/lib/workshopBunnyRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { listForms, listSubmissions } from '@/lib/bunny-forms-db';
+import { assembleRegistrationLeads, filterRegistrationLeads } from '@/lib/registrationLeads';
+import { registrationLeadOwned, registrationViewer } from '@/lib/registrationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,15 +21,25 @@ export async function POST(request: NextRequest) {
     if (!cohortId || !formUrl) {
       return NextResponse.json({ error: 'cohortId and formUrl are required' }, { status: 400 });
     }
+    const cohort = await getCohort(cohortId);
+    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    const viewer = registrationViewer(request);
+    if (!viewer || (!viewer.superAdmin && cohort.createdByUserId !== viewer.userId)) {
+      return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
+    }
 
     let formId = formUrl;
     if (formUrl.includes('/workshop-join/')) {
       formId = formUrl.split('/workshop-join/')[1].split('/')[0].split('?')[0];
     }
 
-    await connectDB();
-    const Lead = getLead();
-    const leads = await Lead.find({ 'metadata.formId': formId });
+    const [allLeads, allForms, allSubmissions] = await Promise.all([loadBunnyLeads(), listForms(), listSubmissions()]);
+    const forms = allForms.filter(form => viewer.superAdmin || form.createdBy === viewer.userId);
+    const formIds = new Set(forms.map(form => form.formId));
+    const leads = filterRegistrationLeads(assembleRegistrationLeads(
+      allLeads.filter(lead => registrationLeadOwned(lead, viewer)),
+      allSubmissions.filter(row => viewer.superAdmin || formIds.has(row.formId)), forms,
+    ), formId, '');
 
     let enrolled = 0;
     for (const lead of leads) {
@@ -35,9 +47,9 @@ export async function POST(request: NextRequest) {
         cohortId,
         name: lead.name || 'Unknown',
         email: lead.email || '',
-        phone: lead.phoneNumber || '',
+        phone: lead.phoneNumber || lead.mobile || '',
         whatsappNumber: lead.phoneNumber || '',
-        leadId: lead._id.toString(),
+        leadId: lead.leadId || null,
         leadNumber: lead.leadNumber || '',
         source: 'system-form',
         active: true

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     ]);
     const approvals: Array<{ workshopId: string; queued: number }> = [];
     const schedules: Array<{ queued: number }> = [];
-    const funnels: Awaited<ReturnType<typeof processRegistrationFunnel>>[] = [];
+    const funnels: Omit<Awaited<ReturnType<typeof processRegistrationFunnel>>, 'decisionPatch'>[] = [];
     for (const row of scopes.rows) {
       const scope = String(row.scope);
       const shared = scope === 'shared';
@@ -35,9 +35,10 @@ export async function GET(request: Request) {
       const forms = allForms.filter(form => shared || form.createdBy === owner);
       const formIds = new Set(forms.map(form => form.formId));
       approvals.push(...await processRegistrationApprovals(state, visibleLeads, owner, shared));
-      funnels.push(await processRegistrationFunnel({
+      const { decisionPatch, ...funnelSummary } = await processRegistrationFunnel({
         state, leads: visibleLeads, forms, submissions: allSubmissions.filter(submission => shared || formIds.has(submission.formId)), scope,
-      }));
+      });
+      funnels.push(funnelSummary);
       schedules.push(await processRegistrationSchedules(await readRegistrationState(scope), visibleLeads, owner, shared));
     }
     const broadcasts = await processDueBunnyMetaBroadcasts({ runLimit: 20, perRunMessageLimit: 50 });

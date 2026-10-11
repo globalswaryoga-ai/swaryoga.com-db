@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { verifyToken } from '@/lib/auth';
 import { registrationLeadOwned, registrationViewer } from '@/lib/registrationAuth';
+import { matchesMetaBatch } from '@/lib/registrationMetaReport';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +39,7 @@ export async function GET(request: NextRequest) {
     );
 
     // Match leads by either exact workshopId or metaFormId
-    let metaLeads = allMetaLeads.filter((l: any) => {
-      const matchWorkshop = workshopId && (l.workshopId === workshopId || l.metadata?.workshopId === workshopId);
-      const matchForm = metaFormId && l.metadata?.metaFormId === metaFormId;
-      return matchWorkshop || matchForm;
-    });
+    const metaLeads = allMetaLeads.filter((lead: any) => matchesMetaBatch(lead, workshopId, metaFormId));
 
     // Isolated compartments: Do NOT return all meta leads if none match.
     

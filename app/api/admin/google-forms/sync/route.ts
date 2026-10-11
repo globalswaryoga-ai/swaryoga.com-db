@@ -1,16 +1,16 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
-import { decryptCredential, encryptCredential } from '@/lib/auth';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { registrationViewer, registrationLeadOwned } from '@/lib/registrationAuth';
 import { saveBunnyLead, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { registrationPhone } from '@/lib/registrationLeads';
+import { resolveGoogleAccounts, getGoogleAccessToken, refreshGoogleAccessToken, type GoogleAccount } from '@/lib/googleFormsAccounts';
 import {
   createForm,
   createQuestion,
   ensureFormTables,
   getFormById,
 } from '@/lib/bunny-forms-db';
-import { listBunnySocialAccounts, updateBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 import {
   extractGoogleFormId,
   fetchGoogleFormResponses,
@@ -21,12 +21,6 @@ import {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-type GoogleAccount = {
-  account: Record<string, any>;
-  source: 'canonical' | 'bunny_archive';
-  documentId: string;
-};
-
 function isAuthorizedCron(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
   const provided = request.headers.get('authorization') || '';
@@ -35,141 +29,6 @@ function isAuthorizedCron(request: NextRequest): boolean {
   const expectedBuffer = Buffer.from(expected);
   const tokenBuffer = Buffer.from(token);
   return expectedBuffer.length === tokenBuffer.length && timingSafeEqual(expectedBuffer, tokenBuffer);
-}
-
-function accountIsInScope(account: Record<string, any>, scope: string): boolean {
-  const ownerUserId = String(account.ownerUserId || account.userId || '').trim();
-  if (scope === 'shared') {
-    return ownerUserId === '' || ownerUserId === 'admin' || ownerUserId === 'admincrm' ||
-      (account.scopeType === 'super_admin' && account.scopeKey === 'super_admin');
-  }
-  return ownerUserId === scope;
-}
-
-async function resolveGoogleAccounts(scope: string): Promise<GoogleAccount[]> {
-  const accounts: GoogleAccount[] = [];
-  const failures: string[] = [];
-  let canonicalReadSucceeded = false;
-  let archiveReadSucceeded = false;
-
-  try {
-    const canonicalAccounts = await listBunnySocialAccounts({ connectedOnly: false });
-    canonicalReadSucceeded = true;
-    for (const account of canonicalAccounts) {
-      if (!['google_forms', 'google'].includes(String(account.platform || '').toLowerCase())) continue;
-      if (account.isConnected === false || !account.accessToken || !account._id) continue;
-      if (!accountIsInScope(account, scope)) continue;
-      accounts.push({ account, source: 'canonical', documentId: String(account._id) });
-    }
-  } catch (error) {
-    failures.push(`Bunny canonical account repository: ${error instanceof Error ? error.message : 'unavailable'}`);
-  }
-
-  try {
-    // Compatibility fallback only: mongo_documents is the preserved Bunny SQL archive, not a live MongoDB read.
-    const legacy = await bunnyExecute({
-      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC",
-    });
-    archiveReadSucceeded = true;
-    for (const row of legacy.rows) {
-      try {
-        const account = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-        if (!['google_forms', 'google'].includes(String(account?.platform || '').toLowerCase())) continue;
-        if (!account.accessToken) continue;
-        if (!accountIsInScope(account, scope)) continue;
-        const documentId = String(row.document_id || account._id || account.document_id || '');
-        if (documentId) accounts.push({ account, source: 'bunny_archive', documentId });
-      } catch {
-        // Ignore malformed account documents while continuing to inspect the stored accounts.
-      }
-    }
-  } catch (error) {
-    failures.push(`Bunny archived account records: ${error instanceof Error ? error.message : 'unavailable'}`);
-  }
-
-  if (!canonicalReadSucceeded && !archiveReadSucceeded) {
-    throw new Error(`Could not resolve Google accounts (${failures.join('; ')}).`);
-  }
-
-  const seen = new Set<string>();
-  return accounts.filter(({ account }) => {
-    const key = `${account.platform}:${account.userId || account.ownerUserId || ''}:${account.accessToken}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-async function saveRefreshedAccessToken(entry: GoogleAccount, accessToken: string, expiresIn: number) {
-  const updated = {
-    ...entry.account,
-    accessToken: encryptCredential(accessToken),
-    tokenExpiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (entry.source === 'canonical') {
-    const saved = await updateBunnySocialAccount(entry.documentId, {
-      accessToken: updated.accessToken,
-      tokenExpiresAt: updated.tokenExpiresAt,
-      updatedAt: updated.updatedAt,
-    });
-    if (!saved) throw new Error('Refreshed Google token could not be saved to the canonical account repository.');
-    entry.account = { ...entry.account, ...updated };
-    return;
-  }
-
-  const result = await bunnyExecute({
-    sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
-    args: [JSON.stringify(updated), entry.documentId],
-  });
-  if (Number(result.rowsAffected || 0) < 1) {
-    throw new Error('Refreshed Google token could not be saved to the Bunny archive.');
-  }
-  entry.account = updated;
-}
-
-async function getGoogleAccessToken(entry: GoogleAccount): Promise<string> {
-  let accessToken: string;
-  try {
-    accessToken = decryptCredential(String(entry.account.accessToken));
-  } catch {
-    throw new Error('Stored Google access token could not be decrypted; reconnect the Google account.');
-  }
-  return accessToken;
-}
-
-async function refreshGoogleAccessToken(entry: GoogleAccount): Promise<string> {
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) {
-    throw new Error('Google access token expired and GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not configured.');
-  }
-
-  let refreshToken: string;
-  try {
-    refreshToken = decryptCredential(String(entry.account.refreshToken || ''));
-  } catch {
-    throw new Error('Stored Google refresh token could not be decrypted; reconnect the Google account.');
-  }
-
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    signal: AbortSignal.timeout(30_000),
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  const tokenData = await response.json() as { access_token?: string; expires_in?: number };
-  if (!response.ok || !tokenData.access_token) {
-    throw new Error(`Google token refresh failed (${response.status} ${response.statusText}).`);
-  }
-  await saveRefreshedAccessToken(entry, tokenData.access_token, Number(tokenData.expires_in) || 3600);
-  return tokenData.access_token;
 }
 
 async function fetchFormUsingAccount(formId: string, entry: GoogleAccount) {
@@ -319,6 +178,7 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
         rawAnswers: lead.rawAnswers,
         createdAt: lead.createdAt,
       });
+      lead.id = saved.id;
       persistedSubmissions += 1;
       if (saved.inserted) insertedSubmissions += 1;
     } catch (error) {
@@ -330,12 +190,12 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
       continue;
     }
 
-    const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
+    const phone = registrationPhone(lead.phoneNumber);
 
     try {
       const matchingIndex = existingLeads.findIndex((candidate: any) => {
-        const existingPhone = String(candidate.phoneNumber || '').replace(/\D/g, '');
-        const phoneMatches = existingPhone.length >= 10 && existingPhone.slice(-10) === phone.slice(-10);
+        const existingPhone = registrationPhone(candidate.phoneNumber);
+        const phoneMatches = phone.length >= 10 && existingPhone === phone;
         const emailMatches = Boolean(lead.email) &&
           String(candidate.email || '').trim().toLowerCase() === lead.email.toLowerCase();
         return phoneMatches || Boolean(emailMatches);
@@ -389,7 +249,7 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
             googleFormId: formId,
             lastGoogleFormSubmission: submissionMetadata,
           },
-        });
+        }, `google_contact_${accountUserId}_${phone}`);
         existingLeads.push(newLead);
         lead.leadId = String(newLead._id || newLead.id || '') || null;
       }
@@ -404,7 +264,10 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
   }
 
   await bunnyExecute({
-    sql: 'UPDATE enquiry_forms SET submission_count = (SELECT COUNT(*) FROM form_submissions WHERE form_id = ?) WHERE form_id = ?',
+    sql: `UPDATE enquiry_forms SET submission_count = (
+      SELECT COUNT(DISTINCT CASE WHEN (source = 'google_forms' OR id LIKE 'gform_%') AND form_data != ''
+        THEN 'google:' || form_data ELSE 'crm:' || id END)
+      FROM form_submissions WHERE form_id = ?) WHERE form_id = ?`,
     args: [formId, formId],
   });
 

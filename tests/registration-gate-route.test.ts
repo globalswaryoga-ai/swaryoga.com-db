@@ -110,6 +110,6 @@ describe('Authenticated registration gate saves', () => {
     }));
     expect(response.status).toBe(200);
     expect(mergeRegistrationState).toHaveBeenCalledWith({ [key]: { status: 'approval_2' } }, 'tenant');
-    expect(writeRegistrationState).toHaveBeenCalledWith({}, 'tenant');
+    expect(writeRegistrationState).not.toHaveBeenCalled();
   });
 });

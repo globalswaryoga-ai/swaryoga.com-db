@@ -1,5 +1,7 @@
 'use client';
-import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
+import { mergeRegistrationSnapshot, registrationFormId, registrationSnapshotBatchCount, registrationTextFiltersMatch } from '@/lib/registrationLeads';
+import { registrationFetch as fetch, saveRegistrationState, saveRegistrationWorkshop } from '@/lib/registrationClient';
+import { restoreRegistrationWorkshop } from '@/lib/registrationValues';
 import { useRegistrationLeads } from '@/hooks/useRegistrationLeads';
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab, MetaLeadsTab, LeadsManagementTab, WhatsAppMessengerTab } from '../_LazyRegistrationTabs';
@@ -67,6 +69,8 @@ export default function NewRegistrationPage() {
   const [linkedFormId, setLinkedFormId] = useState<string>('');
   const [activeLinkedSheetId, setActiveLinkedSheetId] = useState<string>('');
   const [leadsData, setLeadsData] = useState<any[]>([]);
+  const leadsDataRef = React.useRef(leadsData);
+  useEffect(() => { leadsDataRef.current = leadsData; }, [leadsData]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
   const getBaseLanguage = (langStr?: string): string => {
     if (!langStr) return 'english';
@@ -116,23 +120,10 @@ export default function NewRegistrationPage() {
 
   const getDynamicBatchLeads = (batch: any) => {
     if (!batch) return 0;
-    if (!batch.formFilterKeyword) return batch.leads || 0;
-    
-    const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
-    
-    const ai7MappedQuestion = batch.metadata?.googleFormMapping?.['AI-7'] || batch.metadata?.googleFormMapping?.['ai7'];
-    
-    const matchedCount = (leadsData || []).filter((l: any) => {
-      if (!l || !l._rawRecord) return false;
-      if (ai7MappedQuestion && l._rawRecord[ai7MappedQuestion]) {
-        return keywords.some((k: string) => isLeadMatchingKeyword(l._rawRecord[ai7MappedQuestion], k));
-      } else {
-        return keywords.some((k: string) => Object.values(l._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
-      }
-    }).length;
-    
-    const totalCount = batch.leads || 0;
-    return `${matchedCount} / ${totalCount}`;
+    if (registrationFormId(batch.formId) !== registrationFormId(linkedFormId)) return batch.leads || 0;
+    const count = registrationSnapshotBatchCount(leadsData, batch);
+    const total = leadsData.filter(lead => registrationFormId(lead.formId) === registrationFormId(batch.formId)).length;
+    return batch.formFilterKeyword ? `${count} / ${total}` : count;
   };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -910,99 +901,29 @@ export default function NewRegistrationPage() {
             }
           }
 
-          if (fetchedLeads.length > 0) {
-            setLeadsData((prevLeads: any[]) => {
-              const existingIds = new Set((prevLeads || []).filter(Boolean).map((l: any) => l?.id).filter(Boolean));
-              const newLeads = fetchedLeads.filter((l: any) => l && l.id && !existingIds.has(l.id));
-
-              if (newLeads.length > 0) {
-                const ws = (workshopsRef.current || []).find((w: any) => w.formId === linkedFormId);
-                let leadsToMove = newLeads;
-                const effectiveF1 = leadsFilterRef.current || ws?.metadata?.mainFilter || '';
-                const effectiveF2 = leadsSubFilterRef.current || ws?.metadata?.subFilter || '';
-                const effectiveF3 = leadsSubSubFilterRef.current || '';
-
-                if (effectiveF1 || effectiveF2 || effectiveF3) {
-                  leadsToMove = newLeads.filter((lead: any) => {
-                    const f1 = !effectiveF1 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF1.toLowerCase()));
-                    })();
-                    const f2 = !effectiveF2 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF2.toLowerCase()));
-                    })();
-                    const f3 = !effectiveF3 || (() => {
-                      const vals = [
-                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                      return vals.some((v: any) => v.includes(effectiveF3.toLowerCase()));
-                    })();
-                    return f1 && f2 && f3;
-                  });
-                }
-
-                if (leadsToMove.length > 0) {
-                  setCrmLeadIds((prevCrm: string[]) => {
-                    const idsToMove = leadsToMove.map((l: any) => l?.id).filter(Boolean);
-                    const newCrmIds = Array.from(new Set([...prevCrm, ...idsToMove]));
-                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
-                    return newCrmIds;
-                  });
-                }
-
-                setWorkshops((prev: any[]) => {
-                  return (prev || []).map((w: any) => {
-                    if (w?.formId === currentFormId) {
-                      const f1 = w.formFilterKeyword || w.metadata?.mainFilter || '';
-                      const f2 = w.metadata?.subFilter || '';
-                      
-                      if (String(w.id).startsWith('master_')) {
-                        const matchedLangs = newLeads.filter((l: any) => matchesLanguage({ language: currentWorkshop?.language || selectedDashboardLang }, w.language));
-                        return { ...w, leads: (w.leads || 0) + matchedLangs.length };
-                      }
-
-                      if (!f1 && !f2) {
-                        return { ...w, leads: (w.leads || 0) + newLeads.length };
-                      }
-
-                      const matched = newLeads.filter((lead: any) => {
-                        const vals = [
-                          lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                          ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                          ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                        ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                        
-                        const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                        const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => isLeadMatchingKeyword(v, k)));
-                        const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
-                        return m1 && m2;
-                      });
-                      
-                      return { ...w, leads: (w.leads || 0) + matched.length };
-                    }
-                    return w;
-                  });
-                });
-
-                return [...(prevLeads || []).filter(Boolean), ...newLeads];
-              }
-
-              return prevLeads;
-            });
-
-            if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+          const previous = leadsDataRef.current;
+          const existingIds = new Set(previous.map(lead => lead.id));
+          const newLeads = fetchedLeads.filter(lead => !existingIds.has(lead.id));
+          const snapshot = mergeRegistrationSnapshot(previous, fetchedLeads, currentFormId);
+          leadsDataRef.current = snapshot;
+          setLeadsData(snapshot);
+          const ws = (workshopsRef.current || []).find((w: any) => w.formId === linkedFormId);
+          const matchingNewLeads = newLeads.filter(lead => registrationTextFiltersMatch(lead, [
+            leadsFilterRef.current || ws?.metadata?.mainFilter || '',
+            leadsSubFilterRef.current || ws?.metadata?.subFilter || '',
+            leadsSubSubFilterRef.current || '',
+          ]));
+          if (matchingNewLeads.length) {
+            setCrmLeadIds((previousIds: string[]) => Array.from(new Set([...previousIds, ...matchingNewLeads.map(lead => lead.id)])));
+            toast.success(`Saved ${newLeads.length} new responses; moved ${matchingNewLeads.length} matching your filter to My Data.`);
           }
+          setWorkshops((previousWorkshops: any[]) => previousWorkshops.map(workshop => {
+            if (registrationFormId(workshop.formId) !== registrationFormId(currentFormId)) return workshop;
+            const count = registrationSnapshotBatchCount(snapshot, workshop);
+            return count === workshop.leads ? workshop : { ...workshop, leads: count };
+          }));
+          if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+
         }
       } catch (err) {
         console.error("AI4 Fetch error", err);
@@ -1101,7 +1022,10 @@ export default function NewRegistrationPage() {
                 if (typeof v === 'string') localStorage.setItem(k, v);
               }
               const restoredWorkshop = data['crm_hindi_selected_workshop' + langSuffixStr] || data.crm_hindi_selected_workshop;
-              if (restoredWorkshop) setSelectedWorkshop(typeof restoredWorkshop === 'string' ? JSON.parse(restoredWorkshop) : restoredWorkshop);
+              if (restoredWorkshop) {
+                const restored = restoreRegistrationWorkshop(data.crm_hindi_workshops || data.crm_workshops, restoredWorkshop);
+                setSelectedWorkshop(restored || null);
+              }
               setIsLoaded(true);
             }
           }
@@ -1308,7 +1232,7 @@ export default function NewRegistrationPage() {
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
   const saveWorkshopSettings = async (overrideWorkshop?: any) => {
-    let targetWorkshop = overrideWorkshop || selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+    let targetWorkshop = overrideWorkshop?.id ? overrideWorkshop : selectedWorkshop?.id ? selectedWorkshop : workshops.find(w => w?.id && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
 
     let currentWorkshops = [...workshops];
     if (!targetWorkshop) {
@@ -1342,10 +1266,11 @@ export default function NewRegistrationPage() {
       metadata: updatedMetadata
     };
 
-    const newWorkshops = (currentWorkshops || []).map(w => w?.id === targetWorkshop.id ? updatedWorkshop : w);
-    await saveRegistrationState({ crm_hindi_workshops: safeStringify(newWorkshops) });
+    if (!currentWorkshops.some(workshop => workshop?.id === targetWorkshop.id)) throw new Error('This selected batch is no longer in the saved list. Select an existing batch before saving its settings.');
+    const saved = await saveRegistrationWorkshop('crm_hindi_workshops', updatedWorkshop, workshops.find(w => w?.id === targetWorkshop.id));
+    const newWorkshops = saved.workshops;
     setWorkshops(newWorkshops);
-    setSelectedWorkshop(updatedWorkshop);
+    setSelectedWorkshop(saved.workshop);
     setLinkedFormId(updatedWorkshop.formId);
     localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
 
@@ -1366,6 +1291,7 @@ export default function NewRegistrationPage() {
     }
 
     toast.success('Workshop settings saved successfully!');
+    return saved.workshop;
   };
 
   const handleDetailChange = (field: string, value: string) => {

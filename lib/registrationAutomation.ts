@@ -6,6 +6,8 @@ import { type RegistrationRecord, evaluateMetaLead } from '@/lib/registrationRul
 import { registrationWorkshops, type RegistrationState } from '@/lib/registrationState';
 import { registrationTargetMatches } from '@/lib/registrationRules';
 import { readRegistrationDecisions } from '@/lib/registrationAiConfig';
+import { matchesMetaBatch } from '@/lib/registrationMetaReport';
+import { isFutureMetaAutomationLead, META_APPROVAL_STAGES } from '@/lib/registrationMetaAutomation';
 
 export async function resolveRegistrationTemplate(nameOrId: string, owner: string, superAdmin: boolean) {
   const result = await bunnyExecute({
@@ -66,10 +68,9 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
   const results: Array<{ workshopId: string; queued: number }> = [];
   for (const workshop of registrationWorkshops(state)) {
     const formId = workshop.metadata?.facebookFormId || workshop.metadata?.metaFormId;
-    const workshopLeads = leads.filter(lead =>
-      (lead.source === 'meta_instant_form' || lead.source === 'meta_leadgen' || (lead.labels || []).includes('meta_instant_form')) &&
-      (lead.workshopId === workshop.id || (formId && lead.metadata?.metaFormId === formId)));
+    const workshopLeads = leads.filter(lead => matchesMetaBatch(lead, String(workshop.id), String(formId || '')));
     for (const lead of workshopLeads) {
+      if (lead.isBlocked) continue;
       const stages = [
         ['ai9AConfig', ['new', 'lead', 'new_pending'], 'stage_1_new', 'new_pending', 'new_rejected'],
         ['ai9BConfig', ['stage_1_new', 'stage_1_pending'], 'stage_2_new', 'stage_1_pending', 'stage_1_rejected'],
@@ -82,18 +83,23 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
         const evaluated = evaluateMetaLead(lead, config, approved, pending, rejected);
         if (!evaluated || evaluated.status === lead.status) continue;
         lead.status = evaluated.status;
-        lead.metadata = { ...lead.metadata, ai9Reason: evaluated.reason };
-        if (lead.status === 'approved') lead.metadata = { ...lead.metadata, approvedAt: now.toISOString(), ai9WEligible: true };
+        const metadataPatch: RegistrationRecord = { ai9Reason: evaluated.reason,
+          ai9PassedStages: { [configKey]: evaluated.status === approved } };
+        if (lead.status === 'approved') Object.assign(metadataPatch, { approvedAt: now.toISOString(), ai9WEligible: true });
         if (lead.status.includes('pending')) {
-          lead.metadata = { ...lead.metadata, wtEligibleAt: now.toISOString(), wtAutoEligible: true };
+          Object.assign(metadataPatch, { wtEligibleAt: now.toISOString(), wtAutoEligible: true });
         }
+        lead.metadata = { ...lead.metadata, ...metadataPatch,
+          ai9PassedStages: { ...lead.metadata?.ai9PassedStages, ...metadataPatch.ai9PassedStages } };
         await bunnyExecute({
-          sql: 'UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
-          args: [JSON.stringify(lead), now.toISOString(), String(lead._id)],
+          sql: 'UPDATE leads_sql SET data_json = json_patch(data_json, ?), updated_at = ? WHERE document_id = ?',
+          args: [JSON.stringify({ status: lead.status, metadata: metadataPatch }), now.toISOString(), String(lead._id)],
         });
       }
       const settings = workshop.metadata?.wtSettings;
-      const stage = lead.status === 'approved' ? settings?.approved : lead.status?.includes('pending') ? settings?.pending : null;
+      if (!isFutureMetaAutomationLead(lead, workshop.metadata || {}) || lead.status !== 'approved' ||
+          !META_APPROVAL_STAGES.every(key => lead.metadata?.ai9PassedStages?.[key] === true)) continue;
+      const stage = settings?.approved;
       const triggerConfig = workshop.metadata?.ai9EConfig;
       if (!stage?.template || !triggerConfig?.isActive) continue;
       const triggerEvaluation = evaluateMetaLead(lead, triggerConfig, 'eligible', 'pending', 'rejected');
@@ -108,8 +114,18 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
       const delay = Number(stage.delay ?? 5);
       if (!Number.isFinite(delay) || delay < 0) throw new Error(`Invalid WhatsApp delay for ${workshop.name}`);
       const template = await resolveRegistrationTemplate(stage.template, owner, superAdmin);
+      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id]) continue;
+      await ensureBroadcastSchema();
+      const accepted = await bunnyExecute({
+        sql: `SELECT m.document_id FROM broadcast_run_messages_sql m
+          JOIN broadcast_runs_sql r ON r.document_id = m.run_id
+          WHERE m.phone_number = ? AND r.created_by_user_id = ? AND r.template_id = ?
+          AND m.wa_message_id IS NOT NULL AND m.wa_message_id != '' LIMIT 1`,
+        args: [normalizePhone(lead.phoneNumber || lead.mobile), owner, template._id],
+      });
+      if (accepted.rows.length) continue;
       const result = await queueRegistrationTemplate({
-        leads: [lead], template, owner, eventKey: `${workshop.id}:${lead._id}:${event}`,
+        leads: [lead], template, owner, eventKey: `${workshop.id}:${lead._id}:meta-approved`,
         dueAt: new Date(new Date(event).getTime() + delay * 60000),
       });
       results.push({ workshopId: String(workshop.id), queued: result.queued });

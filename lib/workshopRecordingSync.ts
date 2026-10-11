@@ -1,5 +1,6 @@
 import { getCohort, listCohorts, listRecordings, upsertRecording } from '@/lib/workshopBunnyRepository';
-import { getZoomAccessToken } from '@/lib/zoom-s3-sync';
+import { getZoomAccessToken } from '@/lib/zoomAccessToken';
+import { workshopSessionCalendar } from '@/lib/workshopSessionUtils';
 
 interface ZoomRecordingFile {
   id: string;
@@ -67,9 +68,7 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
   }
 
   const accessToken = await getZoomAccessToken();
-  const tokenSnippet = accessToken ? `${accessToken.slice(0, 10)}... (len ${accessToken.length})` : 'EMPTY';
-  console.log('[Zoom Sync] Token obtained:', tokenSnippet);
-  const debugLogs: string[] = [`token=${tokenSnippet}`];
+  const debugLogs: string[] = [];
 
   const startDate = cohort.startDate ? String(cohort.startDate).slice(0, 10) : '2026-08-01';
   // Zoom 'to' parameter is exclusive in UTC, so query through tomorrow
@@ -208,7 +207,7 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
       const isVideo = file.file_type === 'MP4' || file.file_extension === 'MP4';
       if (!isVideo) continue;
 
-      const dateStr = file.recording_start.split('T')[0];
+      const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: cohort.timezone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(file.recording_start));
       const current = dateToFiles.get(dateStr) || { uuid: meeting.uuid, shareUrl, password };
 
       if (!current.shareUrl && shareUrl) current.shareUrl = shareUrl;
@@ -227,7 +226,8 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
     }
   }
 
-  const sortedDates = [...dateToFiles.keys()].sort();
+  const scheduledDays = new Map(workshopSessionCalendar(startDate, cohort.holidayDates || []).filter(day => !day.holiday).map(day => [day.classDate, day.dayNumber]));
+  const sortedDates = [...dateToFiles.keys()].filter(date => scheduledDays.has(date)).sort();
   const syncedDates: string[] = [];
 
   for (let idx = 0; idx < sortedDates.length; idx++) {
@@ -237,17 +237,7 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
 
     // Calculate dayNumber:
     // If cohort has startDate, count elapsed calendar days + 1, or fallback to chronological idx + 1
-    let dayNumber = existing?.dayNumber;
-    if (!dayNumber) {
-      if (cohort.startDate) {
-        const start = new Date(String(cohort.startDate).slice(0, 10)).getTime();
-        const cur = new Date(dateStr).getTime();
-        const diffDays = Math.round((cur - start) / 86400000);
-        dayNumber = diffDays >= 0 ? diffDays + 1 : idx + 1;
-      } else {
-        dayNumber = idx + 1;
-      }
-    }
+    const dayNumber = cohort.metadata?.dateDayMap?.[dateStr] || scheduledDays.get(dateStr);
 
     const metadata = {
       ...(existing?.metadata || {}),
@@ -278,29 +268,6 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
     await upsertRecording(updatePayload);
     syncedDates.push(dateStr);
 
-    // Delete recording from Zoom (move to trash) to free up space
-    try {
-      let encUuid = data.uuid;
-      if (encUuid.startsWith('/') || encUuid.includes('//')) {
-        encUuid = encodeURIComponent(encodeURIComponent(encUuid));
-      } else {
-        encUuid = encodeURIComponent(encUuid);
-      }
-      const delRes = await fetch(
-        `https://api.zoom.us/v2/meetings/${encUuid}/recordings?action=trash`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      if (delRes.ok) {
-        debugLogs.push(`Deleted ${data.uuid} to trash`);
-      } else {
-        debugLogs.push(`Delete ${data.uuid} failed: ${delRes.status}`);
-      }
-    } catch (e: any) {
-      debugLogs.push(`Delete error for ${data.uuid}: ${e.message}`);
-    }
   }
 
   return {

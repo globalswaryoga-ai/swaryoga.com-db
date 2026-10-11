@@ -1,4 +1,7 @@
 /** @jest-environment node */
+jest.mock('@/lib/bunnyContactIdentity', () => ({
+  persistBunnyContact: jest.fn(async () => ({ _id: 'permanent-contact' })),
+}));
 
 jest.mock('@/lib/bunny-forms-db', () => ({
   ensureFormTables: jest.fn().mockResolvedValue(undefined),
@@ -7,6 +10,7 @@ jest.mock('@/lib/bunny-forms-db', () => ({
 
 jest.mock('@/lib/bunnyDatabase', () => ({
   bunnyExecute: jest.fn(),
+  bunnyBatch: jest.fn(),
 }));
 
 jest.mock('@/lib/registrationState', () => ({
@@ -20,10 +24,11 @@ jest.mock('@/lib/googleFormConnections', () => ({
   ...jest.requireActual('@/lib/googleFormConnections'),
   readGoogleFormConnections: jest.fn(),
 }));
+jest.mock('@/lib/workshopOfferRepository', () => ({ savedOfferGoogleTargets: jest.fn().mockResolvedValue([]) }));
 
 import { NextRequest } from 'next/server';
 import { listForms } from '@/lib/bunny-forms-db';
-import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
 import { readRegistrationState } from '@/lib/registrationState';
 import { readGoogleFormConnections } from '@/lib/googleFormConnections';
 import { GET as runGoogleFormsCron } from '@/app/api/cron/google-forms-sync/route';
@@ -118,7 +123,7 @@ describe('Google Forms ingestion helpers', () => {
         );
         return { rows: row ? [{ id: row.id }] : [], rowsAffected: 0 } as any;
       }
-      if (sql.startsWith('INSERT OR IGNORE INTO form_submissions')) {
+      if (sql.startsWith('INSERT INTO form_submissions')) {
         const [id, formId, name, mobile, email, gender, city, answers, responseId, , source, rawAnswers] = args;
         const key = `${formId}:${responseId}`;
         if (rows.has(key)) return { rows: [], rowsAffected: 0 } as any;
@@ -126,6 +131,11 @@ describe('Google Forms ingestion helpers', () => {
         return { rows: [], rowsAffected: 1 } as any;
       }
       return { rows: [], rowsAffected: 1 } as any;
+    });
+    jest.mocked(bunnyBatch).mockImplementation(async statements => {
+      const results = [];
+      for (const statement of statements) results.push(await executeMock(statement));
+      return results;
     });
 
     const common = {
@@ -187,6 +197,18 @@ describe('Google Forms ingestion helpers', () => {
       'd'.repeat(35),
     ]);
     expect(targets[1].name).toBe('New registration workshop');
+  });
+
+  it('discovers permanently saved connections from every language list without duplicate targets', () => {
+    const formId = 'language-form-'.padEnd(35, 'x');
+    const workshop = [{ formId, name: 'Hindi workshop', metadata: { formSource: 'google' } }];
+    const targets = collectGoogleFormTargets([], {
+      crm_workshops: [],
+      crm_hindi_workshops: JSON.stringify(JSON.stringify(workshop)),
+      crm_marathi_workshops: workshop,
+      crm_kannada_workshops: [{ formId: 'kannada-form-'.padEnd(35, 'x'), name: 'Kannada workshop' }],
+    });
+    expect(targets.map(target => target.formId)).toEqual([formId, 'kannada-form-'.padEnd(35, 'x')]);
   });
 
   it('rejects user-agent-only cron requests and forwards verified cron auth internally', async () => {

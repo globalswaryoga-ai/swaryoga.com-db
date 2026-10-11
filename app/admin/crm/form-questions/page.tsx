@@ -910,7 +910,8 @@ export default function GoogleFormBuilderPage() {
                                             .then(r => r.json())
                                             .then(d => setForms(d.data || []));
                                         } else {
-                                          showToast('Failed to create form. Please check URL.', 'error');
+                                          const error = await syncRes.json().catch(() => ({}));
+                                          showToast(error.error || `Google Form sync failed (HTTP ${syncRes.status}). Saved data was not removed.`, 'error');
                                         }
                                       }}
                                     >
@@ -1063,7 +1064,8 @@ export default function GoogleFormBuilderPage() {
                                             .then(r => r.json())
                                             .then(d => setForms(d.data || []));
                                         } else {
-                                          showToast('Failed to create form. Please check URL.', 'error');
+                                          const error = await syncRes.json().catch(() => ({}));
+                                          showToast(error.error || `Google Form sync failed (HTTP ${syncRes.status}). Saved data was not removed.`, 'error');
                                         }
                                       }}
                                     >

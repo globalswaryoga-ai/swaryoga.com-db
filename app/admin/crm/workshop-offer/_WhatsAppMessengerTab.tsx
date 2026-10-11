@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { offerFetch as fetch, offerStorage as localStorage } from '@/lib/workshopOfferClient';
 import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, RefreshCw, Trash2, Edit2, ArrowRightLeft, Radio, Users } from 'lucide-react';
 import CreateTemplatePage from '@/app/admin/crm/templates/builder/page';
 import { useToast } from '@/components/admin/crm/ui/Toast';

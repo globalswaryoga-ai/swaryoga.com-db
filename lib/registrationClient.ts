@@ -17,3 +17,14 @@ export async function saveRegistrationState(state: Record<string, unknown>) {
   if (!response.ok) throw new Error(data.error || 'Failed to save registration settings');
   return data;
 }
+
+export async function saveRegistrationWorkshop(listKey: string, workshop: Record<string, unknown>, previous?: Record<string, unknown>) {
+  const response = await registrationFetch('/api/admin/crm/new-registration/workshop-settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listKey, workshop, previous }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to save workshop settings');
+  return data;
+}

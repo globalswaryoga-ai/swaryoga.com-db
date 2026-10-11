@@ -4,7 +4,7 @@
  * Uses Zoom Report API (Server-to-Server OAuth).
  */
 
-import { getZoomAccessToken } from './zoom-s3-sync';
+import { getZoomAccessToken } from './zoomAccessToken';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

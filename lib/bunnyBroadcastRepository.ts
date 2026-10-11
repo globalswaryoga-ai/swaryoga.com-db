@@ -98,6 +98,8 @@ function rowToRun(row: any): any {
     target: d.target || null,
     stats: cleanStats(d.stats),
     lastError: d.lastError || null,
+    reportFolder: d.reportFolder || null,
+    senderNumber: d.senderNumber || null,
   };
 }
 
@@ -157,20 +159,23 @@ export async function broadcastRunCreate(doc: any): Promise<any> {
   return { ...doc, _id: id, createdAt: new Date(n), updatedAt: new Date(n) };
 }
 
-export async function broadcastRunUpdateOne(runId: string, update: { status?: string; startedAt?: Date; completedAt?: Date; scheduledAt?: Date; lastError?: string; stats?: any }) {
+export async function broadcastRunUpdateOne(runId: string, update: { status?: string; startedAt?: Date; completedAt?: Date; scheduledAt?: Date; lastError?: string; stats?: any; senderNumber?: string }) {
   await ensureBroadcastSchema();
   const n = nowIso();
-  const existing = await broadcastRunFindOne(runId);
-  const existingData = existing ? { templateSnapshot: existing.templateSnapshot, messageInterval: existing.messageInterval, target: existing.target, stats: existing.stats, lastError: existing.lastError } : {};
-  const newData = { ...existingData, ...(update.stats ? { stats: update.stats } : {}), ...(update.lastError !== undefined ? { lastError: update.lastError } : {}) };
-  const setParts: string[] = ['updated_at = ?', 'data_json = ?'];
+  const newData = {
+    ...(update.stats ? { stats: update.stats } : {}),
+    ...(update.lastError !== undefined ? { lastError: update.lastError } : {}),
+    ...(update.senderNumber ? { senderNumber: update.senderNumber } : {}),
+  };
+  const setParts: string[] = ['updated_at = ?', "data_json = json_patch(COALESCE(data_json, '{}'), ?)"];
   const args: any[] = [n, JSON.stringify(newData)];
   if (update.status !== undefined) { setParts.push('status = ?'); args.push(update.status); }
   if (update.startedAt) { setParts.push('started_at = ?'); args.push(update.startedAt.toISOString()); }
   if (update.completedAt) { setParts.push('completed_at = ?'); args.push(update.completedAt.toISOString()); }
   if (update.scheduledAt) { setParts.push('scheduled_at = ?'); args.push(update.scheduledAt.toISOString()); }
   args.push(runId);
-  await bunnyExecute({ sql: `UPDATE broadcast_runs_sql SET ${setParts.join(', ')} WHERE document_id = ?`, args });
+  const statusGate = update.status && update.status !== 'cancelled' ? " AND status != 'cancelled' AND COALESCE(json_extract(data_json, '$.reportFolder'), '') != 'deleted'" : '';
+  await bunnyExecute({ sql: `UPDATE broadcast_runs_sql SET ${setParts.join(', ')} WHERE document_id = ?${statusGate}`, args });
 }
 
 // ─── BroadcastRunMessage ──────────────────────────────────────────────────────
@@ -213,7 +218,12 @@ export async function broadcastRunMessageUpdateOne(messageId: string, update: { 
   if (update.deliveredAt) { setParts.push('delivered_at = ?'); args.push(update.deliveredAt.toISOString()); }
   if (update.readAt) { setParts.push('read_at = ?'); args.push(update.readAt.toISOString()); }
   args.push(messageId);
-  const claimCondition = update.status === 'sending' ? " AND status = 'pending'" : '';
+  const claimCondition = update.status === 'sending' ? ` AND status = 'pending'
+    AND EXISTS (SELECT 1 FROM broadcast_runs_sql r WHERE r.document_id = broadcast_run_messages_sql.run_id
+      AND r.status IN ('draft', 'scheduled', 'running')
+      AND COALESCE(json_extract(r.data_json, '$.reportFolder'), '') != 'deleted'
+      AND (r.scheduled_at IS NULL OR r.scheduled_at <= ?))` : '';
+  if (update.status === 'sending') args.push(n);
   const result = await bunnyExecute({ sql: `UPDATE broadcast_run_messages_sql SET ${setParts.join(', ')} WHERE document_id = ?${claimCondition}`, args });
   return Number((result as any).rowsAffected || (result as any).rows_affected || 0) > 0;
 }
@@ -299,10 +309,10 @@ export async function getLeadsByPhones(phones: string[]): Promise<any[]> {
 // ─── Template helper ──────────────────────────────────────────────────────────
 
 export async function getTemplateById(templateId: string): Promise<any | null> {
-  const result = await bunnyExecute({ sql: 'SELECT data_json FROM whatsapp_templates_sql WHERE document_id = ? LIMIT 1', args: [templateId] });
+  const result = await bunnyExecute({ sql: 'SELECT data_json,status,created_by FROM whatsapp_templates_sql WHERE document_id = ? LIMIT 1', args: [templateId] });
   const row = result.rows[0];
   if (!row) return null;
-  return { ...parse(row.data_json), _id: templateId };
+  return { ...parse(row.data_json), ...(row.status !== undefined ? { status: String(row.status) } : {}), ...(row.created_by !== undefined ? { createdBy: String(row.created_by || '') } : {}), _id: templateId };
 }
 
 // ─── CRMUserSettings ──────────────────────────────────────────────────────────

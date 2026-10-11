@@ -128,11 +128,19 @@ export async function listStudents(cohortId: string, activeOnly = false) { await
 export async function getStudent(studentId: string) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE id = ?', args: [studentId] }); return r.rows[0] ? student(r.rows[0]) : null; }
 export async function upsertStudent(input: Record<string, any>, studentId = id()) {
   await initWorkshopBunnySchema();
-  const existingRows = input.whatsappJid 
+  let existingRows = input.whatsappJid
     ? await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND whatsapp_jid = ? LIMIT 1', args: [input.cohortId,input.whatsappJid] }) 
     : input.phone 
       ? await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND phone = ? LIMIT 1', args: [input.cohortId,input.phone] }) 
       : { rows: [] };
+  if (!existingRows.rows.length && input.email) {
+    const emailRows = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1', args: [input.cohortId,input.email] });
+    existingRows = emailRows;
+  }
+  if (!existingRows.rows.length && input._id) {
+    const idRows = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE cohort_id = ? AND id = ? LIMIT 1', args: [input.cohortId,input._id] });
+    existingRows = idRows;
+  }
   const existing = existingRows.rows[0] as any;
   const actualId = existing?.id ? String(existing.id) : studentId;
   await bunnyExecute({
@@ -166,7 +174,7 @@ export async function upsertAttendance(input: Record<string, any>, attendanceId 
   const existing = r.rows[0] as any;
   const actualId = existing?.id ? String(existing.id) : attendanceId;
   await bunnyExecute({
-    sql: `INSERT INTO workshop_attendance_sql (id,cohort_id,student_id,class_date,joined_at,left_at,joined,duration_seconds,attendance_percent,source,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET joined_at=excluded.joined_at,left_at=excluded.left_at,joined=excluded.joined,duration_seconds=excluded.duration_seconds,attendance_percent=excluded.attendance_percent,source=excluded.source,metadata_json=excluded.metadata_json,updated_at=excluded.updated_at`,
+    sql: `INSERT INTO workshop_attendance_sql (id,cohort_id,student_id,class_date,joined_at,left_at,joined,duration_seconds,attendance_percent,source,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(cohort_id,student_id,class_date) DO UPDATE SET joined_at=excluded.joined_at,left_at=excluded.left_at,joined=excluded.joined,duration_seconds=excluded.duration_seconds,attendance_percent=excluded.attendance_percent,source=excluded.source,metadata_json=excluded.metadata_json,updated_at=excluded.updated_at`,
     args: [
       actualId,
       input.cohortId,
@@ -183,7 +191,7 @@ export async function upsertAttendance(input: Record<string, any>, attendanceId 
       now()
     ]
   });
-  const rows = await bunnyExecute({sql:'SELECT * FROM workshop_attendance_sql WHERE id=?',args:[actualId]});
+  const rows = await bunnyExecute({sql:'SELECT * FROM workshop_attendance_sql WHERE cohort_id=? AND student_id=? AND class_date=?',args:[input.cohortId,input.studentId,date]});
   return attendance(rows.rows[0]);
 }
 

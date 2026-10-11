@@ -7,7 +7,7 @@ jest.mock('@/lib/whatsappProtection', () => ({
 
 import { createHmac } from 'node:crypto';
 import { probeMetaHealth } from '@/lib/metaHealth';
-import { sendWhatsAppTemplate, uploadMediaToMeta } from '@/lib/whatsapp';
+import { buildCloudTemplateSendInput, sendWhatsAppTemplate, uploadMediaToMeta } from '@/lib/whatsapp';
 
 describe('Meta health and media latency repairs', () => {
   const originalFetch = global.fetch;
@@ -78,5 +78,18 @@ describe('Meta health and media latency repairs', () => {
         components: [{ type: 'header', parameters: [{ type: 'image', image: { id: 'shared-header' } }] }],
       });
     }
+  });
+  it('sends a saved PDF using a native document header, not an image header', async () => {
+    const fetchMock = jest.fn().mockImplementation(async (url: URL | string) => {
+      if (String(url).includes('/messages')) return Response.json({ messages: [{ id: 'wa-document' }] });
+      if (String(url).includes('graph.facebook.com')) return Response.json({ id: 'pdf-header' });
+      return new Response(new Uint8Array([1, 2, 3]));
+    });
+    global.fetch = fetchMock;
+    const input = buildCloudTemplateSendInput({ templateName: 'approved_receipt', language: 'en', headerMedia: { kind: 'document', url: 'https://example.test/receipt.pdf', filename: 'SW-R-1.pdf' } }, '919999999999');
+    expect(input.headerMedia).toMatchObject({ kind: 'document', filename: 'SW-R-1.pdf' });
+    await sendWhatsAppTemplate(input, credentials);
+    const send = fetchMock.mock.calls.find(([url]) => String(url).includes('/messages'))!;
+    expect(JSON.parse(send[1].body).template.components[0]).toEqual({ type: 'header', parameters: [{ type: 'document', document: { id: 'pdf-header', filename: 'SW-R-1.pdf' } }] });
   });
 });

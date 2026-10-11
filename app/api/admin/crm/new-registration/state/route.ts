@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { registrationViewer } from '@/lib/registrationAuth';
 import { mergeRegistrationState, readRegistrationState, writeRegistrationState } from '@/lib/registrationState';
 import { REGISTRATION_GATE_FIELDS } from '@/lib/registrationGates';
+import { validateRegistrationConditions } from '@/lib/registrationAiConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,13 +28,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid registration settings' }, { status: 400 });
     }
     const decisions = Object.entries(body).filter(([key]) => key.startsWith('crm_ai_decision_'));
+    for (const [key, value] of Object.entries(body)) {
+      if (!key.startsWith('crm_ai_config_')) continue;
+      if (!value || typeof value !== 'object' || !('conditions' in value) || !Array.isArray(value.conditions)) {
+        return NextResponse.json({ error: 'Invalid AI question configuration' }, { status: 400 });
+      }
+      try { validateRegistrationConditions(value.conditions); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid AI answer rules' }, { status: 400 }); }
+    }
     if (decisions.some(([, value]) => !value || typeof value !== 'object' || Array.isArray(value) ||
         REGISTRATION_GATE_FIELDS.some(field => field in value))) {
       return NextResponse.json({ error: 'Use the separate Zoom/final/group gate controls to change a gate.' }, { status: 400 });
     }
     const scope = viewer.superAdmin ? 'shared' : viewer.userId;
-    await writeRegistrationState(Object.fromEntries(Object.entries(body).filter(([key]) => !key.startsWith('crm_ai_decision_'))), scope);
-    await mergeRegistrationState(Object.fromEntries(decisions), scope);
+    const settings = Object.fromEntries(Object.entries(body).filter(([key]) => !key.startsWith('crm_ai_decision_')));
+    if (Object.keys(settings).length) await writeRegistrationState(settings, scope);
+    if (decisions.length) await mergeRegistrationState(Object.fromEntries(decisions), scope);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to save registration state:', error);

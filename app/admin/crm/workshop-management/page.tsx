@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import RegistrationNewBatch from '@/components/admin/crm/RegistrationNewBatch';
+import { workshopSessionCalendar } from '@/lib/workshopSessionUtils';
+import { buildWorkshopAttendanceReport, attendanceReportTable, reportCsv } from '@/lib/workshopAttendanceReport';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
+interface Cohort { _id: string; name: string; startDate: string; timezone?: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
@@ -28,6 +30,7 @@ interface Recording {
   bunnyGalleryUrl?: string; 
   deliveredStudentIds?: string[];
   metadata?: {
+    bunnyAudioUrl?: string;
     subject?: string;
     zoomSpeakerUrl?: string;
     zoomGalleryUrl?: string;
@@ -138,12 +141,8 @@ export default function WorkshopManagementPage() {
     if (form.startDate) {
       const start = new Date(form.startDate);
       if (!isNaN(start.getTime())) {
-        const validHolidays = form.holidayDates.filter(d => d).length;
-        // 14 day class: start date + 13 days + number of holidays
-        const daysToAdd = 13 + validHolidays;
-        const end = new Date(start);
-        end.setDate(end.getDate() + daysToAdd);
-        setForm(prev => ({ ...prev, endDate: end.toISOString().split('T')[0] }));
+        const calendar = workshopSessionCalendar(form.startDate, form.holidayDates);
+        setForm(prev => ({ ...prev, endDate: calendar[calendar.length - 1].classDate }));
       }
     }
   }, [form.startDate, form.holidayDates]);
@@ -153,11 +152,8 @@ export default function WorkshopManagementPage() {
     if (editCohortForm.startDate) {
       const start = new Date(editCohortForm.startDate);
       if (!isNaN(start.getTime())) {
-        const validHolidays = (editCohortForm.holidayDates || []).filter(d => d).length;
-        const daysToAdd = 13 + validHolidays;
-        const end = new Date(start);
-        end.setDate(end.getDate() + daysToAdd);
-        setEditCohortForm(prev => ({ ...prev, endDate: end.toISOString().split('T')[0] }));
+        const calendar = workshopSessionCalendar(editCohortForm.startDate, editCohortForm.holidayDates);
+        setEditCohortForm(prev => ({ ...prev, endDate: calendar[calendar.length - 1].classDate }));
       }
     }
   }, [editCohortForm.startDate, editCohortForm.holidayDates]);
@@ -460,35 +456,49 @@ export default function WorkshopManagementPage() {
 
   const downloadAnalyticsCSV = () => {
     if (!selected) return;
-    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
-      .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
-      .sort();
-    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
-    const rows = students.map(s => {
-      const row = [
-        `"${s.name}"`, 
-        `"${s.whatsappNumber || s.phone || ''}"`, 
-        `"${s.email || ''}"`,
-        `""`,
-        `""`
-      ];
-      uniqueDates.forEach(date => {
-        const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
-        if (record && record.joined) {
-          row.push(`${Math.round(record.durationSeconds / 60)} min`);
-        } else {
-          row.push('Absent');
-        }
-      });
-      return row.join(',');
-    });
-    const csv = [headers.join(','), ...rows].join('\n');
+    const csv = reportCsv(attendanceReportTable(getAttendanceReport()));
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `Workshop_Report_${selected?.name || 'Cohort'}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getAttendanceReport = () => {
+    if (!selected) throw new Error('Select a workshop before generating a report');
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: selected?.timezone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const query = analyticsSearch.trim().toLowerCase();
+    const filtered = students.filter(student => !query || [student.name, student.email, student.phone, student.whatsappNumber].some(value => value?.toLowerCase().includes(query)));
+    return buildWorkshopAttendanceReport(selected.startDate, [...cohortHolidaySet], filtered, attendance, today);
+  };
+
+  const downloadAttendanceExcel = async () => {
+    if (!selected) return;
+    try {
+      const XLSX = await import('xlsx');
+      const report = getAttendanceReport();
+      const workbook = XLSX.utils.book_new();
+      const sheet = XLSX.utils.aoa_to_sheet(attendanceReportTable(report));
+      sheet['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 22 }, { wch: 32 }, ...Array.from({ length: 20 }, () => ({ wch: 18 }))];
+      XLSX.utils.book_append_sheet(workbook, sheet, 'Attendance');
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+        ['Workshop attendance report', selected.name],
+        ['Generated at', new Date().toISOString()],
+        ['Timezone', selected.timezone || 'Asia/Kolkata'],
+        ['Scheduled sessions', report.sessions.length],
+        ['Students included', report.rows.length],
+        ['Search filter', analyticsSearch || 'All students'],
+        ['Pending', 'No saved attendance record; not counted as absent.'],
+        ['Upcoming', 'Session date has not arrived.'],
+        ['Attendance percentage', 'Present sessions divided by confirmed present/absent sessions. Grades are provisional.'],
+        ['Grade thresholds', 'A >= 90%, B >= 70%, C >= 50%, D >= 30%, E < 30%.'],
+      ]), 'Report Notes');
+      XLSX.writeFile(workbook, `Workshop_Attendance_${selected.name.replace(/[^\p{L}\p{N}_-]/gu, '_')}.xlsx`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not download attendance report');
+    }
   };
 
   const handleEditCohort = (c: Cohort, e: React.MouseEvent) => {
@@ -555,36 +565,7 @@ export default function WorkshopManagementPage() {
     }
   };
   const exportReportCsv = () => {
-    if (!selected) return;
-    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
-      .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
-      .sort();
-    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
-    const rows = students.map(s => {
-      const row = [
-        `"${s.name}"`, 
-        `"${s.whatsappNumber || s.phone || ''}"`, 
-        `"${s.email || ''}"`,
-        `""`,
-        `""`
-      ];
-      uniqueDates.forEach(date => {
-        const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
-        if (record && record.joined) {
-          row.push(`${Math.round(record.durationSeconds / 60)} min`);
-        } else {
-          row.push('Absent');
-        }
-      });
-      return row.join(',');
-    });
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Workshop_Report_${selected?.name || 'Cohort'}.csv`;
-    a.click();
+    downloadAnalyticsCSV();
   };
 
   const saveGoogleFormLink = async () => {
@@ -759,15 +740,9 @@ export default function WorkshopManagementPage() {
         .filter(([date]) => Boolean(date)) as Array<[string, Attendance]>,
     );
     const rows: AttendanceChartRow[] = [];
-    let cursor = new Date(`${startDateKey}T00:00:00Z`);
-    let dayNumber = 0;
-    while (rows.length < 14) {
-      const date = cursor.toISOString().slice(0, 10);
-      const holiday = cohortHolidaySet.has(date) || cursor.getDay() === 0;
-      if (!holiday) dayNumber++;
+    for (const { classDate: date, holiday, dayNumber } of workshopSessionCalendar(startDateKey, [...cohortHolidaySet])) {
       const saved = existing.get(date);
       rows.push({ classDate: date, dayNumber: holiday ? dayNumber : dayNumber, holiday, durationMinutes: saved ? String(Math.round((saved.durationSeconds || 0) / 60)) : '0', status: holiday ? 'holiday' : saved?.joined ? 'joined' : 'absent' });
-      cursor.setDate(cursor.getDate() + 1);
     }
     setDetailStudent(currentStudent);
     setAttendanceChart(rows);
@@ -1451,7 +1426,7 @@ export default function WorkshopManagementPage() {
                               </span>
                             </div>
                             <p className="text-xs text-slate-600 mt-1">
-                              Recordings will automatically go to <strong className="text-slate-800">YouTube</strong> (1 Speaker View + 1 Gallery View) and <strong className="text-slate-800">Bunny</strong> (Speaker View only). Both URLs are added to the deliveries below.
+                              Recordings will automatically go to <strong className="text-slate-800">YouTube</strong> (Speaker + Gallery) and <strong className="text-slate-800">Bunny</strong> (Speaker video + MP3 audio). Links appear below after the external upload worker saves them.
                             </p>
                           </div>
                         </div>
@@ -1711,6 +1686,11 @@ export default function WorkshopManagementPage() {
                                           <Plus size={12}/> Bunny
                                         </button>
                                       )}
+                                      {recording.metadata?.bunnyAudioUrl && (
+                                        <a href={recording.metadata.bunnyAudioUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-700 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200">
+                                          <Download size={13}/> MP3 Audio
+                                        </a>
+                                      )}
                                     </div>
                                   </div>
 
@@ -1871,27 +1851,14 @@ export default function WorkshopManagementPage() {
                 
                 {/* === ANALYTICS TAB === */}
                 {activeTab === 'analytics' && (() => {
-                  const mappedDates = Object.keys(selected?.metadata?.dateDayMap || {});
-                  const uniqueDates = Array.from(new Set([
-                    ...attendance.map(a => a.classDate),
-                    ...recordings.map(r => r.classDate),
-                    ...mappedDates,
-                  ]))
-                    .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
-                    .sort();
-                  const visibleStudents = analyticsSearch.trim()
-                    ? students.filter(s => s.name.toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.email || '').toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.phone || '').includes(analyticsSearch) || (s.whatsappNumber || '').includes(analyticsSearch))
-                    : students;
-                  const attendanceByStudent = students.map(student => {
-                    const rows = uniqueDates.map(date => attendance.find(a => String(a.studentId) === String(student._id) && a.classDate === date)).filter(Boolean) as Attendance[];
-                    const attended = rows.filter(row => row.joined).length;
-                    const percent = uniqueDates.length ? Math.round((attended / uniqueDates.length) * 100) : 0;
-                    const grade = percent >= 90 ? 'A' : percent >= 70 ? 'B' : percent >= 50 ? 'C' : percent >= 30 ? 'D' : 'E';
-                    return { student, attended, percent, grade };
-                  });
+                  const report = getAttendanceReport();
+                  const uniqueDates = report.sessions.map(session => session.classDate);
+                  const visibleStudents = students.filter(student => report.rows.some(row => row.student._id === student._id));
+                  const attendanceByStudent = report.rows;
                   const gradeDistribution = attendanceByStudent.reduce<Record<string, number>>((acc, row) => { acc[row.grade] = (acc[row.grade] || 0) + 1; return acc; }, {});
-                  const averageAttendance = attendanceByStudent.length ? Math.round(attendanceByStudent.reduce((sum, row) => sum + row.percent, 0) / attendanceByStudent.length) : 0;
-                  const totalPresent = attendance.filter(row => uniqueDates.includes(row.classDate) && row.joined).length;
+                  const confirmedStudents = report.rows.filter(row => row.percent !== null);
+                  const averageAttendance = confirmedStudents.length ? `${Math.round(confirmedStudents.reduce((sum, row) => sum + (row.percent ?? 0), 0) / confirmedStudents.length)}%` : 'Pending';
+                  const totalPresent = report.rows.reduce((sum, row) => sum + row.attended, 0);
 
                   return (
                     <div className="max-w-6xl mx-auto space-y-6">
@@ -1901,12 +1868,24 @@ export default function WorkshopManagementPage() {
                           body * { visibility: hidden; }
                           #analytics-print-area, #analytics-print-area * { visibility: visible; }
                           #analytics-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                          #analytics-print-area table { font-size: 8px; table-layout: fixed; }
+                          #analytics-print-area th, #analytics-print-area td { padding: 4px !important; white-space: normal !important; overflow-wrap: anywhere; }
+                          #analytics-print-area tr { break-inside: avoid; }
+                          #analytics-print-area thead { display: table-header-group; }
+                          #analytics-print-area .report-student { position: static !important; }
                           .no-print { display: none !important; }
                         }
                       `}</style>
                       <div id="analytics-print-area" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-200">
+                          <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Swar Yoga · Workshop Attendance Report</p>
+                          <h2 className="mt-2 text-2xl font-bold text-slate-900">{selected.name}</h2>
+                          <p className="mt-1 text-sm text-slate-500">{selected.startDate} – {report.sessions.at(-1)?.classDate} · {report.sessions.length} sessions · {selected.timezone || 'Asia/Kolkata'}</p>
+                          <p className="mt-2 text-xs text-slate-500">Generated {new Date().toLocaleString()} · {analyticsSearch ? `Filtered students: ${analyticsSearch}` : 'All students'}</p>
+                          <p className="mt-3 text-xs text-amber-800">Pending = no saved attendance record. Upcoming = future session. Neither is counted as absent. Percentages and grades are provisional, based only on confirmed records.</p>
+                        </div>
                         <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 gap-4 no-print">
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><BarChart2 size={20}/></div>
                             <div>
                               <h3 className="font-bold text-slate-800 text-lg">Daily Attendance Analytics</h3>
@@ -1964,7 +1943,10 @@ export default function WorkshopManagementPage() {
                             )}
                             <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
                               <Printer size={16} />
-                              Print Report
+                              Print / Save PDF
+                            </button>
+                            <button onClick={() => void downloadAttendanceExcel()} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white text-sm font-bold rounded-xl hover:bg-emerald-800">
+                              <FileSpreadsheet size={16} /> Download Excel
                             </button>
                             <button onClick={downloadAnalyticsCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-slate-900 transition-colors">
                               <Download size={16} />
@@ -1974,11 +1956,11 @@ export default function WorkshopManagementPage() {
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6 bg-white border-b border-slate-100">
                           {[
-                            ['Students', students.length, 'text-indigo-700 bg-indigo-50'],
-                            ['Class dates', uniqueDates.length, 'text-blue-700 bg-blue-50'],
+                            ['Students', visibleStudents.length, 'text-indigo-700 bg-indigo-50'],
+                            ['Scheduled sessions', uniqueDates.length, 'text-blue-700 bg-blue-50'],
                             ['Present records', totalPresent, 'text-emerald-700 bg-emerald-50'],
-                            ['Average attendance', `${averageAttendance}%`, 'text-violet-700 bg-violet-50'],
-                            ['Grade A', gradeDistribution.A || 0, 'text-amber-700 bg-amber-50'],
+                            ['Confirmed attendance', averageAttendance, 'text-violet-700 bg-violet-50'],
+                            ['Pending records', report.rows.reduce((sum, row) => sum + row.pending, 0), 'text-amber-700 bg-amber-50'],
                           ].map(([label, value, classes]) => (
                             <div key={String(label)} className={`rounded-xl px-4 py-3 ${classes}`}>
                               <div className="text-2xl font-black">{value}</div>
@@ -1987,24 +1969,25 @@ export default function WorkshopManagementPage() {
                           ))}
                         </div>
                         <div className="px-6 pb-5 flex flex-wrap items-center gap-2 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-500 uppercase mr-2">Grades</span>
+                          <span className="text-xs font-bold text-slate-500 uppercase mr-2">Provisional grades</span>
                           {(['A', 'B', 'C', 'D', 'E'] as const).map((grade) => (
                             <span key={grade} className={`px-3 py-1 rounded-full text-xs font-black ${grade === 'A' ? 'bg-emerald-100 text-emerald-700' : grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'C' ? 'bg-amber-100 text-amber-700' : grade === 'D' ? 'bg-orange-100 text-orange-700' : 'bg-rose-100 text-rose-700'}`}>
                               {grade}: {gradeDistribution[grade] || 0}
                             </span>
                           ))}
+                          <span className="text-xs text-slate-500">Not graded: {gradeDistribution.Pending || 0}</span>
                         </div>
                         <div className="overflow-x-auto print:overflow-visible">
                           <table className="w-full text-left text-sm text-slate-600">
                             <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                               <tr>
                                 <th className="px-4 py-4 w-12 text-center">#</th>
-                                <th className="px-6 py-4">Student</th>
+                                <th className="report-student sticky left-0 z-10 bg-slate-50 px-6 py-4 min-w-[210px]">Student / Summary</th>
                                 <th className="px-6 py-4">Phone / WA</th>
                                 <th className="px-6 py-4">Email</th>
                                 {uniqueDates.map(date => {
                                   const recording = recordings.find(r => r.classDate === date);
-                                  const dayNum = recording?.dayNumber || selected?.metadata?.dateDayMap?.[date] || null;
+                                  const dayNum = selected?.metadata?.dateDayMap?.[date] || report.sessions.find(session => session.classDate === date)?.dayNumber || recording?.dayNumber || null;
                                   const dateObj = new Date(`${date}T00:00:00`);
                                   const monthShort = dateObj.toLocaleDateString(undefined, { month: 'short' });
                                   const dayOfMonth = dateObj.toLocaleDateString(undefined, { day: 'numeric' });
@@ -2039,8 +2022,9 @@ export default function WorkshopManagementPage() {
                               {visibleStudents.map((s, idx) => (
                                 <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-4 text-slate-400 font-semibold text-xs">{idx + 1}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
+                                  <td className="report-student sticky left-0 bg-white px-6 py-4 whitespace-nowrap">
                                     <p className="font-bold text-slate-800">{s.name}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">{report.rows[idx].attended}/{report.rows[idx].confirmed} confirmed · {report.rows[idx].totalMinutes} min · {report.rows[idx].percent === null ? 'Not graded' : `${report.rows[idx].percent}% (${report.rows[idx].grade})`}</p>
                                   </td>
                                   <td className="px-4 py-4 whitespace-nowrap">
                                     <p className="text-xs text-slate-600 font-medium">{s.whatsappNumber || s.phone || <span className="text-slate-300">—</span>}</p>
@@ -2053,12 +2037,12 @@ export default function WorkshopManagementPage() {
                                     const recording = recordings.find(r => r.classDate === date);
                                     const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || recording?.metadata?.zoomSpeakerUrl || recording?.metadata?.zoomShareUrl);
 
-                                    if (record && record.joined) {
+                                    if (record && report.rows[idx].cells.find(cell => cell.classDate === date)?.status === 'Present') {
                                       const mins = Math.round(record.durationSeconds / 60);
                                       return (
                                         <td key={date} className="px-4 py-4">
                                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-100">
-                                            {mins} min
+                                            <span className="whitespace-nowrap">{mins} min</span>
                                           </span>
                                         </td>
                                       );
@@ -2066,10 +2050,10 @@ export default function WorkshopManagementPage() {
                                     return (
                                       <td key={date} className="px-4 py-4">
                                         <div className="flex flex-col gap-1">
-                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 font-semibold text-xs border border-rose-100">
-                                            Absent
+                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-xs border ${report.rows[idx].cells.find(cell => cell.classDate === date)?.status === 'Absent' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                            {report.rows[idx].cells.find(cell => cell.classDate === date)?.status}
                                           </span>
-                                          {hasRecording && (
+                                          {hasRecording && record && !record.joined && (
                                             <button
                                               title="Send recording to this student"
                                               onClick={() => {
@@ -2082,7 +2066,7 @@ export default function WorkshopManagementPage() {
                                                   alert('No mobile number found for this student. Please edit and add their number first.');
                                                 }
                                               }}
-                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 font-semibold text-xs border border-sky-100 hover:bg-sky-100 transition-colors"
+                                              className="no-print inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 font-semibold text-xs border border-sky-100 hover:bg-sky-100 transition-colors"
                                             >
                                               <Send size={10} /> Send
                                             </button>
@@ -2933,7 +2917,7 @@ export default function WorkshopManagementPage() {
                   onBlur={handleUrlsInputBlur}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500" 
                 />
-                <p className="text-[11px] text-slate-500 mt-1">Note: Bunny CDN is configured only for Speaker View.</p>
+                <p className="text-[11px] text-slate-500 mt-1">Bunny stores Speaker video and MP3 audio; historical Gallery links are preserved.</p>
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">

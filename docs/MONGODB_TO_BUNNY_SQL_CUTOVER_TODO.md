@@ -5,6 +5,147 @@
 
 ## Registration repair clarification
 
+### Permanent contact ingestion and recipient mapping — October 11, 2026
+
+Google response persistence, CRM submission persistence, Meta lead ingestion and
+lead saves immediately resolve normalized email/WhatsApp identities in Bunny SQL.
+`lead_contact_identities_sql` uniquely claims identities within an ownership scope;
+shared Super Admin sources share a scope and tenant sources remain isolated.
+Permanent IDs and sequence-backed lead numbers survive retries and later phone
+enrichment. The user chose automatic email/phone conflict merging: old rows remain
+as aliases and historical IDs resolve to the survivor. No raw response is deleted.
+
+Submissions retain their own response identity and `lead_id`. Broadcast and AI
+Triggers load saved batch-specific decisions from the server, map contacts before
+queue creation and deduplicate full international phones. Invalid/blocked numbers,
+unapproved templates and stale categories cannot produce an empty successful run.
+Legacy duplicates are reconciled as those contacts are imported/saved again; this
+does not claim that every historical contact has already been reconciled.
+Live deployment, the Google OAuth reconnect and the user's saved approval-stage
+configuration remain separate prerequisites for unattended end-to-end operation.
+
+### Future Meta approval-only trigger — October 11, 2026
+
+The user chose to keep all four AI-9 approval stages and configure their rules,
+not substitute the single recoverable question. Automatic WhatsApp now requires
+saved active AI-9A–D rules, proof that each stage passed, a valid saved batch/form,
+an approved owned template, AI-9E enabled and an explicit future-only activation.
+AI-9W stays inactive until configuration is complete. Pending/rejected/blocked
+leads and manually marked Approved leads do not bypass screening.
+
+Workshop saves update one batch with compare-and-swap protection rather than
+replace a stale full list. The server stamps the first activation time; subsequent
+saves preserve it. Reload resolves the canonical batch, not malformed or obsolete
+selected-workshop snapshots. Meta Instant Forms, leadgen, inbox leadgen and manual
+sync share Bunny event/contact persistence; replays preserve status, creation time,
+ownership and delivery evidence. Failed webhook persistence returns an error for
+Meta to retry. The separate legacy leadgen broadcast-list enrollment was removed
+so it cannot bypass the approval-only path.
+
+Old pre-activation leads are excluded. Existing provider-accepted bulk recipients
+for the same owner/template are preserved and never resent by this activation.
+Deterministic queue identity survives repeated/concurrent workers and template
+ID/name history is checked consistently. Manual AI processing uses saved server
+rules, not browser-submitted status results.
+
+**Remaining acceptance:** select/connect the real batch, configure/start AI-9A–D,
+then save AI-9W. Deploy these local changes and verify production `CRON_SECRET`;
+registration processing is scheduled every five minutes and broadcast sends
+every minute without requiring an open browser. The connection panel warns when
+the cron secret is absent. A consented new test contact must pass the saved rules
+and yield one provider message ID before advertising spend is increased.
+No old lead deletion, live send or production configuration mutation was performed.
+
+### Google response counts and OAuth connection — October 11, 2026
+
+Google response-ID inserts/answer updates/count refreshes now commit atomically.
+Ten replayed syncs and concurrent retries are covered by local SQL tests.
+The registration language pages and Workshop Offer replace a form's saved
+snapshot rather than only appending unseen IDs. Genuine separate responses from
+the same contact remain separate; mirrored CRM contact rows are not extra responses.
+
+Google Forms has one OAuth configuration across authorization, callback,
+listing, sync and authenticated private-sheet access:
+
+- Set both `GOOGLE_FORMS_CLIENT_ID` and `GOOGLE_FORMS_CLIENT_SECRET` to the same
+  Google Cloud OAuth client. If neither is set, a complete existing
+  `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` pair remains a compatibility option.
+  A partial dedicated pair is rejected, not mixed with YouTube credentials.
+- Register `https://swaryoga.com/api/admin/google-form-oauth/callback`,
+  `https://crm.swaryoga.com/api/admin/google-form-oauth/callback` and, for local
+  testing, `http://localhost:3000/api/admin/google-form-oauth/callback` on that
+  client. The browser's current origin chooses its callback.
+- `GOOGLE_FORMS_REDIRECT_URI` is optional and must be a same-origin Forms
+  callback. The YouTube `GOOGLE_OAUTH_REDIRECT_URI` is not used.
+- Reconnect Google once after changing the client and approve offline Forms,
+  Drive and spreadsheet read access. Credentials save encrypted to canonical
+  Bunny SQL accounts, scoped to the authenticated owner; saved leads and form
+  selections are unchanged. No success is reported if credential persistence fails.
+
+**Remaining live acceptance:** token refresh currently returns
+`unauthorized_client` for the preserved connection. Some legacy imports use
+different identities from newer official responses, and several saved form IDs
+have no current form definition. Reconnect and compare the complete Google
+response-ID set before deciding which uncertain older imports represent copies.
+No older rows were physically deleted and exact live Google/Bunny parity is not
+certified yet.
+
+### Meta trigger evidence and report lifecycle — October 11, 2026
+
+Current Meta status buckets reconcile all 56 audited leads. Cumulative stage
+views overlap. Trigger cards/report counts require recipient rows with actual
+WhatsApp provider IDs; historical `wtStatus` flags alone are unverified evidence.
+Do not resend the 40 historical flagged contacts merely because verified count
+is zero.
+
+Retry excludes accepted/sent and wrong-number recipients. Reschedule/cancel only
+affect unsent recipients, and in-flight sends block report actions. Frontend
+Delete archives a run with `reportFolder: deleted`, cancelling its pending
+recipients without erasing run/message history. Archived verified evidence
+continues to contribute to lifetime totals. Provider acceptance survives a
+later inbox persistence failure so retry cannot duplicate that message.
+
+Saved questions no longer disappear from AI-9 selectors and saves cannot
+silently succeed for an absent batch. The screenshot's Meta batch remains
+absent from persisted workshop state; restore its real configuration before
+certifying new-lead automatic WhatsApp delivery.
+
+### Workshop Offer repair — October 11, 2026
+
+Offer-specific settings, payments, native studio drafts/final PDFs and Canva
+connections use Bunny SQL/Storage. Offer reads use permanently saved Google/CRM
+responses; the existing Google cron also discovers saved offer batch links.
+Legacy server payment entries are retained as drafts requiring admin verification.
+No live MongoDB connection is introduced by these offer endpoints.
+
+The CRM studio replaces the unsupported full Canva-editor iframe. It provides
+editable multilingual text, brand colors, fonts, sizes, PNG export and persisted
+PDFs. Canva OAuth is optional and requires matching redirect origin, configured
+credentials, encryption key and user consent. Existing cookie-only connections
+need reconnecting once. Canva exports are imported into Bunny before completion.
+AI image/video jobs require configured Replicate credits; AI copy uses the
+existing provider fallback. Videos currently export as saved background clips,
+not composited text-overlay final advertisements.
+
+The legacy Meta AI route now recognizes "create one image", requires CRM admin
+authentication and reports generation/persistence failures explicitly. Its chat
+payload is bounded and contains no base64 attachments. It does not support
+reference-photo editing: attached references are rejected before paid provider
+calls rather than silently ignored. Current generation uses Replicate FLUX,
+not ChatGPT image editing; funded text-model access alone does not establish
+reference-image generation support.
+
+Admin must confirm amount/date/mode, review certificate participation eligibility,
+finalize the document, then approve a native document-template Meta delivery.
+Duplicate clicks reuse a deterministic Bunny broadcast run; reports show actual
+worker outcomes. `CRON_SECRET`, an approved document template, tenant Meta
+credentials and a canonical CRM contact are prerequisites. Meta delivery is not
+WhatsApp-group delivery; the existing group scheduler remains separate.
+
+Remaining acceptance: migration of offer browser-only funnel workers, durable
+spreadsheet imports, unattended approved document rendering, video compositing,
+live OAuth/generation/delivery tests, financial reconciliation and deployment.
+
 The current registration repair targets **Bunny Database only**. Its state,
 Google/CRM saved-data reads, Meta trigger queue/report/retry routes, Zoom booking
 storage, and public form submission/contact/ID/question routes do not connect to
@@ -18,6 +159,17 @@ its legacy schedule editor still require separate Bunny cutover/seat-inventory
 reconciliation before scheduled public workshop intake can be certified.
 
 ### Registration automation audit — October 11, 2026
+
+Leads Management now groups answer rules under one question: answers to the
+same question are alternatives; different required questions must all qualify.
+A configured Pending answer takes priority over approval on another question.
+Blank/unlisted answers retain the current category unless a review destination
+is selected. Duplicate answer mappings with conflicting destinations are
+rejected on save. Settings retain the existing per-batch/per-worker Bunny keys.
+Submit closes after the confirmed save, while the server batch run reports
+progress separately; no success is shown before persistence. All Batch Leads is
+the complete preserved audience; category copies/history can overlap, and the
+current-status summary distinguishes unprocessed, pending and approval counts.
 
 The intended chain is Meta lead -> configured screening -> Meta template ->
 Google form -> saved registration data -> configured funnel -> Meta follow-up ->

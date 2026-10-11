@@ -1,10 +1,10 @@
 import { registrationFetch as fetch } from '@/lib/registrationClient';
-import { registrationTargetMatches } from '@/lib/registrationRules';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X, Users, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
+import { registrationAudienceMatches, registrationRecipients, type RegistrationAudienceRow } from '@/lib/registrationAudience';
 
 export function AITriggersPanel({ 
   workshops, 
@@ -26,6 +26,10 @@ export function AITriggersPanel({
   const [channel, setChannel] = useState<'meta' | 'qr' | 'group'>('meta');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedAudience, setSavedAudience] = useState<RegistrationAudienceRow[]>([]);
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [audienceError, setAudienceError] = useState('');
+  const decisionVersion = JSON.stringify(batchDecisions);
   
   const [template, setTemplate] = useState(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_template') || '';
@@ -78,16 +82,25 @@ export function AITriggersPanel({
     if (!token) return;
     const controller = new AbortController();
     setTriggers([]);
-    fetch('/api/admin/crm/new-registration/state', { signal: controller.signal })
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to load triggers');
+    setSavedAudience([]);
+    setAudienceLoading(true);
+    setAudienceError('');
+    Promise.all([
+      fetch('/api/admin/crm/new-registration/state', { signal: controller.signal }),
+      fetch('/api/admin/crm/new-registration/audience', { signal: controller.signal }),
+    ]).then(async ([response, audienceResponse]) => {
+        const [data, audience] = await Promise.all([response.json(), audienceResponse.json()]);
+        if (!response.ok || !audienceResponse.ok) throw new Error(data.error || audience.error || 'Failed to load saved recipients');
         const saved = data.crm_ai_triggers;
-        if (!controller.signal.aborted) setTriggers(saved ? (typeof saved === 'string' ? JSON.parse(saved) : saved) : []);
+        if (!controller.signal.aborted) {
+          setTriggers(saved ? (typeof saved === 'string' ? JSON.parse(saved) : saved) : []);
+          setSavedAudience((audience.data || []).filter((row: RegistrationAudienceRow) => row.registrationBatchId === selectedBatchId));
+        }
       })
-      .catch(error => { if (!controller.signal.aborted) toast.error(error.message); });
+      .catch(error => { if (!controller.signal.aborted) { setAudienceError(error.message); toast.error(error.message); } })
+      .finally(() => { if (!controller.signal.aborted) setAudienceLoading(false); });
     return () => controller.abort();
-  }, [token, selectedBatchId]);
+  }, [token, selectedBatchId, decisionVersion]);
 
   // Trigger List
   const [triggers, setTriggers] = useState<any[]>([]);
@@ -154,14 +167,15 @@ export function AITriggersPanel({
     try {
         setSaving(true);
 
-        const matchingLeads = leadsData.filter(lead => registrationTargetMatches(lead, batchDecisions, targetCategory));
+        if (audienceLoading || audienceError) throw new Error(audienceError || 'Saved recipients are still loading.');
+        const matchingLeads = savedAudience.filter(lead => registrationAudienceMatches(lead, targetCategory));
         const leadIds = matchingLeads.map(lead => lead.leadId || lead._id).filter(Boolean);
-        if (!leadIds.length) throw new Error('No matching saved CRM leads. Sync the form first.');
+        if (!matchingLeads.length) throw new Error('No responses match this batch/category.');
         const response = await fetch('/api/admin/crm/new-registration/triggers', {
           method: editingId ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: editingId, channel: 'meta', template, leadIds, responseIds: matchingLeads.map(lead => String(lead.id)), targetCategory, dates: selectedDates, time: scheduleTime,
+            id: editingId, channel: 'meta', template, leadIds, responseIds: matchingLeads.map(lead => String(lead.responseId)), targetCategory, dates: selectedDates, time: scheduleTime,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             repeat: repeatMode, audience: finalAudience, batchId: selectedBatchId,
           }),
@@ -206,8 +220,8 @@ export function AITriggersPanel({
   };
 
   const filteredPreviewLeads = React.useMemo(
-    () => leadsData.filter(lead => registrationTargetMatches(lead, batchDecisions, targetCategory)),
-    [leadsData, targetCategory, batchDecisions],
+    () => registrationRecipients(savedAudience.filter(lead => registrationAudienceMatches(lead, targetCategory))),
+    [savedAudience, targetCategory],
   );
 
 
@@ -215,7 +229,7 @@ export function AITriggersPanel({
     if (!workshops) return [];
     return workshops.filter(w => 
       (!w.language || w.language.toLowerCase() === selectedLanguage.toLowerCase()) &&
-      w.id?.startsWith('batch_')
+      w.id
     );
   }, [workshops, selectedLanguage]);
 
@@ -244,6 +258,8 @@ export function AITriggersPanel({
 
           <div className="space-y-5">
             <MetaConnectionStatus />
+            {audienceError && <p role="alert" className="text-sm text-red-700">{audienceError}</p>}
+            <p className="text-xs text-slate-500">{audienceLoading ? 'Loading saved batch recipients...' : `${filteredPreviewLeads.length} valid unique WhatsApp recipients. Saved form responses are linked to CRM contacts when you schedule; invalid or blocked numbers are excluded.`}</p>
             {editingId && <button type="button" onClick={() => setEditingId(null)} className="text-xs text-indigo-700 underline">Cancel edit (existing schedule is unchanged)</button>}
             {/* Channel Selection */}
             <div>
@@ -427,7 +443,7 @@ export function AITriggersPanel({
             
             <button 
               onClick={handleSaveTrigger}
-              disabled={saving || loadingTemplates}
+              disabled={saving || loadingTemplates || audienceLoading || Boolean(audienceError) || !filteredPreviewLeads.length}
               className="w-full mt-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={16} /> {saving ? 'Saving schedule...' : editingId ? 'Save Schedule Changes' : 'Schedule Broadcast'}

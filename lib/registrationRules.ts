@@ -46,15 +46,17 @@ export function evaluateMetaLead(lead: RegistrationRecord, config: RegistrationR
 
 export function registrationTargetMatches(lead: RegistrationRecord, decisions: RegistrationRecord, category: string) {
   const decision = decisions[lead.id] || decisions[lead.leadId] || decisions[lead._id] || {};
-  const status = decision.status || 'new_leads';
+  const status = decision.status || lead.status || 'new_leads';
+  const isRejected = decision.isRejected || ['rejected', 'rejected_leads'].includes(status);
+  const isRegistered = decision.isRegistered || ['registered', 'registered_leads'].includes(status);
   if (lead.isBlocked) return false;
-  if (category === 'All Leads') return !decision.isRejected && !lead.isBlocked;
-  if (category === 'Rejected leads') return Boolean(decision.isRejected);
-  if (decision.isRejected) return false;
-  if (category === 'Registerd leads' || category === 'Registered leads') return Boolean(decision.isRegistered);
-  if (decision.isRegistered) return false;
-  if (category === 'New Leads') return status === 'new_leads';
-  if (category.startsWith('Pending Leads-')) return status === `pending_leads_${category.split('-').pop()}`;
+  if (category === 'All Leads') return !isRejected;
+  if (category === 'Rejected leads') return Boolean(isRejected);
+  if (isRejected) return false;
+  if (category === 'Registerd leads' || category === 'Registered leads') return Boolean(isRegistered);
+  if (isRegistered) return false;
+  if (category === 'New Leads') return ['new_leads', 'new', 'lead'].includes(status);
+  if (/^Pending(?: Leads)?-\d+$/i.test(category)) return status === `pending_leads_${category.split('-').pop()}`;
   if (category === 'Pending Leads') return status.startsWith('pending');
   const approval = category.match(/^(?:Aprovel|Approvel|Approval)[ -](\d+)$/i);
   if (approval) return status === `approval_${approval[1]}`;

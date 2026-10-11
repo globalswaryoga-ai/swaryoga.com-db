@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { offerFetch as fetch, offerStorage as localStorage } from '@/lib/workshopOfferClient';
 import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';

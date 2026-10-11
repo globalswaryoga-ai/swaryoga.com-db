@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         success: false, data: { healthy: false, latencyMs: 0, error: 'Connect your own Meta WhatsApp account.' },
       });
       const data = await probeMetaHealth(credentials);
-      return NextResponse.json({ success: data.healthy, data }, { headers: { 'Cache-Control': 'private, no-store' } });
+      return NextResponse.json({ success: data.healthy, data: { ...data, registrationAutomationConfigured: Boolean(process.env.CRON_SECRET) } }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     // Run health checks in parallel

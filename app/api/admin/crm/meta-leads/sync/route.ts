@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveBunnyLead, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { persistMetaFormLead } from '@/lib/bunnyMetaLeadIngestion';
 import { registrationViewer } from '@/lib/registrationAuth';
 import { normalizePhone } from '@/lib/whatsapp';
 
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       
       if (!existing) {
         // Create new lead
-        const savedLead = await saveBunnyLead({
+        const savedLead = await persistMetaFormLead({
           phoneNumber: cleanPhone,
           name: name || 'Unknown',
           email: email || '',
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
         syncedCount++;
       } else {
         // Always update existing lead to bring in latest answers and make sure no duplicates are created
-        const savedLead = await saveBunnyLead({
+        const savedLead = await persistMetaFormLead({
           ...existing,
           workshopId: workshopId || existing.workshopId,
           workshopName: workshopName || existing.workshopName,
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
             metaLeadId: item.id
           },
           labels: Array.from(new Set([...(existing.labels || []), 'meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : '']))
-        }, existing._id || existing.id);
+        });
         localCache.set(cleanPhone, savedLead);
         if (email) emailCache.set(email.trim().toLowerCase(), savedLead);
         metaIds.set(item.id, savedLead);

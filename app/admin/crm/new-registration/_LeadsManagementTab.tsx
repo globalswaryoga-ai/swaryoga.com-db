@@ -5,10 +5,11 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 import { registrationBatchRows } from '@/lib/registrationLeads';
-import { registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
 import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
+import { QuestionRulesEditor } from './_QuestionRulesEditor';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -38,7 +39,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 };
 
 const DEFAULT_SIDEBAR_TABS = [
-  { id: 'new_leads', label: 'New Leads', icon: FileText, isSystem: true },
+  { id: 'new_leads', label: 'All Batch Leads', icon: FileText, isSystem: true },
 ];
 
 const INITIAL_CUSTOM_CATEGORIES = [
@@ -110,6 +111,8 @@ export function LeadsManagementTab({
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
+  const activeBatchRef = React.useRef(activeBatchId);
+  activeBatchRef.current = activeBatchId;
   const [activeTab, setActiveTab] = useState('new_leads');
   const pagination = useRegistrationPage(`${activeBatchId}:${activeTab}`);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -264,6 +267,8 @@ export function LeadsManagementTab({
   const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>({});
   const [configLoaded, setConfigLoaded] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [runningConfig, setRunningConfig] = useState(false);
+  const configSaveRef = React.useRef(false);
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
@@ -289,10 +294,13 @@ export function LeadsManagementTab({
 
   const saveAiConfig = async (type: string, conditions: FilterCondition[]) => {
     if (!configLoaded) throw new Error('Wait for saved AI settings to load before changing them');
+    validateRegistrationConditions(conditions);
+    if (configSaveRef.current) throw new Error('A configuration save is already in progress');
+    configSaveRef.current = true;
     setSavingConfig(true);
     try {
       await saveRegistrationState({
-        [registrationAiConfigKey(activeBatchId, type)]: { conditions, copyMode: modalCopyMode, autoEnabled: conditions.some(condition => condition.question?.trim() || condition.directMoveCategory), matchMode: 'all' },
+        [registrationAiConfigKey(activeBatchId, type)]: { conditions, copyMode: modalCopyMode, autoEnabled: conditions.some(condition => condition.question?.trim() || condition.directMoveCategory), matchMode: 'all_questions_any_answer' },
       });
       const newSettings = { ...aiSettings, [type]: conditions };
       setAiSettings(newSettings);
@@ -301,21 +309,29 @@ export function LeadsManagementTab({
       toast.success(`${type} configuration saved in Bunny Database until you change it.`);
     } finally {
       setSavingConfig(false);
+      configSaveRef.current = false;
     }
   };
 
 
   const saveAiFilter = async (type: string, conditions: FilterCondition[]) => {
+    if (runningConfig) throw new Error('A batch worker is already running');
+    const batchId = activeBatchId;
     await saveAiConfig(type, conditions);
+    setActiveModal(null);
+    setRunningConfig(true);
+    try {
     const response = await fetch('/api/admin/crm/new-registration/funnel', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batchId: activeBatchId, worker: type, ids: selectedLeads }),
+      body: JSON.stringify({ batchId, worker: type, ids: selectedLeads }),
     });
     const result = await response.json();
-    if (result.decisions) setBatchDecisions(result.decisions);
+    if (result.decisions && activeBatchRef.current === batchId) setBatchDecisions(result.decisions);
     if (!response.ok) throw new Error(result.errors?.join('; ') || result.error || 'AI processing failed');
-    toast.success(type + ': ' + result.passed + ' passed all conditions, ' + result.pending + ' need review.');
-    setActiveModal(null);
+    toast.success(type + ': ' + result.processed + ' decisions updated; ' + result.passed + ' approved, ' + result.pending + ' pending/review.');
+    } finally {
+      setRunningConfig(false);
+    }
   };
 
   React.useEffect(() => {
@@ -344,7 +360,7 @@ export function LeadsManagementTab({
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
-      if (document.hidden || gateSaveRef.current || refreshing) return;
+      if (document.hidden || gateSaveRef.current || configSaveRef.current || runningConfig || refreshing) return;
       refreshing = true;
       const gateVersion = gateVersionRef.current;
       try {
@@ -360,7 +376,7 @@ export function LeadsManagementTab({
     };
     const interval = setInterval(refresh, 30000);
     return () => { controller.abort(); clearInterval(interval); };
-  }, [configLoaded, activeBatchId]);
+  }, [configLoaded, activeBatchId, runningConfig]);
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
@@ -794,7 +810,14 @@ export function LeadsManagementTab({
                   <p className="text-sm text-slate-500">
                     Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">All form rules must pass. Zoom, final approval, and group admission remain separate gates.</p>
+                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Category copies/history can overlap; All Batch Leads is the total, not unprocessed leads. Zoom, final approval, and group admission remain separate gates.</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-700">
+                    Current status: Total {activeBatchLeads.length}
+                    {' · Unprocessed '}{activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.status || batchDecisions[lead.id]?.status === 'new_leads').length}
+                    {' · Pending '}{activeBatchLeads.filter(lead => String(batchDecisions[lead.id]?.status || '').startsWith('pending')).length}
+                    {' · Approval '}{activeBatchLeads.filter(lead => String(batchDecisions[lead.id]?.status || '').startsWith('approval')).length}
+                  </p>
+                  {runningConfig && <p role="status" className="mt-2 text-sm font-semibold text-indigo-600">Configuration saved. Processing this batch in Bunny Database...</p>}
                 </div>
                 {(() => {
                   const activeCat = SIDEBAR_TABS.find(t => t.id === activeTab);
@@ -1154,145 +1177,7 @@ export function LeadsManagementTab({
                 </button>
               </div>
 
-              {modalConditions.map((condition, idx) => (
-                <div key={idx} className="space-y-4 border border-slate-200 rounded-xl p-5 bg-white shadow-sm relative group">
-                  <button
-                    onClick={() => {
-                      const updated = [...modalConditions];
-                      updated.splice(idx, 1);
-                      setModalConditions(updated);
-                    }}
-                    className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
-                    title="Remove Filter"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                  {/* Row 1: Question Key */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Question Key (or column name)</label>
-                    <select
-                      value={condition.question || ''}
-                      onChange={(e) => {
-                        const updated = [...modalConditions];
-                        updated[idx].question = e.target.value;
-                        setModalConditions(updated);
-                      }}
-                      className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none bg-white"
-                    >
-                      <option value="">-- Search across all questions --</option>
-                      {availableQuestions.map(q => <option key={q} value={q}>{q}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Row 2: Success Match */}
-                  <div className="p-3 rounded-lg border flex items-center gap-3" style={{ backgroundColor: condition.successColor || '#e6ffed' }}>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">If Correct Answer Matches:</label>
-                      <input
-                        type="text"
-                        placeholder="Keyword(s)"
-                        value={condition.keyword || ''}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].keyword = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1 outline-none"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        {modalCopyMode ? 'Send Copy to Category:' : 'Move to Category:'}
-                      </label>
-                      <select
-                        value={condition.successCategory || ''}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].successCategory = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1 outline-none bg-white"
-                      >
-                        <option value="">-- Select --</option>
-                        {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Color</label>
-                      <input 
-                        type="color" 
-                        value={condition.successColor || '#e6ffed'}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].successColor = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="h-8 w-12 cursor-pointer rounded border"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Row 3: Failure Mismatch */}
-                  <div className="p-3 rounded-lg border flex items-center gap-3" style={{ backgroundColor: condition.failColor || '#fff3cd' }}>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        {modalCopyMode ? 'If Answer Mismatches, Send Copy to:' : 'If Answer Mismatches, Move to:'}
-                      </label>
-                      <select
-                        value={condition.failCategory || ''}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].failCategory = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1 outline-none bg-white"
-                      >
-                        <option value="">-- Select --</option>
-                        {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Color</label>
-                      <input 
-                        type="color" 
-                        value={condition.failColor || '#fff3cd'}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].failColor = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="h-8 w-12 cursor-pointer rounded border"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Row 4: Direct Move (Optional) */}
-                  <div className="p-3 rounded-lg border flex items-center gap-3 bg-blue-50 mt-4">
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-blue-900 mb-1">OR Direct Move (Ignore rules above, direct move all leads here):</label>
-                      <select
-                        value={condition.directMoveCategory || ''}
-                        onChange={(e) => {
-                          const updated = [...modalConditions];
-                          updated[idx].directMoveCategory = e.target.value;
-                          setModalConditions(updated);
-                        }}
-                        className="w-full text-sm border border-blue-200 rounded-md px-2 py-1 outline-none bg-white text-blue-900"
-                      >
-                        <option value="">-- Do Not Direct Move (Use rules above) --</option>
-                        {SIDEBAR_TABS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              <button
-                onClick={() => setModalConditions([...modalConditions, { question: '', keyword: '' }])}
-                className="w-full border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 font-bold py-3 rounded-xl transition-colors flex justify-center items-center gap-2"
-              >
-                + Add Another Filter
-              </button>
+              <QuestionRulesEditor conditions={modalConditions} onChange={setModalConditions} questions={availableQuestions} categories={SIDEBAR_TABS} />
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-white flex justify-between gap-2">
@@ -1301,7 +1186,7 @@ export function LeadsManagementTab({
               </button>
               <div className="flex gap-2">
                 <button
-                  disabled={!configLoaded || savingConfig}
+                  disabled={!configLoaded || savingConfig || runningConfig}
                   onClick={async () => {
                     try { await saveAiConfig(activeModal, modalConditions); }
                     catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
@@ -1310,11 +1195,11 @@ export function LeadsManagementTab({
                 >
                   💾 Save Config
                 </button>
-                <button disabled={!configLoaded || savingConfig} onClick={async () => {
+                <button disabled={!configLoaded || savingConfig || runningConfig} onClick={async () => {
                   try { await saveAiFilter(activeModal, modalConditions); }
                   catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
                 }} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
-                  ▶ Submit Config & Run
+                  {savingConfig ? 'Saving configuration...' : runningConfig ? 'Processing batch...' : '▶ Submit Config & Run'}
                 </button>
               </div>
             </div>

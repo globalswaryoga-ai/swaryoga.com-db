@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { persistMetaFormLead } from '@/lib/bunnyMetaLeadIngestion';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,33 +94,14 @@ async function createLeadFromMetaForm(leadData: any, metaContext: any) {
     labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : ''].filter(Boolean),
     metadata: {
       leadgen_id: leadData.id,
+      metaFormId: String(metaContext.form_id || ''),
       rawFieldData: fieldData,
     },
     createdByUserId: 'system',
   };
 
   try {
-    const { saveBunnyLead, getBunnyLeadByPhone } = await import('@/lib/bunnyLeadsRepository');
-    
-    let existing = await getBunnyLeadByPhone(lead.phoneNumber, 'system');
-    
-    let result;
-    if (existing) {
-      result = await saveBunnyLead({
-        ...existing,
-        ...lead, 
-        metadata: {
-            ...(existing.metadata || {}),
-            ...(lead.metadata || {})
-        },
-        labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || []), 'enquiry'])),
-        notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
-      }, existing._id || existing.id);
-      console.log(`✅ Lead updated: ${result._id}`);
-    } else {
-      result = await saveBunnyLead(lead);
-      console.log(`✅ Lead created: ${result._id}`);
-    }
+    const result = await persistMetaFormLead(lead);
 
     return {
       success: true,
@@ -166,7 +148,7 @@ export async function POST(req: NextRequest) {
               await createLeadFromMetaForm(leadData, change.value);
             } catch (err) {
               console.error('❌ Failed to fetch or process lead from Meta:', err);
-              // Note: We still return 200 to Meta so they don't retry forever and block the webhook
+              throw err;
             }
           }
         }

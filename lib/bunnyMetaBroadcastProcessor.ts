@@ -50,13 +50,23 @@ export async function processDueBunnyMetaBroadcasts(options?: {
         output.runResults.push(stat);
         continue;
       }
+      if (run.status === 'cancelled' || run.reportFolder === 'deleted') {
+        output.runResults.push(stat);
+        continue;
+      }
       if (run.scheduledAt && new Date(run.scheduledAt).getTime() > now.getTime()) {
         output.runResults.push(stat);
         continue;
       }
 
-      const template = await getTemplateById(String(run.templateId || ''));
-      if (!template) throw new Error('Template not found for run');
+      const currentTemplate = await getTemplateById(String(run.templateId || ''));
+      if (!currentTemplate) throw new Error('Template not found for run');
+      const isOfferDocument = runId.startsWith('offer-doc_');
+      if (isOfferDocument && (String(currentTemplate.status).toLowerCase() !== 'approved' || String(currentTemplate.headerFormat).toUpperCase() !== 'DOCUMENT')) throw new Error('Offer delivery template is no longer an approved document template');
+      const template = isOfferDocument
+        ? { ...currentTemplate, headerMedia: run.templateSnapshot?.headerMedia, headerContent: run.templateSnapshot?.headerContent }
+        : currentTemplate;
+      if (isOfferDocument && !template.headerMedia?.url) throw new Error('Offer delivery has no saved document URL');
       await broadcastRunUpdateOne(runId, { status: 'running', startedAt: run.startedAt || now });
 
       const pending = await broadcastRunMessageFind({ runId, status: 'pending' }, { limit: Math.min(Math.max(options?.perRunMessageLimit ?? 50, 1), 1000) });
@@ -73,6 +83,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       if (owner && !['admin', 'admincrm', 'system'].includes(owner) && !creds) {
         throw new Error('Connect this CRM account to its own Meta WhatsApp number before sending');
       }
+      if (creds?.phoneNumber) await broadcastRunUpdateOne(runId, { senderNumber: creds.phoneNumber });
       for (const item of pending) {
         const messageId = String(item._id);
         const claimed = await broadcastRunMessageUpdateOne(messageId, { status: 'sending' });
@@ -80,6 +91,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
         stat.attempted++;
         output.attempted++;
 
+        let acceptedMessageId = '';
         try {
           // Prevent duplicate template sending within 24 hours
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -101,6 +113,9 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           const sendInput = buildCloudTemplateSendInput(template, String(item.phoneNumber || ''));
           const apiResult = await sendWhatsAppTemplate(sendInput, creds);
           const waMessageId = String(apiResult.waMessageId || '');
+          if (!waMessageId) throw new Error('Meta did not return a WhatsApp message ID.');
+          acceptedMessageId = waMessageId;
+          await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId, sentAt: now });
           await upsertBunnyMetaMessage({
             documentId: `broadcast_${runId}_${messageId}`,
             leadId: item.leadId || undefined,
@@ -125,7 +140,6 @@ export async function processDueBunnyMetaBroadcasts(options?: {
               },
             },
           });
-          await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId, sentAt: now });
           if (runId.startsWith('registration_') && item.leadId) {
             await bunnyExecute({
               sql: `UPDATE leads_sql SET data_json = json_set(data_json,
@@ -139,6 +153,14 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           output.sent++;
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
+          if (acceptedMessageId) {
+            await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId: acceptedMessageId, sentAt: now, failureReason: `Sent; CRM history update failed: ${reason}`.slice(0, 500) });
+            stat.sent++;
+            output.sent++;
+            stat.status = 'error';
+            stat.error = reason;
+            continue;
+          }
           await broadcastRunMessageUpdateOne(messageId, { status: 'failed', failureReason: reason.slice(0, 500) });
           if (runId.startsWith('registration_') && item.leadId) {
             await bunnyExecute({

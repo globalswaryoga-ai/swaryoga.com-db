@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
+import { persistBunnyContact } from '@/lib/bunnyContactIdentity';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { bunnyBatch } from '@/lib/bunnyDatabase';
 import { ensureFormTables } from '@/lib/bunny-forms-db';
+import { parseRegistrationValue } from '@/lib/registrationValues';
 
 export type GoogleFormTarget = {
   formId: string;
@@ -65,9 +68,12 @@ export async function fetchGoogleFormResponses(
   fetcher: typeof fetch = fetch,
 ): Promise<Record<string, unknown>[]> {
   const responses: Record<string, unknown>[] = [];
+  const pageTokens = new Set<string>();
   let pageToken = '';
 
   do {
+    if (pageTokens.has(pageToken)) throw new Error('Google Forms returned a repeated page token; sync stopped without deleting saved data.');
+    pageTokens.add(pageToken);
     const url = new URL(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}/responses`);
     url.searchParams.set('pageSize', '5000');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
@@ -79,14 +85,14 @@ export async function fetchGoogleFormResponses(
       throw new Error(`Google Forms responses request failed (${response.status} ${response.statusText})`);
     }
     const page = await response.json() as { responses?: Record<string, unknown>[]; nextPageToken?: string };
-    if (!Array.isArray(page.responses)) {
+    if (page.responses !== undefined && !Array.isArray(page.responses)) {
       throw new Error('Google Forms returned an invalid responses page.');
     }
-    responses.push(...page.responses);
+    responses.push(...(page.responses || []));
     pageToken = String(page.nextPageToken ?? '');
   } while (pageToken);
 
-  return responses;
+  return [...new Map(responses.map(response => [stableGoogleResponseId(response), response])).values()];
 }
 
 function responseValue(answer: Record<string, any>): string | string[] {
@@ -152,7 +158,7 @@ export function mapGoogleFormResponses(
     const mobile = findValue(['mobile', 'phone', 'whatsapp', 'contact', 'number', 'नंबर', 'नम्बर']);
     const country = findValue(['country', 'nation', 'देश']);
     const city = findValue(['city', 'town', 'location', 'शहर']);
-    const gender = findValue(['gender', 'sex', 'i am', 'male', 'female', 'लिंग', 'पुरुष', 'स्त्री']);
+    const gender = findValue(['gender', 'sex', 'लिंग']);
     const createdAt = String(response.createTime || '');
 
     return {
@@ -192,48 +198,12 @@ export async function persistGoogleFormSubmission(input: {
   createdAt?: string;
 }): Promise<{ id: string; inserted: boolean }> {
   await ensureFormTables();
-  const columns = await bunnyExecute('PRAGMA table_info(form_submissions)');
-  const columnNames = new Set(columns.rows.map((row: any) => String(row.name)));
-  if (!columnNames.has('source')) {
-    await bunnyExecute("ALTER TABLE form_submissions ADD COLUMN source TEXT DEFAULT ''");
-  }
-  if (!columnNames.has('raw_answers')) {
-    await bunnyExecute("ALTER TABLE form_submissions ADD COLUMN raw_answers TEXT DEFAULT '{}'");
-  }
-  const existing = await bunnyExecute({
-    sql: 'SELECT id FROM form_submissions WHERE form_id = ? AND form_data = ? LIMIT 1',
-    args: [input.formId, input.responseId],
-  });
-  const existingId = existing.rows[0]?.id;
-
-  if (existingId) {
-    await bunnyExecute({
-      sql: `UPDATE form_submissions
-        SET name = ?, mobile = ?, email = ?, gender = ?, city = ?, answers = ?,
-            source = ?, raw_answers = ?, created_at = COALESCE(?, created_at)
-        WHERE form_id = ? AND form_data = ?`,
-      args: [
-        input.name || '',
-        input.mobile || '',
-        input.email || '',
-        input.gender || '',
-        input.city || '',
-        JSON.stringify(input.answers || {}),
-        input.source || 'google_forms',
-        JSON.stringify(input.rawAnswers || {}),
-        input.createdAt || null,
-        input.formId,
-        input.responseId,
-      ],
-    });
-    return { id: String(existingId), inserted: false };
-  }
-
   const id = `gform_${createHash('sha256').update(`${input.formId}\u0000${input.responseId}`).digest('hex').slice(0, 40)}`;
-  const inserted = await bunnyExecute({
-    sql: `INSERT OR IGNORE INTO form_submissions
+  const results = await bunnyBatch([{
+    sql: `INSERT INTO form_submissions
       (id, form_id, name, mobile, email, gender, city, answers, form_data, created_at, source, raw_answers)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?, ?)`,
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM form_submissions WHERE form_id = ? AND form_data = ?)`,
     args: [
       id,
       input.formId,
@@ -247,23 +217,40 @@ export async function persistGoogleFormSubmission(input: {
       input.createdAt || null,
       input.source || 'google_forms',
       JSON.stringify(input.rawAnswers || {}),
+      input.formId,
+      input.responseId,
     ],
-  });
-
-  if (Number(inserted.rowsAffected || 0) > 0) {
-    await bunnyExecute({
-      sql: 'UPDATE enquiry_forms SET submission_count = submission_count + 1 WHERE form_id = ?',
-      args: [input.formId],
-    });
-    return { id, inserted: true };
+  }, {
+    sql: `UPDATE form_submissions
+      SET name = ?, mobile = ?, email = ?, gender = ?, city = ?, answers = ?,
+          source = ?, raw_answers = ?, created_at = COALESCE(?, created_at)
+      WHERE form_id = ? AND form_data = ?`,
+    args: [
+      input.name || '', input.mobile || '', input.email || '', input.gender || '', input.city || '',
+      JSON.stringify(input.answers || {}), input.source || 'google_forms',
+      JSON.stringify(input.rawAnswers || {}), input.createdAt || null, input.formId, input.responseId,
+    ],
+  }, {
+      sql: `UPDATE enquiry_forms SET submission_count = (
+        SELECT COUNT(DISTINCT CASE WHEN (source = 'google_forms' OR id LIKE 'gform_%') AND form_data != ''
+          THEN 'google:' || form_data ELSE 'crm:' || id END)
+        FROM form_submissions WHERE form_id = ?) WHERE form_id = ?`,
+      args: [input.formId, input.formId],
+  }, {
+      sql: 'SELECT id FROM form_submissions WHERE form_id = ? AND form_data = ? ORDER BY id LIMIT 1',
+      args: [input.formId, input.responseId],
+  }]);
+  const savedId = results[3].rows[0]?.id;
+  if (!savedId) throw new Error(`Could not persist Google Form response ${input.responseId}.`);
+  const form = await bunnyExecute({ sql: 'SELECT created_by FROM enquiry_forms WHERE form_id=?', args: [input.formId] });
+  if (input.email || input.mobile) {
+    const contact = await persistBunnyContact({
+      name: input.name, email: input.email, phoneNumber: input.mobile, source: 'google_forms',
+      labels: ['form-submission', 'google_forms'], metadata: { formId: input.formId }, createdAt: input.createdAt,
+    }, String(form.rows[0]?.created_by || 'system'));
+    await bunnyExecute({ sql: 'UPDATE form_submissions SET lead_id=? WHERE id=?', args: [contact._id, String(savedId)] });
   }
-
-  const raced = await bunnyExecute({
-    sql: 'SELECT id FROM form_submissions WHERE form_id = ? AND form_data = ? LIMIT 1',
-    args: [input.formId, input.responseId],
-  });
-  if (!raced.rows[0]?.id) throw new Error(`Could not persist Google Form response ${input.responseId}.`);
-  return { id: String(raced.rows[0].id), inserted: false };
+  return { id: String(savedId), inserted: Number(results[0].rowsAffected) > 0 };
 }
 
 export function collectGoogleFormTargets(
@@ -284,12 +271,12 @@ export function collectGoogleFormTargets(
   }
 
   if (!savedState) return [...targets.values()];
-  let workshops: unknown = savedState.crm_workshops;
-  for (let depth = 0; depth < 2 && typeof workshops === 'string'; depth += 1) {
-    try { workshops = JSON.parse(workshops); } catch { workshops = []; }
-  }
-
-  if (Array.isArray(workshops)) {
+  for (const key of ['crm_workshops', ...['english', 'hindi', 'marathi', 'kannada'].map(language => `crm_${language}_workshops`)]) {
+    let workshops: unknown = savedState[key] ?? [];
+    for (let depth = 0; depth < 4 && typeof workshops === 'string'; depth++) {
+      workshops = parseRegistrationValue<unknown>(workshops, []);
+    }
+    if (!Array.isArray(workshops)) throw new Error(`Invalid saved Google workshop list: ${key}`);
     for (const workshop of workshops as Record<string, any>[]) {
       if (!workshop || workshop.isActive === false) continue;
       const metadata = workshop.metadata || {};

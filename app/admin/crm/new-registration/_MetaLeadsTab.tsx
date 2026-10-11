@@ -3,6 +3,9 @@ import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registr
 
 
 import { evaluateMetaLead } from '@/lib/registrationRules';
+import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation';
+import { metaLeadBucket, metaLeadCounts } from '@/lib/registrationMetaReport';
+import { MetaTriggerReportTable, type MetaTriggerAction } from './_MetaTriggerReportTable';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
@@ -119,10 +122,44 @@ export function MetaLeadsTab({
         }
     }, [showWTSettingsPopup, showManualWTPopup]);
     const [showAI9Popup, setShowAI9Popup] = useState(false);
+    const [savingAIConfig, setSavingAIConfig] = useState(false);
+    const [aiConfigMessage, setAIConfigMessage] = useState('');
+    const aiConfigSaveRef = useRef(false);
+    const saveMetaAIConfig = async (key: string, config: any, close = false) => {
+        if (aiConfigSaveRef.current) return false;
+        if (!saveWorkshopSettings || !selectedWorkshop?.id) {
+            setAIConfigMessage('Select a workshop before saving.');
+            return false;
+        }
+        if ((config.filters || []).some((filter: any) => !filter.question?.trim())) {
+            setAIConfigMessage('Select a question for every answer rule before saving.');
+            return false;
+        }
+        aiConfigSaveRef.current = true;
+        setSavingAIConfig(true);
+        setAIConfigMessage('');
+        try {
+            await saveWorkshopSettings({
+                ...selectedWorkshop,
+                metadata: { ...(selectedWorkshop.metadata || {}), [key]: JSON.parse(JSON.stringify(config)),
+                    ...(!config.isActive && selectedWorkshop.metadata?.metaAutomation
+                        ? { metaAutomation: { ...selectedWorkshop.metadata.metaAutomation, enabled: false } } : {}) },
+            });
+            setAIConfigMessage('Configuration saved permanently in Bunny Database.');
+            if (close) setShowAI9Popup(false);
+            return true;
+        } catch (error) {
+            setAIConfigMessage(error instanceof Error ? error.message : 'Configuration was not saved. Please retry.');
+            return false;
+        } finally {
+            aiConfigSaveRef.current = false;
+            setSavingAIConfig(false);
+        }
+    };
     const [activeAITab, setActiveAITab] = useState<'AI-9A' | 'AI-9B' | 'AI-9C' | 'AI-9D' | 'AI-9E'>('AI-9A');
     
     // Tab State
-    const [activeStageTab, setActiveStageTab] = useState<'all' | 'stage-1' | 'stage-2' | 'stage-3' | 'pending' | 'rejected'>('stage-1');
+    const [activeStageTab, setActiveStageTab] = useState<'all' | 'stage-1' | 'stage-2' | 'stage-3' | 'pending' | 'rejected' | 'processing' | 'other'>('all');
 
     const defaultAIConfig = {
         filters: [{ 
@@ -138,24 +175,29 @@ export function MetaLeadsTab({
         hardRejectPairs: []
     };
 
-    const [ai9AConfig, setAi9AConfig] = useState<any>(selectedWorkshop?.metadata?.ai9AConfig || defaultAIConfig);
-    const [ai9BConfig, setAi9BConfig] = useState<any>(selectedWorkshop?.metadata?.ai9BConfig || defaultAIConfig);
-    const [ai9CConfig, setAi9CConfig] = useState<any>(selectedWorkshop?.metadata?.ai9CConfig || defaultAIConfig);
-    const [ai9DConfig, setAi9DConfig] = useState<any>(selectedWorkshop?.metadata?.ai9DConfig || defaultAIConfig);
-    const [ai9EConfig, setAi9EConfig] = useState<any>(selectedWorkshop?.metadata?.ai9EConfig || defaultAIConfig);
+    const configCopy = (config: any) => JSON.parse(JSON.stringify(config || defaultAIConfig));
+    const [ai9AConfig, setAi9AConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9AConfig));
+    const [ai9BConfig, setAi9BConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9BConfig));
+    const [ai9CConfig, setAi9CConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9CConfig));
+    const [ai9DConfig, setAi9DConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9DConfig));
+    const [ai9EConfig, setAi9EConfig] = useState<any>(() => configCopy(selectedWorkshop?.metadata?.ai9EConfig));
 
     useEffect(() => {
         setFormId(selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '');
-        setAi9AConfig(selectedWorkshop?.metadata?.ai9AConfig || defaultAIConfig);
-        setAi9BConfig(selectedWorkshop?.metadata?.ai9BConfig || defaultAIConfig);
-        setAi9CConfig(selectedWorkshop?.metadata?.ai9CConfig || defaultAIConfig);
-        setAi9DConfig(selectedWorkshop?.metadata?.ai9DConfig || defaultAIConfig);
-        setAi9EConfig(selectedWorkshop?.metadata?.ai9EConfig || defaultAIConfig);
+        setAi9AConfig(configCopy(selectedWorkshop?.metadata?.ai9AConfig));
+        setAi9BConfig(configCopy(selectedWorkshop?.metadata?.ai9BConfig));
+        setAi9CConfig(configCopy(selectedWorkshop?.metadata?.ai9CConfig));
+        setAi9DConfig(configCopy(selectedWorkshop?.metadata?.ai9DConfig));
+        setAi9EConfig(configCopy(selectedWorkshop?.metadata?.ai9EConfig));
         setWtSettings({
             approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay ?? 5 },
             pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay ?? 30 }
         });
-    }, [selectedWorkshop?.metadata]);
+    }, [selectedWorkshop?.id, JSON.stringify(selectedWorkshop?.metadata?.ai9AConfig),
+        JSON.stringify(selectedWorkshop?.metadata?.ai9BConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9CConfig),
+        JSON.stringify(selectedWorkshop?.metadata?.ai9DConfig), JSON.stringify(selectedWorkshop?.metadata?.ai9EConfig),
+        selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId,
+        JSON.stringify(selectedWorkshop?.metadata?.wtSettings)]);
 
     // Dummy Lead State
     const [showDummyPopup, setShowDummyPopup] = useState(false);
@@ -165,6 +207,13 @@ export function MetaLeadsTab({
 
     const [showTriggerReportPopup, setShowTriggerReportPopup] = useState(false);
     const [triggerReportData, setTriggerReportData] = useState<any[]>([]);
+    const [triggerSummary, setTriggerSummary] = useState<{ triggeredLeads: number; queuedLeads: number; failedLeads: number; legacyReportedSent: number } | null>(null);
+    const [triggerReportError, setTriggerReportError] = useState('');
+    const [triggerActionBusy, setTriggerActionBusy] = useState(false);
+    const triggerActionRef = useRef(false);
+    const [selectedTriggerRun, setSelectedTriggerRun] = useState('');
+    const [triggerActionMessage, setTriggerActionMessage] = useState('');
+    const reportRequestRef = useRef(0);
     const [isLoadingReport, setIsLoadingReport] = useState(false);
     const [previewTemplate, setPreviewTemplate] = useState<any>(null);
     const [showRejectedLeads, setShowRejectedLeads] = useState(false);
@@ -175,29 +224,20 @@ export function MetaLeadsTab({
             return;
         }
 
-        const headers = ['Run Name', 'Scheduled At', 'Template', 'Lead Name', 'Phone', 'Status', 'Reason'];
+        const headers = ['Run ID', 'Run Name', 'Trigger Date and Time', 'Template', 'Sender Number', 'Recipients', 'Sent', 'Failed', 'Delivered', 'Wrong Number', 'Queued', 'Cancelled', 'Unverified', 'Status'];
         const rows = [headers];
 
         triggerReportData.forEach(run => {
-            const runName = run.name || '';
-            const scheduledAt = run.scheduledAt ? new Date(run.scheduledAt).toLocaleString() : '';
-            const template = run.template || '';
-
-            if (run.leads && run.leads.length > 0) {
-                run.leads.forEach((lead: any) => {
-                    rows.push([
-                        runName,
-                        scheduledAt,
-                        template,
-                        lead.leadName || '',
-                        lead.phone || '',
-                        lead.status || '',
-                        lead.reason || ''
-                    ].map(field => `"${String(field).replace(/"/g, '""')}"`));
-                });
-            } else {
-                rows.push([runName, scheduledAt, template, '', '', '', ''].map(field => `"${String(field).replace(/"/g, '""')}"`));
-            }
+            rows.push([
+                run.id, run.name, run.scheduledAt, run.template, run.senderNumber || 'Not recorded',
+                run.evidence === 'message_rows' ? run.stats.total : 'Unverified',
+                run.stats.sent, run.stats.failed, run.stats.delivered, run.stats.wrongNumber,
+                run.stats.pending, run.stats.cancelled, run.stats.unverified, run.status,
+            ].map(field => {
+                const text = String(field ?? '');
+                const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+                return `"${safe.replace(/"/g, '""')}"`;
+            }));
         });
 
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
@@ -211,29 +251,67 @@ export function MetaLeadsTab({
     };
 
     const loadTriggerReport = async () => {
-        if (!selectedWorkshop?.id) return;
+        const requestId = ++reportRequestRef.current;
+        setTriggerReportError('');
+        if (!selectedWorkshop?.id && !formId) return;
         setIsLoadingReport(true);
         try {
             const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
-            const res = await fetch(`/api/admin/crm/meta-leads/trigger-report?workshopId=${encodeURIComponent(selectedWorkshop.id)}`, {
+            const res = await fetch(`/api/admin/crm/meta-leads/trigger-report?workshopId=${encodeURIComponent(selectedWorkshop?.id || '')}&metaFormId=${encodeURIComponent(formId)}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
-            if (data.success) {
-                setTriggerReportData(data.data);
-            }
+            if (!res.ok || !data.success || !Array.isArray(data.data) || !data.summary) throw new Error(data.error || 'Trigger report is unavailable.');
+            if (requestId !== reportRequestRef.current) return;
+            setTriggerReportData(data.data);
+            setTriggerSummary(data.summary);
         } catch (e) {
             console.error("Failed to load trigger report:", e);
+            if (requestId === reportRequestRef.current) {
+                setTriggerReportData([]);
+                setTriggerSummary(null);
+                setTriggerReportError(e instanceof Error ? e.message : 'Failed to load trigger report.');
+            }
         } finally {
-            setIsLoadingReport(false);
+            if (requestId === reportRequestRef.current) setIsLoadingReport(false);
+        }
+    };
+    const updateTriggerRun = async (runId: string, action: MetaTriggerAction, scheduledAt?: string) => {
+        if (triggerActionRef.current) return false;
+        triggerActionRef.current = true;
+        setTriggerActionBusy(true);
+        setTriggerActionMessage('');
+        try {
+            const response = await fetch('/api/admin/crm/meta-leads/trigger-report', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ runId, action, scheduledAt }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'Could not update trigger run.');
+            setTriggerActionMessage(result.message);
+            await loadTriggerReport();
+            return true;
+        } catch (error) {
+            setTriggerActionMessage(error instanceof Error ? error.message : 'Could not update trigger run.');
+            return false;
+        } finally {
+            triggerActionRef.current = false;
+            setTriggerActionBusy(false);
         }
     };
 
     useEffect(() => {
-        if (showTriggerReportPopup) {
-            loadTriggerReport();
-        }
-    }, [showTriggerReportPopup]);
+        setTriggerReportData([]);
+        setTriggerSummary(null);
+        setSelectedTriggerRun('');
+        void loadTriggerReport();
+        return () => { reportRequestRef.current++; };
+    }, [selectedWorkshop?.id, formId, refreshMetaCounter]);
+    useEffect(() => {
+        if (!showTriggerReportPopup) return;
+        const interval = setInterval(() => { if (!triggerActionRef.current) void loadTriggerReport(); }, 15000);
+        return () => clearInterval(interval);
+    }, [showTriggerReportPopup, selectedWorkshop?.id, formId]);
 
     useEffect(() => {
         if (selectedWorkshop?.metadata?.dummyFormConfig) {
@@ -504,19 +582,25 @@ export function MetaLeadsTab({
     };
 
     const saveWTSettings = async () => {
+        if (!selectedWorkshop?.id) return alert('Connect the Meta form to a saved batch before enabling automatic WhatsApp.');
+        const metadata = { ...(selectedWorkshop.metadata || {}),
+            ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig,
+            facebookFormId: formId, wtSettings };
+        const configurationError = metaApprovalConfigurationError(metadata);
+        if (configurationError) return alert(configurationError);
         const newAI9EConfig = { ...ai9EConfig, isActive: true };
-        setAi9EConfig(newAI9EConfig);
         
       try {
         await saveWorkshopSettings({
             ...selectedWorkshop,
             metadata: {
-                ...(selectedWorkshop?.metadata || {}),
-                wtSettings: wtSettings,
-                ai9EConfig: newAI9EConfig
+                ...metadata,
+                ai9EConfig: newAI9EConfig,
+                metaAutomation: { ...(selectedWorkshop.metadata?.metaAutomation || {}), enabled: true, approvalOnly: true }
             }
         });
-        alert('WhatsApp Trigger Settings saved successfully! AI-9W will now schedule these automatically.');
+        setAi9EConfig(newAI9EConfig);
+        alert('Saved: only leads arriving after activation and passing all four AI-9 stages will receive the approved template. Pending/rejected leads and old bulk recipients will not be sent automatically.');
         setShowWTSettingsPopup(false);
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
@@ -574,14 +658,8 @@ export function MetaLeadsTab({
     };
 
     // Calculate Reports
-    const totalLeads = metaLeads.length;
-    const approvedLeads = metaLeads.filter((l: any) => l.status === 'approved').length;
-    const pendingLeads = metaLeads.filter((l: any) => {
-        const s = l.status || 'new';
-        return s === 'pending' || s === 'new' || s === 'lead' || s.endsWith('_pending');
-    }).length;
-    const rejectedLeads = metaLeads.filter((l: any) => (l.status || 'new').includes('rejected')).length;
-    const triggeredLeads = metaLeads.filter((l: any) => l.status === 'approved' && !!l.metadata?.wtStatus).length;
+    const leadCounts = metaLeadCounts(metaLeads);
+    const { total: totalLeads, approved: approvedLeads, pending: pendingLeads, rejected: rejectedLeads } = leadCounts;
 
     // Filter & Sort Logic
     let filteredLeads = metaLeads.filter((lead: any) => {
@@ -623,11 +701,13 @@ export function MetaLeadsTab({
         if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
 
         if (activeStageTab === 'pending') {
-            if (currentStatus !== 'pending' && currentStatus !== 'new' && currentStatus !== 'lead' && !currentStatus.endsWith('_pending')) matchesStatus = false;
+            matchesStatus = metaLeadBucket(lead) === 'pending';
         }
         if (activeStageTab === 'rejected') {
-            if (!currentStatus.includes('rejected')) matchesStatus = false;
+            matchesStatus = metaLeadBucket(lead) === 'rejected';
         }
+        if (activeStageTab === 'processing') matchesStatus = metaLeadBucket(lead) === 'processing';
+        if (activeStageTab === 'other') matchesStatus = metaLeadBucket(lead) === 'other';
 
         return matchesSearch && matchesStage && matchesStatus;
     });
@@ -697,17 +777,20 @@ export function MetaLeadsTab({
         stage1: metaLeads.filter((l: any) => ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
         stage2: metaLeads.filter((l: any) => ['stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
         stage3: metaLeads.filter((l: any) => ['stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'].includes(l.status || 'new')).length,
-        pending: metaLeads.filter((l: any) => {
-            const s = l.status || 'new';
-            return s === 'pending' || s === 'new' || s === 'lead' || s.endsWith('_pending');
-        }).length,
-        rejected: metaLeads.filter((l: any) => (l.status || 'new').includes('rejected')).length
+        pending: leadCounts.pending,
+        rejected: leadCounts.rejected,
     };
 
     return (
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4 animate-fade-in p-3 sm:p-4 bg-slate-50 h-full relative">
             <MetaConnectionStatus />
             <p className="text-xs text-slate-500">Saved Meta leads load from Bunny. Sync imports new responses; approved template sends use the shared Bunny broadcast queue.</p>
+            <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">
+                {selectedWorkshop?.metadata?.metaAutomation?.enabled && ai9EConfig?.isActive &&
+                    !metaApprovalConfigurationError({ ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, facebookFormId: formId, wtSettings })
+                    ? 'Automatic WhatsApp is enabled for new leads only, after all four AI-9 stages approve. Old bulk recipients, pending and rejected leads are excluded.'
+                    : 'Automatic WhatsApp is not enabled. Connect a saved batch, configure and start AI-9A–D, then save AI-9W settings. Existing leads will not be resent.'}
+            </div>
             {loadError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>}
             {/* Header Report Cards & Settings Trigger */}
             <div className="flex gap-4">
@@ -729,8 +812,9 @@ export function MetaLeadsTab({
                         <p className="text-3xl font-black text-red-600">{rejectedLeads}</p>
                     </div>
                     <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm text-center bg-indigo-50/30">
-                        <h4 className="text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">WT Triggered</h4>
-                        <p className="text-3xl font-black text-indigo-600">{triggeredLeads}</p>
+                        <h4 className="text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">WT Triggered (verified)</h4>
+                        <p className="text-3xl font-black text-indigo-600">{triggerSummary?.triggeredLeads ?? '--'}</p>
+                        <p className="text-xs text-slate-500">Queued: {triggerSummary?.queuedLeads ?? '--'} / Failed: {triggerSummary?.failedLeads ?? '--'}</p>
                     </div>
                 </div>
 
@@ -769,6 +853,13 @@ export function MetaLeadsTab({
                         <div className="text-[10px] font-bold uppercase tracking-wider opacity-90 px-1 text-center leading-tight">TRIGGER<br/>REPORT</div>
                     </button>
                 </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                <p>Total {totalLeads} = Approved {approvedLeads} + Pending/New {pendingLeads} + Rejected {rejectedLeads} + In progress {leadCounts.processing} + Other/older status {leadCounts.other}.</p>
+                <p className="mt-1 text-xs text-slate-500">Stage 1–3 tabs show cumulative progress and overlap; they are not additional leads.</p>
+                {(triggerSummary?.legacyReportedSent ?? 0) > 0 && <p className="mt-2 text-amber-700">{triggerSummary?.legacyReportedSent} historical sent flags have no matching provider-message evidence. They are not counted as verified triggers; do not resend solely because this counter is zero.</p>}
+                {triggerReportError && <p role="alert" className="mt-2 text-red-700">{triggerReportError}</p>}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -996,6 +1087,12 @@ export function MetaLeadsTab({
                                     className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeStageTab === 'rejected' ? 'bg-white shadow-sm text-red-700' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Rejected All ({tabCounts.rejected})
+                                </button>
+                                <button onClick={() => { setStatusFilter('All'); setActiveStageTab('processing'); }} className="px-4 py-1.5 text-sm font-bold rounded-lg text-blue-700">
+                                    In progress ({leadCounts.processing})
+                                </button>
+                                <button onClick={() => { setStatusFilter('All'); setActiveStageTab('other'); }} className="px-4 py-1.5 text-sm font-bold rounded-lg text-slate-600">
+                                    Other/older ({leadCounts.other})
                                 </button>
                             </div>
                         </div>
@@ -1356,17 +1453,17 @@ export function MetaLeadsTab({
                                     <div className="text-[11px] text-slate-600 bg-white/60 p-3 rounded-lg border border-emerald-100 space-y-1">
                                         <p className="font-bold text-slate-700 mb-1">AI-9W Operations:</p>
                                         <ul className="list-decimal pl-4 space-y-0.5">
-                                            <li>Collect all approved leads data (WhatsApp number and name)</li>
-                                            <li>Check if WhatsApp number is working (if wrong, flag in red)</li>
-                                            <li>Schedule all correct/active numbers for WhatsApp broadcast</li>
-                                            <li>Old data will go in bulk, new data will follow schedule</li>
-                                            <li>No message will be sent if the template was already sent within 48 hours</li>
+                                            <li>Process new leads only after saved activation time</li>
+                                            <li>Require approval from all four saved AI-9A–D rules</li>
+                                            <li>Exclude pending, rejected, blocked and invalid numbers</li>
+                                            <li>Keep old bulk recipients out of automatic delivery</li>
+                                            <li>Queue the selected template once per lead and batch</li>
                                             <li>Collect the selected template</li>
                                             <li>Add auto-schedule time and submit</li>
                                             <li>Auto-update data in Trigger Report and Main Broadcast Report</li>
                                             <li>Auto-update arrow indicator after the name</li>
                                         </ul>
-                                        <p className="text-emerald-700 font-bold mt-2 italic flex items-center gap-1"><Bot size={12}/> Note: AI will auto-sync every 1 minute as new leads come.</p>
+                                        <p className="text-emerald-700 font-bold mt-2 italic flex items-center gap-1"><Bot size={12}/> Server approval processing runs every 5 minutes; queued sends run every minute. Deployment and cron configuration are required.</p>
                                     </div>
                                 </div>
                             </div>
@@ -1384,10 +1481,11 @@ export function MetaLeadsTab({
                                 Stage 5: Approved Leads
                             </button>
                             <button 
-                                onClick={() => setActiveTab('pending')} 
+                                disabled
+                                title="Pending leads are excluded from automatic WhatsApp delivery"
                                 className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-white text-amber-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
                             >
-                                Stage 6: Pending Leads
+                                Pending: No Auto-Send
                             </button>
                         </div>
 
@@ -1398,7 +1496,7 @@ export function MetaLeadsTab({
                                 <div className="animate-fade-in space-y-6">
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800 shadow-inner">
                                         <strong className="block mb-1 text-emerald-900">Approved Lead Trigger:</strong>
-                                        This template will be scheduled to send automatically when a lead's stage is marked as 'Approved'.
+                                        New leads must pass all four AI-9 stages after activation. Manually marking a lead Approved does not bypass these checks.
                                     </div>
                                     
                                     <div>
@@ -1589,18 +1687,10 @@ export function MetaLeadsTab({
                                     <div className="flex items-center gap-3">
                                         <h3 className={`text-xl font-bold ${activeConfig.isActive ? 'text-emerald-900' : 'text-yellow-900'}`}>{activeAITab} Configuration</h3>
                                         <button
+                                            disabled={savingAIConfig}
                                             onClick={async () => {
                                                 const newConfig = { ...activeConfig, isActive: !activeConfig.isActive };
-                                                setActiveConfig(newConfig);
-                                                if (saveWorkshopSettings && selectedWorkshop) {
-                                                    await saveWorkshopSettings({
-                                                        ...selectedWorkshop,
-                                                        metadata: {
-                                                            ...(selectedWorkshop.metadata || {}),
-                                                            [activeConfigKey]: newConfig
-                                                        }
-                                                    });
-                                                }
+                                                if (await saveMetaAIConfig(activeConfigKey, newConfig)) setActiveConfig(newConfig);
                                             }}
                                             className={`px-3 py-1 text-xs font-bold rounded-full border shadow-sm flex items-center gap-1.5 transition-colors ${
                                                 activeConfig.isActive 
@@ -1617,21 +1707,12 @@ export function MetaLeadsTab({
                             </div>
                             <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
                                 <button 
-                                    onClick={async () => {
-                                        if(saveWorkshopSettings && selectedWorkshop) {
-                                            await saveWorkshopSettings({
-                                                ...selectedWorkshop,
-                                                metadata: {
-                                                    ...(selectedWorkshop.metadata || {}),
-                                                    [activeConfigKey]: activeConfig
-                                                }
-                                            });
-                                        }
-                                    }} 
+                                    disabled={savingAIConfig}
+                                    onClick={() => saveMetaAIConfig(activeConfigKey, activeConfig)}
                                     className="px-3 py-1.5 bg-yellow-900 text-yellow-100 hover:bg-black hover:text-white font-bold rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5"
                                     title="Save permanently until changed"
                                 >
-                                    <Save size={14} /> Save
+                                    <Save size={14} /> {savingAIConfig ? 'Saving...' : 'Save'}
                                 </button>
                                 <button onClick={() => setShowAI9Popup(false)} className="text-yellow-800 hover:text-yellow-900 hover:bg-yellow-500 p-1.5 rounded-full transition-colors">
                                     <X size={20} />
@@ -1640,6 +1721,7 @@ export function MetaLeadsTab({
                         </div>
 
                         <div className="p-6 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
+                            {aiConfigMessage && <p role="status" className="mb-4 rounded-lg border bg-white p-3 text-sm font-semibold">{aiConfigMessage}</p>}
                             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center justify-between shadow-sm">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -1658,7 +1740,7 @@ export function MetaLeadsTab({
                                 <div key={index} className="bg-white border border-slate-200 rounded-xl p-5 mb-4 shadow-sm relative">
                                     <button 
                                         onClick={() => {
-                                            const newFilters = [...activeConfig.filters];
+                                            const newFilters = configCopy(activeConfig).filters;
                                             newFilters.splice(index, 1);
                                             setActiveConfig({...activeConfig, filters: newFilters});
                                         }}
@@ -1672,13 +1754,14 @@ export function MetaLeadsTab({
                                         <select 
                                             value={filter.question}
                                             onChange={(e) => {
-                                                const newFilters = [...activeConfig.filters];
-                                                newFilters[index].question = e.target.value;
+                                                const newFilters = activeConfig.filters.map((item: any, position: number) =>
+                                                    position === index ? { ...item, question: e.target.value } : item);
                                                 setActiveConfig({...activeConfig, filters: newFilters});
                                             }}
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
                                         >
                                             <option value="">-- Search across all questions --</option>
+                                            {filter.question && !dynamicColumns.includes(filter.question) && <option value={filter.question}>{filter.question} (saved question)</option>}
                                             {dynamicColumns.map(col => (
                                                 <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>
                                             ))}
@@ -1695,7 +1778,7 @@ export function MetaLeadsTab({
                                                         type="text" 
                                                         value={opt.answer}
                                                         onChange={(e) => {
-                                                            const newFilters = [...activeConfig.filters];
+                                                            const newFilters = configCopy(activeConfig).filters;
                                                             if (!newFilters[index].options) newFilters[index].options = [];
                                                             newFilters[index].options[optIndex].answer = e.target.value;
                                                             setActiveConfig({...activeConfig, filters: newFilters});
@@ -1709,7 +1792,7 @@ export function MetaLeadsTab({
                                                     <select 
                                                         value={opt.category}
                                                         onChange={(e) => {
-                                                            const newFilters = [...activeConfig.filters];
+                                                            const newFilters = configCopy(activeConfig).filters;
                                                             if (!newFilters[index].options) newFilters[index].options = [];
                                                             newFilters[index].options[optIndex].category = e.target.value;
                                                             setActiveConfig({...activeConfig, filters: newFilters});
@@ -1722,7 +1805,7 @@ export function MetaLeadsTab({
                                                     </select>
                                                     <button 
                                                         onClick={() => {
-                                                            const newFilters = [...activeConfig.filters];
+                                                            const newFilters = configCopy(activeConfig).filters;
                                                             newFilters[index].options.splice(optIndex, 1);
                                                             setActiveConfig({...activeConfig, filters: newFilters});
                                                         }}
@@ -1736,7 +1819,7 @@ export function MetaLeadsTab({
                                         
                                         <button 
                                             onClick={() => {
-                                                const newFilters = [...activeConfig.filters];
+                                                const newFilters = configCopy(activeConfig).filters;
                                                 if (!newFilters[index].options) newFilters[index].options = [];
                                                 newFilters[index].options.push({ answer: '', category: 'pending' });
                                                 setActiveConfig({...activeConfig, filters: newFilters});
@@ -1752,7 +1835,7 @@ export function MetaLeadsTab({
                                         <select 
                                             value={filter.fallbackCategory || 'pending'}
                                             onChange={(e) => {
-                                                const newFilters = [...activeConfig.filters];
+                                                const newFilters = configCopy(activeConfig).filters;
                                                 newFilters[index].fallbackCategory = e.target.value;
                                                 setActiveConfig({...activeConfig, filters: newFilters});
                                             }}
@@ -1888,19 +1971,8 @@ export function MetaLeadsTab({
                                 Cancel
                             </button>
                             <button 
-                                onClick={async () => {
-                                    if(saveWorkshopSettings && selectedWorkshop) {
-                                        await saveWorkshopSettings({
-                                            ...selectedWorkshop,
-                                            metadata: {
-                                                ...(selectedWorkshop.metadata || {}),
-                                                [activeConfigKey]: activeConfig
-                                            }
-                                        });
-                                        alert(`${activeAITab} Configuration saved successfully!`);
-                                    }
-                                    setShowAI9Popup(false);
-                                }} 
+                                disabled={savingAIConfig}
+                                onClick={() => saveMetaAIConfig(activeConfigKey, activeConfig, true)}
                                 className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-all shadow-sm flex items-center gap-2"
                             >
                                 <Save size={16} /> Save Configuration
@@ -2151,25 +2223,6 @@ export function MetaLeadsTab({
                             </div>
                             <div className="flex gap-2">
                                 <button 
-                                    onClick={async () => {
-                                        if (confirm('Are you sure you want to retry sending all failed WhatsApp triggers?')) {
-                                            try {
-                                                const res = await fetch('/api/admin/crm/meta-leads/retry-failed-triggers', {
-                                                    method: 'POST',
-                                                    headers: { authorization: `Bearer ${localStorage.getItem('token')}` }
-                                                });
-                                                if(res.ok) {
-                                                    alert('All failed triggers have been queued for retry!');
-                                                    loadTriggerReport();
-                                                }
-                                            } catch (err) {}
-                                        }
-                                    }}
-                                    className="text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-lg shadow-sm hover:shadow transition-all font-bold text-sm flex items-center gap-1"
-                                >
-                                    Retry Failed
-                                </button>
-                                <button 
                                     onClick={exportTriggerReportToCSV}
                                     className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg shadow-sm hover:shadow transition-all border border-emerald-200 font-bold text-sm flex items-center gap-1"
                                 >
@@ -2186,17 +2239,21 @@ export function MetaLeadsTab({
 
                         {/* Body */}
                         <div className="p-6 bg-slate-50 overflow-y-auto flex-1">
+                            {triggerActionMessage && <p role="status" className="mb-4 rounded-lg border bg-white p-3 text-sm">{triggerActionMessage}</p>}
+                            {triggerReportError && <p role="alert" className="mb-4 text-red-700">{triggerReportError}</p>}
+                            {triggerSummary && <p className="mb-4 text-sm text-slate-700">Verified triggered leads: {triggerSummary.triggeredLeads}. Queued: {triggerSummary.queuedLeads}. Failed: {triggerSummary.failedLeads}. Historical flags without message evidence: {triggerSummary.legacyReportedSent}.</p>}
                             {isLoadingReport ? (
                                 <div className="flex justify-center p-12">
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                                 </div>
                             ) : triggerReportData.length === 0 ? (
                                 <div className="text-center p-12 bg-white rounded-xl border border-slate-200">
-                                    <p className="text-slate-500 font-medium">No triggers have been scheduled yet.</p>
+                                    <p className="text-slate-500 font-medium">{triggerReportError ? 'Report could not be loaded. Retry with Refresh.' : 'No matching saved trigger message records for this batch.'}</p>
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-4">
-                                    {triggerReportData.map((run) => (
+                                    <MetaTriggerReportTable runs={triggerReportData} busy={triggerActionBusy} onView={setSelectedTriggerRun} onAction={updateTriggerRun} />
+                                    {triggerReportData.filter(run => run.id === selectedTriggerRun).map((run) => (
                                         <div key={run.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                                             {/* Run Header */}
                                             <div className="p-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
@@ -2211,20 +2268,20 @@ export function MetaLeadsTab({
                                                         <span><Clock size={12} className="inline mr-1" />{new Date(run.scheduledAt).toLocaleString()}</span>
                                                         <span><span className="font-semibold text-emerald-600">{run.stats?.sent || 0} Sent</span> • <span className="font-semibold text-rose-500">{run.stats?.failed || 0} Failed</span></span>
                                                     </p>
+                                                    {run.evidence === 'legacy_header_only' && <p className="mt-2 text-xs text-amber-700">Historical run header only. Recipient delivery evidence is unavailable.</p>}
                                                 </div>
                                                 <button 
                                                     onClick={() => {
-                                                        const el = document.getElementById(`run-details-${run.id}`);
-                                                        if(el) el.classList.toggle('hidden');
+                                                        setSelectedTriggerRun('');
                                                     }}
                                                     className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-colors"
                                                 >
-                                                    View Details
+                                                    Close Details
                                                 </button>
                                             </div>
                                             
                                             {/* Run Details (Hidden by default) */}
-                                            <div id={`run-details-${run.id}`} className="hidden">
+                                            <div id={`run-details-${run.id}`} className="overflow-x-auto">
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
                                                         <tr className="bg-slate-100/50 text-slate-600 text-[10px] uppercase tracking-wider font-bold border-b border-slate-200">
@@ -2260,7 +2317,7 @@ export function MetaLeadsTab({
                                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                                                             <Clock size={12} /> Pending
                                                                         </span>
-                                                                    ) : lead.status === 'sent' || lead.status === 'delivered' || lead.status === 'read' ? (
+                                                                    ) : (lead.status === 'sent' || lead.status === 'delivered' || lead.status === 'read') && lead.waMessageId ? (
                                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 capitalize">
                                                                             <CheckCircle2 size={12} /> {lead.status}
                                                                         </span>

@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { offerFetch as fetch, offerStorage as localStorage } from '@/lib/workshopOfferClient';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight } from 'lucide-react';
 
 
@@ -474,7 +475,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                                     >
                                       <option value="">-- Ignore --</option>
                                       {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
-                                        <option key={qId} value={qTitle}>{qTitle}</option>
+                                        <option key={qId} value={String(qTitle)}>{String(qTitle)}</option>
                                       ))}
                                     </select>
                                   )}

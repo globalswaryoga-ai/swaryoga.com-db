@@ -1,5 +1,6 @@
 import { getFullMeetingAnalytics, type SessionParticipant } from './zoom-analytics';
 import { getCohort, listCohorts, listStudents, upsertAttendance, updateCohort } from './workshopBunnyRepository';
+import { workshopSessionCalendar, attendanceDuration } from './workshopSessionUtils';
 
 type SyncResult = {
   cohortId: string;
@@ -42,10 +43,21 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   const students: any[] = await listStudents(cohortId, true);
   // We no longer abort if students is empty, because we auto-enroll attendees from Zoom.
 
-  const from = classDate || dayKey(cohort.startDate);
+  const from = dayKey(new Date(new Date(classDate || cohort.startDate).getTime() - 86400000));
   const to = classDate || dayKey(new Date());
-  const analytics = await getFullMeetingAnalytics(zoomMeetingId, from, to);
-  const sessions = analytics.sessions.filter((session) => !classDate || session.date === classDate);
+  let analytics: Awaited<ReturnType<typeof getFullMeetingAnalytics>>;
+  try {
+    analytics = await getFullMeetingAnalytics(zoomMeetingId, from, to);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`No sessions found for meeting ${zoomMeetingId} in the selected date range`)) {
+      return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'Zoom has not published a completed report in this date range yet.' };
+    }
+    throw error;
+  }
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: cohort.timezone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+  analytics.sessions = analytics.sessions.map(session => ({ ...session, date: dateFormatter.format(new Date(session.startTime)) }));
+  const sessionDates = new Set(workshopSessionCalendar(dayKey(cohort.startDate), cohort.holidayDates || []).filter(row => !row.holiday).map(row => row.classDate));
+  const sessions = [...new Map(analytics.sessions.filter((session) => sessionDates.has(session.date) && (!classDate || session.date === classDate)).map(session => [session.uuid, session])).values()];
   if (!sessions.length) {
     return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'Zoom has not published a completed meeting report for this date yet.' };
   }
@@ -88,7 +100,7 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   }
 
   for (const [classDateKey, dailySessions] of sessionsByDate.entries()) {
-    const attendees = new Map<string, { student: any; duration: number; joinedAt?: string; leftAt?: string }>();
+    const attendees = new Map<string, { student: any; duration: number; participants: SessionParticipant[]; joinedAt?: string; leftAt?: string }>();
     let totalClassDuration = 0;
 
     for (const session of dailySessions) {
@@ -160,7 +172,8 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
         const current = attendees.get(key);
         attendees.set(key, {
           student,
-          duration: (current?.duration || 0) + Math.max(0, Number(participant.durationSeconds || 0)),
+          duration: 0,
+          participants: [...(current?.participants || []), participant],
           joinedAt: !current?.joinedAt || new Date(participant.joinTime) < new Date(current.joinedAt) ? participant.joinTime : current.joinedAt,
           leftAt: !current?.leftAt || new Date(participant.leaveTime) > new Date(current.leftAt) ? participant.leaveTime : current.leftAt,
         });
@@ -168,14 +181,15 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
     }
 
     for (const attendee of attendees.values()) {
-      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: classDateKey, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / totalClassDuration * 100)), source: 'zoom' });
+      attendee.duration = attendanceDuration(attendee.participants);
+      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: classDateKey, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / totalClassDuration * 100)), source: 'zoom', metadata: { zoomParticipants: attendee.participants, zoomSessionIds: dailySessions.map(session => session.uuid) } });
       matched++;
       updated++;
     }
   }
 
   await updateCohort(cohortId, { zoomAttendanceLastSyncAt: new Date().toISOString() });
-  return { cohortId: String(cohort._id), cohortName: cohort.name, sessions: sessions.length, matched, unmatched, updated, skipped: false };
+  return { cohortId: String(cohort._id), cohortName: cohort.name, sessions: sessionsByDate.size, matched, unmatched, updated, skipped: false, message: analytics._errors?.join('; ') };
 }
 
 export async function syncDueWorkshopZoomAttendance() {
@@ -186,55 +200,7 @@ export async function syncDueWorkshopZoomAttendance() {
 
   for (const cohort of eligible) {
     try {
-      const startDate = new Date(cohort.startDate);
-      const today = new Date();
-      // Don't go beyond the cohort end date
-      const endDate = cohort.endDate ? new Date(cohort.endDate) : today;
-      const until = endDate < today ? endDate : today;
-
-      const holidaySet = new Set<string>(Array.isArray(cohort.holidayDates) ? cohort.holidayDates.map((d: string) => d.slice(0, 10)) : []);
-
-      // Enumerate every calendar day from startDate up to today (or endDate)
-      const classDates: string[] = [];
-      const cursor = new Date(startDate);
-      cursor.setHours(0, 0, 0, 0);
-      until.setHours(0, 0, 0, 0);
-      while (cursor <= until) {
-        const dateKey = cursor.toISOString().slice(0, 10);
-        if (!holidaySet.has(dateKey)) {
-          classDates.push(dateKey);
-        }
-        cursor.setDate(cursor.getDate() + 1);
-      }
-
-      // Sync each class date individually so we get per-day attendance records
-      let totalUpdated = 0;
-      let totalMatched = 0;
-      let totalUnmatched = 0;
-      let totalSessions = 0;
-      for (const classDate of classDates) {
-        try {
-          const r = await syncWorkshopZoomAttendance(String(cohort._id), classDate);
-          if (!r.skipped) {
-            totalUpdated += r.updated;
-            totalMatched += r.matched;
-            totalUnmatched += r.unmatched;
-            totalSessions += r.sessions;
-          }
-        } catch {
-          // Silently skip individual dates that aren't ready yet
-        }
-      }
-
-      results.push({
-        cohortId: String(cohort._id),
-        cohortName: cohort.name,
-        sessions: totalSessions,
-        matched: totalMatched,
-        unmatched: totalUnmatched,
-        updated: totalUpdated,
-        skipped: false,
-      });
+      results.push(await syncWorkshopZoomAttendance(String(cohort._id)));
     } catch (error) {
       results.push({ cohortId: String(cohort._id), cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: error instanceof Error ? error.message : 'Zoom sync failed' });
     }

@@ -7,31 +7,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { ChevronDown } from 'lucide-react';
 import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
+import { registrationAudienceMatches, registrationRecipients } from '@/lib/registrationAudience';
+import { registrationPhone } from '@/lib/registrationLeads';
+import type { RegistrationRecord } from '@/lib/registrationRules';
 
-// Helper to prevent double counting on long overlapping form answers
-const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
-  const v = String(valStr).toLowerCase().trim();
-  const kStr = String(keyword).toLowerCase().trim();
-  if (!v || !kStr) return false;
-  
-  // Handle multiple keywords separated by commas (OR logic)
-  const keywords = kStr.split(',').map(k => k.trim()).filter(Boolean);
-  
-  return keywords.some(k => {
-    if (v === k) return true;
-    
-    // Strict 100% word boundary match
-    try {
-      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(?:^|\\W)${escapedK}(?:\\W|$)`, 'i');
-      if (regex.test(v)) return true;
-    } catch (e) {}
-    
-    // Safe substring fallback for long phrases
-    if (k.length > 15 && v.includes(k)) return true;
-    
-    return false;
-  });
+const STATUS_LABELS: Record<string, string> = {
+  lead: 'New Leads', new_leads: 'New Leads',
+  pending_leads_1: 'Pending-1', approval_1: 'Approvel-1',
+  pending_leads_2: 'Pending-2', approval_2: 'Approvel-2',
+  pending_leads_3: 'Pending-3', approval_3: 'Approvel-3',
+  pending_leads_4: 'Pending-4', approval_4: 'Approvel-4',
+  rejected_leads: 'Rejected leads', registered_leads: 'Registered leads',
+  set_zoom_meeting: 'Set zoom meeting', take_zoom_meeting: 'Take Zoom Meeting', ai_triggers: 'AI Triggers-WT',
 };
 
 // ============================================================================
@@ -48,6 +35,9 @@ interface Lead {
   userName?: string;
   isCSV?: boolean; // Flag for CSV-imported contacts
   email?: string;
+  registrationBatchId?: string;
+  responseId?: string;
+  leadId?: string;
   // Most recent Meta WhatsApp message status for this lead (delivered/read/
   // failed/blocked/...), merged in from broadcast-runs/latest-status — lets
   // the recipient panel filter by it to re-target previously-delivered/read
@@ -386,6 +376,8 @@ export default function BroadcastPage(props: any) {
   const [filterLabels, setFilterLabels] = useState<string[]>([]);
   const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
   const autoSelectOnLoad = useRef(false);
+  const [registrationRows, setRegistrationRows] = useState<RegistrationRecord[]>([]);
+  const [formWorkshops, setFormWorkshops] = useState<RegistrationRecord[]>([]);
 
 
   // CSV Upload State
@@ -482,7 +474,7 @@ export default function BroadcastPage(props: any) {
         fetch('/api/admin/crm/templates?provider=meta', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/bulk-status', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/crm/new-registration/state'),
+        fetch('/api/admin/crm/new-registration/audience', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       
       const [leadsData, templatesData, runsData, bulkData, stateData] = await Promise.all([
@@ -490,7 +482,7 @@ export default function BroadcastPage(props: any) {
         templatesRes.json(),
         runsRes.json(),
         bulkRes.json(),
-        stateRes.json().catch(() => ({})),
+        stateRes.json(),
       ]);
       
       const loadedLeads: Lead[] = leadsData.data?.leads || leadsData.leads || [];
@@ -516,24 +508,16 @@ export default function BroadcastPage(props: any) {
       }
 
       
-      if (stateData) {
-        if (stateData.crm_ai4_decisions) {
-          try {
-            setBatchDecisions(typeof stateData.crm_ai4_decisions === 'string' ? JSON.parse(stateData.crm_ai4_decisions) : stateData.crm_ai4_decisions);
-          } catch(e) {}
-        }
-        if (stateData.crm_english_workshops) {
-          try {
-            setFormWorkshops(typeof stateData.crm_english_workshops === 'string' ? JSON.parse(stateData.crm_english_workshops) : stateData.crm_english_workshops);
-          } catch(e) {}
-        }
-      }
+      if (!leadsRes.ok || !stateRes.ok) throw new Error(stateData.error || leadsData.error || 'Saved recipient data could not be loaded');
+      setRegistrationRows(stateData.data || []);
+      setFormWorkshops(stateData.workshops || []);
 
       // Delivery status is intentionally lazy. Loading status for thousands of
       // leads here made the Broadcast page wait on a second large SQL query;
       // the inbox/status filters remain non-blocking instead of delaying the UI.
     } catch (err) {
       console.error('[Broadcast] Failed to fetch data:', err);
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Saved recipients could not be loaded' });
     } finally {
       setLoading(false);
     }
@@ -686,10 +670,10 @@ export default function BroadcastPage(props: any) {
       setSelectedLeads(prev => {
         const next = new Set(prev);
         csvList.forEach((c, idx) => {
-          const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
-          const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+          const phone = registrationPhone(c.phoneNumber);
+          const dbLead = leads.find(l => registrationPhone(l.phoneNumber) === phone);
           if (dbLead) next.add(dbLead._id);
-          else next.add(`csv_${idx}_${last10}`);
+          else next.add(`csv_${idx}_${phone}`);
         });
         return next;
       });
@@ -765,151 +749,25 @@ export default function BroadcastPage(props: any) {
   }, []);
 
   const uniqueWorkshops = useMemo(() => {
-    let sourceWorkshops = props?.workshops || [];
-    if (sourceWorkshops.length === 0 && typeof window !== 'undefined') {
-      let combined: any[] = [];
-      const keys = ['crm_workshops', 'crm_offers', 'crm_marathi_workshops', 'crm_hindi_workshops', 'crm_kannada_workshops', 'crm_english_workshops'];
-      keys.forEach(key => {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          try { combined = combined.concat(JSON.parse(saved)); } catch (e) {}
-        }
-      });
-      sourceWorkshops = combined;
-    }
-
-    const filtered = (sourceWorkshops || []).filter((w: any) => 
-      w && w.id && w.id.startsWith('batch_') &&
+    const filtered = formWorkshops.filter((w: any) =>
+      w && w.id &&
       (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase().includes(filterLanguage.toLowerCase()))
     );
     
-    return filtered.map((w: any) => w.name);
-  }, [props?.workshops, filterLanguage]);
+    return filtered.map((w: any) => w.id);
+  }, [formWorkshops, filterLanguage]);
 
   const uniqueLanguages = useMemo(() => {
     return ['English', 'Hindi', 'Marathi', 'Kannada'];
   }, []);
 
   const filteredLeads = useMemo(() => {
-    // Determine the source leads based on embedded mode
-    let sourceLeads = (isEmbedded && propLeadsData && propLeadsData.length > 0) ? propLeadsData : leads;
-    
-    if (!isEmbedded && typeof window !== 'undefined') {
-      const storageKeys = [
-        'crm_marathi_leads_new_v3', 'crm_hindi_leads_new_v3', 
-        'crm_english_leads_new_v3', 'crm_kannada_leads_new_v3',
-        'crm_marathi_leads', 'crm_hindi_leads', 'crm_english_leads', 'crm_kannada_leads'
-      ];
-      let localLeads: any[] = [];
-      storageKeys.forEach(k => {
-        try {
-          const data = localStorage.getItem(k);
-          if (data) {
-            const parsed = JSON.parse(data);
-            let lang = '';
-            if (k.includes('marathi')) lang = 'Marathi';
-            else if (k.includes('hindi')) lang = 'Hindi';
-            else if (k.includes('english')) lang = 'English';
-            else if (k.includes('kannada')) lang = 'Kannada';
-
-            localLeads = localLeads.concat(parsed.map((l: any) => ({
-              ...l,
-              workshopName: l.workshopName || lang
-            })));
-          }
-        } catch(e) {}
-      });
-      // Deduplicate with DB leads
-      const dbPhones = new Set(sourceLeads.map((l: any) => (l.phoneNumber || '').replace(/\D/g, '').slice(-10)));
-      const newLocalLeads = localLeads.filter(l => {
-         if (!l || !l.phoneNumber) return false;
-         const p = String(l.phoneNumber).replace(/\D/g, '').slice(-10);
-         return p.length >= 10 && !dbPhones.has(p);
-      }).map((l: any) => ({
-         ...l,
-         _id: l._id || l.id || `csv_batch_${Math.random().toString(36).substr(2, 9)}`
-      }));
-      sourceLeads = [...sourceLeads, ...newLocalLeads];
-    }
-
-    let batchDecisions: Record<string, any> = {};
-    if (typeof window !== 'undefined') {
-      const d = localStorage.getItem('crm_ai4_decisions');
-      if (d) { try { batchDecisions = JSON.parse(d); } catch(e){} }
-    }
-
-    const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
-    let activeBatches = (props?.workshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
-    
-    // If not embedded, fetch workshops and offers from localStorage
-    if (!isEmbedded && typeof window !== 'undefined') {
-      let combined: any[] = [];
-      const keys = ['crm_workshops', 'crm_offers', 'crm_marathi_workshops', 'crm_hindi_workshops', 'crm_kannada_workshops', 'crm_english_workshops'];
-      keys.forEach(key => {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          try { combined = combined.concat(JSON.parse(saved)); } catch (e) {}
-        }
-      });
-      activeBatches = combined.filter((w: any) => allowedBatchNames.includes(w.name));
-    }
-
-    let activeBatchLeads: any[] = [];
-    const seenLeadIds = new Set<string>();
-
-    if (activeBatches.length > 0) {
-      activeBatches.forEach((activeBatch: any) => {
-        const keywords = activeBatch?.formFilterKeyword ? activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean) : [];
-        const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
-
-        sourceLeads.forEach((lead: any) => {
-          const leadId = lead.id || lead._id || Math.random().toString();
-          if (seenLeadIds.has(leadId)) return;
-
-          if (keywords.length > 0) {
-            let matches = false;
-            if (lead._rawRecord) {
-              if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                matches = keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-              } else {
-                matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
-              }
-            } else {
-              matches = true;
-            }
-            if (matches) {
-              seenLeadIds.add(leadId);
-              activeBatchLeads.push(lead);
-            }
-          } else {
-            const bName = (activeBatch.name || '').toLowerCase();
-            let isMatch = false;
-            const lName = (lead.workshopName || lead.formName || lead.language || '').toLowerCase();
-            const lLabels = Array.isArray(lead.labels) ? lead.labels.join(' ').toLowerCase() : '';
-            const leadLangStr = lName + ' ' + lLabels;
-            
-            if (bName.includes('english') && leadLangStr.includes('english')) isMatch = true;
-            else if (bName.includes('hindi') && leadLangStr.includes('hindi')) isMatch = true;
-            else if (bName.includes('marathi') && leadLangStr.includes('marathi')) isMatch = true;
-            else if (bName.includes('kannada') && leadLangStr.includes('kannada')) isMatch = true;
-            else if (!bName.includes('english') && !bName.includes('hindi') && !bName.includes('marathi') && !bName.includes('kannada')) isMatch = true;
-            
-            if (isMatch) {
-              seenLeadIds.add(leadId);
-              activeBatchLeads.push(lead);
-            }
-          }
-        });
-      });
-    }
-
-    if (activeBatches.length === 0) {
-      if (!isEmbedded) {
-        activeBatchLeads = sourceLeads;
-      } else {
-        activeBatchLeads = [];
-      }
-    }
+    const embeddedIds = new Set(propLeadsData.map((row: RegistrationRecord) => String(row.id || row._id)));
+    const useRegistration = isEmbedded || filterWorkshops.length > 0 || filterStatuses.length > 0;
+    const activeBatchLeads = useRegistration ? registrationRows.filter(row =>
+      (!isEmbedded || embeddedIds.has(row.responseId) || embeddedIds.has(String(row.leadId))) &&
+      (!filterWorkshops.length || filterWorkshops.includes(row.registrationBatchId))) : leads;
+    const batchDecisions = Object.fromEntries(activeBatchLeads.map((row: RegistrationRecord) => [row.id || row._id, row.registrationDecision || {}]));
 
       let tabLeads = activeBatchLeads;
       if (filterStatuses.length > 0) {
@@ -918,6 +776,7 @@ export default function BroadcastPage(props: any) {
             const leadStatus = (l.status || '').toLowerCase();
             const effStatus = dec.status || leadStatus;
             
+            if (l.registrationBatchId) return filterStatuses.some(status => registrationAudienceMatches(l, STATUS_LABELS[status] || status));
             return filterStatuses.some(status => {
                if (status === 'new_leads' || status === 'new' || status === 'lead') {
                  // Unconditionally include leads that aren't explicitly registered or rejected
@@ -940,7 +799,7 @@ export default function BroadcastPage(props: any) {
         let phone = String(l.phoneNumber || l.mobile || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
         let name = String(l.name || l.Name || '');
         let email = String(l.email || l.Email || '');
-        if (l._rawRecord) {
+        if (l._rawRecord && !l.registrationBatchId) {
            for (const [k, v] of Object.entries(l._rawRecord)) {
               const lowerKey = k.toLowerCase();
               if ((lowerKey.includes('whatsapp') || lowerKey.includes('phone') || lowerKey.includes('mobile')) && v) {
@@ -954,8 +813,9 @@ export default function BroadcastPage(props: any) {
               }
            }
         }
-        const stableId = l._id || l.id || `lead-${phone || idx}`;
+        const stableId = l.registrationBatchId ? l.id : l._id || l.id || `lead-${phone || idx}`;
         return {
+          ...l,
           _id: stableId,
           name: name || `Lead ${idx + 1}`,
           phoneNumber: phone,
@@ -970,9 +830,9 @@ export default function BroadcastPage(props: any) {
 
       // Add CSV contacts as virtual leads (if not already in DB by phone)
       if (!isEmbedded && csvContacts.length > 0) {
-        const existingPhones = new Set(mappedLeads.map((l: any) => (l.phoneNumber || '').replace(/\D/g, '').slice(-10)));
+        const existingPhones = new Set(mappedLeads.map((l: any) => registrationPhone(l.phoneNumber)));
         csvContacts.forEach((c, idx) => {
-          const normalPhone = c.phoneNumber.replace(/\D/g, '').slice(-10);
+          const normalPhone = registrationPhone(c.phoneNumber);
           if (!existingPhones.has(normalPhone)) {
             mappedLeads.push({
               _id: `csv_${idx}_${normalPhone}`,
@@ -989,8 +849,8 @@ export default function BroadcastPage(props: any) {
       // Deduplicate by phone number (keep first occurrence)
       const seenPhones = new Set<string>();
       mappedLeads = mappedLeads.filter((lead: any) => {
-        const normalPhone = (lead.phoneNumber || '').replace(/\D/g, '').slice(-10);
-        if (!normalPhone) return true;
+        const normalPhone = registrationRecipients([lead])[0]?.phoneNumber;
+        if (!normalPhone) return false;
         if (seenPhones.has(normalPhone)) return false;
         seenPhones.add(normalPhone);
         return true;
@@ -1000,28 +860,6 @@ export default function BroadcastPage(props: any) {
         const matchesSearch = !searchQuery ||
           lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           lead.phoneNumber?.includes(searchQuery);
-
-        const leadStatusNorm = (lead.status || '').toLowerCase();
-        let matchesStatus = filterStatuses.length === 0;
-        if (!matchesStatus) {
-          matchesStatus = filterStatuses.some(status => {
-            const filterStatusNorm = status.toLowerCase();
-            // If the status is 'new_leads', and it passed the tabLeads filter, it should definitely be shown here!
-            if (filterStatusNorm === 'new_leads' || filterStatusNorm === 'new' || filterStatusNorm === 'lead') {
-              return true;
-            } else if (filterStatusNorm.includes('pending')) {
-              return leadStatusNorm.includes('pending');
-            } else if (filterStatusNorm.includes('registered')) {
-              return leadStatusNorm.includes('register');
-            } else if (filterStatusNorm.includes('approval')) {
-              return leadStatusNorm.includes('approval');
-            } else if (filterStatusNorm.includes('rejected')) {
-              return leadStatusNorm.includes('reject');
-            } else {
-              return leadStatusNorm === filterStatusNorm;
-            }
-          });
-        }
 
         const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
         
@@ -1035,12 +873,21 @@ export default function BroadcastPage(props: any) {
           lead.language?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
           (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
         
-        const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.workshopName) || filterWorkshops.includes(lead.workshopId);
+        const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.registrationBatchId);
         const finalLanguageMatch = filterWorkshops.length > 0 ? true : matchesLanguage;
 
-        return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
+        return matchesSearch && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && finalLanguageMatch;
       });
-  }, [leads, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded]);
+  }, [leads, registrationRows, csvContacts, searchQuery, filterStatuses, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded]);
+
+  useEffect(() => {
+    if (loading) return;
+    const available = new Set(filteredLeads.map(lead => String(lead._id)));
+    setSelectedLeads(previous => {
+      const next = new Set([...previous].filter(id => available.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [filteredLeads, loading]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -1058,25 +905,6 @@ export default function BroadcastPage(props: any) {
     });
     return Array.from(labels).sort();
   }, [leads]);
-
-  const STATUS_LABELS: Record<string, string> = {
-    'lead': 'New Leads',
-    'new_leads': 'New Leads',
-    'pending_leads_1': 'Pending-1',
-    'approval_1': 'Approvel-1',
-    'pending_leads_2': 'Pending-2',
-    'approval_2': 'Approvel-2',
-    'pending_leads_3': 'Pending-3',
-    'approval_3': 'Approvel-3',
-    'pending_leads_4': 'Pending-4',
-    'approval_4': 'Approvel-4',
-    'rejected_leads': 'Rejected leads',
-    'registered_leads': 'Registerd leads',
-    'set_zoom_meeting': 'Set zoom meeting',
-    'take_zoom_meeting': 'Take Zoom Meeting',
-    'ai_triggers': 'AI Triggers-WT'
-  };
-
 
   const uniqueAssignedUsers = useMemo(() => {
     const usersMap = new Map<string, string>();
@@ -1272,12 +1100,11 @@ export default function BroadcastPage(props: any) {
         // Auto-select all CSV contacts
         setSelectedLeads(prev => {
           const next = new Set(prev);
-          const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
           contacts.forEach((c, idx) => {
-            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
-            const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+            const phone = registrationPhone(c.phoneNumber);
+            const dbLead = leads.find(l => registrationPhone(l.phoneNumber) === phone);
             if (dbLead) next.add(dbLead._id);
-            else next.add(`csv_${idx}_${last10}`);
+            else next.add(`csv_${idx}_${phone}`);
           });
           return next;
         });
@@ -1327,10 +1154,9 @@ export default function BroadcastPage(props: any) {
   );
 
   const canSend = useMemo(() => {
-    if (!selectedTemplate || selectedLeads.size === 0) return false;
+    if (!selectedTemplate || selectedTemplate.status !== 'approved' || selectedLeads.size === 0) return false;
     if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
     if (sendMode === 'repeat' && (repeatSelectedDates.length === 0 || realLeadCount === 0)) return false;
-    // Templates are chargeable and can be sent anytime - no approval check required
     return true;
   }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, repeatSelectedDates, realLeadCount]);
 
@@ -1345,6 +1171,33 @@ export default function BroadcastPage(props: any) {
 
     if (sendMode === 'repeat') {
       try {
+        const selectedRows = filteredLeads.filter(lead => selectedLeads.has(String(lead._id)));
+        const registrationRows = selectedRows.filter(lead => lead.registrationBatchId && lead.responseId);
+        if (registrationRows.length) {
+          const batchIds = new Set(registrationRows.map(lead => lead.registrationBatchId));
+          if (registrationRows.length !== selectedLeads.size || batchIds.size !== 1 || filterStatuses.length > 1) {
+            throw new Error('Repeat a single saved batch and category at a time. Use AI Triggers for separate schedules.');
+          }
+          const response = await fetch('/api/admin/crm/new-registration/triggers', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channel: 'meta', template: selectedTemplate._id, batchId: registrationRows[0].registrationBatchId,
+              responseIds: registrationRows.map(lead => lead.responseId),
+              targetCategory: filterStatuses.length ? STATUS_LABELS[filterStatuses[0]] || filterStatuses[0] : 'All Leads',
+              dates: repeatSelectedDates, time: repeatTime, repeat: 'none',
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || 'Failed to save registration repeat schedule');
+          setResult({ success: true, message: `Schedule saved for ${data.data.leadIds.length} unique recipients on ${repeatSelectedDates.length} dates. Current category eligibility is checked before each send.` });
+          setSelectedLeads(new Set());
+          setSelectedTemplate(null);
+          setStep(1);
+          fetchData();
+          return;
+        }
         const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_') && !id.startsWith('google-csv-') && !id.startsWith('oauth-form-'));
         if (realLeadIds.length === 0) throw new Error('Repeat requires recipients with saved lead records (CSV-only contacts are not supported)');
         if (repeatSelectedDates.length === 0) throw new Error('Select at least one day to repeat on');
@@ -1410,15 +1263,16 @@ export default function BroadcastPage(props: any) {
       const allIds = Array.from(selectedLeads);
       const realLeadIds: string[] = [];
       const virtualContacts: { name?: string; phoneNumber: string; email?: string }[] = [];
+      const registrationSelections: { batchId: string; responseId: string; category: string }[] = [];
+      if (allIds.some(id => !filteredLeads.some(lead => String(lead._id) === id))) {
+        throw new Error('Recipient selection changed. Return to recipients and select the current batch/category again.');
+      }
 
       allIds.forEach(id => {
-        // ALWAYS push to realLeadIds as a fallback
-        realLeadIds.push(id);
-        
-        // ALWAYS pass the contact data via virtualContacts so the backend can auto-create missing batch leads!
         const l = filteredLeads.find((lead: any) => String(lead._id) === id || String(lead.id) === id);
-        if (l && l.phoneNumber) {
-          virtualContacts.push({ name: l.name || '', phoneNumber: l.phoneNumber, email: l.email });
+        if (l?.registrationBatchId && l.responseId) {
+          registrationSelections.push({ batchId: l.registrationBatchId, responseId: l.responseId,
+            category: filterStatuses.length ? STATUS_LABELS[l.status || ''] || l.status || 'All Leads' : 'All Leads' });
         } else if (id.startsWith('csv_')) {
           const idx = parseInt(id.split('_')[1], 10);
           const c = csvContacts[idx];
@@ -1428,11 +1282,12 @@ export default function BroadcastPage(props: any) {
              const parts = id.split('_');
              virtualContacts.push({ phoneNumber: parts.slice(2).join('_') });
           }
-        }
+        } else realLeadIds.push(id);
       });
 
       // Build target — include both leadIds and csvPhoneNumbers
       const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
+      if (registrationSelections.length) target.registrationSelections = registrationSelections;
       if (virtualContacts.length > 0) {
         target.csvPhoneNumbers = virtualContacts.map(c => c.phoneNumber);
         target.csvContacts = virtualContacts;
@@ -1930,7 +1785,7 @@ export default function BroadcastPage(props: any) {
                             }}
                             className="w-4 h-4 mt-0.5 rounded accent-green-600 shrink-0"
                           />
-                          <span className="leading-tight text-gray-700">{w}</span>
+                          <span className="leading-tight text-gray-700">{formWorkshops.find(batch => batch.id === w)?.name || w}</span>
                         </label>
                       ))}
                     </div>
@@ -2092,8 +1947,8 @@ export default function BroadcastPage(props: any) {
                         </thead>
                         <tbody>
                           {csvContacts.slice(0, 50).map((c, i) => {
-                            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
-                            const existsInDB = leads.some(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+                            const phone = registrationPhone(c.phoneNumber);
+                            const existsInDB = leads.some(l => registrationPhone(l.phoneNumber) === phone);
                             return (
                               <tr key={i} className={`border-t border-green-100 ${existsInDB ? 'bg-indigo-50/40' : ''}`}>
                                 <td className="px-3 py-1.5 text-gray-500">{i + 1}</td>

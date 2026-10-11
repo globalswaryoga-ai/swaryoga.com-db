@@ -111,8 +111,9 @@ export type WhatsAppSendMediaResult = {
 };
 
 export type WhatsAppTemplateHeaderMedia = {
-  kind: 'image' | 'video';
+  kind: 'image' | 'video' | 'document';
   url: string;
+  filename?: string;
 };
 
 export type WhatsAppTemplateButton =
@@ -889,11 +890,12 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
   const components: any[] = [];
 
   if (input.headerMedia?.url) {
-    const format = input.headerMedia.kind === 'video' ? 'VIDEO' : 'IMAGE';
+    const format = input.headerMedia.kind.toUpperCase();
     const isMetaId = input.headerMedia.url.startsWith('meta:id:');
     const mediaParam = isMetaId
       ? { id: input.headerMedia.url.replace('meta:id:', '') }
       : { link: input.headerMedia.url };
+    if (input.headerMedia.kind === 'document' && input.headerMedia.filename) Object.assign(mediaParam, { filename: input.headerMedia.filename });
     components.push({
       type: 'header',
       parameters: [{ type: format.toLowerCase(), [format.toLowerCase()]: mediaParam }],
@@ -984,7 +986,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
       let processedInput = { ...input };
       if (input.headerMedia?.url && !input.headerMedia.url.startsWith('meta:id:')) {
           const signedUrl = await getPublicMediaUrl(input.headerMedia.url);
-          const mimeType = input.headerMedia.kind === 'video' ? 'video/mp4' : 'image/jpeg';
+          const mimeType = input.headerMedia.kind === 'document' ? 'application/pdf' : input.headerMedia.kind === 'video' ? 'video/mp4' : 'image/jpeg';
           const mediaId = await uploadMediaToMeta(signedUrl, mimeType, creds);
           if (mediaId) {
             processedInput = {
@@ -1074,8 +1076,8 @@ export function buildCloudTemplateSendInput(template: any, to: string): WhatsApp
   }
 
   const headerMedia: WhatsAppTemplateHeaderMedia | null =
-    headerMediaUrl && (headerMediaKind === 'image' || headerMediaKind === 'video')
-      ? { kind: headerMediaKind as 'image' | 'video', url: headerMediaUrl }
+    headerMediaUrl && (headerMediaKind === 'image' || headerMediaKind === 'video' || headerMediaKind === 'document')
+      ? { kind: headerMediaKind, url: headerMediaUrl, ...(headerMediaKind === 'document' && template.headerMedia.filename ? { filename: String(template.headerMedia.filename) } : {}) }
       : null;
 
   const buttons: WhatsAppTemplateButton[] = [];

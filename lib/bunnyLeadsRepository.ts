@@ -1,4 +1,6 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import type { RegistrationRecord } from '@/lib/registrationRules';
+import { registrationPhone } from '@/lib/registrationLeads';
 
 function parse(value: unknown): any | null { try { return JSON.parse(String(value)); } catch { return null; } }
 function dateMs(value: any) { const raw = value?.$date || value; const time = new Date(raw || 0).getTime(); return Number.isFinite(time) ? time : 0; }
@@ -13,7 +15,7 @@ export async function loadBunnyLeads() {
   return result.rows.map((row: any) => {
     const lead = parse(row.data_json) || {};
     return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id), createdAt: lead.createdAt || row.created_at, updatedAt: lead.updatedAt || row.updated_at };
-  });
+  }).filter(lead => !lead.mergedIntoLeadId);
 }
 
 export async function listBunnyLeads(input: { visibleUserIds: string[] | null; viewerUserId: string; status?: string | null; workshop?: string | null; label?: string | null; source?: string | null; excludeSource?: string | null; q?: string | null; userId?: string | null; skip: number; limit: number; }) {
@@ -41,12 +43,10 @@ export async function getBunnyLeadMetadata(input: { visibleUserIds: string[] | n
 }
 
 export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: string | null) {
-  const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json FROM leads_sql WHERE lead_key LIKE ?',
-    args: [`%${phoneNumber}%`]
-  });
-  
-  const leads = result.rows.map(r => { const lead = parse(r.data_json); return { ...lead, _id: String(lead._id?.$oid || lead._id || r.document_id) }; });
+  const phone = registrationPhone(phoneNumber);
+  if (!phone) throw new Error('Phone number is required for contact lookup');
+  const leads = (await loadBunnyLeads()).filter(lead => registrationPhone(lead.phoneNumber) === phone ||
+    (lead.contactPhones || []).includes(phone));
   
   if (tenantUserId) {
     return leads.find(l => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
@@ -58,80 +58,34 @@ export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: st
 export async function getBunnyLeadByEmail(email: string) {
   if (!email) return null;
   const normalised = email.trim().toLowerCase();
-  const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json FROM leads_sql',
-    args: []
-  });
-  for (const row of result.rows) {
-    const lead = parse(row.data_json);
-    if (!lead) continue;
-    if (String(lead.email || '').trim().toLowerCase() === normalised) {
-      return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id) };
-    }
-  }
-  return null;
+  return (await loadBunnyLeads()).find(lead => String(lead.email || '').trim().toLowerCase() === normalised ||
+    (lead.contactEmails || []).includes(normalised)) || null;
 }
 
 export async function getBunnyLeadById(id: string) {
+  const visited = new Set<string>();
+  return resolveBunnyLeadAlias(id, visited);
+}
+
+async function resolveBunnyLeadAlias(id: string, visited: Set<string>): Promise<any> {
+  if (visited.has(id)) throw new Error('Permanent lead alias cycle requires repair');
+  visited.add(id);
   const result = await bunnyExecute({
     sql: 'SELECT document_id, data_json FROM leads_sql WHERE document_id = ?',
     args: [id]
   });
   if (!result.rows[0]) return null;
-  const lead = parse(result.rows[0].data_json); return { ...lead, _id: String(lead._id?.$oid || lead._id || result.rows[0].document_id) };
+  const lead = parse(result.rows[0].data_json);
+  if (lead.mergedIntoLeadId) return resolveBunnyLeadAlias(String(lead.mergedIntoLeadId), visited);
+  return { ...lead, _id: String(lead._id?.$oid || lead._id || result.rows[0].document_id) };
 }
 
 export async function saveBunnyLead(lead: any, documentId?: string) {
-  const now = new Date().toISOString();
-  const docId = documentId || lead._id?.$oid || lead._id || Math.random().toString(36).substring(2, 15);
-  
-  const existing = documentId || lead._id ? await getBunnyLeadById(docId) : null;
-  const isNew = !existing;
-  
-  const leadToSave = {
-    ...lead,
-    _id: docId,
-    updatedAt: now,
-    createdAt: lead.createdAt || now
-  };
-  
-  // The lead_key was used for unique index in migration: 
-  // tenantUserId + '#' + phoneNumber
-  const leadKey = `${leadToSave.createdByUserId || 'system'}#${leadToSave.phoneNumber}`;
-  
-  await bunnyExecute({
-    sql: `INSERT INTO leads_sql (document_id, lead_key, owner_user_id, lead_number, data_json, created_at, updated_at) 
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(document_id) DO UPDATE SET 
-            data_json = excluded.data_json,
-            updated_at = excluded.updated_at,
-            owner_user_id = excluded.owner_user_id,
-            lead_number = excluded.lead_number`,
-    args: [
-      docId,
-      leadKey,
-      leadToSave.createdByUserId || null,
-      leadToSave.leadNumber || null,
-      JSON.stringify(leadToSave),
-      leadToSave.createdAt,
-      leadToSave.updatedAt
-    ]
-  });
-  
-  if (isNew) {
-    const contactUserId = leadToSave.createdByUserId || 'system';
-    const { pushLeadToGoogleContacts } = await import('@/lib/googleContactsManager');
-    pushLeadToGoogleContacts(contactUserId, {
-      name: leadToSave.name || 'Unknown',
-      phone: leadToSave.phoneNumber,
-      email: leadToSave.email,
-      labels: leadToSave.labels,
-      city: leadToSave.city,
-      country: leadToSave.country
-    }).catch(console.error);
-  }
-  
-  return leadToSave;
+  const { persistBunnyContact } = await import('@/lib/bunnyContactIdentity');
+  const requestedId = documentId || lead._id?.$oid || lead._id;
+  const existing = requestedId ? await getBunnyLeadById(String(requestedId)) : null;
+  return persistBunnyContact({ ...existing, ...lead, _id: existing?._id || requestedId },
+    existing?.createdByUserId || lead.createdByUserId || 'system', false);
 }
 
 export async function getBunnyLeadsByPhones(phones: string[], viewerUserId: string, superAdmin: boolean = false) {
@@ -142,10 +96,10 @@ export async function getBunnyLeadsByPhones(phones: string[], viewerUserId: stri
     args: []
   });
   
-  const leads = [];
+  const leads: RegistrationRecord[] = [];
   for (const row of result.rows) {
     const lead = parse(row.data_json);
-    if (!lead) continue;
+    if (!lead || lead.mergedIntoLeadId) continue;
     
     // Check if phone matches
     if (phones.includes(lead.phoneNumber)) {

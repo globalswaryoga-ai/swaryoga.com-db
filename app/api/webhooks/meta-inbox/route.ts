@@ -8,6 +8,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 import { logError } from '@/lib/api-error';
+import { persistMetaFormLead } from '@/lib/bunnyMetaLeadIngestion';
 
 
 export async function GET(request: NextRequest) {
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
               await createLeadFromMetaForm(leadData, change.value);
             } catch (err) {
               console.error('❌ Failed to fetch/process lead from Meta in inbox webhook:', err);
+              throw err;
             }
           }
         }
@@ -121,20 +123,9 @@ async function createLeadFromMetaForm(leadData: any, metaContext: any) {
     createdAt: new Date(leadData.created_time || Date.now()).toISOString(),
     notes: `Lead from Meta Instant Form (Form ID: ${metaContext.form_id}, Ad ID: ${metaContext.ad_id})`,
     labels: ['meta_instant_form', 'facebook_ads', 'enquiry', workshopId ? `workshop_${workshopId}` : ''].filter(Boolean),
-    metadata: { leadgen_id: leadData.id, rawFieldData: fieldData },
+    metadata: { leadgen_id: leadData.id, metaFormId: String(metaContext.form_id || ''), rawFieldData: fieldData },
     createdByUserId: 'system',
   };
 
-  const { saveBunnyLead, getBunnyLeadByPhone } = await import('@/lib/bunnyLeadsRepository');
-  let existing = await getBunnyLeadByPhone(lead.phoneNumber, 'system');
-  if (existing) {
-    await saveBunnyLead({
-      ...existing, ...lead,
-      labels: Array.from(new Set([...(existing.labels || []), ...(lead.labels || []), 'enquiry'])),
-      notes: existing.notes ? existing.notes + '\n' + lead.notes : lead.notes
-    }, existing._id || existing.id);
-  } else {
-    await saveBunnyLead(lead);
-  }
+  await persistMetaFormLead(lead);
 }
-

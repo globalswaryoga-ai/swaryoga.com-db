@@ -5,6 +5,7 @@ import { listForms } from '@/lib/bunny-forms-db';
 import { collectGoogleFormTargets } from '@/lib/googleFormsSync';
 import { readRegistrationState, registrationWorkshops } from '@/lib/registrationState';
 import { readGoogleFormConnections, connectedGoogleFormTargets } from '@/lib/googleFormConnections';
+import { savedOfferGoogleTargets } from '@/lib/workshopOfferRepository';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -86,6 +87,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    try {
+      for (const { scope, batches } of await savedOfferGoogleTargets()) {
+        for (const target of collectGoogleFormTargets([], { crm_workshops: batches })) {
+          if (!targets.some(existing => existing.scope === scope && existing.formId === target.formId)) targets.push({ ...target, scope });
+        }
+      }
+    } catch (error) {
+      optionalScopeBlockers.push({ scope: 'offers', error: error instanceof Error ? error.message : 'Saved offer forms could not be discovered.' });
+    }
     const baseUrl = internalBaseUrl(request);
     const results: Array<Record<string, unknown>> = [];
     const deadline = Date.now() + 270_000;

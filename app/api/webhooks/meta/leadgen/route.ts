@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 
-import { getBunnyLeadByPhone, saveBunnyLead, listBunnyLeads } from '@/lib/bunnyLeadsRepository';
-import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { persistMetaFormLead } from '@/lib/bunnyMetaLeadIngestion';
 import { normalizePhone, generateAppSecretProof } from '@/lib/whatsapp';
-import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,48 +116,7 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
       return { success: false, error: 'No contact info' };
     }
 
-    // Check for duplicates (by phone, email, or metaLeadgenId)
-    // Removed MongoDB orFilters
-    
-    
-    
-
-    let existingLead: any = null;
-    if (phone) {
-      existingLead = await getBunnyLeadByPhone(phone, null);
-    }
-    
-    // If not found by phone, try by metaLeadgenId
-    if (!existingLead) {
-      const allLeadsData = await listBunnyLeads({ limit: 5000, skip: 0, visibleUserIds: null, viewerUserId: 'system', excludeSource: '' });
-      const allLeads = allLeadsData.leads || [];
-      existingLead = allLeads.find((l: any) => l.metadata?.metaLeadgenId === metaLeadgenId);
-    }
-    // Note: Not doing email fallback for BunnyDB right now since getBunnyLeadByPhone is standard.
-
-    if (existingLead) {
-      const existingLabels = Array.isArray(existingLead.labels) ? existingLead.labels : [];
-      const updatedLead = await saveBunnyLead({
-        ...existingLead,
-        source: existingLead.source || 'meta_leadgen',
-        workshopName: (workshopName && !existingLead.workshopName) ? workshopName : existingLead.workshopName,
-        metadata: {
-          ...(existingLead.metadata || {}),
-          metaLeadgenId,
-          ...(formId ? { metaFormId: formId } : {}),
-          rawFieldData: fieldData,
-        },
-        labels: Array.from(new Set([...existingLabels, 'social media', 'enquiry']))
-      }, existingLead._id || existingLead.id);
-      
-      console.log(`Updated existing lead: ${existingLead._id || existingLead.id}`);
-      return { success: true, leadId: existingLead._id || existingLead.id, action: 'updated' };
-    }
-
-    // Create new lead
-    const { leadNumber } = await allocateNextLeadNumber(null);
-    const newLead = await saveBunnyLead({
-      leadNumber,
+    const newLead = await persistMetaFormLead({
       phoneNumber: phone || '',
       email: email || '',
       name: name || 'Instagram Lead',
@@ -174,10 +131,8 @@ async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
       },
       createdByUserId: 'system',
       assignedToUserId: 'system',
+      createdAt: new Date(leadgenData.created_time || Date.now()).toISOString(),
     });
-
-    // Auto-add to main broadcast list
-    await addLeadToMainBroadcastList(newLead);
 
     console.log(`Created new lead: ${newLead._id}`);
     return { success: true, leadId: newLead._id, action: 'created' };
@@ -246,9 +201,11 @@ export async function POST(req: Request) {
             if (leadgenData) {
               // Upsert into CRM (pass formId for workshop mapping)
               const result = await upsertLeadFromMeta(leadgenData, formId);
+              if (!result.success) throw new Error(result.error || 'Meta lead could not be saved');
               console.log(`Upsert result:`, result);
             } else {
               console.error(`Failed to fetch leadgen details: ${leadgenId}`);
+              throw new Error('Meta lead details could not be fetched; retry required');
             }
           }
         }

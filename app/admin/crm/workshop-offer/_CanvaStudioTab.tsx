@@ -127,7 +127,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': blob })
           ]);
-          toast.addToast('success', 'Image copied to clipboard!');
+          toast.success('Image copied to clipboard!');
         } catch (err) {
           console.error(err);
           alert('Failed to copy image. Please right click and copy.');
@@ -218,12 +218,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const fullPrompt = `Target Language: ${metaLanguage}\nPlatform: ${metaPlatform}\n\n${currentPrompt}`;
       
       // Strip massive base64 image data from history to prevent 413 Payload Too Large errors
-      const strippedMessages = chatMessages.map(m => {
-          if (m.imageUrl && m.imageUrl.startsWith('data:image')) {
-              return { ...m, imageUrl: '[User uploaded image]' };
-          }
-          return m;
-      });
+      const strippedMessages = chatMessages.slice(-8).map(m => ({
+        role: m.role,
+        content: m.content.slice(0, 1500),
+        ...(m.role === 'user' && m.imageUrl ? { imageUrl: '[Reference image attached]' } : {}),
+      }));
 
       const res = await fetch('/api/admin/canva/meta-ai', {
         method: 'POST',
@@ -233,6 +232,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
       
       if (!res.ok) {
+        if (res.status === 413) throw new Error('Request too large. Image data must be uploaded separately, not embedded in chat history. No image was generated.');
         let errorMsg = 'Failed to generate content';
         try {
           const errData = await res.json();

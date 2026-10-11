@@ -60,10 +60,12 @@ export async function listTemplates(filter: any, limit = 50, skip = 0) {
 }
 
 export async function getTemplateById(id: string) {
-  const res = await bunnyExecute({ sql: 'SELECT data_json FROM whatsapp_templates_sql WHERE document_id = ?', args: [id] });
+  const res = await bunnyExecute({ sql: 'SELECT data_json,status,created_by FROM whatsapp_templates_sql WHERE document_id = ?', args: [id] });
   if (res.rows.length === 0) return null;
   return {
     ...JSON.parse(String(res.rows[0].data_json)),
+    ...(res.rows[0].status !== undefined ? { status: String(res.rows[0].status) } : {}),
+    ...(res.rows[0].created_by !== undefined ? { createdBy: String(res.rows[0].created_by || '') } : {}),
     _id: id
   };
 }

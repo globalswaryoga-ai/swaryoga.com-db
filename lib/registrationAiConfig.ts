@@ -16,6 +16,21 @@ export function registrationAiConfigKey(batchId: string, worker: string) {
   return `crm_ai_config_${batchId}_${worker}`;
 }
 
+export function validateRegistrationConditions(conditions: RegistrationFilterCondition[]) {
+  const routes = new Map<string, string>();
+  for (const condition of conditions) {
+    if (!condition.question?.trim() && !condition.keyword?.trim() && !condition.directMoveCategory) continue;
+    if (condition.directMoveCategory) continue;
+    if (!condition.question?.trim() || !condition.keyword?.trim() || !condition.successCategory) {
+      throw new Error('Each answer rule needs a question, an answer and a destination category');
+    }
+    const key = `${condition.question.trim().toLowerCase()}\n${condition.keyword.trim().toLowerCase()}`;
+    const previous = routes.get(key);
+    if (previous && previous !== condition.successCategory) throw new Error('The same question and answer cannot route to different categories');
+    routes.set(key, condition.successCategory);
+  }
+}
+
 export function readRegistrationAiConfig(state: RegistrationState, batchId: string, metadata: Record<string, unknown> = {}) {
   const settings = {
     ...parseRegistrationValue<Record<string, RegistrationFilterCondition[]>>(state.crm_ai_settings_v3, {}),
@@ -60,28 +75,49 @@ export function evaluateRegistrationConditions(raw: Record<string, unknown>, con
   if (!filters.length) return direct ? { passed: true, category: direct, reason: 'Configured direct move' } : null;
   const failures: string[] = [];
   let failedCategory: string | undefined;
+  const groups = new Map<string, RegistrationFilterCondition[]>();
   for (const condition of filters) {
-    const key = Object.keys(raw).find(candidate => normalize(candidate) === normalize(condition.question));
-    const answer = key === undefined ? undefined : raw[key];
-    const expected = normalize(condition.keyword);
-    let matched = false;
-    if (answer !== undefined && expected) {
-      const actual = Array.isArray(answer) ? answer.map(normalize) : [normalize(answer)];
-      const range = expected.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-      if (range && /age|वय|उम्र|आयु|ವಯಸ್ಸು/i.test(condition.question)) {
-        const digits = actual[0].replace(/[०-९]/g, character => String(character.charCodeAt(0) - '०'.charCodeAt(0)));
-        const age = /^\d+(?:\s*(?:years?|yrs?))?$/.test(digits) ? Number.parseInt(digits, 10) : NaN;
-        matched = age >= Number(range[1]) && age <= Number(range[2]);
-      } else {
-        matched = actual.includes(expected) || expected.split(',').map(normalize).some(option => Boolean(option) && actual.includes(option));
+    const question = normalize(condition.question);
+    groups.set(question, [...(groups.get(question) || []), condition]);
+  }
+  const destinations = new Set<string>();
+  for (const alternatives of groups.values()) {
+    let selected: RegistrationFilterCondition | undefined;
+    for (const condition of alternatives) {
+      const key = Object.keys(raw).find(candidate => normalize(candidate) === normalize(condition.question));
+      const answer = key === undefined ? undefined : raw[key];
+      const expected = normalize(condition.keyword);
+      let matched = false;
+      if (answer !== undefined && expected) {
+        const actual = Array.isArray(answer) ? answer.map(normalize) : [normalize(answer)];
+        const range = expected.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+        if (range && /age|वय|उम्र|आयु|ವಯಸ್ಸು/i.test(condition.question)) {
+          const digits = actual[0].replace(/[०-९]/g, character => String(character.charCodeAt(0) - '०'.charCodeAt(0)));
+          const age = /^\d+(?:\s*(?:years?|yrs?))?$/.test(digits) ? Number.parseInt(digits, 10) : NaN;
+          matched = age >= Number(range[1]) && age <= Number(range[2]);
+        } else {
+          matched = actual.includes(expected) || expected.split(',').map(normalize).some(option => Boolean(option) && actual.includes(option));
+        }
+      }
+      if (matched) {
+        if (selected?.successCategory && condition.successCategory && selected.successCategory !== condition.successCategory) {
+          return { passed: false, category: '', reason: `Conflicting matching destinations for: ${condition.question}` };
+        }
+        selected = selected?.successCategory ? selected : condition;
       }
     }
-    if (!matched) {
-      failures.push(condition.question || 'Unmapped question');
-      failedCategory ||= condition.failCategory;
+    if (!selected) {
+      failures.push(alternatives[0].question || 'Unmapped question');
+      failedCategory ||= alternatives.find(condition => condition.failCategory)?.failCategory;
+    } else if (selected.successCategory) {
+      destinations.add(selected.successCategory);
     }
   }
   if (failures.length) return { passed: false, category: failedCategory || '', reason: `Required answers failed: ${failures.join(', ')}` };
-  const category = conditions.find(condition => condition.successCategory)?.successCategory || direct || '';
-  return { passed: true, category, reason: 'All configured question/answer conditions passed' };
+  const pendingCategory = [...destinations].find(destination => destination.startsWith('pending'));
+  if (pendingCategory) return { passed: false, category: pendingCategory, reason: 'Matched configured pending answer; pending takes priority across questions' };
+  if (destinations.size > 1) return { passed: false, category: '', reason: 'Conflicting destinations across required questions; review configuration' };
+  const category = [...destinations][0] || direct || '';
+  const pending = category.startsWith('pending');
+  return { passed: !pending, category, reason: pending ? 'Matched configured pending answer' : 'All required questions matched an allowed answer' };
 }

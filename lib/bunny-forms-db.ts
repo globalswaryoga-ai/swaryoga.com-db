@@ -6,6 +6,7 @@
 
 import { bunnyExecute, bunnyBatch } from './bunnyDatabase';
 import { nanoid } from 'nanoid';
+import { persistBunnyContact } from '@/lib/bunnyContactIdentity';
 
 // ─── Table initialisation ─────────────────────────────────────────────────────
 
@@ -109,10 +110,15 @@ async function initializeFormTables() {
     // Column might already exist
   }
 
-  try {
-    await bunnyExecute('ALTER TABLE form_submissions ADD COLUMN form_data TEXT DEFAULT ""');
-  } catch (e) {
-    // Column might already exist
+  const columns = await bunnyExecute('PRAGMA table_info(form_submissions)');
+  const names = new Set(columns.rows.map(row => String(row.name)));
+  for (const [name, definition] of [
+    ['form_data', "TEXT DEFAULT ''"],
+    ['source', "TEXT DEFAULT ''"],
+    ['raw_answers', "TEXT DEFAULT '{}'"],
+    ['lead_id', "TEXT DEFAULT ''"],
+  ]) {
+    if (!names.has(name)) await bunnyExecute(`ALTER TABLE form_submissions ADD COLUMN ${name} ${definition}`);
   }
 
   tablesReady = true;
@@ -192,7 +198,11 @@ function sanitizeTimeSlots(raw: unknown): { label: string; groupLink: string }[]
 
 export async function listForms() {
   await ensureFormTables();
-  const res = await bunnyExecute(`SELECT * FROM enquiry_forms ORDER BY created_at DESC`);
+  const res = await bunnyExecute(`SELECT enquiry_forms.*,
+    (SELECT COUNT(DISTINCT CASE WHEN (source = 'google_forms' OR id LIKE 'gform_%') AND form_data != ''
+      THEN 'google:' || form_data ELSE 'crm:' || id END)
+      FROM form_submissions WHERE form_id = enquiry_forms.form_id) AS submission_count
+    FROM enquiry_forms ORDER BY created_at DESC`);
   return (res.rows as any[]).map(rowToForm);
 }
 
@@ -462,6 +472,7 @@ export async function updateQuestion(id: string, body: any) {
 function rowToSubmission(row: Record<string, any>) {
   return {
     id:            row.id,
+    leadId:        row.lead_id || null,
     formId:        row.form_id,
     name:          row.name ?? '',
     mobile:        row.mobile ?? '',
@@ -475,6 +486,7 @@ function rowToSubmission(row: Record<string, any>) {
     currency:      row.currency ?? 'INR',
     formData:      row.form_data ?? '',
     source:        row.source ?? '',
+    responseId:    row.source === 'google_forms' || String(row.id).startsWith('gform_') ? row.form_data || '' : '',
     rawAnswers:    safeJson(row.raw_answers, {}),
     submittedAt:   row.created_at,
   };
@@ -484,7 +496,7 @@ export async function createSubmission(data: any) {
   await ensureFormTables();
   const id = 'sub_' + nanoid(10);
   await bunnyExecute({
-    sql: `INSERT OR IGNORE INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency, form_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+    sql: `INSERT INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency, form_data, created_at,lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')),?)`,
     args: [
       id,
       data.formId,
@@ -499,6 +511,7 @@ export async function createSubmission(data: any) {
       data.currency || 'INR',
       data.formData || '',
       data.createdAt || null,
+      '',
     ],
   });
   
@@ -507,7 +520,14 @@ export async function createSubmission(data: any) {
     sql: `UPDATE enquiry_forms SET submission_count = submission_count + 1 WHERE form_id = ?`,
     args: [data.formId],
   });
-  
+  const form = await bunnyExecute({ sql: 'SELECT created_by FROM enquiry_forms WHERE form_id=?', args: [data.formId] });
+  if (data.email || data.mobile) {
+    const contact = await persistBunnyContact({
+      name: data.name, email: data.email, phoneNumber: data.mobile, source: 'form-submission',
+      labels: ['form-submission'], metadata: { formId: data.formId },
+    }, String(form.rows[0]?.created_by || 'system'));
+    await bunnyExecute({ sql: 'UPDATE form_submissions SET lead_id=? WHERE id=?', args: [contact._id, id] });
+  }
   return id;
 }
 

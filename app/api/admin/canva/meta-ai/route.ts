@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { uploadToBunnyStorage } from '@/lib/bunny-storage';
+import { registrationViewer } from '@/lib/registrationAuth';
+import { requestsImage, boundedCreativeHistory } from '@/lib/creativeRequest';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +73,7 @@ const LLAMA3_VERSION = '5a6809ca6288247d06daf6365557e5e429063f32a21146b2a807c682
 
 // Detect if the user is asking for an image
 function wantsImage(prompt: string): boolean {
+  if (requestsImage(prompt)) return true;
   const keywords = [
     'create image', 'generate image', 'make image', 'create a image',
     'generate a image', 'make an image', 'create an image', 'draw',
@@ -159,6 +162,7 @@ async function uploadImageToCanva(imageUrl, accessToken) {
 }
 
 export async function POST(request: Request) {
+  if (!registrationViewer(request)) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('canva_access_token')?.value;
@@ -166,8 +170,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { prompt, templateId, messages } = body;
 
-    if (!prompt) {
-      return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
+    if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 4000) {
+      return NextResponse.json({ error: 'Provide a prompt of at most 4,000 characters' }, { status: 400 });
+    }
+    if (Array.isArray(messages) && messages.some(message => message?.role === 'user' && message.imageUrl)) {
+      return NextResponse.json({ error: 'This legacy generator cannot edit reference photos. Uploaded photos would be ignored. Use the CRM native studio for layout editing; reference-photo AI editing is not yet connected.' }, { status: 422 });
     }
 
     const shouldGenerateImage = wantsImage(prompt);
@@ -182,7 +189,7 @@ export async function POST(request: Request) {
     else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) { aspectRatio = "9:16"; }
 
     // Build conversation history
-    const historyText = (messages || []).map((m: any) =>
+    const historyText = boundedCreativeHistory(messages).map(m =>
       `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
     ).join('\n');
 
@@ -217,7 +224,7 @@ export async function POST(request: Request) {
       const systemPrompt = `You are a world-class creative AI assistant, highly trained in social media marketing, image generation, video creation, and design strategy.
 You help users create ads, posters, YouTube thumbnails, and any creative content they need.
 IMPORTANT INSTRUCTIONS: 
-1. If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style.
+1. Never claim an image has been generated or invent an image attachment. Only describe the requested creative briefly; actual image generation is handled separately.
 2. DO NOT make assumptions about the platform (e.g., Facebook) unless the user specifically mentions it. If they ask for a YouTube thumbnail, acknowledge it is for YouTube.
 3. Keep responses concise, engaging, and professional. Act like a high-end agency partner.\n4. Always explicitly acknowledge the requested aspect ratio or platform size if the user mentions one (e.g. 16:9, square, reels).`;
 
@@ -234,8 +241,8 @@ IMPORTANT INSTRUCTIONS:
     }
 
     // 2. Generate Image via Flux Schnell on Replicate
-    let imageUrl = null;
-    let videoUrl = null;
+    let imageUrl: string | null = null;
+    let videoUrl: string | null = null;
     const shouldGenerateVideo = wantsVideo(prompt);
     const aiDecidedToGenerate = aiText.toLowerCase().includes('generate this image') || aiText.toLowerCase().includes('generate this video');
     
@@ -265,13 +272,15 @@ IMPORTANT INSTRUCTIONS:
           model: 'black-forest-labs/flux-1.1-pro',
           input: {
             prompt: finalImagePrompt,
-            aspect_ratio: aspectRatio,
+            width: aspectRatio === '16:9' ? 1344 : aspectRatio === '9:16' ? 768 : 1024,
+            height: aspectRatio === '16:9' ? 768 : aspectRatio === '9:16' ? 1344 : 1024,
             output_format: 'webp',
             output_quality: 100,
           }
         });
 
         imageUrl = Array.isArray(output) ? output[0] : output;
+        if (typeof imageUrl !== 'string' || !imageUrl.startsWith('https://')) throw new Error('Image provider returned no image');
         
         if (imageUrl) {
            console.log("Uploading generated image to Bunny Storage...");
@@ -282,6 +291,7 @@ IMPORTANT INSTRUCTIONS:
              console.log("Bunny Storage Image URL:", imageUrl);
            } catch(e) {
              console.error("Failed to upload image to Bunny Storage:", e);
+             throw new Error('Generated image could not be saved to Bunny Storage. Generation is not complete.');
            }
         }
 
@@ -310,13 +320,14 @@ IMPORTANT INSTRUCTIONS:
                console.log("Bunny Storage Video URL:", videoUrl);
              } catch(e) {
                console.error("Failed to upload video to Bunny Storage:", e);
+               throw new Error('Generated video could not be saved to Bunny Storage. Generation is not complete.');
              }
            }
         }
         
       } catch (e: any) {
         console.error('Replicate image/video generation failed:', e.message);
-        aiText += `\n\n[System Error: Generation failed: ${e.message}]`;
+        return NextResponse.json({ error: `Image/video generation failed: ${e.message}` }, { status: 502 });
       }
     }
 

@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { getViewerUserId } from '@/lib/crm-handlers';
+import { saveCanvaConnection, canvaRedirect } from '@/lib/canvaConnection';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +16,7 @@ export async function GET(request: Request) {
   }
 
   if (!code) {
-    console.log('[CALLBACK ERROR] No code provided. URL:', request.url);
+    console.warn('[CALLBACK ERROR] No authorization code provided');
     return NextResponse.json({ error: 'No authorization code provided' }, { status: 400 });
   }
 
@@ -21,12 +24,16 @@ export async function GET(request: Request) {
   const clientSecret = process.env.CANVA_CLIENT_SECRET?.trim();
   
   // Dynamically generate the redirect URI based on the current host header or .env
-  const protocol = request.headers.get('x-forwarded-proto') || 'http';
-  const host = request.headers.get('host') || '127.0.0.1:3000';
-  const redirectUri = process.env.CANVA_REDIRECT_URI?.trim() || `${protocol}://${host}/api/admin/canva/callback`;
+  const redirectUri = canvaRedirect(request);
   
   // Read code_verifier from cookies
   const codeVerifier = request.headers.get('cookie')?.split('; ')?.find(c => c.startsWith('canva_code_verifier='))?.split('=')[1];
+  const cookies = new Map((request.headers.get('cookie') || '').split(';').map(value => { const [key, ...parts] = value.trim().split('='); return [key, decodeURIComponent(parts.join('='))]; }));
+  const expectedState = cookies.get('canva_oauth_state');
+  const decoded = verifyToken(cookies.get('canva_crm_token'));
+  if (!expectedState || url.searchParams.get('state') !== expectedState || !decoded?.isAdmin) {
+    return NextResponse.json({ error: 'Canva connection session could not be verified. Connect again from Workshop Offer.' }, { status: 400 });
+  }
 
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'Canva credentials not configured' }, { status: 500 });
@@ -51,21 +58,26 @@ export async function GET(request: Request) {
         redirect_uri: redirectUri,
         code_verifier: codeVerifier
       }).toString(),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
-      console.error('Failed to exchange Canva token:', errorData);
-      return NextResponse.json({ error: 'Failed to exchange token', details: errorData }, { status: tokenResponse.status });
+      console.error('Failed to exchange Canva token:', tokenResponse.status);
+      return NextResponse.json({ error: 'Failed to connect Canva. Check OAuth credentials and redirect URI.' }, { status: tokenResponse.status });
     }
 
     const tokenData = await tokenResponse.json();
+    await saveCanvaConnection(getViewerUserId(decoded), tokenData);
 
     // Store tokens in cookies
     const returnUrl = new URL('/admin/crm/workshop-offer', request.url);
     returnUrl.searchParams.append('canva_connected', 'true');
     
     const res = NextResponse.redirect(returnUrl.toString());
+    res.cookies.delete('canva_oauth_state');
+    res.cookies.delete('canva_crm_token');
+    res.cookies.delete('canva_code_verifier');
     
     // Cookie options
     const cookieOptions = {

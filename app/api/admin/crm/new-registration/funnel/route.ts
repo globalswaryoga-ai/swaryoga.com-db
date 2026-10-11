@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { listForms, listSubmissions } from '@/lib/bunny-forms-db';
 import { registrationLeadOwned, registrationViewer } from '@/lib/registrationAuth';
-import { readRegistrationState } from '@/lib/registrationState';
+import { parseRegistrationValue, readRegistrationState } from '@/lib/registrationState';
 import { processRegistrationFunnel } from '@/lib/registrationFunnel';
 import { readRegistrationDecisions } from '@/lib/registrationAiConfig';
 
@@ -26,8 +26,16 @@ export async function POST(request: Request) {
       submissions: allSubmissions.filter(submission => viewer.superAdmin || formIds.has(submission.formId)),
       scope, batchId: body.batchId, worker: body.worker, selectedIds: body.ids,
     });
-    const decisions = readRegistrationDecisions(await readRegistrationState(scope), body.batchId);
-    return NextResponse.json({ success: !result.errors.length, ...result, decisions }, { status: result.errors.length ? 422 : 200 });
+    const { decisionPatch, ...summary } = result;
+    const updatedState = { ...state };
+    for (const [key, patch] of Object.entries(decisionPatch)) {
+      updatedState[key] = {
+        ...parseRegistrationValue<Record<string, unknown>>(state[key], {}),
+        ...parseRegistrationValue<Record<string, unknown>>(patch, {}),
+      };
+    }
+    const decisions = readRegistrationDecisions(updatedState, body.batchId);
+    return NextResponse.json({ success: !result.errors.length, ...summary, decisions }, { status: result.errors.length ? 422 : 200 });
   } catch (error) {
     console.error('Registration funnel processing failed:', error);
     return NextResponse.json({ error: 'AI funnel processing failed; retry after checking saved configuration.' }, { status: 500 });
