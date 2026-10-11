@@ -57,7 +57,7 @@ describe('Durable Meta batch settings', () => {
   });
   it('rejects inactive stages and unapproved templates without committing activation', async () => {
     const invalid = workshop();
-    invalid.metadata.ai9CConfig = { ...rule, isActive: false };
+    invalid.metadata.ai9BConfig = { ...rule, isActive: false };
     expect((await POST(request({ listKey: 'crm_hindi_workshops', workshop: invalid }))).status).toBe(400);
     jest.mocked(resolveRegistrationTemplate).mockRejectedValueOnce(new Error('Template not approved'));
     expect((await POST(request({ listKey: 'crm_hindi_workshops', workshop: workshop() }))).status).toBe(400);

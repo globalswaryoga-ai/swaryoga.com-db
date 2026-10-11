@@ -171,11 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Meta AI-9 Two-Stage Approval Simplification (Session: October 11, 2026) — Commit `pending`
+### Meta AI-9 Two-Stage Approval Simplification (Session: October 11, 2026) — Commit `ecaace74`
 
 - Removed Stage 2 (AI-9C) and Stage 3 (AI-9D); after Stage 1 (AI-9B) leads become Approved, Pending, or Rejected.
 - Removed the per-question fallback selector and Global Mismatch / Hard Reject rules from the AI-9 config form; unmatched answers now always become Pending.
 - AI-9W templates continue to send only to Approved leads with existing duplicate-send protection.
+- Added `docs/META_AI9_APPROVAL_SETUP_GUIDE.md` with question/answer setup rules, the batch checklist, and change history.
 
 ### Meta Leads Approved Trigger Trace and Empty-Run Status Fix (Session: September 29, 2026) — Commit `6e36f79a`
 
