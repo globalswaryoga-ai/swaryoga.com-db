@@ -185,6 +185,18 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // ── In-memory cache for resolveUserBridge (avoids MongoDB hit on every poll) ──
 const bridgeCache = new Map<string, { result: BridgeResolution; expiry: number }>();
 const BRIDGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+const SETTINGS_LOOKUP_TIMEOUT_MS = 5000;
+const SUPER_ADMIN_FALLBACK_SESSION_KEY = (process.env.QR_SUPER_ADMIN_SESSION_KEY || '0002456').trim();
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Lookup timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
 
 function invalidateBridgeCache(userId: string) {
   if (!userId) return;
@@ -228,10 +240,36 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
 
       const superAdmin = checkSuperAdmin(decoded);
 
-      // Check if user has a custom bridge URL or permanent tenant ID
-      // QR session identity is now read from Bunny SQL. The bridge is an
-      // external Hetzner service and does not require MongoDB for resolution.
-      const settings = await getBunnyCrmUserSettings(decoded.userId);
+      // Bunny SQL can hang during upstream 502s; bound each lookup so the proxy
+      // never runs into the platform 504, and reuse the last good resolution.
+      let settings: Awaited<ReturnType<typeof getBunnyCrmUserSettings>>;
+      try {
+        settings = await withTimeout(getBunnyCrmUserSettings(decoded.userId), SETTINGS_LOOKUP_TIMEOUT_MS);
+      } catch (lookupErr) {
+        if (cached?.result.ok) {
+          console.warn(`[QR Bridge Resolve] Settings lookup failed for ${decoded.userId}; using last known session:`, (lookupErr as Error).message);
+          bridgeCache.set(cacheKey, { result: cached.result, expiry: Date.now() + 30_000 });
+          return cached.result;
+        }
+        if (superAdmin && SUPER_ADMIN_FALLBACK_SESSION_KEY) {
+          console.warn(`[QR Bridge Resolve] Settings lookup failed for Super Admin; using fallback session ${SUPER_ADMIN_FALLBACK_SESSION_KEY}`);
+          return {
+            ok: true,
+            url: FALLBACK_BRIDGE_URL,
+            secret: FALLBACK_BRIDGE_SECRET,
+            userId: decoded.userId,
+            ownerUserId: decoded.userId,
+            bridgeSessionId: SUPER_ADMIN_FALLBACK_SESSION_KEY,
+            isSuperAdmin: true,
+            hasOwnBridge: true,
+            storedPhone: '',
+            phoneChangedAt: null,
+            senderDisplayName: '',
+            tenantId: SUPER_ADMIN_FALLBACK_SESSION_KEY,
+          };
+        }
+        throw lookupErr;
+      }
       const storedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
       const phoneChangedAt = settings?.qrPhoneChangedAt ? new Date(settings.qrPhoneChangedAt) : null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
@@ -244,10 +282,13 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       // user's OWN permanentTenantId (never another tenant's session).
       const ownerSessionKey = superAdmin
         ? null
-        : await resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug });
+        : await withTimeout(
+            resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug }),
+            SETTINGS_LOOKUP_TIMEOUT_MS,
+          ).catch(() => null);
       const sessionKey = ownerSessionKey || permanentTenantId;
       const ownerSettings: any = ownerSessionKey
-        ? await getBunnyCrmUserSettings(ownerSessionKey)
+        ? await withTimeout(getBunnyCrmUserSettings(ownerSessionKey), SETTINGS_LOOKUP_TIMEOUT_MS).catch(() => null)
         : null;
       const sessionOwnerUserId = String(ownerSettings?.userId || decoded.userId);
       const sessionStoredPhone = normalizeConnectedPhone(ownerSettings?.qrConnectedPhoneNumber || storedPhone);
@@ -366,7 +407,7 @@ async function saveConnectedPhone(
     if (isChange) {
       update.qrPhoneChangedAt = new Date();
     }
-    await saveBunnyCrmUserSettings(userId, { ...update, qrConnectedPhoneNumber: nextPhone || phone });
+    await withTimeout(saveBunnyCrmUserSettings(userId, { ...update, qrConnectedPhoneNumber: nextPhone || phone }), SETTINGS_LOOKUP_TIMEOUT_MS);
     invalidateBridgeCache(userId);
     console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
     if (isChange && resolved) {
@@ -426,7 +467,14 @@ async function validateOwnBridgeLivePhone(resolved: Extract<BridgeResolution, { 
     return { allowed: true, normalizedPhone, duplicateOwners: [] as Array<{ userId: string }> };
   }
 
-  const duplicateOwners = await findOtherUsersWithConnectedPhone(resolved.userId, normalizedPhone);
+  let duplicateOwners: Array<{ userId: string }> = [];
+  try {
+    duplicateOwners = await withTimeout(findOtherUsersWithConnectedPhone(resolved.userId, normalizedPhone), SETTINGS_LOOKUP_TIMEOUT_MS);
+  } catch (e) {
+    // Never hold the status poll on a slow duplicate-owner check; retry on the next poll.
+    console.warn(`[QR Bridge Proxy] Duplicate-owner check skipped for ${resolved.userId}:`, (e as Error).message);
+    return { allowed: true, normalizedPhone, duplicateOwners };
+  }
   if (duplicateOwners.length === 0) {
     return { allowed: true, normalizedPhone, duplicateOwners };
   }

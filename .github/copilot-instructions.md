@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### QR Proxy 504 Gateway Timeout Guard (Session: September 29, 2026) — Commit `pending`
+
+- Bounded Bunny SQL session lookups in `resolveUserBridge()` (`app/api/admin/crm/whatsapp/qr-bridge/route.ts`) to 5 seconds each, so slow/502 Bunny responses no longer hang `/qr` and `/status` into a 504.
+- On lookup failure the proxy reuses the last good session resolution; Super Admin falls back to session `0002456`.
+- Duplicate-owner checks and connected-phone saves during `/status` are also time-limited; the bridge itself was verified healthy and already connected.
+
 ### QR Inbox Bunny-Only Storage Reads (Session: September 29, 2026) — Commit `pending`
 
 - `qr/messages` now reads stored history only from Bunny SQL (`qr_messages_sql`) and the Bunny Storage archive manifest; MongoDB is no longer used.
