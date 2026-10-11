@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Marathi Template Translation Repair (Session: October 11, 2026) — Commit `bc9a4009`
+
+- Read-only Meta verification confirms template `2186745855215092` (`welcome_in_workshop_marathi_link_wt`) is APPROVED with language `en`, despite Marathi body text. The saved `mr` translation caused all 18 run recipients to fail with error 132001.
+- Corrected only that verified Bunny template's language to `en`, read back its persisted approved record, and updated both bulk and individual Meta sync to persist the actual provider translation language.
+- Two targeted sync regressions, changed-path diagnostics and the production build pass. Failed report rows remain preserved; no test message or automatic retry was sent. Google OAuth remains unchanged.
+
 ### Trigger Phone Prefix Normalization and Verified Preview (Session: October 11, 2026) — Commit `a9fdf2a8`
 
 - Registration recipient normalization strips international dialing prefixes before deduplication, preserving country codes; tests cover equivalent `00977`/`+977` and Indian `0091` forms.
