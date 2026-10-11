@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Trigger Current-State Read Guard (Session: October 11, 2026) — Commit `1717e1f8`
+
+- Shared registration-state reads now explicitly opt out of Next.js data caching. Production audience omitted all seven newly saved Hindi batches while the state endpoint and direct SQL showed them; the guard prevents older cached reads from supplying Trigger recipients.
+- Read-only direct mapping verified the selected Hindi batch has 58 responses; Approval-3 has 41 response members and 30 unique valid WhatsApp numbers. Registered Leads has no confirmed members, so it is not falsely populated from an earlier approval stage.
+- 36 focused state/audience/trigger/configuration tests pass, including cache opt-out and updated SQL snapshot reads. Live Preview verification follows deployment; no broadcast schedule or message was created for this check.
+
 ### Incomplete Answer Rule Draft Autosave (Session: October 11, 2026) — Commit `225c80f8`
 
 - Leads Management no longer treats partially entered question/answer/category rules as failed saves with an unusable Retry button. Incomplete edits save as a batch-worker draft and restore on reopening.
