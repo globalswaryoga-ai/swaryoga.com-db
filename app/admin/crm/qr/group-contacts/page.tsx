@@ -271,38 +271,48 @@ export default function QRGroupContactsPage() {
         const processOrder = [...shuffledRegular, ...adminNumbers]; // Admin last (cleanup)
         
         let addedCount = 0;
+        let alreadyCount = 0;
+        let rejectedCount = 0;
         let batchNumber = 0;
         let batchErrors: Array<{ batch: number; error: string }> = [];
         
-        for (let i = 0; i < processOrder.length; i += 1) {
-          // Get random batch size for merge (5-8 participants)
+        for (let i = 0; i < processOrder.length; ) {
+          // Random micro-batch size for merge (2-3 participants)
           const batchSize = getRandomMergeBatchSize();
           const batch = processOrder.slice(i, Math.min(i + batchSize, processOrder.length));
           
           if (batch.length === 0) break;
+          i += batch.length;
           
           batchNumber++;
-          const progress = Math.min(i + batchSize, processOrder.length);
+          const progress = i;
           const percentDone = Math.round((progress / processOrder.length) * 100);
           setMergeProgress(`🔄 Batch ${batchNumber}: Adding ${batch.length} to "${targetName}" (${progress}/${processOrder.length} • ${percentDone}%)\n⏱️ Option B: 60-180s delays (1-3 min, ultra-human-like)`);
           
           try {
-            await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
+            const addResult = await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
               action: 'add',
               participants: batch,
             });
-            addedCount += batch.length;
+            const batchAdded = typeof addResult?.succeededCount === 'number' ? addResult.succeededCount : batch.length;
+            addedCount += batchAdded;
+            alreadyCount += addResult?.alreadyMemberCount || 0;
+            const batchRejected = addResult?.failedCount || 0;
+            if (batchRejected > 0) {
+              rejectedCount += batchRejected;
+              batchErrors.push({ batch: batchNumber, error: `${batchRejected} not added (privacy setting / not on WhatsApp)` });
+            }
             
             // ═══ HEALTH CHECK EVERY 5 BATCHES ═══
             // During the long delay, check if session is still alive (catches early auto-logouts)
             if (batchNumber % 5 === 0) {
               try {
-                const healthCheck = await bridgeCall('/verify-connection', 'GET', {});
-                if (!healthCheck?.ok) {
-                  console.warn(`⚠️ Batch ${batchNumber}: Connection health check inconclusive`);
+                const healthCheck = await bridgeCall('/status', 'GET', {});
+                if (healthCheck && healthCheck.connected === false) {
+                  throw new Error('WhatsApp not connected');
                 }
               } catch (healthErr: any) {
-                // Non-fatal: if health check fails, connection might be bad
+                if (String(healthErr?.message || '').includes('not connected')) throw healthErr;
                 console.warn(`⚠️ Batch ${batchNumber}: Health check failed (may indicate disconnect):`, healthErr?.message?.substring(0, 40));
               }
             }
@@ -316,8 +326,6 @@ export default function QRGroupContactsPage() {
               setMergeProgress(`✅ Batch ${batchNumber} added. Waiting ${delaySec}s before next batch...\n⏱️ Estimated remaining: ~${remainingTime}+ min`);
               await sleepWithJitter(delayMs, 15); // 15% jitter for variation
             }
-            
-            i += (batch.length - 1); // Skip processed numbers
           } catch (err: any) {
             const errorMsg = err?.message || String(err);
             console.error(`Batch ${batchNumber} failed:`, errorMsg);
@@ -329,7 +337,8 @@ export default function QRGroupContactsPage() {
             }
             
             // Otherwise continue with next batch
-            setMergeProgress(`⚠️ Batch ${batchNumber} failed (${errorMsg.substring(0, 50)}...), continuing...`);
+            setMergeProgress(`⚠️ Batch ${batchNumber} failed (${errorMsg.substring(0, 50)}...), continuing after a safe pause...`);
+            if (i < processOrder.length) await sleepWithJitter(getRandomMergeDelay(), 15);
           }
         }
         
@@ -339,7 +348,7 @@ export default function QRGroupContactsPage() {
           throw new Error(`❌ Merge failed completely:\n\n${errorDetail}`);
         }
         
-        setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
+        setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Anti-ban pacing: 2-3 people per batch, 60-180s between batches${alreadyCount > 0 ? `\nℹ️ Already in group: ${alreadyCount}` : ''}${rejectedCount > 0 ? `\n⚠️ Not added: ${rejectedCount} (their privacy settings require an invite link, or not on WhatsApp)` : ''}${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
         
         // ═══ AGGRESSIVE POST-MERGE RECOVERY (CRITICAL!) ═══
         // After 90-minute merge, WhatsApp may have auto-logged us out
@@ -408,7 +417,8 @@ export default function QRGroupContactsPage() {
     }
   };
 
-  // Batch move contacts: 2-3 random users per batch, ADD→REMOVE→WAIT 3-10sec (prevents auto-signout)
+  // Batch move contacts: add 2-3 people to the target, remove them from their source group,
+  // then wait 60-180s (anti-ban pacing). Runs client-side through /group-participants.
   const handleBatchMoveContacts = async () => {
     if (batchMoveSourceIds.size === 0) { setError('Select at least 1 source group'); return; }
     if (!batchMoveTargetId) { setError('Select a target group'); return; }
@@ -417,76 +427,109 @@ export default function QRGroupContactsPage() {
     try {
       setBatchMoving(true);
       setError('');
-      setBatchMoveProgress('Collecting all contacts from source groups…');
+      setBatchMoveProgress('Checking WhatsApp connection…');
 
-      // Collect all JIDs from source groups
-      const allJids = new Set<string>();
+      const { getRandomMergeDelay, getRandomMergeBatchSize, sleepWithJitter, shuffleArray } = await import('@/lib/whatsappRateLimiter');
+
+      const status = await bridgeCall('/status');
+      if (!status?.connected) {
+        setError('WhatsApp is not connected. Scan the QR code first.');
+        return;
+      }
+      const ownPhone = String(status?.phone?.id || status?.phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+
+      // Collect contacts with their source group and original participant id (needed for remove)
+      const moveItems: Array<{ addJid: string; removeId: string; sourceGroupId: string }> = [];
+      const seen = new Set<string>();
       const sourceGroupIds = Array.from(batchMoveSourceIds);
 
       for (let i = 0; i < sourceGroupIds.length; i++) {
         const groupId = sourceGroupIds[i];
         const sourceGroup = groups.find((g) => g.id === groupId);
         setBatchMoveProgress(`Fetching contacts from "${sourceGroup?.name}" (${i + 1}/${sourceGroupIds.length})…`);
-
-        try {
-          const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(groupId)}`);
-          if (info?.participants) {
-            for (const p of info.participants) {
-              const phone = resolvePhone(p);
-              const jid = phone ? `${phone}@s.whatsapp.net` : p.id;
-              if (jid && !jid.endsWith('@g.us')) {
-                allJids.add(jid);
-              }
-            }
-          }
-        } catch (err: any) {
-          setError(`Failed to fetch group: ${err?.message || 'Unknown error'}`);
-          return;
+        const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(groupId)}`);
+        for (const p of info?.participants || []) {
+          if (!p?.id || p.id.endsWith('@g.us')) continue;
+          const phone = resolvePhone(p);
+          if (ownPhone && phone === ownPhone) continue; // never move/remove ourselves
+          if (p.admin) continue; // keep group admins in place
+          const addJid = phone ? `${phone}@s.whatsapp.net` : p.id;
+          const key = `${groupId}|${addJid}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          moveItems.push({ addJid, removeId: p.id, sourceGroupId: groupId });
         }
       }
 
-      if (allJids.size === 0) {
-        setError('No contacts found in selected source groups');
+      if (moveItems.length === 0) {
+        setError('No movable contacts found (admins and your own number are skipped)');
         return;
       }
 
-      const participants = Array.from(allJids);
-      const targetGroup = groups.find((g) => g.id === batchMoveTargetId);
-      const totalParticipants = participants.length;
+      const queue = shuffleArray(moveItems);
+      const total = queue.length;
+      let moved = 0;
+      let alreadyInTarget = 0;
+      let notAdded = 0;
+      let removeFailed = 0;
+      let batchNumber = 0;
 
-      // Calculate estimated time: avg 2.5 batch size, avg 6.5 sec per batch
-      const estBatches = Math.ceil(totalParticipants / 2.5);
-      const estSeconds = estBatches * 6.5;
-      const estMinutes = (estSeconds / 60).toFixed(1);
+      for (let i = 0; i < queue.length; ) {
+        const batch = queue.slice(i, i + getRandomMergeBatchSize());
+        i += batch.length;
+        batchNumber++;
+        setBatchMoveProgress(`🔄 Batch ${batchNumber}: moving ${batch.length} (${i}/${total})\n🛡️ Anti-ban: 2-3 per batch, 60-180s between batches`);
 
-      setBatchMoveProgress(`🔥 BATCH MOVE ACTIVE (Anti-Signout)\n📊 Moving ${totalParticipants} users in ~${estBatches} batches (2-3 per batch)\n⏱️ Short waits: 3-10 sec between batches = Human-like\n🛡️ Aggressive keepalive every 2 batches = NEVER auto-logouts\n⏳ Estimated time: ${estMinutes} minutes\n\n⏳ Starting batch move in 2 seconds…`);
+        const addResult = await bridgeCall(`/group-participants/${encodeURIComponent(batchMoveTargetId)}`, 'POST', {
+          action: 'add',
+          participants: batch.map((b) => b.addJid),
+        });
+        const statusByJid = new Map<string, string>();
+        for (const r of addResult?.results || []) statusByJid.set(String(r.requested || r.jid || ''), String(r.status));
 
-      await new Promise((r) => setTimeout(r, 2000));
+        // Only remove from the source when the person is confirmed in the target group
+        const toRemoveBySource = new Map<string, string[]>();
+        for (const item of batch) {
+          const st = statusByJid.get(item.addJid) ?? (addResult?.results ? undefined : '200');
+          if (st === '200' || st === '409') {
+            if (st === '200') moved++; else alreadyInTarget++;
+            const list = toRemoveBySource.get(item.sourceGroupId) || [];
+            list.push(item.removeId);
+            toRemoveBySource.set(item.sourceGroupId, list);
+          } else {
+            notAdded++;
+          }
+        }
 
-      // Call the batch move endpoint
-      const result = await bridgeCall('/group-move-batch', 'POST', {
-        sourceGroupId: sourceGroupIds[0], // Move from first source group
-        targetGroupId: batchMoveTargetId,
-        participants,
-      });
+        for (const [sourceId, ids] of Array.from(toRemoveBySource.entries())) {
+          try {
+            await sleepWithJitter(4000, 30);
+            await bridgeCall(`/group-participants/${encodeURIComponent(sourceId)}`, 'POST', { action: 'remove', participants: ids });
+          } catch {
+            removeFailed += ids.length;
+          }
+        }
 
-      if (result?.success || (result?.movedCount && result.movedCount > 0)) {
-        const movedCount = result.movedCount || 0;
-        const failed = result.failedCount || 0;
-        const batches = result.batches?.length || 0;
-        const batchDetails = result.batches?.map((b: any) =>
-          `  Batch ${b.batchNum}: ${b.size} users (${b.progress})${b.success ? ' ✓' : ' ✗'}`
-        ).join('\n') || '';
+        if (batchNumber % 5 === 0) {
+          const health = await bridgeCall('/status').catch(() => null);
+          if (health && health.connected === false) {
+            throw new Error(`WhatsApp disconnected during move. Moved so far: ${moved}/${total}. Reconnect and run again — already moved people are skipped.`);
+          }
+        }
 
-        setSuccessMsg(`✅ Batch Move Complete!\n✓ ${movedCount}/${totalParticipants} users moved\n${failed > 0 ? `⚠️ ${failed} failed\n` : ''}🔄 ${batches} batches processed\n🛡️ Account stayed SIGNED IN (no auto-logouts)\n🚫 NO BAN RISK (human-like timing)\n\n${batchDetails}`);
-      } else {
-        setSuccessMsg(`⚠️ Batch move completed with warnings.\nMoved: ${result?.movedCount || 0}/${totalParticipants}\n${result?.warnings?.length ? `Issues: ${result.warnings.join(', ')}` : ''}`);
+        if (i < queue.length) {
+          const delayMs = getRandomMergeDelay();
+          setBatchMoveProgress(`✅ Batch ${batchNumber} done (${i}/${total}). Waiting ${(delayMs / 1000).toFixed(0)}s before next batch…`);
+          await sleepWithJitter(delayMs, 15);
+        }
       }
+
+      setSuccessMsg(`✅ Batch Move Complete!\n✓ Moved: ${moved}/${total}${alreadyInTarget ? `\nℹ️ Already in target (removed from source): ${alreadyInTarget}` : ''}${notAdded ? `\n⚠️ Not added (privacy setting / not on WhatsApp) — kept in source: ${notAdded}` : ''}${removeFailed ? `\n⚠️ Could not remove from source: ${removeFailed} (you must be admin of the source group)` : ''}`);
 
       setShowBatchMoveModal(false);
       setBatchMoveSourceIds(new Set());
       setBatchMoveTargetId('');
-      setTimeout(() => setSuccessMsg(''), 8000);
+      setTimeout(() => setSuccessMsg(''), 10000);
       fetchGroups(); // Refresh
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to batch move contacts');
@@ -529,6 +572,7 @@ export default function QRGroupContactsPage() {
           }
         } catch {
           failedCount++;
+          if (i < groups.length - 1) await sleepWithJitter(getRandomDelay(), 10);
         }
       }
 
@@ -1297,7 +1341,7 @@ export default function QRGroupContactsPage() {
         </div>
       )}
 
-      {/* ── BATCH MOVE MODAL (Anti-Signout: 2-3 users, ADD→REMOVE→WAIT 3-10sec) ── */}
+      {/* ── BATCH MOVE MODAL (2-3 users, ADD→REMOVE→WAIT 60-180s) ── */}
       {batchMoveSourceIds.size > 0 && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
@@ -1318,9 +1362,10 @@ export default function QRGroupContactsPage() {
                   <li>Picks 2-3 random users per batch</li>
                   <li>Adds them to target group</li>
                   <li>Removes them from source group(s)</li>
-                  <li>Waits 3-10 seconds between batches</li>
-                  <li>✅ Account NEVER auto-signs out</li>
-                  <li>✅ Zero ban risk (human-like timing)</li>
+                  <li>Removes only people confirmed in the target group</li>
+                  <li>Waits 60-180 seconds between batches (anti-ban pacing)</li>
+                  <li>Skips group admins and your own number</li>
+                  <li>You must be admin of the target and source groups</li>
                 </ul>
               </div>
 

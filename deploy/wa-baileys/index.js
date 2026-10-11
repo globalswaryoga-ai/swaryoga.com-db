@@ -1174,6 +1174,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
               const existingTs = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
               if (ts > existingTs) {
                 existing.lastMessageTime = tsIso;
+                existing.lastMessageFromMe = !!msg.key?.fromMe;
                 if (preview) existing.lastMessage = preview;
               }
             } else {
@@ -1188,6 +1189,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
                 unreadCount: msg.key?.fromMe ? 0 : 1,
                 lastMessageTime: tsIso,
                 lastMessage: preview,
+                lastMessageFromMe: !!msg.key?.fromMe,
               });
             }
             msgsSynced++;
@@ -1486,6 +1488,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             ...(chatResolvedPhone && { resolvedPhone: chatResolvedPhone }),
             unreadCount: (session.chatMap.get(from)?.unreadCount || 0) + (isFromMe ? 0 : 1),
             lastMessageTime: new Date(ts).toISOString(), lastMessage: '',
+            lastMessageFromMe: !!isFromMe,
           });
 
           const displayText = text
@@ -1737,12 +1740,21 @@ app.post('/send', async (req, res) => {
     if (result?.key?.id && result?.message) {
       session.sentMessageCache.set(result.key.id, result.message);
       if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+      // Keep sent media downloadable through /media/:messageId (same as inbound media).
+      if (type === 'media') {
+        session.rawMessageCache.set(result.key.id, result);
+        if (session.rawMessageCache.size > MAX_RAW_CACHE) session.rawMessageCache.delete(session.rawMessageCache.keys().next().value);
+      }
     }
+    const sentMime = String(req.body.mimetype || '');
+    const sentMediaType = sentMime.startsWith('image/') ? 'image'
+      : sentMime.startsWith('video/') ? 'video'
+      : sentMime.startsWith('audio/') ? 'audio' : 'document';
     if (sentMsgId) {
       const outboundEntry = {
         id: sentMsgId, from: session.sock.user?.id?.split(':')[0] || '', fromMe: true,
-        text: (type === 'media') ? (caption || message || `[${req.body.mimetype?.startsWith('image') ? 'image' : 'document'}]`) : (message || ''),
-        type: (type === 'media') ? (req.body.mimetype?.startsWith('image') ? 'image' : 'document') : 'text',
+        text: (type === 'media') ? (caption || message || `[${sentMediaType}]`) : (message || ''),
+        type: (type === 'media') ? sentMediaType : 'text',
         timestamp: Math.floor(Date.now() / 1000), status: result?.status,
         hasMedia: type === 'media', mediaMimetype: type === 'media' ? (req.body.mimetype || null) : null,
         mediaUrl: req.body.cdnUrl || null,
@@ -1942,6 +1954,7 @@ app.get('/chats', async (req, res) => {
         ...(chatTime > existingTime ? {
           lastMessage: chat.lastMessage,
           lastMessageTime: chat.lastMessageTime,
+          lastMessageFromMe: chat.lastMessageFromMe,
         } : {}),
         id: existing.id.endsWith('@s.whatsapp.net') ? existing.id : (chat.id.endsWith('@s.whatsapp.net') ? chat.id : existing.id),
         name: preferredName,
@@ -2173,21 +2186,42 @@ app.post('/group-participants/:jid', async (req, res) => {
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
   const { action, participants } = req.body || {};
   if (!action || !participants?.length) return res.status(400).json({ error: 'action and participants[] required' });
+  if (!['add', 'promote', 'demote', 'remove'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
+  const jids = participants
+    .map(p => String(p || '').trim())
+    .filter(Boolean)
+    .map(p => (p.includes('@') ? p : `${p.replace(/[^0-9]/g, '')}@s.whatsapp.net`));
   try {
     // Process in small batches with human-like delays
     const batchSize = 5;
-    for (let i = 0; i < participants.length; i += batchSize) {
-      const batch = participants.slice(i, i + batchSize);
+    const results = [];
+    for (let i = 0; i < jids.length; i += batchSize) {
+      const batch = jids.slice(i, i + batchSize);
       if (i > 0) await humanDelay(3000, 7000);
-      switch (action) {
-        case 'add': await session.sock.groupParticipantsUpdate(jid, batch, 'add'); break;
-        case 'promote': await session.sock.groupParticipantsUpdate(jid, batch, 'promote'); break;
-        case 'demote': await session.sock.groupParticipantsUpdate(jid, batch, 'demote'); break;
-        case 'remove': await session.sock.groupParticipantsUpdate(jid, batch, 'remove'); break;
-        default: return res.status(400).json({ error: 'Invalid action' });
-      }
+      const batchResult = await session.sock.groupParticipantsUpdate(jid, batch, action);
+      const list = Array.isArray(batchResult) ? batchResult : [];
+      list.forEach((r, idx) => {
+        const rj = r?.jid || '';
+        // WhatsApp may answer with a LID jid; echo the requested jid so callers can match results.
+        const requested = batch.includes(rj) ? rj : (list.length === batch.length ? batch[idx] : rj);
+        results.push({ jid: rj, requested, status: String(r?.status ?? '200') });
+      });
     }
-    res.json({ success: true, action, participants });
+    // WhatsApp returns per-participant status codes: 200 ok, 403 privacy (invite required),
+    // 408 recently left, 409 already in group, 404/400 not on WhatsApp.
+    const succeeded = results.filter(r => r.status === '200');
+    const alreadyMember = results.filter(r => r.status === '409');
+    const failed = results.filter(r => r.status !== '200' && r.status !== '409');
+    session.lastActivityTime = Date.now();
+    res.json({
+      success: failed.length === 0 || succeeded.length > 0,
+      action,
+      participants: jids,
+      results,
+      succeededCount: succeeded.length,
+      alreadyMemberCount: alreadyMember.length,
+      failedCount: failed.length,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -2794,6 +2794,30 @@ export default function QRWhatsAppPage() {
     return Boolean(lm || c.lastMessageTime || (c.unreadCount || 0) > 0);
   };
 
+  // Direction of the latest message in a chat, from chat-level data so the
+  // Inbound/Outbound tabs work for every chat, not only the one currently open.
+  const lastOpenMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const chatDirection = (c: ChatItem): 'inbound' | 'outbound' | null => {
+    if (c.id === selectedChat && lastOpenMessage) return lastOpenMessage.fromMe ? 'outbound' : 'inbound';
+    if (typeof c.lastMessageFromMe === 'boolean') return c.lastMessageFromMe ? 'outbound' : 'inbound';
+    if ((c.unreadCount || 0) > 0) return 'inbound';
+    return null;
+  };
+
+  const matchesChatFilter = (c: ChatItem, filter: ChatFilter): boolean => {
+    switch (filter) {
+      // "All" = only chats with a real conversation (1:1 OR group with messages),
+      // not every group the account belongs to. Use the Groups tab to see all groups.
+      case 'all': return chatHasConversation(c);
+      case 'unread': return (c.unreadCount || 0) > 0;
+      case 'read': return (c.unreadCount || 0) === 0 && chatHasConversation(c);
+      case 'groups': return c.isGroup;
+      case 'inbound': return chatHasConversation(c) && chatDirection(c) === 'inbound';
+      case 'outbound': return chatHasConversation(c) && chatDirection(c) === 'outbound';
+      default: return true;
+    }
+  };
+
   // ── Filter chats by funnel + label + chatFilter + search ──
   const filteredChats = chats.filter(c => {
     // Apply funnel filter
@@ -2804,16 +2828,7 @@ export default function QRWhatsAppPage() {
       if (!cls.includes(activeLabel)) return false;
     }
     // Apply chat filter (read/unread/groups/inbound/outbound)
-    switch (chatFilter) {
-      // "All" = only chats with a real conversation (1:1 OR group with messages),
-      // not every group the account belongs to. Use the Groups tab to see all groups.
-      case 'all': if (!chatHasConversation(c)) return false; break;
-      case 'unread': if (c.unreadCount <= 0) return false; break;
-      case 'read': if (c.unreadCount !== 0) return false; break;
-      case 'groups': if (!c.isGroup) return false; break;
-      case 'inbound': if (!messages.some(m => m.from === c.id && !m.fromMe)) return false; break;
-      case 'outbound': if (!messages.some(m => m.from === c.id && m.fromMe)) return false; break;
-    }
+    if (!matchesChatFilter(c, chatFilter)) return false;
     // Apply search filter
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -3217,13 +3232,16 @@ export default function QRWhatsAppPage() {
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
-                { key: 'all' as ChatFilter, label: 'All', icon: null, count: chats.filter(c => chatHasConversation(c) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-                { key: 'unread' as ChatFilter, label: 'Unread', icon: <Mail className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount > 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-                { key: 'read' as ChatFilter, label: 'Read', icon: <MailOpen className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount === 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-                { key: 'groups' as ChatFilter, label: 'Groups', icon: <Users className="w-2.5 h-2.5" />, count: chats.filter(c => c.isGroup && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-                { key: 'inbound' as ChatFilter, label: 'Inbound', icon: <ArrowDown className="w-2.5 h-2.5" />, count: chats.filter(c => messages.some(m => m.from === c.id && !m.fromMe) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-                { key: 'outbound' as ChatFilter, label: 'Outbound', icon: <ArrowUp className="w-2.5 h-2.5" />, count: chats.filter(c => messages.some(m => m.from === c.id && m.fromMe) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
-              ]).map(f => (
+                { key: 'all' as ChatFilter, label: 'All', icon: null },
+                { key: 'unread' as ChatFilter, label: 'Unread', icon: <Mail className="w-2.5 h-2.5" /> },
+                { key: 'read' as ChatFilter, label: 'Read', icon: <MailOpen className="w-2.5 h-2.5" /> },
+                { key: 'groups' as ChatFilter, label: 'Groups', icon: <Users className="w-2.5 h-2.5" /> },
+                { key: 'inbound' as ChatFilter, label: 'Inbound', icon: <ArrowDown className="w-2.5 h-2.5" /> },
+                { key: 'outbound' as ChatFilter, label: 'Outbound', icon: <ArrowUp className="w-2.5 h-2.5" /> },
+              ]).map(f => ({
+                ...f,
+                count: chats.filter(c => matchesChatFilter(c, f.key) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length,
+              })).map(f => (
                 <button
                   key={f.key}
                   onClick={() => { setChatFilter(f.key); setSelectedChats(new Set()); }}

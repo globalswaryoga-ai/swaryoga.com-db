@@ -170,6 +170,15 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ---
 
+## 📋 Recent Changes Log
+### QR Inbox Direction, Group Merge/Move and Media Fixes (Session: September 29, 2026) — Commit `pending`
+
+- Bridge chats now carry `lastMessageFromMe`; QR Inbound/Outbound tabs and counts use a shared direction predicate instead of showing 0.
+- Bridge `/group-participants` returns per-participant results (`succeededCount`, `alreadyMemberCount`, `failedCount`, `results[].requested`).
+- Group Merge reports accurate added/already-in-group/not-added counts and pauses safely after failed batches; Batch Move no longer calls the nonexistent `/group-move-batch` and removes only people confirmed in the target group.
+- Sent media is cached for `/media/:messageId` re-download, and outbound video/audio are labeled correctly in bridge history.
+
+### Google Forms OAuth Client Selection (Session: October 2026) — Commit `pending`
 ### Google Forms OAuth Dedicated Client Selection (Session: October 2026)
 
 - `lib/googleFormsOAuth.ts` checks `GOOGLE_FORMS_*` and falls back to `GOOGLE_CLIENT_*`.

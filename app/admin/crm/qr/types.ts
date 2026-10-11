@@ -35,6 +35,8 @@ export type ChatItem = {
   unreadCount: number;
   lastMessageTime: string | null;
   lastMessage?: string;
+  lastMessageFromMe?: boolean;
+  syntheticGroup?: boolean;
   funnelStage?: string;
   labels?: string[];
   leadStatus?: string; // CRM lead status (new_lead, contacted, enrolled, etc.)
