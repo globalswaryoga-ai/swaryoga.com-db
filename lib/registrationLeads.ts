@@ -1,7 +1,9 @@
 type LeadRecord = Record<string, any>;
 
 export function registrationPhone(value: unknown) {
-  const digits = String(value || '').replace(/\D/g, '');
+  const input = String(value || '').split('@')[0];
+  const raw = input.replace(/\D/g, '');
+  const digits = raw.length > 10 ? raw.replace(/^0+/, '') : raw;
   return digits.length === 10 ? `91${digits}` : digits;
 }
 

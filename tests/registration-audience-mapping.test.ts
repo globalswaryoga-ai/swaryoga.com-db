@@ -21,6 +21,14 @@ const submission = (id: string, phone = '+91 9876543210') => ({ id, formId: 'goo
 const forms = [{ formId: 'google-form', workshopName: 'Hindi Workshop' }];
 
 describe('Saved response-to-Meta recipient mapping', () => {
+  it('normalizes international dialing prefixes before deduplicating real recipients', () => {
+    const recipients = registrationRecipients([
+      { id: 'one', phoneNumber: '00977 9847060920' },
+      { id: 'two', phoneNumber: '+9779847060920' },
+      { id: 'three', phoneNumber: '0091 9876543210' },
+    ]);
+    expect(recipients.map(row => row.phoneNumber)).toEqual(['9779847060920', '919876543210']);
+  });
   it('keeps the browser audience under the serverless response limit without losing recipients or categories', () => {
     const rawAnswer = 'x'.repeat(20000);
     const state = { [registrationDecisionKey(batch.id, 'response')]: {
