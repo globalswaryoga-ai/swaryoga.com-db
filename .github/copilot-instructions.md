@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Registration Funnel Current-Stage Counts (Session: October 11, 2026) — Commit `1d9c3bfc`
+
+- Pending and approval stage tabs now count and display leads by their current saved stage, rather than counting historical copies as still pending after they advanced.
+- Historical decision history and saved data remain unchanged; custom non-stage category copies retain their previous behavior.
+- Added regression coverage for 58 leads (51 at Approval-1, 7 at Pending-1); registration repair tests and production build pass.
+
 ### All Leads Form Connection Without Batch Selection (Session: October 11, 2026) — Commit `cf63424d`
 
 - The All Leads form setup now defaults to an explicit language master-list target when no batch is selected; saving creates or updates that master list through the existing Bunny SQL workshop-settings flow.
