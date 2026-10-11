@@ -1,339 +1,456 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 import { decryptCredential, encryptCredential } from '@/lib/auth';
+import { registrationViewer, registrationLeadOwned } from '@/lib/registrationAuth';
 import { saveBunnyLead, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
-import { ensureFormTables, getFormById, createForm, createQuestion, createSubmission, listSubmissions } from '@/lib/bunny-forms-db';
-import { nanoid } from 'nanoid';
+import {
+  createForm,
+  createQuestion,
+  ensureFormTables,
+  getFormById,
+} from '@/lib/bunny-forms-db';
+import { listBunnySocialAccounts, updateBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
+import {
+  extractGoogleFormId,
+  fetchGoogleFormResponses,
+  mapGoogleFormResponses,
+  persistGoogleFormSubmission,
+} from '@/lib/googleFormsSync';
 
-export async function GET(request: NextRequest) {
-  try {
-    const url = new URL(request.url);
-    const rawFormUrl = url.searchParams.get('url');
-    const customName = url.searchParams.get('name');
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-    if (!rawFormUrl) {
-      return NextResponse.json({ error: 'Missing form URL' }, { status: 400 });
-    }
+type GoogleAccount = {
+  account: Record<string, any>;
+  source: 'canonical' | 'bunny_archive';
+  documentId: string;
+};
 
-    // Extract & Clean Form ID
-    let formId = rawFormUrl.trim().replace(/:\d+$/, '');
-    if (formId.includes('docs.google.com') || formId.includes('/d/')) {
-      const dMatch = formId.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (dMatch && !formId.includes('/d/e/')) {
-        formId = dMatch[1];
-      } else {
-        return NextResponse.json({ error: 'Please provide the Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), not the public viewform URL.' }, { status: 400 });
-      }
-    }
-
-    const accountRes = await bunnyExecute({
-      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC"
-    });
-
-    if (!accountRes || !accountRes.rows || accountRes.rows.length === 0) {
-      return NextResponse.json({ error: 'Google Account not connected', needsAuth: true }, { status: 401 });
-    }
-
-    let formData: any = null;
-    let responses: any[] = [];
-    let validAccessToken = '';
-    let lastError = '';
-    let matchedUserId = 'system';
-
-    // Loop through ALL accounts in socialmediaaccounts to find the one with access to this form
-    for (const row of accountRes.rows) {
-      try {
-        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-        if (!parsed || (parsed.platform !== 'google_forms' && parsed.platform !== 'google') || !parsed.accessToken) {
-          continue;
-        }
-
-        let accessToken = decryptCredential(parsed.accessToken);
-
-        let formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-
-        if (formRes.status === 401 && parsed.refreshToken) {
-          try {
-            const refreshToken = decryptCredential(parsed.refreshToken);
-            let tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                client_id: process.env.GOOGLE_CLIENT_ID || '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
-                client_secret: process.env.GOOGLE_CLIENT_SECRET || ('GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD'),
-                refresh_token: refreshToken,
-                grant_type: 'refresh_token',
-              }),
-            });
-            
-            // If the refresh token fails, try fallback (in case the tokens were generated with the legacy client ID)
-            if (!tokenRes.ok && process.env.GOOGLE_CLIENT_ID) {
-              tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                  client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
-                  client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
-                  refresh_token: refreshToken,
-                  grant_type: 'refresh_token',
-                }),
-              });
-            }
-
-            const tokenData = await tokenRes.json();
-            if (tokenRes.ok && tokenData.access_token) {
-              accessToken = tokenData.access_token;
-              formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-              });
-
-              const docId = row.document_id || parsed.document_id || parsed._id;
-              const updatedDoc = {
-                ...parsed,
-                accessToken: encryptCredential(accessToken),
-                tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-              if (docId) {
-                await bunnyExecute({
-                  sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
-                  args: [JSON.stringify(updatedDoc), String(docId)]
-                });
-              }
-            }
-          } catch (refErr) {
-            console.warn('[Google Forms Sync] Token refresh error:', refErr);
-          }
-        }
-
-        if (formRes.ok) {
-          formData = await formRes.json();
-          validAccessToken = accessToken;
-          matchedUserId = parsed.userId || 'system';
-
-          // Fetch responses using the valid token
-          const res = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses`, {
-            headers: { Authorization: `Bearer ${validAccessToken}` }
-          });
-          if (res.ok) {
-            const responsesData = await res.json();
-            responses = responsesData.responses || [];
-          }
-          break; // Successfully retrieved form structure
-        } else {
-          lastError = `Status ${formRes.status}: ${formRes.statusText}`;
-        }
-      } catch (accErr) {
-        console.warn('[Google Forms Sync] Account trial error:', accErr);
-      }
-    }
-
-    if (!formData) {
-      return NextResponse.json({
-        error: `Could not fetch Google Form structure. Ensure your connected Google account has edit access to this form. ${lastError}`.trim(),
-        needsAuth: true
-      }, { status: 404 });
-    }
-
-    const questionMap: Record<string, string> = {};
-    if (formData.items) {
-      formData.items.forEach((item: any) => {
-        if (item.questionItem && item.questionItem.question) {
-          questionMap[item.questionItem.question.questionId] = item.title;
-        }
-      });
-    }
-
-    // Map to leads
-    const leads = responses.map((resp: any, index: number) => {
-      const record: Record<string, string> = {};
-
-      if (resp.respondentEmail) {
-        record['email'] = resp.respondentEmail;
-      }
-
-      if (resp.answers) {
-        Object.values(resp.answers).forEach((ans: any) => {
-          const qTitle = questionMap[ans.questionId] || `Question ${ans.questionId}`;
-          if (ans.textAnswers && ans.textAnswers.answers && ans.textAnswers.answers.length > 0) {
-            record[qTitle] = ans.textAnswers.answers[0].value;
-          }
-        });
-      }
-
-      const findKey = (keywords: string[]) => {
-        const keys = Object.keys(record);
-        for (const kw of keywords) {
-          const match = keys.find(k => k.toLowerCase().includes(kw));
-          if (match && record[match]) return record[match];
-        }
-        return '';
-      };
-
-      // Broad keyword matching for field detection across languages & form styles
-      const name = findKey(['full name', 'your name', 'name', 'first', 'pura naam', 'poora naam', 'नाव', 'नाम', 'naam']);
-      const email = findKey(['email', 'mail', 'ईमेल']);
-      const mobile = findKey(['mobile', 'phone', 'whatsapp', 'contact', 'number', 'नंबर', 'नम्बर']);
-      const country = findKey(['country', 'nation', 'देश']);
-      const city = findKey(['city', 'town', 'location', 'शहर']);
-      // "I am" covers forms that say "I am: Male / Female" instead of "Gender"
-      const gender = findKey(['gender', 'sex', 'i am', 'male', 'female', 'लिंग', 'पुरुष', 'स्त्री']);
-
-      const dynamicAnswers: Record<string, string> = {};
-      Object.keys(record).forEach(k => {
-        const val = record[k];
-        if (val) {
-          dynamicAnswers[k] = val;
-        }
-      });
-
-      return {
-        id: `oauth-form-${resp.responseId || Date.now()}-${index}`,
-        responseId: resp.responseId || String(Date.now() + index),
-        name: name || `Lead ${index + 1}`,
-        email: email || '',
-        mobile: mobile || '',
-        phoneNumber: mobile || '',
-        country: country || '',
-        city: city || '',
-        gender: gender || '',
-        createdAt: resp.createTime || new Date().toISOString(),
-        dynamicAnswers,
-        _rawRecord: record
-      };
-    });
-
-    const formTitle = customName || formData.info?.title || 'Google Form';
-
-    // Resilient Form Tables & Questions Setup
-    try {
-      await ensureFormTables();
-      let existingForm = await getFormById(formId);
-      if (!existingForm) {
-        await createForm({
-          formId: formId,
-          workshopName: formTitle,
-          description: formData.info?.description || '',
-          workshopMode: 'online',
-          price: 0
-        });
-        if (formData.items) {
-          let sortOrder = 1;
-          for (const item of formData.items) {
-            if (item.questionItem && item.questionItem.question) {
-              const q = item.questionItem.question;
-              let qType = 'text';
-              let options: any[] = [];
-              if (q.choiceQuestion) {
-                if (q.choiceQuestion.type === 'RADIO') qType = 'radio';
-                else if (q.choiceQuestion.type === 'CHECKBOX') qType = 'checkbox';
-                else if (q.choiceQuestion.type === 'DROP_DOWN') qType = 'dropdown';
-                if (q.choiceQuestion.options) {
-                  options = q.choiceQuestion.options.map((opt: any) => ({ value: opt.value, label: { en: opt.value } }));
-                }
-              } else if (q.textQuestion && q.textQuestion.paragraph) {
-                qType = 'paragraph';
-              }
-              
-              await createQuestion({
-                formId: formId,
-                fieldKey: `q_${q.questionId}`,
-                questionType: qType,
-                label_en: item.title || 'Question',
-                options: options.length > 0 ? options : undefined,
-                required: Boolean(q.required),
-                sortOrder: sortOrder++
-              });
-            }
-          }
-        }
-      } else if (customName) {
-        // If the form exists and a custom name is explicitly provided, update it.
-        await bunnyExecute({
-          sql: `UPDATE enquiry_forms SET workshop_name = ? WHERE form_id = ?`,
-          args: [customName, formId]
-        });
-      }
-    } catch (formDbErr) {
-      console.warn('[Google Forms Sync] Form DB setup warning:', formDbErr);
-    }
-
-    // Resilient Lead Auto-Import into CRM
-    try {
-      const allLeads = await loadBunnyLeads();
-      const existingSubmissions = await listSubmissions(formId);
-      
-      for (const lead of leads) {
-        // 1. Add to Form Submissions (if not exists by responseId)
-        const responseIdStr = lead.responseId || lead.id.replace('oauth-form-', '').split('-')[0];
-        const isDuplicateSubmission = existingSubmissions.some((s: any) => 
-          (s.formData && s.formData === responseIdStr) || 
-          (lead.email && s.email && s.email.toLowerCase() === lead.email.toLowerCase()) ||
-          (lead.mobile && s.mobile && String(s.mobile).replace(/\\D/g, '').length >= 10 && String(lead.mobile).replace(/\\D/g, '') === String(s.mobile).replace(/\\D/g, ''))
-        );
-        
-        if (!isDuplicateSubmission) {
-          await createSubmission({
-            formId: formId,
-            name: lead.name,
-            email: lead.email,
-            mobile: lead.mobile,
-            gender: lead.gender,
-            city: lead.city,
-            answers: lead.dynamicAnswers,
-            formData: responseIdStr, // Store responseId to prevent duplicates
-            createdAt: lead.createdAt
-          });
-          // Update the array so subsequent identical items in this batch are caught
-          existingSubmissions.push({ formData: responseIdStr, email: lead.email, mobile: lead.mobile });
-        }
-
-        // 2. Add to Global CRM Leads
-        const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
-        if (phone.length < 10) continue;
-
-        const existingLead = allLeads.find((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10) === phone.slice(-10));
-        if (!existingLead) {
-          await saveBunnyLead({
-            name: lead.name,
-            phoneNumber: phone,
-            email: lead.email,
-            city: lead.city,
-            country: lead.country,
-            source: 'google_forms',
-            workshopName: formTitle,
-            status: 'new',
-            labels: ['Google Form Lead', formTitle].filter(Boolean),
-            createdByUserId: matchedUserId,
-            assignedToUserId: matchedUserId,
-          });
-          // Track in-memory so same phone won't be added again in this batch
-          allLeads.push({ phoneNumber: phone });
-        }
-      }
-    } catch (importErr) {
-      console.warn('[Google Forms Sync] CRM lead/submission auto-import warning:', importErr);
-    }
-
-    // Self-heal the submission count to ensure it stays accurate
-    try {
-      await bunnyExecute({
-        sql: `UPDATE enquiry_forms SET submission_count = (SELECT COUNT(*) FROM form_submissions WHERE form_id = ?) WHERE form_id = ?`,
-        args: [formId, formId]
-      });
-    } catch(e) {}
-
-    return NextResponse.json({
-      data: leads,
-      questionMap,
-      rawResponses: responses,
-      linkedSheetId: formData.linkedSheetId || null
-    });
-  } catch (error) {
-    console.error('Google Forms API Error:', error);
-    return NextResponse.json({ error: String(error).replace('Error: ', '') }, { status: 400 });
-  }
+function isAuthorizedCron(request: NextRequest): boolean {
+  const expected = process.env.CRON_SECRET;
+  const provided = request.headers.get('authorization') || '';
+  if (!expected || !provided.startsWith('Bearer ')) return false;
+  const token = provided.slice(7);
+  const expectedBuffer = Buffer.from(expected);
+  const tokenBuffer = Buffer.from(token);
+  return expectedBuffer.length === tokenBuffer.length && timingSafeEqual(expectedBuffer, tokenBuffer);
 }
 
+function accountIsInScope(account: Record<string, any>, scope: string): boolean {
+  const ownerUserId = String(account.ownerUserId || account.userId || '').trim();
+  if (scope === 'shared') {
+    return ownerUserId === '' || ownerUserId === 'admin' || ownerUserId === 'admincrm' ||
+      (account.scopeType === 'super_admin' && account.scopeKey === 'super_admin');
+  }
+  return ownerUserId === scope;
+}
+
+async function resolveGoogleAccounts(scope: string): Promise<GoogleAccount[]> {
+  const accounts: GoogleAccount[] = [];
+  const failures: string[] = [];
+  let canonicalReadSucceeded = false;
+  let archiveReadSucceeded = false;
+
+  try {
+    const canonicalAccounts = await listBunnySocialAccounts({ connectedOnly: false });
+    canonicalReadSucceeded = true;
+    for (const account of canonicalAccounts) {
+      if (!['google_forms', 'google'].includes(String(account.platform || '').toLowerCase())) continue;
+      if (account.isConnected === false || !account.accessToken || !account._id) continue;
+      if (!accountIsInScope(account, scope)) continue;
+      accounts.push({ account, source: 'canonical', documentId: String(account._id) });
+    }
+  } catch (error) {
+    failures.push(`Bunny canonical account repository: ${error instanceof Error ? error.message : 'unavailable'}`);
+  }
+
+  try {
+    // Compatibility fallback only: mongo_documents is the preserved Bunny SQL archive, not a live MongoDB read.
+    const legacy = await bunnyExecute({
+      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC",
+    });
+    archiveReadSucceeded = true;
+    for (const row of legacy.rows) {
+      try {
+        const account = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+        if (!['google_forms', 'google'].includes(String(account?.platform || '').toLowerCase())) continue;
+        if (!account.accessToken) continue;
+        if (!accountIsInScope(account, scope)) continue;
+        const documentId = String(row.document_id || account._id || account.document_id || '');
+        if (documentId) accounts.push({ account, source: 'bunny_archive', documentId });
+      } catch {
+        // Ignore malformed account documents while continuing to inspect the stored accounts.
+      }
+    }
+  } catch (error) {
+    failures.push(`Bunny archived account records: ${error instanceof Error ? error.message : 'unavailable'}`);
+  }
+
+  if (!canonicalReadSucceeded && !archiveReadSucceeded) {
+    throw new Error(`Could not resolve Google accounts (${failures.join('; ')}).`);
+  }
+
+  const seen = new Set<string>();
+  return accounts.filter(({ account }) => {
+    const key = `${account.platform}:${account.userId || account.ownerUserId || ''}:${account.accessToken}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function saveRefreshedAccessToken(entry: GoogleAccount, accessToken: string, expiresIn: number) {
+  const updated = {
+    ...entry.account,
+    accessToken: encryptCredential(accessToken),
+    tokenExpiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (entry.source === 'canonical') {
+    const saved = await updateBunnySocialAccount(entry.documentId, {
+      accessToken: updated.accessToken,
+      tokenExpiresAt: updated.tokenExpiresAt,
+      updatedAt: updated.updatedAt,
+    });
+    if (!saved) throw new Error('Refreshed Google token could not be saved to the canonical account repository.');
+    entry.account = { ...entry.account, ...updated };
+    return;
+  }
+
+  const result = await bunnyExecute({
+    sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
+    args: [JSON.stringify(updated), entry.documentId],
+  });
+  if (Number(result.rowsAffected || 0) < 1) {
+    throw new Error('Refreshed Google token could not be saved to the Bunny archive.');
+  }
+  entry.account = updated;
+}
+
+async function getGoogleAccessToken(entry: GoogleAccount): Promise<string> {
+  let accessToken: string;
+  try {
+    accessToken = decryptCredential(String(entry.account.accessToken));
+  } catch {
+    throw new Error('Stored Google access token could not be decrypted; reconnect the Google account.');
+  }
+  return accessToken;
+}
+
+async function refreshGoogleAccessToken(entry: GoogleAccount): Promise<string> {
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  if (!clientId || !clientSecret) {
+    throw new Error('Google access token expired and GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not configured.');
+  }
+
+  let refreshToken: string;
+  try {
+    refreshToken = decryptCredential(String(entry.account.refreshToken || ''));
+  } catch {
+    throw new Error('Stored Google refresh token could not be decrypted; reconnect the Google account.');
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(30_000),
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const tokenData = await response.json() as { access_token?: string; expires_in?: number };
+  if (!response.ok || !tokenData.access_token) {
+    throw new Error(`Google token refresh failed (${response.status} ${response.statusText}).`);
+  }
+  await saveRefreshedAccessToken(entry, tokenData.access_token, Number(tokenData.expires_in) || 3600);
+  return tokenData.access_token;
+}
+
+async function fetchFormUsingAccount(formId: string, entry: GoogleAccount) {
+  let accessToken = await getGoogleAccessToken(entry);
+  let formResponse = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (formResponse.status === 401 && entry.account.refreshToken) {
+    accessToken = await refreshGoogleAccessToken(entry);
+    formResponse = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+  }
+  if (!formResponse.ok) {
+    return { error: `Google Form access failed (${formResponse.status} ${formResponse.statusText}).` };
+  }
+  return { formData: await formResponse.json() as Record<string, any>, accessToken };
+}
+
+async function syncGoogleForm(request: NextRequest, scope: string) {
+  const url = new URL(request.url);
+  const rawFormUrl = url.searchParams.get('url');
+  const customName = url.searchParams.get('name')?.trim();
+  const formId = extractGoogleFormId(rawFormUrl);
+  if (!formId) {
+    return NextResponse.json({
+      error: 'Provide a Google Forms edit URL or Google Form ID. Public response URLs are not supported.',
+    }, { status: 400 });
+  }
+
+  const accounts = await resolveGoogleAccounts(scope);
+  if (!accounts.length) {
+    return NextResponse.json({ error: 'Google Account not connected. Reconnect Google Forms.', needsAuth: true }, { status: 401 });
+  }
+
+  let formData: Record<string, any> | null = null;
+  let accessToken = '';
+  const accountUserId = scope === 'shared' ? 'admincrm' : scope;
+  const accountErrors: string[] = [];
+
+  for (const accountEntry of accounts) {
+    try {
+      const result = await fetchFormUsingAccount(formId, accountEntry);
+      if (!result.formData) {
+        accountErrors.push(result.error);
+        continue;
+      }
+      formData = result.formData;
+      accessToken = result.accessToken;
+      break;
+    } catch (error) {
+      accountErrors.push(error instanceof Error ? error.message : 'Google account lookup failed.');
+    }
+  }
+
+  if (!formData) {
+    return NextResponse.json({
+      error: `Could not access the Google Form. Ensure a connected account has edit access. ${accountErrors.join('; ')}`.trim(),
+      needsAuth: true,
+    }, { status: 403 });
+  }
+
+  const responses = await fetchGoogleFormResponses(formId, accessToken);
+  const { leads, questionMap } = mapGoogleFormResponses(formId, formData, responses);
+  const formTitle = customName || String(formData.info?.title || 'Google Form');
+
+  await ensureFormTables();
+  const existingForm = await getFormById(formId);
+  const formOwner = String(existingForm?.createdBy || '').trim();
+  const allowedFormOwner = scope === 'shared'
+    ? ['', 'admin', 'admincrm', 'system'].includes(formOwner)
+    : formOwner === scope;
+  if (existingForm && !allowedFormOwner) {
+    return NextResponse.json({ error: 'This Google Form is registered under a different CRM account.' }, { status: 403 });
+  }
+  if (!existingForm) {
+    await createForm({
+      formId,
+      workshopName: formTitle,
+      description: String(formData.info?.description || ''),
+      workshopMode: 'online',
+      price: 0,
+    });
+    await bunnyExecute({
+      sql: 'UPDATE enquiry_forms SET created_by = ? WHERE form_id = ?',
+      args: [scope === 'shared' ? 'admincrm' : scope, formId],
+    });
+    let sortOrder = 1;
+    for (const item of formData.items || []) {
+      const question = item?.questionItem?.question;
+      if (!question) continue;
+      let questionType = 'text';
+      let options: Array<{ value: string; label: { en: string } }> = [];
+      if (question.choiceQuestion) {
+        if (question.choiceQuestion.type === 'RADIO') questionType = 'radio';
+        else if (question.choiceQuestion.type === 'CHECKBOX') questionType = 'checkbox';
+        else if (question.choiceQuestion.type === 'DROP_DOWN') questionType = 'dropdown';
+        options = (question.choiceQuestion.options || []).map((option: any) => ({
+          value: String(option.value || ''),
+          label: { en: String(option.value || '') },
+        }));
+      } else if (question.textQuestion?.paragraph) {
+        questionType = 'paragraph';
+      }
+      await createQuestion({
+        formId,
+        fieldKey: `q_${question.questionId}`,
+        questionType,
+        label_en: String(item.title || 'Question'),
+        options: options.length ? options : undefined,
+        required: Boolean(question.required),
+        sortOrder: sortOrder++,
+      });
+    }
+  } else if (customName) {
+    await bunnyExecute({
+      sql: 'UPDATE enquiry_forms SET workshop_name = ? WHERE form_id = ?',
+      args: [customName, formId],
+    });
+  }
+
+  const existingLeads = (await loadBunnyLeads()).filter((lead: any) =>
+    registrationLeadOwned(lead, {
+      userId: accountUserId,
+      superAdmin: scope === 'shared',
+    }),
+  );
+  const errors: Array<{ responseId: string; stage: 'submission' | 'lead'; error: string }> = [];
+  let persistedSubmissions = 0;
+  let insertedSubmissions = 0;
+  let syncedLeads = 0;
+
+  for (const lead of leads) {
+    try {
+      const saved = await persistGoogleFormSubmission({
+        formId,
+        responseId: lead.responseId,
+        source: lead.source,
+        name: lead.name,
+        email: lead.email,
+        mobile: lead.mobile,
+        gender: lead.gender,
+        city: lead.city,
+        answers: lead.dynamicAnswers,
+        rawAnswers: lead.rawAnswers,
+        createdAt: lead.createdAt,
+      });
+      persistedSubmissions += 1;
+      if (saved.inserted) insertedSubmissions += 1;
+    } catch (error) {
+      errors.push({
+        responseId: lead.responseId,
+        stage: 'submission',
+        error: error instanceof Error ? error.message : 'Bunny submission write failed.',
+      });
+      continue;
+    }
+
+    const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
+
+    try {
+      const matchingIndex = existingLeads.findIndex((candidate: any) => {
+        const existingPhone = String(candidate.phoneNumber || '').replace(/\D/g, '');
+        const phoneMatches = existingPhone.length >= 10 && existingPhone.slice(-10) === phone.slice(-10);
+        const emailMatches = Boolean(lead.email) &&
+          String(candidate.email || '').trim().toLowerCase() === lead.email.toLowerCase();
+        return phoneMatches || Boolean(emailMatches);
+      });
+      const submissionMetadata = {
+        formId,
+        responseId: lead.responseId,
+        formTitle,
+        submittedAt: lead.createdAt || new Date().toISOString(),
+        dynamicAnswers: lead.dynamicAnswers,
+        rawAnswers: lead.rawAnswers,
+      };
+
+      if (matchingIndex >= 0) {
+        const existing = existingLeads[matchingIndex] as Record<string, any>;
+        const updatedLead = {
+          ...existing,
+          email: existing.email || lead.email,
+          city: existing.city || lead.city,
+          country: existing.country || lead.country,
+          dynamicAnswers: lead.dynamicAnswers,
+          googleFormId: formId,
+          metadata: {
+            ...(existing.metadata || {}),
+            googleFormId: formId,
+            lastGoogleFormSubmission: submissionMetadata,
+          },
+          labels: Array.from(new Set([...(existing.labels || []), 'Google Form Lead', formTitle])),
+        };
+        const savedLead = await saveBunnyLead(updatedLead);
+        existingLeads[matchingIndex] = savedLead;
+        lead.leadId = String(savedLead._id || savedLead.id || '') || null;
+      } else {
+        if (phone.length < 10) continue;
+        const newLead = await saveBunnyLead({
+          name: lead.name || 'Unknown User',
+          phoneNumber: phone,
+          email: lead.email,
+          city: lead.city,
+          country: lead.country,
+          source: 'google_forms',
+          workshopName: formTitle,
+          status: 'new',
+          labels: ['Google Form Lead', formTitle].filter(Boolean),
+          createdByUserId: accountUserId,
+          assignedToUserId: accountUserId,
+          googleFormId: formId,
+          dynamicAnswers: lead.dynamicAnswers,
+          metadata: {
+            formType: 'google_forms',
+            googleFormId: formId,
+            lastGoogleFormSubmission: submissionMetadata,
+          },
+        });
+        existingLeads.push(newLead);
+        lead.leadId = String(newLead._id || newLead.id || '') || null;
+      }
+      syncedLeads += 1;
+    } catch (error) {
+      errors.push({
+        responseId: lead.responseId,
+        stage: 'lead',
+        error: error instanceof Error ? error.message : 'CRM lead write failed.',
+      });
+    }
+  }
+
+  await bunnyExecute({
+    sql: 'UPDATE enquiry_forms SET submission_count = (SELECT COUNT(*) FROM form_submissions WHERE form_id = ?) WHERE form_id = ?',
+    args: [formId, formId],
+  });
+
+  const summary = {
+    responseCount: responses.length,
+    persistedSubmissions,
+    insertedSubmissions,
+    syncedLeads,
+    failures: errors,
+  };
+  if (errors.length) {
+    return NextResponse.json({
+      error: 'Google Forms sync completed with persistence failures; retry the sync after correcting the reported writes.',
+      summary,
+    }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    data: leads,
+    questionMap,
+    rawResponses: responses,
+    linkedSheetId: formData.linkedSheetId || null,
+    summary,
+  });
+}
+
+export async function GET(request: NextRequest) {
+  const cronAuthorized = isAuthorizedCron(request);
+  let scope: string;
+  if (!cronAuthorized) {
+    const viewer = registrationViewer(request);
+    if (!viewer) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    scope = viewer.superAdmin ? 'shared' : viewer.userId;
+  } else {
+    scope = request.nextUrl.searchParams.get('scope')?.trim() || '';
+    if (!scope || scope.length > 128 || /[\u0000-\u001f]/.test(scope)) {
+      return NextResponse.json({ error: 'A valid registration scope is required for cron sync.' }, { status: 400 });
+    }
+  }
+
+  try {
+    return await syncGoogleForm(request, scope);
+  } catch (error) {
+    console.error('[Google Forms Sync] Failed:', error);
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Google Forms sync failed.',
+    }, { status: 500 });
+  }
+}

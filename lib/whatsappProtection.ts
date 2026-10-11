@@ -12,6 +12,7 @@
  */
 
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { probeMetaHealth } from '@/lib/metaHealth';
 
 export type ProviderType = 'meta' | 'qr_bridge';
 
@@ -345,37 +346,7 @@ export async function checkBridgeHealth(): Promise<BridgeStatus> {
  * Check Meta API health (basic validation)
  */
 export async function checkMetaHealth(): Promise<{ healthy: boolean; error?: string }> {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  
-  if (!accessToken || !phoneNumberId) {
-    return { healthy: false, error: 'Meta API not configured' };
-  }
-  
-  // Basic token validation - check if we can reach Meta
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/v24.0/${phoneNumberId}?fields=id,verified_name`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(5000),
-      }
-    );
-    
-    if (res.ok) {
-      recordSuccess('meta');
-      return { healthy: true };
-    }
-    
-    const data = await res.json().catch(() => ({}));
-    const error = data?.error?.message || 'Unknown error';
-    recordFailure('meta', error);
-    return { healthy: false, error };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    recordFailure('meta', msg);
-    return { healthy: false, error: msg };
-  }
+  return probeMetaHealth();
 }
 
 // ============================================================

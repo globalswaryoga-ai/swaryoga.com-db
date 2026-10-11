@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { verifyToken } from '@/lib/auth';
+import { registrationLeadOwned, registrationViewer } from '@/lib/registrationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,15 +24,12 @@ export async function GET(request: NextRequest) {
     const metaFormId = url.searchParams.get('metaFormId') || '';
 
     // Fetch leads for this workshop
-    const bunnyResult = await listBunnyLeads({ 
-      visibleUserIds: null, 
-      viewerUserId: 'system',
-      limit: 5000,
-      skip: 0
-    });
+    const viewer = registrationViewer(request);
+    if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
+    const bunnyResult = await loadBunnyLeads();
     
     // We want to return raw Meta leads (source: meta_instant_form)
-    const leadsList = Array.isArray(bunnyResult) ? bunnyResult : (bunnyResult?.leads || []);
+    const leadsList = bunnyResult.filter(lead => registrationLeadOwned(lead, viewer));
     const allMetaLeads = leadsList.filter((l: any) => 
       l.source === 'meta_instant_form' || 
       l.source === 'meta_leadgen' ||

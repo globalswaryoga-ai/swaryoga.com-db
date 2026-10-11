@@ -10,10 +10,20 @@ import { nanoid } from 'nanoid';
 // ─── Table initialisation ─────────────────────────────────────────────────────
 
 let tablesReady = false;
+let tablesInitialization: Promise<void> | undefined;
 
 export async function ensureFormTables() {
   if (tablesReady) return;
+  if (!tablesInitialization) {
+    tablesInitialization = initializeFormTables().catch(error => {
+      tablesInitialization = undefined;
+      throw error;
+    });
+  }
+  await tablesInitialization;
+}
 
+async function initializeFormTables() {
   await bunnyBatch([
     {
       sql: `CREATE TABLE IF NOT EXISTS enquiry_forms (
@@ -133,6 +143,7 @@ function rowToForm(row: Record<string, any>) {
     submissionCount:  Number(row.submission_count ?? 0),
     createdAt:        row.created_at,
     updatedAt:        row.updated_at,
+    createdBy:        row.created_by,
   };
 }
 
@@ -463,6 +474,8 @@ function rowToSubmission(row: Record<string, any>) {
     amount:        Number(row.amount ?? 0),
     currency:      row.currency ?? 'INR',
     formData:      row.form_data ?? '',
+    source:        row.source ?? '',
+    rawAnswers:    safeJson(row.raw_answers, {}),
     submittedAt:   row.created_at,
   };
 }

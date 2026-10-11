@@ -5,8 +5,14 @@
 import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
 
 let schemaInitialised = false;
+let initialization: Promise<void> | undefined;
 export async function ensureBroadcastSchema() {
   if (schemaInitialised) return;
+  if (!initialization) initialization = initializeSchema().catch(error => { initialization = undefined; throw error; });
+  await initialization;
+}
+
+async function initializeSchema() {
   await bunnyBatch([
     {
       sql: `CREATE TABLE IF NOT EXISTS broadcast_runs_sql (
@@ -207,7 +213,8 @@ export async function broadcastRunMessageUpdateOne(messageId: string, update: { 
   if (update.deliveredAt) { setParts.push('delivered_at = ?'); args.push(update.deliveredAt.toISOString()); }
   if (update.readAt) { setParts.push('read_at = ?'); args.push(update.readAt.toISOString()); }
   args.push(messageId);
-  const result = await bunnyExecute({ sql: `UPDATE broadcast_run_messages_sql SET ${setParts.join(', ')} WHERE document_id = ?`, args });
+  const claimCondition = update.status === 'sending' ? " AND status = 'pending'" : '';
+  const result = await bunnyExecute({ sql: `UPDATE broadcast_run_messages_sql SET ${setParts.join(', ')} WHERE document_id = ?${claimCondition}`, args });
   return Number((result as any).rowsAffected || (result as any).rows_affected || 0) > 0;
 }
 

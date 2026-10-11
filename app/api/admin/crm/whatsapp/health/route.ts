@@ -7,6 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { registrationViewer } from '@/lib/registrationAuth';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
+import { probeMetaHealth } from '@/lib/metaHealth';
 
 export const dynamic = 'force-dynamic';
 import {
@@ -24,11 +27,20 @@ export async function GET(req: NextRequest) {
     }
 
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Mongo is removed.
+    if (req.nextUrl.searchParams.get('provider') === 'meta') {
+      const viewer = registrationViewer(req);
+      if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
+      const credentials = await getMetaCredentialsForTenant(viewer.userId);
+      if (!credentials && !viewer.superAdmin) return NextResponse.json({
+        success: false, data: { healthy: false, latencyMs: 0, error: 'Connect your own Meta WhatsApp account.' },
+      });
+      const data = await probeMetaHealth(credentials);
+      return NextResponse.json({ success: data.healthy, data }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }
 
     // Run health checks in parallel
     const [bridgeHealth, metaHealth] = await Promise.all([

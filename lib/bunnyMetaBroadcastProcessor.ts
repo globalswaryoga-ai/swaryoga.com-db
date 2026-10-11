@@ -1,6 +1,6 @@
 import { buildCloudTemplateSendInput, sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
-import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { upsertBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import {
   broadcastRunFind,
@@ -68,7 +68,11 @@ export async function processDueBunnyMetaBroadcasts(options?: {
       }
 
       output.executedRuns++;
-      const creds = await getMetaCredentialsForTenant(String(run.createdByUserId || '')) || undefined;
+      const owner = String(run.createdByUserId || '');
+      const creds = await getMetaCredentialsForTenant(owner) || undefined;
+      if (owner && !['admin', 'admincrm', 'system'].includes(owner) && !creds) {
+        throw new Error('Connect this CRM account to its own Meta WhatsApp number before sending');
+      }
       for (const item of pending) {
         const messageId = String(item._id);
         const claimed = await broadcastRunMessageUpdateOne(messageId, { status: 'sending' });
@@ -80,8 +84,11 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           // Prevent duplicate template sending within 24 hours
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const existingCheck = await bunnyExecute({
-            sql: `SELECT document_id FROM meta_messages_sql WHERE phone_number = ? AND data_json LIKE ? AND status != 'failed' AND COALESCE(sent_at, created_at) >= ? LIMIT 1`,
-            args: [item.phoneNumber, `%"templateId":"${run.templateId}"%`, twentyFourHoursAgo]
+            sql: `SELECT document_id FROM meta_messages_sql WHERE phone_number = ? AND direction = 'outbound'
+              AND json_extract(data_json, '$.metadata.templateId') = ?
+              AND json_extract(data_json, '$.sentByUserId') = ?
+              AND status != 'failed' AND COALESCE(sent_at, created_at) >= ? LIMIT 1`,
+            args: [item.phoneNumber, String(run.templateId), owner, twentyFourHoursAgo]
           });
 
           if (existingCheck.rows && existingCheck.rows.length > 0) {
@@ -94,7 +101,7 @@ export async function processDueBunnyMetaBroadcasts(options?: {
           const sendInput = buildCloudTemplateSendInput(template, String(item.phoneNumber || ''));
           const apiResult = await sendWhatsAppTemplate(sendInput, creds);
           const waMessageId = String(apiResult.waMessageId || '');
-          const metaMessage = await upsertBunnyMetaMessage({
+          await upsertBunnyMetaMessage({
             documentId: `broadcast_${runId}_${messageId}`,
             leadId: item.leadId || undefined,
             phoneNumber: item.phoneNumber,
@@ -118,13 +125,27 @@ export async function processDueBunnyMetaBroadcasts(options?: {
               },
             },
           });
-          await updateBunnyMetaMessage(metaMessage.documentId, { status: 'sent', waMessageId, provider: 'meta' });
           await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId, sentAt: now });
+          if (runId.startsWith('registration_') && item.leadId) {
+            await bunnyExecute({
+              sql: `UPDATE leads_sql SET data_json = json_set(data_json,
+                '$.metadata.wtStatus', 'sent', '$.metadata.wtError', NULL,
+                '$.metadata.wtLastTemplates', json_patch(COALESCE(json_extract(data_json, '$.metadata.wtLastTemplates'), '{}'), ?))
+                WHERE document_id = ?`,
+              args: [JSON.stringify({ [template.templateName]: now.toISOString() }), item.leadId],
+            });
+          }
           stat.sent++;
           output.sent++;
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           await broadcastRunMessageUpdateOne(messageId, { status: 'failed', failureReason: reason.slice(0, 500) });
+          if (runId.startsWith('registration_') && item.leadId) {
+            await bunnyExecute({
+              sql: "UPDATE leads_sql SET data_json = json_set(data_json, '$.metadata.wtStatus', 'failed', '$.metadata.wtError', ?) WHERE document_id = ?",
+              args: [reason.slice(0, 500), item.leadId],
+            });
+          }
           stat.failed++;
           output.failed++;
         }

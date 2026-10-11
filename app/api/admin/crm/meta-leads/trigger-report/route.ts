@@ -1,64 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { ensureBroadcastSchema, markRunStatsBunny } from '@/lib/bunnyBroadcastRepository';
+import { registrationViewer } from '@/lib/registrationAuth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const token = authHeader.slice('Bearer '.length);
-    if (!verifyToken(token)?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
-    }
-
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
-    
-    // Fetch all AI-9W Worker broadcast runs and manual AI Triggers
-    const runsRes = await bunnyExecute({ 
-        sql: "SELECT _id as id, name, created_at, created_by_label, status, data_json FROM broadcast_runs_sql WHERE created_by_label = 'AI-9W Worker' OR name LIKE 'AI Trigger%' OR name LIKE 'AI-9W%' ORDER BY created_at DESC LIMIT 50" 
+    await ensureBroadcastSchema();
+    const result = await bunnyExecute({
+      sql: `SELECT * FROM broadcast_runs_sql WHERE
+        (created_by_label IN ('AI-9W Worker', 'Registration Automation') OR name LIKE 'AI Trigger%' OR name LIKE 'AI-9W%')
+        ${viewer.superAdmin ? '' : 'AND created_by_user_id = ?'} ORDER BY created_at DESC LIMIT 50`,
+      args: viewer.superAdmin ? [] : [viewer.userId],
     });
-    
-    const runs = runsRes.rows.map((r: any) => {
-        const d = JSON.parse(r.data_json);
-        return { ...d, _id: r.id || d._id, name: r.name || d.name, createdAt: r.created_at || d.createdAt };
-    });
-
-    const reportData = [];
-
-    for (const run of runs) {
-        // Fetch messages for this run
-        const msgsRes = await bunnyExecute({
-            sql: "SELECT data_json FROM broadcast_run_messages_sql WHERE broadcast_run_id = ?",
-            args: [run._id]
-        });
-        
-        const leads = msgsRes.rows.map((r: any) => {
-            const msg = JSON.parse(r.data_json);
-            return {
-                id: msg._id,
-                leadName: msg.lead?.name || 'Unknown',
-                phone: msg.phone || 'Unknown',
-                status: msg.status || 'pending',
-                reason: msg.failureReason || ''
-            };
-        });
-
-        reportData.push({
-            id: run._id,
-            name: run.name,
-            template: run.templateSnapshot?.templateName || run.templateId,
-            scheduledAt: run.createdAt || run.created_at,
-            stats: run.stats || { total: 0, sent: 0, failed: 0 },
-            leads: leads
-        });
-    }
-
-    return NextResponse.json({ success: true, data: reportData });
-  } catch (error: any) {
-    console.error('Trigger report error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const data = await Promise.all(result.rows.map(async run => {
+      const snapshot = JSON.parse(String(run.data_json || '{}'));
+      const [stats, messages] = await Promise.all([
+        markRunStatsBunny(String(run.document_id)),
+        bunnyExecute({
+          sql: `SELECT m.*, l.data_json AS lead_json FROM broadcast_run_messages_sql m
+            LEFT JOIN leads_sql l ON l.document_id = m.lead_id WHERE m.run_id = ?`,
+          args: [String(run.document_id)],
+        }),
+      ]);
+      return {
+        id: run.document_id, name: run.name, template: snapshot.templateSnapshot?.templateName || run.template_id,
+        scheduledAt: run.scheduled_at || run.created_at, stats,
+        leads: messages.rows.map(message => ({
+          id: message.document_id, leadName: JSON.parse(String(message.lead_json || '{}')).name || 'Unknown',
+          phone: message.phone_number, status: message.status, reason: message.failure_reason || '',
+        })),
+      };
+    }));
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error('Registration trigger report failed:', error);
+    return NextResponse.json({ error: 'Failed to load trigger report' }, { status: 500 });
   }
 }

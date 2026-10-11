@@ -5,18 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User, CommunityMember, WorkshopSeatInventory } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getUserByEmail, getUserByPhone, upsertUser } from '@/lib/repositories/userRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initBunnyCommunitySchema } from '@/lib/bunnyCommunityRepository';
+import { reserveBunnyFormSeat } from '@/lib/registrationFormSeats';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
-import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import bcrypt from 'bcryptjs';
 import { notifyFormSubmission } from '@/lib/notifications';
-import { buildContactDuplicateQuery } from '@/lib/contactDuplicateCheck';
 import { randomInt } from 'crypto';
+import { saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 import { pushLeadToGoogleContacts } from '@/lib/googleContactsManager';
@@ -335,106 +337,37 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email format');
     }
 
-    await connectDB();
 
     const cleanedEmail = email.trim().toLowerCase();
     const cleanedPhone = normalizePhone(phone);
     const cleanedName = name.trim();
 
-    // Reserve one admin-approved seat atomically. Re-submitting the same
-    // contact for the same batch does not consume another seat.
+
+    const allLeads = await loadBunnyLeads();
+    const existingLead = allLeads.find(lead =>
+      (!lead.createdByUserId || lead.createdByUserId === 'system') &&
+      (String(lead.email || '').toLowerCase() === cleanedEmail || normalizePhone(lead.phoneNumber) === cleanedPhone));
     if (formType === 'workshop' && workshopScheduleId) {
-      const Lead = getLead();
-      const priorLead = await Lead.findOne({
-        $or: buildContactDuplicateQuery(cleanedEmail, cleanedPhone),
-      }).select({ metadata: 1 }).lean() as any;
-      const priorScheduleId = String(priorLead?.metadata?.workshopScheduleId || '');
-
-      if (priorScheduleId !== String(workshopScheduleId)) {
-        const inventory = await WorkshopSeatInventory.findOneAndUpdate(
-          {
-            scheduleId: String(workshopScheduleId),
-            seatsRemaining: { $gt: 0 },
-          },
-          { $inc: { seatsRemaining: -1 }, $set: { updatedAt: new Date() } },
-          { new: true },
-        ).lean();
-
-        if (!inventory) {
-          return apiError('SLOT_UNAVAILABLE', 'This workshop batch is full. Please choose another batch.');
-        }
-
-        if (priorScheduleId) {
-          await WorkshopSeatInventory.updateOne(
-            { scheduleId: priorScheduleId },
-            { $inc: { seatsRemaining: 1 }, $set: { updatedAt: new Date() } },
-          );
-        }
-      }
+      const reserved = await reserveBunnyFormSeat(String(workshopScheduleId), cleanedEmail, cleanedPhone);
+      if (!reserved) return apiError('SLOT_UNAVAILABLE', 'This workshop batch is full or its seat inventory is unavailable. Please choose another batch.');
     }
-
-    // Passwords are generated server-side and emailed to newly created users.
     const generatedPassword = generatePassword();
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [
-        { email: { $regex: new RegExp(`^${cleanedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
-        { phone: cleanedPhone },
-      ],
-    }).lean();
-
-    let user: any = existingUser;
-    let leadNumber: string | null = null;
+    const existingUser = await getUserByEmail(cleanedEmail) || await getUserByPhone(cleanedPhone);
+    let user = existingUser ? { ...existingUser, _id: existingUser.id } : null;
+    let leadNumber: string | null = existingLead?.leadNumber || null;
     let isNewUser = false;
-
-    // Create user account for signup/workshop forms, or if user doesn't exist
-    if (!existingUser && (formType === 'signup' || formType === 'workshop')) {
-      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-      
-      const newUser = new User({
-        name: cleanedName,
-        email: cleanedEmail,
-        phone: cleanedPhone,
-        countryCode: countryCode || '+91',
-        country: country?.trim() || 'India',
-        state: state?.trim() || '',
-        gender: gender?.trim() || '',
-        age: age ? parseInt(age, 10) : null,
-        profession: profession?.trim() || '',
-        password: hashedPassword,
+    if (formType === 'signup' || formType === 'workshop') {
+      const saved = await upsertUser({
+        ...(existingUser || {}),
+        name: cleanedName, email: cleanedEmail, phone: cleanedPhone,
+        ...(existingUser ? {} : { password: await bcrypt.hash(generatedPassword, 10) }),
       });
-
-      await newUser.save();
-      user = newUser;
-      isNewUser = true;
-      console.log(`✅ New user created: ${cleanedEmail}`);
-    }
-
-    // Existing signed-in/form users can edit their profile details and save again.
-    // Do not change their password during a repeat submission.
-    if (existingUser && (formType === 'signup' || formType === 'workshop')) {
-      await User.updateOne(
-        { _id: (existingUser as any)._id },
-        {
-          $set: {
-            name: cleanedName,
-            email: cleanedEmail,
-            phone: cleanedPhone,
-            countryCode: countryCode || '+91',
-            country: country?.trim() || 'India',
-            state: state?.trim() || '',
-            gender: gender?.trim() || '',
-            age: age ? parseInt(age, 10) : null,
-            profession: profession?.trim() || '',
-          },
-        },
-      );
+      user = { ...saved, _id: saved.id };
+      isNewUser = !existingUser;
     }
 
     // Create/Update CRM Lead
     try {
-      const Lead = getLead();
       const meta = {
         formType: formType || 'form-link',
         source: source || 'form-link',
@@ -468,101 +401,40 @@ export async function POST(request: NextRequest) {
         submittedAt: new Date(),
       };
 
-      // Check for existing lead using normalized email/phone matching
-      const existingLead = await Lead.findOne({
-        $or: buildContactDuplicateQuery(cleanedEmail, cleanedPhone),
-      }).lean();
 
-      if (existingLead) {
-        // Update existing lead
-        await Lead.updateOne(
-          { _id: (existingLead as any)._id },
-          {
-            $set: {
-              name: cleanedName,
-              email: cleanedEmail,
-              metadata: meta,
-              ...(user?._id ? { linkedUserId: user._id, isLinkedToAccount: true } : {}),
-            },
-            $addToSet: {
-              labels: { $each: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean) },
-            },
-          }
-        );
-        leadNumber = String((existingLead as any).leadNumber || '');
-        console.log(`✅ Lead updated: ${leadNumber}`);
-        
-        // Push updated lead to Google Contacts
-        pushLeadToGoogleContacts('system', {
-          name: cleanedName,
-          phone: cleanedPhone,
-          email: cleanedEmail,
-          labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
-          city: city,
-          country: country
-        }).catch(err => console.error('[FormSubmit] Google Contacts update error:', err));
-      } else {
-        // Create new lead
-        const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
-        const newLead = await Lead.create({
-          leadNumber: allocatedLeadNumber,
-          name: cleanedName,
-          email: cleanedEmail,
-          phoneNumber: cleanedPhone,
-          status: formType === 'workshop' || formType === 'sales' ? 'hot' : 'lead',
-          source: source || 'website-form',
-          workshopName: workshopName || (formType === 'signup' ? 'Website Signup' : 'Form Submission'),
-          labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
-          createdByUserId: 'system',
-          assignedToUserId: 'system',
-          metadata: meta,
-          ...(user?._id ? { linkedUserId: user._id, isLinkedToAccount: true } : {}),
-        });
-        
-        // Add to broadcast list
-        await addLeadToMainBroadcastList(newLead);
-        
-        leadNumber = String(allocatedLeadNumber);
-        console.log(`✅ New lead created: ${leadNumber}`);
-        
-        // Push new lead to Google Contacts
-        pushLeadToGoogleContacts('system', {
-          name: cleanedName,
-          phone: cleanedPhone,
-          email: cleanedEmail,
-          labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
-          city: city,
-          country: country
-        }).catch(err => console.error('[FormSubmit] Google Contacts create error:', err));
-      }
+      if (!leadNumber) leadNumber = (await allocateNextLeadNumber('system')).leadNumber;
+      const savedLead = await saveBunnyLead({
+        ...(existingLead || {}),
+        leadNumber, name: cleanedName, email: cleanedEmail, phoneNumber: cleanedPhone,
+        status: existingLead?.status || (formType === 'workshop' || formType === 'sales' ? 'hot' : 'lead'),
+        source: existingLead?.source || source || 'website-form',
+        workshopName: workshopName || existingLead?.workshopName || 'Form Submission',
+        labels: [...new Set([...(existingLead?.labels || []), 'form-submission', formType || 'lead', workshopName || 'general'])],
+        createdByUserId: existingLead?.createdByUserId || 'system',
+        assignedToUserId: existingLead?.assignedToUserId || 'system',
+        metadata: { ...existingLead?.metadata, ...meta },
+        ...(user?._id ? { linkedUserId: user._id, isLinkedToAccount: true } : {}),
+      }, existingLead?._id);
+      leadNumber = savedLead.leadNumber;
     } catch (leadError) {
       logError('forms/createLead', leadError);
-      // Non-fatal - continue
+      return apiError('Your account may already exist, but the CRM form record could not be saved. Please retry with the same email.', 503);
     }
 
     // Auto-join Global Community
     try {
-      const existingMember = await CommunityMember.findOne({
-        mobile: cleanedPhone,
-        communityId: 'global',
+
+      await initBunnyCommunitySchema();
+      const timestamp = new Date().toISOString();
+      const memberId = 'global_' + (user?._id || cleanedPhone);
+      await bunnyExecute({
+        sql: "INSERT INTO community_members_sql (document_id, community_id, user_id, status, approved, joined_at, data_json, created_at, updated_at) VALUES (?, 'global', ?, 'active', 1, ?, ?, ?, ?) ON CONFLICT(document_id) DO NOTHING",
+        args: [memberId, user?._id || leadNumber, timestamp,
+          JSON.stringify({ _id: memberId, name: cleanedName, email: cleanedEmail, mobile: cleanedPhone,
+            communityId: 'global', communityName: 'Global Community', userId: user?._id || leadNumber,
+            status: 'active', approved: true, joinedAt: timestamp, chatEnabled: true }),
+          timestamp, timestamp],
       });
-      
-      if (!existingMember) {
-        await CommunityMember.create({
-          name: cleanedName,
-          email: cleanedEmail,
-          mobile: cleanedPhone,
-          countryCode: countryCode || '+91',
-          userId: leadNumber || user?._id?.toString() || '',
-          communityId: 'global',
-          communityName: 'Global Community',
-          status: 'active',
-          approved: true,
-          joinedAt: new Date(),
-          chatEnabled: true,
-        });
-        console.log(`✅ Auto-joined ${cleanedName} to Global Community`);
-      }
     } catch (communityError) {
       console.error('Community join error:', communityError);
       // Non-fatal

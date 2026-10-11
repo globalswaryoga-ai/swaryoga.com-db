@@ -1,8 +1,14 @@
+import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
+import { registrationBatchRows } from '@/lib/registrationLeads';
+import { registrationAiConfigKey, readRegistrationAiConfig, readRegistrationDecisions, registrationDecisionKey, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
+import { registrationPage } from '@/lib/registrationPagination';
+import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -40,11 +46,11 @@ const INITIAL_CUSTOM_CATEGORIES = [
   { id: 'pending_leads_2', label: 'Pending-2', icon: Clock, isSystem: false, aiAssignment: 'AI-4B' },
   { id: 'pending_leads_3', label: 'Pending-3', icon: Clock, isSystem: false, aiAssignment: 'AI-4C' },
   { id: 'pending_leads_4', label: 'Pending-4', icon: Clock, isSystem: false, aiAssignment: 'AI-4D' },
-  { id: 'approval_1', label: 'Approvel-1', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4E' },
-  { id: 'approval_2', label: 'Approvel-2', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4F' },
-  { id: 'approval_3', label: 'Approvel-3', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4G' },
-  { id: 'approval_4', label: 'Approvel-4', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4H' },
-  { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck, isSystem: true },
+  { id: 'approval_1', label: 'Approval-1', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4E' },
+  { id: 'approval_2', label: 'Approval-2', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4F' },
+  { id: 'approval_3', label: 'Approval-3', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4G' },
+  { id: 'approval_4', label: 'Approval-4', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4H' },
+  { id: 'registered_leads', label: 'Registered leads', icon: UserCheck, isSystem: true },
   { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar, isSystem: true },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video, isSystem: true },
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle, isSystem: true },
@@ -84,22 +90,28 @@ export function LeadsManagementTab({
   leadsData?: any[];
 }) {
   const toast = useToast();
+  const [savingGate, setSavingGate] = useState(false);
+  const gateSaveRef = React.useRef(false);
+  const gateVersionRef = React.useRef(0);
+
 
   const syncStateToBackend = (key: string, data: any) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(key, typeof data === 'string' ? data : JSON.stringify(data));
-      fetch('/api/admin/crm/new-registration/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: typeof data === 'string' ? data : JSON.stringify(data) })
-      }).catch(console.error);
-    }
+    const patch: Record<string, unknown> = key === 'crm_ai4_decisions'
+      ? Object.fromEntries(Object.entries(data).map(([id, value]) => [
+        registrationDecisionKey(activeBatchId, id),
+        Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([field, next]) =>
+          !REGISTRATION_GATE_FIELDS.includes(field) && JSON.stringify(batchDecisions[id]?.[field]) !== JSON.stringify(next))),
+      ]).filter(([, value]) => Object.keys(value).length))
+      : { [key]: data };
+    if (!Object.keys(patch).length) return;
+    void saveRegistrationState(patch).catch(error => toast.error(error.message));
   };
 
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
+  const pagination = useRegistrationPage(`${activeBatchId}:${activeTab}`);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [isDragging, setIsDragging] = useState(false);
@@ -164,29 +176,28 @@ export function LeadsManagementTab({
   // Ensure we get the latest state from backend, overriding stale local storage on mount
   useEffect(() => {
     fetch('/api/admin/crm/new-registration/state')
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Saved funnel settings are unavailable');
+        return data;
+      })
       .then(data => {
         if (data) {
           if (data.crm_custom_categories) {
             try {
               let parsed = typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories;
               
-              // MIGRATION: Remove old custom categories that the user explicitly wants deleted
-              const labelsToRemove = ['Male Leads New', 'Female Leads New', 'Pending Leads-1F', 'Pending Leads-1M', 'Pending Leads -2F', 'Pending Leads-2F', 'Pending Leads-2M', 'Pending Leads', 'Aprovel-1', 'Aprovel-2', 'Pending Leads-1', 'Pending Leads-2', 'Pending Leads-3'];
-              parsed = parsed.filter((p: any) => !labelsToRemove.includes(p.label));
+              if (!Array.isArray(parsed)) throw new Error('Saved categories are invalid');
               
               const missing = INITIAL_CUSTOM_CATEGORIES.filter(ic => !parsed.find((p: any) => p.id === ic.id));
               const finalCategories = [...parsed, ...missing];
               setCustomCategories(finalCategories);
               
-              // Save the cleaned version back to backend to finalize deletion
-              if (parsed.length !== data.crm_custom_categories.length) {
-                syncStateToBackend('crm_custom_categories', finalCategories);
-              }
-            } catch (_) {}
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'Failed to restore categories');
+            }
           } else {
              setCustomCategories(INITIAL_CUSTOM_CATEGORIES);
-             syncStateToBackend('crm_custom_categories', INITIAL_CUSTOM_CATEGORIES);
           }
           if (data.crm_ai4_decisions) {
             try {
@@ -196,101 +207,48 @@ export function LeadsManagementTab({
           }
         }
       })
-      .catch(console.error);
+      .catch(error => toast.error(error.message));
   }, []);
 
   const activeBatch = workshops?.find(w => w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
 
-  // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
-  const activeBatchLeads = React.useMemo(() => {
-    if (!leadsData || leadsData.length === 0) return [];
 
-    // If no batch selected OR batch has no keyword → show ALL leads so counts aren't stuck at 0
-    if (!activeBatch || !activeBatch.formFilterKeyword) {
-      return (leadsData || []).filter(Boolean);
-    }
+  const activeBatchLeads = React.useMemo(() =>
+    activeBatch ? registrationBatchRows(leadsData || [], activeBatch) : [],
+    [activeBatch, leadsData]);
 
-    const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-    const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
-
-    return (leadsData || []).filter(lead => {
-      if (!lead) return false;
-      if (lead._rawRecord) {
-        if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-          return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-        } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val == null ? '' : String(val), k)));
+  useEffect(() => {
+    if (!activeBatchId) return;
+    const controller = new AbortController();
+    let reportedError = false;
+    const loadBookings = async () => {
+      try {
+        const response = await fetch('/api/admin/crm/new-registration/zoom-bookings?batchId=' + encodeURIComponent(activeBatchId), { signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok || !Array.isArray(payload.data)) throw new Error(payload.error || 'Failed to load Zoom bookings');
+        setBatchDecisions(previous => {
+          const next = { ...previous };
+          for (const booking of payload.data) {
+            const lead = leadsData.find(candidate => String(candidate.leadId || candidate._id || candidate.id) === booking.leadId);
+            if (!lead) continue;
+            const existing = next[lead.id] || {};
+            const unchanged = existing.zoomDate === booking.date && existing.zoomTime === booking.time && existing.zoomLink === booking.link;
+            next[lead.id] = { ...existing, zoomDate: booking.date, zoomTime: booking.time, zoomLink: booking.link, zoomStatus: unchanged ? existing.zoomStatus : 'pending' };
+          }
+          return next;
+        });
+      } catch (error) {
+        if (!controller.signal.aborted && !reportedError) {
+          reportedError = true;
+          toast.error(error instanceof Error ? error.message : 'Failed to load Zoom bookings');
         }
       }
-      return true;
-    });
-  }, [activeBatch, leadsData]);
-
-  // Sync public zoom bookings automatically
-  useEffect(() => {
-    if (!leadsData || leadsData.length === 0) return;
-
-    const interval = setInterval(() => {
-      const publicBookingsStr = localStorage.getItem('crm_public_zoom_bookings');
-      if (!publicBookingsStr) return;
-
-      try {
-        let publicBookings = JSON.parse(publicBookingsStr);
-        if (!Array.isArray(publicBookings) || publicBookings.length === 0) return;
-
-        let changed = false;
-
-        setBatchDecisions(prev => {
-          const newDecisions = { ...prev };
-
-          // Try to match each booking to a lead
-          const remainingBookings = publicBookings.filter(booking => {
-            // Find lead by email or exact whatsapp match
-            const matchingLead = leadsData.find(lead => {
-              const leadEmail = (lead.email || '').toLowerCase().trim();
-              const leadRawEmail = (lead._rawRecord?.['Email Address'] || '').toLowerCase().trim();
-              const leadPhone = String(lead.phone || '').replace(/\D/g, '');
-              const leadRawPhone = String(lead._rawRecord?.['WhatsApp Number'] || lead._rawRecord?.['Mobile'] || '').replace(/\D/g, '');
-
-              return (
-                (booking.email && (booking.email === leadEmail || booking.email === leadRawEmail)) ||
-                (booking.whatsapp && (booking.whatsapp === leadPhone || booking.whatsapp === leadRawPhone))
-              );
-            });
-
-            if (matchingLead) {
-              // Update zoom details for this lead
-              newDecisions[matchingLead.id] = {
-                ...(newDecisions[matchingLead.id] || {}),
-                zoomDate: booking.date,
-                zoomTime: booking.time,
-                zoomLink: booking.link,
-                zoomStatus: 'pending',
-              };
-              changed = true;
-              return false; // Remove from queue
-            }
-            return true; // Keep in queue
-          });
-
-          if (changed) {
-            if (typeof window !== 'undefined') {
-              syncStateToBackend('crm_ai4_decisions', newDecisions);
-              localStorage.setItem('crm_public_zoom_bookings', JSON.stringify(remainingBookings));
-            }
-            toast.success('New public Zoom bookings synced successfully!');
-            return newDecisions;
-          }
-          return prev;
-        });
-      } catch (e) {
-        console.error('Error syncing public bookings', e);
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [leadsData]);
+    };
+    void loadBookings();
+    const interval = setInterval(loadBookings, 30000);
+    return () => { controller.abort(); clearInterval(interval); };
+  }, [activeBatchId, leadsData]);
 
   const availableQuestions = React.useMemo(() => {
     const questions = new Set<string>();
@@ -302,46 +260,16 @@ export function LeadsManagementTab({
     return Array.from(questions);
   }, [leadsData]);
 
-  type FilterCondition = {
-    question: string;
-    keyword: string;
-    successCategory?: string;
-    successColor?: string;
-    failCategory?: string;
-    failColor?: string;
-    directMoveCategory?: string;
-  };
-  const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_ai_settings_v3');
-      if (saved) return JSON.parse(saved);
-      const oldSettings = localStorage.getItem('crm_ai4_settings');
-      if (oldSettings) {
-        const parsed = JSON.parse(oldSettings);
-        return {
-          'AI-4': [
-            { question: parsed.q1 || '', keyword: parsed.f1 || parsed.filter1 || '' },
-            { question: parsed.q2 || '', keyword: parsed.f2 || parsed.filter2 || '' }
-          ]
-        };
-      }
-    }
-    return { 'AI-4': [{ question: '', keyword: '' }, { question: '', keyword: '' }] };
-  });
+  type FilterCondition = RegistrationFilterCondition;
+  const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>({});
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
   const [selectedQueryLeadId, setSelectedQueryLeadId] = useState<string | null>(null);
 
-  const [aiCopyModes, setAiCopyModes] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_ai_copy_modes');
-      if (saved) {
-        try { return JSON.parse(saved); } catch (_) {}
-      }
-    }
-    return {};
-  });
+  const [aiCopyModes, setAiCopyModes] = useState<Record<string, boolean>>({});
   const [modalCopyMode, setModalCopyMode] = useState<boolean>(true);
 
   const openAiModal = (type: string) => {
@@ -359,294 +287,80 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiConfig = (type: string, conditions: FilterCondition[]) => {
-    const newSettings = { ...aiSettings, [type]: conditions };
-    setAiSettings(newSettings);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
-
-    const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
-    setAiCopyModes(updatedCopyModes);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_ai_copy_modes', JSON.stringify(updatedCopyModes));
-
-    if (activeBatchId && /^[0-9a-fA-F]{24}$/.test(activeBatchId)) {
-      const metadata = { ...(activeBatch?.metadata || {}), aiSettings: newSettings };
-      fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cohortId: activeBatchId, metadata })
-      }).then(() => toast.success(`✅ ${type} config saved permanently!`)).catch(console.error);
-    } else {
-      toast.success(`✅ ${type} config saved to browser!`);
+  const saveAiConfig = async (type: string, conditions: FilterCondition[]) => {
+    if (!configLoaded) throw new Error('Wait for saved AI settings to load before changing them');
+    setSavingConfig(true);
+    try {
+      await saveRegistrationState({
+        [registrationAiConfigKey(activeBatchId, type)]: { conditions, copyMode: modalCopyMode, autoEnabled: conditions.some(condition => condition.question?.trim() || condition.directMoveCategory), matchMode: 'all' },
+      });
+      const newSettings = { ...aiSettings, [type]: conditions };
+      setAiSettings(newSettings);
+      const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
+      setAiCopyModes(updatedCopyModes);
+      toast.success(`${type} configuration saved in Bunny Database until you change it.`);
+    } finally {
+      setSavingConfig(false);
     }
   };
 
-  const saveAiFilter = (type: string, conditions: FilterCondition[]) => {
-    saveAiConfig(type, conditions);
 
-    const hasValidCondition = conditions.some(c => c.directMoveCategory || c.keyword.trim() || c.question.toLowerCase().includes('age'));
-
-    if (!hasValidCondition) {
-      const newDecisions = { ...batchDecisions };
-      activeBatchLeads.forEach(lead => {
-        const currentDec = batchDecisions[lead.id];
-        if (!currentDec) return;
-        
-        if (currentDec.processedBy === type) {
-          delete newDecisions[lead.id];
-        } else {
-          const currentStatus = currentDec.status || 'new_leads';
-          if (type === 'AI-4' && ['approval_1', 'pending_leads_1'].includes(currentStatus)) {
-            if (currentDec.isRegistered) {
-              newDecisions[lead.id] = { ...currentDec, status: 'new_leads', reason: 'Reset' };
-            } else {
-              delete newDecisions[lead.id];
-            }
-          }
-          if (type === 'AI-4A' && ['approval_2', 'pending_leads_2'].includes(currentStatus)) {
-            newDecisions[lead.id] = { ...currentDec, status: 'approval_1', reason: 'Reset' };
-          }
-          if (type === 'AI-4B' && (currentDec.isRegistered || currentStatus === 'pending_leads_3')) {
-            newDecisions[lead.id] = { ...currentDec, isRegistered: false, status: 'approval_2', reason: 'Reset' };
-          }
-        }
-      });
-      setBatchDecisions(newDecisions);
-      syncStateToBackend('crm_ai4_decisions', newDecisions);
-      toast.success(`🤖 ${type} filters cleared. Leads reset!`);
-      setActiveModal(null);
-      return;
-    }
-
-    const newDecisions = { ...batchDecisions };
-    let approvedCount = 0;
-    let pendingCount = 0;
-
-    const targetLeads = (selectedLeads.length > 0)
-      ? activeBatchLeads.filter(lead => selectedLeads.includes(lead.id))
-      : (activeTab === 'new_leads')
-        ? activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.isRejected)
-        : activeBatchLeads.filter(lead => {
-            const dec = batchDecisions[lead.id] || {};
-            const currentStatus = dec.status || 'new_leads';
-            if (dec.isRejected) return false;
-            return currentStatus === activeTab || (dec.copies || []).includes(activeTab) || (dec.sourceTabs || []).includes(activeTab);
-          });
-
-    targetLeads.forEach(lead => {
-      const raw = lead._rawRecord || {};
-      const allText = JSON.stringify(raw).toLowerCase();
-      
-      let finalCategory = '';
-      let finalReason = '';
-      let isSuccess = false;
-
-      for (const c of conditions) {
-        // 1. Direct Move (Bypasses keyword matching)
-        if (c.directMoveCategory) {
-          finalCategory = c.directMoveCategory;
-          finalReason = `Direct Move from UI`;
-          isSuccess = true;
-          break;
-        }
-
-        // 2. Normal matching
-        if (!c.keyword || !c.keyword.trim()) continue;
-        const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
-        const kw = c.keyword.toLowerCase().trim();
-        const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
-        
-        let matchedAny = false;
-        
-        // Age check backward compatibility
-        if (c.question && c.question.toLowerCase().includes('age')) {
-          const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
-          if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
-             matchedAny = true;
-          }
-        } else {
-          matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
-        }
-
-        if (matchedAny) {
-          if (c.successCategory) {
-            finalCategory = c.successCategory;
-            finalReason = `Matched: ${c.keyword}`;
-            isSuccess = true;
-            break;
-          }
-        } else {
-          if (c.failCategory) {
-            finalCategory = c.failCategory;
-            finalReason = `Failed: ${c.keyword}`;
-            isSuccess = false;
-            break;
-          }
-        }
-      }
-
-      if (finalCategory) {
-        const currentDec = batchDecisions[lead.id] || {};
-        const oldStatus = currentDec.status || activeTab || 'new_leads';
-        const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
-        const copies = modalCopyMode
-          ? Array.from(new Set([...(currentDec.copies || []), finalCategory]))
-          : (currentDec.copies || []);
-        const sourceTabs = modalCopyMode
-          ? Array.from(new Set([...(currentDec.sourceTabs || []), activeTab]))
-          : (currentDec.sourceTabs || []);
-
-        newDecisions[lead.id] = {
-          ...currentDec,
-          status: finalCategory,
-          reason: finalReason,
-          processedBy: type,
-          history,
-          copies,
-          sourceTabs,
-          keepCopy: modalCopyMode
-        };
-        if (isSuccess) approvedCount++;
-        else pendingCount++;
-      }
+  const saveAiFilter = async (type: string, conditions: FilterCondition[]) => {
+    await saveAiConfig(type, conditions);
+    const response = await fetch('/api/admin/crm/new-registration/funnel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batchId: activeBatchId, worker: type, ids: selectedLeads }),
     });
-
-    setBatchDecisions(newDecisions);
-    syncStateToBackend('crm_ai4_decisions', newDecisions);
-    toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending. ${modalCopyMode ? '(All data saved here & copies sent ahead)' : ''}`);
-
+    const result = await response.json();
+    if (result.decisions) setBatchDecisions(result.decisions);
+    if (!response.ok) throw new Error(result.errors?.join('; ') || result.error || 'AI processing failed');
+    toast.success(type + ': ' + result.passed + ' passed all conditions, ' + result.pending + ' need review.');
     setActiveModal(null);
   };
 
   React.useEffect(() => {
-    if (activeBatch?.metadata?.aiSettings) {
-      setAiSettings(activeBatch.metadata.aiSettings);
-    }
-    if (activeBatch?.metadata?.batchDecisions) {
-      setBatchDecisions(activeBatch.metadata.batchDecisions);
-    }
-  }, [activeBatch]);
-
-  React.useEffect(() => {
-    if (Object.keys(batchDecisions).length === 0) return;
-    
-    if (activeBatchId && /^[0-9a-fA-F]{24}$/.test(activeBatchId)) {
-      const metadata = { ...(activeBatch?.metadata || {}), batchDecisions };
-      fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cohortId: activeBatchId, metadata })
-      }).catch(console.error);
-    }
-  }, [batchDecisions, activeBatchId]);
-
-  // Background AI Auto-Worker (Runs every 10 minutes for all AI-4A to AI-4P)
-  React.useEffect(() => {
-    if (!activeBatchId || !activeBatchLeads || activeBatchLeads.length === 0) return;
-
-    const intervalId = setInterval(() => {
-      setBatchDecisions(prev => {
-        const newDecisions = { ...prev };
-        let hasChanges = false;
-        let totalProcessed = 0;
-
-        // Run through all defined AI triggers
-        Object.entries(aiSettings).forEach(([type, conditions]) => {
-          if (!type.startsWith('AI-4')) return;
-          if (!conditions || conditions.length === 0) return;
-          const hasValidCondition = conditions.some((c: any) => c.directMoveCategory || c.keyword?.trim() || (c.question || '').toLowerCase().includes('age'));
-          if (!hasValidCondition) return;
-
-          // Find the category this AI trigger is assigned to
-          // If unassigned (e.g., legacy or not in sidebars), fallback to processing new_leads
-          const assignedCategory = customCategories.find((c: any) => c.aiAssignment === type);
-          const sourceCategory = assignedCategory ? assignedCategory.id : 'new_leads';
-
-          // Target leads currently in the source category (or no decision if new_leads)
-          const targetLeads = activeBatchLeads.filter(lead => {
-            const dec = prev[lead.id] || {};
-            const currentStatus = dec.status || 'new_leads';
-            if (dec.isRejected || dec.isRegistered) return false;
-            // Background worker only auto-processes leads that are in the source folder
-            return currentStatus === sourceCategory;
-          });
-
-          if (targetLeads.length === 0) return;
-
-          targetLeads.forEach(lead => {
-            const raw = lead._rawRecord || {};
-            const allText = JSON.stringify(raw).toLowerCase();
-            
-            let finalCategory = '';
-            let finalReason = '';
-
-            for (const c of conditions as any[]) {
-              // 1. Check for Direct Move (Bypasses keyword checks)
-              if (c.directMoveCategory) {
-                finalCategory = c.directMoveCategory;
-                finalReason = `Direct Move from ${sourceCategory}`;
-                break;
-              }
-
-              // 2. Otherwise run normal keyword matching
-              if (!c.keyword || !c.keyword.trim()) continue;
-              const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
-              const kw = c.keyword.toLowerCase().trim();
-              
-              let matchedAny = false;
-              if (c.question && c.question.toLowerCase().includes('age')) {
-                const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
-                if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
-                   matchedAny = true;
-                }
-              } else {
-                matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
-              }
-
-              if (matchedAny) {
-                if (c.successCategory) {
-                  finalCategory = c.successCategory;
-                  finalReason = `Matched: ${c.keyword}`;
-                  break;
-                }
-              } else {
-                if (c.failCategory) {
-                  finalCategory = c.failCategory;
-                  finalReason = `Failed: ${c.keyword}`;
-                  break;
-                }
-              }
-            }
-
-            if (finalCategory) {
-              const currentDec = newDecisions[lead.id] || prev[lead.id] || {};
-              const oldStatus = currentDec.status || 'new_leads';
-              if (oldStatus !== finalCategory) {
-                const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
-                newDecisions[lead.id] = {
-                  ...currentDec,
-                  status: finalCategory,
-                  reason: 'Auto Worker: ' + finalReason,
-                  processedBy: type,
-                  history
-                };
-                hasChanges = true;
-                totalProcessed++;
-              }
-            }
-          });
-        });
-
-        if (hasChanges) {
-          syncStateToBackend('crm_ai4_decisions', newDecisions);
-          setTimeout(() => toast.info(`🤖 Background Auto-Worker processed ${totalProcessed} leads!`), 0);
-          return newDecisions;
+    setConfigLoaded(false);
+    if (!activeBatchId) return;
+    const controller = new AbortController();
+    fetch('/api/admin/crm/new-registration/state', { signal: controller.signal })
+      .then(async response => {
+        const state = await response.json();
+        if (!response.ok) throw new Error(state.error || 'Failed to load saved AI configuration');
+        const saved = readRegistrationAiConfig(state, activeBatchId, activeBatch?.metadata);
+        if (!controller.signal.aborted) {
+          setAiSettings(saved.settings);
+          setAiCopyModes(saved.copyModes);
+          setBatchDecisions(readRegistrationDecisions(state, activeBatchId));
+          setConfigLoaded(true);
         }
-        return prev;
-      });
-    }, 10 * 60 * 1000); // 10 minutes
+      })
+      .catch(error => { if (!controller.signal.aborted) toast.error(error.message); });
+    return () => controller.abort();
+  }, [activeBatchId]);
 
-    return () => clearInterval(intervalId);
-  }, [activeBatchId, activeBatchLeads, aiSettings, toast]);
+
+  useEffect(() => {
+    if (!configLoaded || !activeBatchId) return;
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (document.hidden || gateSaveRef.current || refreshing) return;
+      refreshing = true;
+      const gateVersion = gateVersionRef.current;
+      try {
+        const response = await fetch(`/api/admin/crm/new-registration/gates?batchId=${encodeURIComponent(activeBatchId)}`, { signal: controller.signal });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to refresh funnel decisions');
+        if (!controller.signal.aborted && !gateSaveRef.current && gateVersion === gateVersionRef.current) setBatchDecisions(result.decisions);
+      } catch (error) {
+        if (!controller.signal.aborted) toast.error(error instanceof Error ? error.message : 'Failed to refresh funnel decisions');
+      } finally {
+        refreshing = false;
+      }
+    };
+    const interval = setInterval(refresh, 30000);
+    return () => { controller.abort(); clearInterval(interval); };
+  }, [configLoaded, activeBatchId]);
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
@@ -669,7 +383,7 @@ export function LeadsManagementTab({
     SIDEBAR_TABS.forEach(tab => {
       let count = 0;
       if (tab.id === 'take_zoom_meeting') {
-        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
+        count = activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {})).length;
       } else if (tab.id === 'new_leads') {
         count = activeBatchLeads.length;
       } else if (tab.id === 'pending_leads') {
@@ -717,7 +431,7 @@ export function LeadsManagementTab({
   const currentTabLeads = React.useMemo(() => {
     const activeTabLabel = getCategoryLabel(activeTab);
     if (activeTab === 'take_zoom_meeting') {
-      return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
+      return activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {}));
     }
     if (activeTab === 'new_leads') {
       return activeBatchLeads; // Show ALL forms here - all original data is preserved
@@ -826,17 +540,35 @@ export function LeadsManagementTab({
     });
   };
 
-  const markZoomStatus = (leadId: string, status: string) => {
-    setBatchDecisions(prev => {
-      const nd = { ...prev, [leadId]: { ...(prev[leadId] || {}), zoomStatus: status } };
-      if (status === 'rejected') {
-        nd[leadId].isRejected = true;
-        nd[leadId].isRegistered = false;
-      }
-      syncStateToBackend('crm_ai4_decisions', nd);
-      return nd;
-    });
-    toast.success(`Zoom Meeting Status: ${status}`);
+  const saveGate = async (leadId: string, action: RegistrationGateAction) => {
+    if (gateSaveRef.current || !configLoaded) return;
+    const confirmation = action === 'skip_zoom'
+      ? 'Skip Zoom for this lead? This records an admin override, not Meeting Done.'
+      : action === 'skip_group'
+        ? 'Skip WhatsApp group admission for this lead? No member will be added.'
+        : action === 'group_added'
+          ? 'Confirm you have already added this lead to the WhatsApp group manually. This button only records admission; it does not add members.'
+          : '';
+    if (confirmation && !window.confirm(confirmation)) return;
+    gateSaveRef.current = true;
+    gateVersionRef.current++;
+    setSavingGate(true);
+    try {
+      const response = await fetch('/api/admin/crm/new-registration/gates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: activeBatchId, id: leadId, action }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to save registration gate.');
+      setBatchDecisions(result.decisions);
+      toast.success('Registration gate saved.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save registration gate.');
+    } finally {
+      gateSaveRef.current = false;
+      gateVersionRef.current++;
+      setSavingGate(false);
+    }
   };
 
 
@@ -1062,6 +794,7 @@ export function LeadsManagementTab({
                   <p className="text-sm text-slate-500">
                     Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
                   </p>
+                  <p className="mt-1 text-xs text-slate-500">All form rules must pass. Zoom, final approval, and group admission remain separate gates.</p>
                 </div>
                 {(() => {
                   const activeCat = SIDEBAR_TABS.find(t => t.id === activeTab);
@@ -1173,7 +906,7 @@ export function LeadsManagementTab({
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {currentTabLeads.length > 0 ? (
-                          currentTabLeads.map((lead, i) => {
+                          currentTabLeads.slice(registrationPage(currentTabLeads.length, pagination.page).offset, registrationPage(currentTabLeads.length, pagination.page).end).map((lead, i) => {
                             const leadDec = batchDecisions[lead.id] || {};
                             const leadStatus = leadDec.status || '';
                             const isRegistered = leadDec.isRegistered;
@@ -1233,9 +966,12 @@ export function LeadsManagementTab({
                                           <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12} /> Copy</button>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                          <button onClick={() => markZoomStatus(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
-                                          <button onClick={() => markZoomStatus(lead.id, 'pending')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'pending' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Pending</button>
-                                          <button onClick={() => markZoomStatus(lead.id, 'rejected')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Form Rejected</button>
+                                          <button disabled={savingGate || !configLoaded || zd.isRegistered || zd.isRejected} onClick={() => saveGate(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors disabled:opacity-50 ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
+                                          <button disabled={savingGate || !configLoaded || zd.isRegistered || zd.isRejected} onClick={() => saveGate(lead.id, 'skip_zoom')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm disabled:opacity-50 ${zd.zoomStatus === 'skipped' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>Skip Zoom (Admin)</button>
+                                          <button disabled={savingGate || !configLoaded || zd.isRegistered || zd.isRejected} onClick={() => saveGate(lead.id, 'pending')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors disabled:opacity-50 ${zd.zoomStatus === 'pending' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Pending</button>
+                                          <button disabled={savingGate || !configLoaded || zd.isRegistered} onClick={() => saveGate(lead.id, 'reject')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors disabled:opacity-50 ${zd.zoomStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Form Rejected</button>
+                                          <button disabled={savingGate || !configLoaded || zd.isRegistered || zd.isRejected || !zoomGatePassed(zd)} onClick={() => saveGate(lead.id, 'approve')} className="text-xs font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 disabled:opacity-50">Final Approve</button>
+                                          <span className="text-xs text-slate-600">Zoom: {zd.zoomStatus === 'skipped' ? 'Skipped by admin (no meeting)' : zd.zoomStatus || 'Not reviewed'}{zd.isRegistered ? ' · Final approved' : ''}</span>
                                         </div>
                                       </div>
                                     </td>
@@ -1289,35 +1025,35 @@ export function LeadsManagementTab({
                                   {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
                                     <>
                                       <button
-                                        onClick={() => {
-                                          const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                          const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
-                                          setBatchDecisions(newDecisions);
-                                          syncStateToBackend('crm_ai4_decisions', newDecisions);
-                                          toast.success('Lead marked as Registered!');
-                                        }}
-                                        className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
+                                        disabled={savingGate || !configLoaded || !zoomGatePassed(batchDecisions[lead.id] || {})}
+                                        title="Mark Meeting Done or explicitly Skip Zoom before final approval."
+                                        onClick={() => saveGate(lead.id, 'approve')}
+                                        className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors disabled:opacity-50"
                                       >
-                                        Register
+                                        Final Approve
                                       </button>
+                                      <button disabled={savingGate || !configLoaded} onClick={() => saveGate(lead.id, 'skip_zoom')} className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded disabled:opacity-50">Skip Zoom (Admin)</button>
                                       <button
-                                        onClick={() => {
-                                          const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                          const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
-                                          setBatchDecisions(newDecisions);
-                                          syncStateToBackend('crm_ai4_decisions', newDecisions);
-                                          toast.success('Lead marked as Rejected!');
-                                        }}
+                                        disabled={savingGate || !configLoaded}
+                                        onClick={() => saveGate(lead.id, 'reject')}
                                         className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
                                       >
                                         Reject
                                       </button>
                                     </>
                                   )}
+                                  {batchDecisions[lead.id]?.zoomStatus === 'skipped' && (
+                                    <span className="text-xs text-indigo-700">Zoom skipped by admin</span>
+                                  )}
                                   {batchDecisions[lead.id]?.isRegistered && (
-                                    <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
-                                      <CheckCircle size={12} /> Registered
-                                    </span>
+                                    <>
+                                      <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                        <CheckCircle size={12} /> Final approved
+                                      </span>
+                                      <button disabled={savingGate || !configLoaded} onClick={() => saveGate(lead.id, 'group_added')} className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded disabled:opacity-50">Group Added (Manual)</button>
+                                      <button disabled={savingGate || !configLoaded} onClick={() => saveGate(lead.id, 'skip_group')} className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded disabled:opacity-50">Skip Group (Admin)</button>
+                                      <span className="text-xs text-slate-600">Group: {batchDecisions[lead.id]?.groupStatus === 'added_manually' ? 'Added manually' : batchDecisions[lead.id]?.groupStatus === 'skipped' ? 'Skipped by admin' : 'Pending admission'}</span>
+                                    </>
                                   )}
                                   {batchDecisions[lead.id]?.isRejected && (
                                     <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
@@ -1344,6 +1080,7 @@ export function LeadsManagementTab({
                       </tbody>
                     </table>
                   </div>
+                  <RegistrationPagination range={registrationPage(currentTabLeads.length, pagination.page)} onPage={pagination.onPage} />
                 </div>
               )}
             </div>
@@ -1564,14 +1301,19 @@ export function LeadsManagementTab({
               </button>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    saveAiConfig(activeModal, modalConditions);
+                  disabled={!configLoaded || savingConfig}
+                  onClick={async () => {
+                    try { await saveAiConfig(activeModal, modalConditions); }
+                    catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
                   }}
                   className="px-5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-sm font-bold rounded-lg shadow-sm transition-colors"
                 >
                   💾 Save Config
                 </button>
-                <button onClick={() => saveAiFilter(activeModal, modalConditions)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
+                <button disabled={!configLoaded || savingConfig} onClick={async () => {
+                  try { await saveAiFilter(activeModal, modalConditions); }
+                  catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
+                }} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
                   ▶ Submit Config & Run
                 </button>
               </div>

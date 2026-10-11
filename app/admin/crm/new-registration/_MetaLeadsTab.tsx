@@ -1,5 +1,11 @@
 'use client';
+import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
 
+
+import { evaluateMetaLead } from '@/lib/registrationRules';
+import { registrationPage } from '@/lib/registrationPagination';
+import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
+import { MetaConnectionStatus } from './_MetaConnectionStatus';
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Square, Settings2, X, ChevronDown, ChevronUp, Database, Activity, BarChart3, RefreshCcw, AlertCircle, AlertTriangle, CheckCircle2, Eye, ArrowLeft, Upload, ArrowUpRight, ArrowUp } from 'lucide-react';
 
@@ -13,35 +19,47 @@ export function MetaLeadsTab({
     // Self-contained Meta leads state — fetched independently from the parent
     const [metaLeads, setMetaLeads] = useState<any[]>([]);
     const [isFetchingLeads, setIsFetchingLeads] = useState(false);
+    const [loadError, setLoadError] = useState('');
     const [refreshMetaCounter, setRefreshMetaCounter] = useState(0);
 
     const internalRefresh = () => setRefreshMetaCounter(prev => prev + 1);
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
+        const controller = new AbortController();
         setIsFetchingLeads(true);
+        setLoadError('');
         const workshopId = selectedWorkshop?.id || '';
         const metaFormId = selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || formId || '';
         fetch(`/api/admin/crm/meta-leads?workshopId=${encodeURIComponent(workshopId)}&metaFormId=${encodeURIComponent(metaFormId)}`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
         })
-        .then(r => r.json())
+        .then(async response => {
+            const json = await response.json();
+            if (!response.ok) throw new Error(json.error || 'Failed to load Meta leads');
+            return json;
+        })
         .then(json => {
+            if (controller.signal.aborted) return;
             if (json.success) setMetaLeads(json.data || []);
-            else console.error('[MetaLeadsTab] Failed to fetch meta leads:', json.error);
+            else setLoadError(json.error || 'Failed to load Meta leads');
         })
-        .catch(e => console.error('[MetaLeadsTab] Error fetching meta leads:', e))
-        .finally(() => setIsFetchingLeads(false));
+        .catch(e => { if (!controller.signal.aborted) setLoadError(e.message || 'Failed to load Meta leads'); })
+        .finally(() => { if (!controller.signal.aborted) setIsFetchingLeads(false); });
+        return () => controller.abort();
     }, [selectedWorkshop?.id, formId, refreshMetaCounter]);
 
     // State for Search and Filter
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const pagination = useRegistrationPage(`${selectedWorkshop?.id}:${formId}:${searchQuery}:${statusFilter}`);
 
 
 
     const [isAutoSync, setIsAutoSync] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
+    const syncingRef = useRef(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
     const [expandedCols, setExpandedCols] = useState<Set<string>>(new Set());
@@ -127,11 +145,16 @@ export function MetaLeadsTab({
     const [ai9EConfig, setAi9EConfig] = useState<any>(selectedWorkshop?.metadata?.ai9EConfig || defaultAIConfig);
 
     useEffect(() => {
-        if (selectedWorkshop?.metadata?.ai9AConfig) setAi9AConfig(selectedWorkshop.metadata.ai9AConfig);
-        if (selectedWorkshop?.metadata?.ai9BConfig) setAi9BConfig(selectedWorkshop.metadata.ai9BConfig);
-        if (selectedWorkshop?.metadata?.ai9CConfig) setAi9CConfig(selectedWorkshop.metadata.ai9CConfig);
-        if (selectedWorkshop?.metadata?.ai9DConfig) setAi9DConfig(selectedWorkshop.metadata.ai9DConfig);
-        if (selectedWorkshop?.metadata?.ai9EConfig) setAi9EConfig(selectedWorkshop.metadata.ai9EConfig);
+        setFormId(selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '');
+        setAi9AConfig(selectedWorkshop?.metadata?.ai9AConfig || defaultAIConfig);
+        setAi9BConfig(selectedWorkshop?.metadata?.ai9BConfig || defaultAIConfig);
+        setAi9CConfig(selectedWorkshop?.metadata?.ai9CConfig || defaultAIConfig);
+        setAi9DConfig(selectedWorkshop?.metadata?.ai9DConfig || defaultAIConfig);
+        setAi9EConfig(selectedWorkshop?.metadata?.ai9EConfig || defaultAIConfig);
+        setWtSettings({
+            approved: { template: selectedWorkshop?.metadata?.wtSettings?.approved?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.approved?.delay ?? 5 },
+            pending: { template: selectedWorkshop?.metadata?.wtSettings?.pending?.template || '', delay: selectedWorkshop?.metadata?.wtSettings?.pending?.delay ?? 30 }
+        });
     }, [selectedWorkshop?.metadata]);
 
     // Dummy Lead State
@@ -289,7 +312,8 @@ export function MetaLeadsTab({
     };
 
     const syncLeads = async (isAuto = false) => {
-        if (!formId) return;
+        if (!formId || syncingRef.current) return;
+        syncingRef.current = true;
         addToHistory(formId);
         setIsSyncing(true);
         try {
@@ -313,6 +337,7 @@ export function MetaLeadsTab({
             if (!isAuto) alert(`Sync Failed: ${e.message}`);
             setIsAutoSync(false);
         } finally {
+            syncingRef.current = false;
             setIsSyncing(false);
         }
     };
@@ -352,189 +377,18 @@ export function MetaLeadsTab({
         let interval: any;
         if (isAutoSync && formId) {
             syncLeads(true);
-            interval = setInterval(() => syncLeads(true), 1 * 60 * 1000); // 1 minute
+            interval = setInterval(() => { if (!document.hidden) void syncLeads(true); }, 1 * 60 * 1000);
         }
         return () => clearInterval(interval);
     }, [isAutoSync, formId]);
 
-    const evaluateLead = (lead: any, config: any, targetApprove: string, targetPending: string, targetReject: string) => {
-        let mismatchCount = 0;
-        let hardReject = false;
-        let reasons: string[] = [];
+    const evaluateLead = evaluateMetaLead;
 
-        const answers: Record<string, string> = {};
-        if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
-            lead.metadata.rawFieldData.forEach((item: any) => {
-                let val = '';
-                if (Array.isArray(item.values)) {
-                    val = item.values.join(', ');
-                } else {
-                    val = String(item.values ?? item.response ?? '');
-                }
-                val = val.toLowerCase();
-                
-                const sanitizeKey = (k: string) => (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (item.name) answers[sanitizeKey(item.name)] = val;
-                if (item.question_text) answers[sanitizeKey(item.question_text)] = val;
-            });
-        }
-
-        let finalStatus = targetApprove;
-        let validFiltersCount = 0;
-
-        (config.filters || []).forEach((filter: any) => {
-            if (!filter.question) return; // Skip empty filters
-            validFiltersCount++;
-            
-            const sanitizeKey = (k: string) => (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            const ansKey = sanitizeKey(filter.question);
-            const ans = answers[ansKey] || '';
-            let matchedCategory = filter.fallbackCategory || filter.fallback || 'pending';
-            
-            if (filter.options) {
-                for (const opt of filter.options) {
-                    if (opt.answer) {
-                        const cleanAns = ans.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
-                        const cleanOpt = opt.answer.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
-                        
-                        let matched = cleanAns === cleanOpt || (cleanOpt.length > 0 && cleanAns.includes(cleanOpt));
-
-                        if (matched) {
-                            matchedCategory = opt.category;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (matchedCategory === 'rejected') {
-                hardReject = true;
-                reasons.push(`Failed on: ${filter.question}`);
-            } else if (matchedCategory === 'pending') {
-                mismatchCount++;
-                reasons.push(`Pending on: ${filter.question}`);
-                if (finalStatus !== targetReject) finalStatus = targetPending;
-            }
-        });
-
-        const reasonStr = reasons.join(' | ');
-        
-        if (validFiltersCount === 0) return null;
-
-        if (hardReject) return { status: targetReject, reason: reasonStr };
-        if (config.maxMismatches && mismatchCount >= config.maxMismatches) {
-            return { status: config.mismatchFallback === 'rejected' ? targetReject : targetPending, reason: reasonStr || 'Exceeded mismatches' };
-        }
-        
-        return { status: finalStatus, reason: reasonStr || 'Approved by AI' };
-    };
-
-    // AI-9 Multi-Stage Auto-processing Worker
+    // Server cron handles automatic classification and delayed messages even when this page is closed.
     useEffect(() => {
-        const interval = setInterval(async () => {
-            if (metaLeads.length === 0) return;
-            const updates: any[] = [];
-            const triggers: string[] = [];
-
-            // AI-9A (New Leads)
-            if (ai9AConfig?.isActive) {
-                const sNewLeads = metaLeads.filter((l: any) => !l.status || l.status === 'new' || l.status === 'lead' || l.status === 'new_pending');
-                sNewLeads.slice(0, 10).forEach((lead: any) => {
-                    const res = evaluateLead(lead, ai9AConfig, 'stage_1_new', 'new_pending', 'new_rejected');
-                    if (res && res.status !== (lead.status || 'new')) updates.push({ id: lead._id || lead.id, ...res });
-                });
-            }
-
-            // AI-9B (Stage 1)
-            if (ai9BConfig?.isActive && updates.length < 10) {
-                const s1Leads = metaLeads.filter((l: any) => l.status === 'stage_1_new' || l.status === 'stage_1_pending');
-                s1Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
-                    const res = evaluateLead(lead, ai9BConfig, 'stage_2_new', 'stage_1_pending', 'stage_1_rejected');
-                    if (res && res.status !== lead.status) updates.push({ id: lead._id || lead.id, ...res });
-                });
-            }
-
-            // AI-9C (Stage 2)
-            if (ai9CConfig?.isActive && updates.length < 10) {
-                const s2Leads = metaLeads.filter((l: any) => l.status === 'stage_2_new' || l.status === 'stage_2_pending');
-                s2Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
-                    const res = evaluateLead(lead, ai9CConfig, 'stage_3_new', 'stage_2_pending', 'stage_2_rejected');
-                    if (res && res.status !== lead.status) updates.push({ id: lead._id || lead.id, ...res });
-                });
-            }
-
-            // AI-9D (Stage 3)
-            if (ai9DConfig?.isActive && updates.length < 10) {
-                const s3Leads = metaLeads.filter((l: any) => l.status === 'stage_3_new' || l.status === 'stage_3_pending');
-                s3Leads.slice(0, 10 - updates.length).forEach((lead: any) => {
-                    const res = evaluateLead(lead, ai9DConfig, 'approved', 'stage_3_pending', 'stage_3_rejected');
-                    if (res && res.status !== lead.status) {
-                        if (res.status === 'approved') {
-                            res.metadata = { ai9WEligible: true, approvedAt: new Date().toISOString() };
-                        }
-                        updates.push({ id: lead._id || lead.id, ...res });
-                    }
-                });
-            }
-
-            // AI-9E (WhatsApp Trigger with Delay)
-            if (ai9EConfig?.isActive && triggers.length < 10) {
-                const delayMinutes = selectedWorkshop?.metadata?.wtSettings?.approved?.delay || 5;
-                const delayMs = delayMinutes * 60 * 1000;
-                const now = Date.now();
-
-                const triggerTemplate = selectedWorkshop?.metadata?.wtSettings?.approved?.template;
-                const eligibleLeads = metaLeads.filter((l: any) => {
-                    if (l.status !== 'approved' || l.metadata?.ai9WEligible !== true || !l.metadata?.approvedAt) return false;
-                    
-                    // Check if the specific template was already sent
-                    if (triggerTemplate && l.metadata?.wtLastTemplates && l.metadata.wtLastTemplates[triggerTemplate]) return false;
-                    
-                    // Legacy check if no template specified but it was already sent something
-                    if (!l.metadata?.wtLastTemplates && (l.metadata?.wtStatus === 'sent' || l.metadata?.wtStatus === 'delivered')) return false;
-
-                    return (now - new Date(l.metadata.approvedAt).getTime()) >= delayMs;
-                });
-
-                eligibleLeads.slice(0, 10 - triggers.length).forEach((lead: any) => {
-                    if (!triggers.includes(lead._id || lead.id)) {
-                        triggers.push(lead._id || lead.id);
-                    }
-                });
-            }
-
-            if (updates.length > 0) {
-                try {
-                    await fetch('/api/admin/crm/meta-leads/bulk-update', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ bulkUpdates: updates, status: 'mixed', workshopId: selectedWorkshop?.id })
-                    });
-                } catch(e) {}
-            }
-
-            // Auto-trigger WhatsApp for newly approved Stage 3 leads or existing approved leads via AI-9E
-            if (triggers.length > 0 && selectedWorkshop?.metadata?.wtSettings?.approved?.template && ai9EConfig?.isActive) {
-                try {
-                    await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            ids: triggers, 
-                            template: selectedWorkshop.metadata.wtSettings.approved.template 
-                        })
-                    });
-                } catch(e) {}
-            }
-
-            if (updates.length > 0 || triggers.length > 0) {
-                internalRefresh();
-            }
-
-        }, 5000);
-
+        const interval = setInterval(() => { if (!document.hidden) internalRefresh(); }, 30000);
         return () => clearInterval(interval);
-    }, [ai9AConfig, ai9BConfig, ai9CConfig, ai9DConfig, ai9EConfig, metaLeads, selectedWorkshop]);
+    }, []);
 
     const handleForceAIProcessing = async () => {
         setIsFetchingLeads(true);
@@ -563,19 +417,14 @@ export function MetaLeadsTab({
             });
 
             if (updates.length > 0) {
-                await fetch('/api/admin/crm/meta-leads/bulk-update', {
+                const response = await fetch('/api/admin/crm/meta-leads/bulk-update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ bulkUpdates: updates, status: 'mixed', workshopId: selectedWorkshop?.id })
                 });
                 
-                if (triggers.length > 0 && selectedWorkshop?.metadata?.wtSettings?.approved?.template) {
-                    await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: triggers, template: selectedWorkshop.metadata.wtSettings.approved.template })
-                    });
-                }
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'AI processing failed');
                 internalRefresh();
                 alert(`Successfully processed ${updates.length} leads through the AI rules!`);
             } else {
@@ -639,8 +488,9 @@ export function MetaLeadsTab({
         }
     };
 
-    const handleConnect = () => {
-        saveWorkshopSettings({
+    const handleConnect = async () => {
+      try {
+        await saveWorkshopSettings({
             ...selectedWorkshop,
             metadata: {
                 ...(selectedWorkshop?.metadata || {}),
@@ -648,13 +498,17 @@ export function MetaLeadsTab({
             }
         });
         alert('Facebook Form ID connected successfully! Webhooks will automatically populate data below.');
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to save Meta form');
+      }
     };
 
-    const saveWTSettings = () => {
+    const saveWTSettings = async () => {
         const newAI9EConfig = { ...ai9EConfig, isActive: true };
         setAi9EConfig(newAI9EConfig);
         
-        saveWorkshopSettings({
+      try {
+        await saveWorkshopSettings({
             ...selectedWorkshop,
             metadata: {
                 ...(selectedWorkshop?.metadata || {}),
@@ -664,6 +518,9 @@ export function MetaLeadsTab({
         });
         alert('WhatsApp Trigger Settings saved successfully! AI-9W will now schedule these automatically.');
         setShowWTSettingsPopup(false);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
+      }
     };
 
     const triggerManualWhatsApp = async () => {
@@ -848,8 +705,10 @@ export function MetaLeadsTab({
     };
 
     return (
-        <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in p-6 bg-slate-50 h-full relative">
-            
+        <div className="flex-1 min-w-0 overflow-y-auto space-y-4 animate-fade-in p-3 sm:p-4 bg-slate-50 h-full relative">
+            <MetaConnectionStatus />
+            <p className="text-xs text-slate-500">Saved Meta leads load from Bunny. Sync imports new responses; approved template sends use the shared Bunny broadcast queue.</p>
+            {loadError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>}
             {/* Header Report Cards & Settings Trigger */}
             <div className="flex gap-4">
                 <div className="grid grid-cols-5 gap-4 flex-1">
@@ -1298,7 +1157,7 @@ export function MetaLeadsTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredLeads.map((lead: any, idx: number) => {
+                            {filteredLeads.slice(registrationPage(filteredLeads.length, pagination.page).offset, registrationPage(filteredLeads.length, pagination.page).end).map((lead: any, idx: number) => {
                                 const answers: Record<string, string> = {};
                                 if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
                                     lead.metadata.rawFieldData.forEach((item: any) => {
@@ -1431,6 +1290,7 @@ export function MetaLeadsTab({
                         </tbody>
                     </table>
                 </div>
+                <RegistrationPagination range={registrationPage(filteredLeads.length, pagination.page)} onPage={pagination.onPage} />
             </div>
 
             {/* Manual WT Trigger Popup (for bulk action) */}

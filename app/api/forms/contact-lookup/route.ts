@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, getUser } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getUserByEmail } from '@/lib/repositories/userRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
 const cleanEmail = (value: unknown) => String(value ?? '').trim().toLowerCase();
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * GET /api/forms/contact-lookup?email=person@example.com
@@ -19,21 +17,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ found: false, error: 'Valid email is required' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const emailQuery = { email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') } };
-    const User = getUser();
-    const Lead = getLead();
-
-    const [user, lead] = await Promise.all([
-      User.findOne(emailQuery)
-        .select('name email phone countryCode country state gender age profession profileId')
-        .lean() as any,
-      Lead.findOne(emailQuery)
-        .sort({ updatedAt: -1, createdAt: -1 })
-        .select('leadNumber name email phoneNumber countryCode country state city metadata updatedAt')
-        .lean() as any,
+    const [user, leads] = await Promise.all([
+      getUserByEmail(email),
+      loadBunnyLeads(),
     ]);
+    const lead = leads.filter(candidate => String(candidate.email || '').trim().toLowerCase() === email)
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
 
     if (!user && !lead) {
       return NextResponse.json({ found: false });
@@ -45,17 +34,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       found: true,
       user: {
-        profileId: user?.profileId || '',
+        profileId: lead?.leadNumber || '',
         leadNumber: lead?.leadNumber || '',
         name: source.name || user?.name || '',
         email: source.email || user?.email || email,
         phone: user?.phone || lead?.phoneNumber || '',
-        countryCode: user?.countryCode || source.countryCode || '+91',
-        country: user?.country || source.country || 'India',
-        state: user?.state || source.state || '',
-        gender: user?.gender || source.gender || '',
-        age: user?.age ?? source.age ?? '',
-        profession: user?.profession || source.profession || '',
+        countryCode: source.countryCode || '+91',
+        country: source.country || 'India',
+        state: source.state || '',
+        gender: source.gender || '',
+        age: source.age ?? '',
+        profession: source.profession || '',
         interest: source.interest || '',
         workshopName: source.workshopName || '',
         workshopLanguage: source.workshopLanguage || '',

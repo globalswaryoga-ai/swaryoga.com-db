@@ -1,34 +1,42 @@
 import { NextResponse } from 'next/server';
-import { uploadToPath, fetchFromStorage } from '@/lib/bunny-storage';
+import { registrationViewer } from '@/lib/registrationAuth';
+import { mergeRegistrationState, readRegistrationState, writeRegistrationState } from '@/lib/registrationState';
+import { REGISTRATION_GATE_FIELDS } from '@/lib/registrationGates';
 
-const STATE_FILE_PATH = 'admin/crm/new-registration-state.json';
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const { buffer } = await fetchFromStorage(STATE_FILE_PATH);
-    const data = JSON.parse(buffer.toString('utf-8'));
-    return NextResponse.json(data);
-  } catch (error: any) {
-    console.error('Error fetching CRM state from Bunny:', error);
-    return NextResponse.json({ error: 'Failed to fetch state', details: error?.message || String(error) }, { status: 404 });
+    const data = await readRegistrationState(viewer.superAdmin ? 'shared' : viewer.userId);
+    return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
+  } catch (error) {
+    console.error('Failed to read registration state:', error);
+    return NextResponse.json({ error: 'Registration settings are unavailable; saved data has not been changed.' }, { status: 503 });
   }
 }
 
 export async function POST(request: Request) {
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
     const body = await request.json();
-    let existingData = {};
-    try {
-      const { buffer } = await fetchFromStorage(STATE_FILE_PATH);
-      existingData = JSON.parse(buffer.toString('utf-8'));
-    } catch (_) {}
-
-    const merged = { ...existingData, ...body };
-    const buffer = Buffer.from(JSON.stringify(merged));
-    await uploadToPath(buffer, STATE_FILE_PATH, 'application/json');
+    if (!body || Array.isArray(body) || typeof body !== 'object' ||
+        Object.keys(body).some(key => !key.startsWith('crm_') || /token|secret|password/i.test(key))) {
+      return NextResponse.json({ error: 'Invalid registration settings' }, { status: 400 });
+    }
+    const decisions = Object.entries(body).filter(([key]) => key.startsWith('crm_ai_decision_'));
+    if (decisions.some(([, value]) => !value || typeof value !== 'object' || Array.isArray(value) ||
+        REGISTRATION_GATE_FIELDS.some(field => field in value))) {
+      return NextResponse.json({ error: 'Use the separate Zoom/final/group gate controls to change a gate.' }, { status: 400 });
+    }
+    const scope = viewer.superAdmin ? 'shared' : viewer.userId;
+    await writeRegistrationState(Object.fromEntries(Object.entries(body).filter(([key]) => !key.startsWith('crm_ai_decision_'))), scope);
+    await mergeRegistrationState(Object.fromEntries(decisions), scope);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Error saving CRM state to Bunny:', error);
-    return NextResponse.json({ error: 'Failed to save state', details: error?.message || String(error) }, { status: 500 });
+  } catch (error) {
+    console.error('Failed to save registration state:', error);
+    return NextResponse.json({ error: 'Failed to save registration settings' }, { status: 500 });
   }
 }

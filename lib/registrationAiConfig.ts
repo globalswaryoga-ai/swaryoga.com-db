@@ -1,0 +1,87 @@
+import { type RegistrationState } from '@/lib/registrationState';
+import { parseRegistrationValue } from '@/lib/registrationValues';
+
+export type RegistrationFilterCondition = {
+  question: string;
+  keyword: string;
+  successCategory?: string;
+  successColor?: string;
+  failCategory?: string;
+  failColor?: string;
+  directMoveCategory?: string;
+};
+
+export function registrationAiConfigKey(batchId: string, worker: string) {
+  if (!batchId || !/^AI-4[A-P]?$/.test(worker)) throw new Error('Select a batch and a valid AI worker before saving');
+  return `crm_ai_config_${batchId}_${worker}`;
+}
+
+export function readRegistrationAiConfig(state: RegistrationState, batchId: string, metadata: Record<string, unknown> = {}) {
+  const settings = {
+    ...parseRegistrationValue<Record<string, RegistrationFilterCondition[]>>(state.crm_ai_settings_v3, {}),
+    ...parseRegistrationValue<Record<string, RegistrationFilterCondition[]>>(metadata.aiSettings, {}),
+  };
+  const copyModes = { ...parseRegistrationValue<Record<string, boolean>>(state.crm_ai_copy_modes, {}) };
+  const enabledWorkers: string[] = [];
+  const prefix = `crm_ai_config_${batchId}_`;
+  for (const [key, value] of Object.entries(state)) {
+    if (!key.startsWith(prefix)) continue;
+    const worker = key.slice(prefix.length);
+    const saved = parseRegistrationValue<{ conditions: RegistrationFilterCondition[]; copyMode: boolean; autoEnabled?: boolean }>(value, { conditions: [], copyMode: true });
+    if (!Array.isArray(saved.conditions)) throw new Error(`Saved ${worker} rules are invalid`);
+    settings[worker] = saved.conditions;
+    copyModes[worker] = saved.copyMode;
+    if (saved.autoEnabled === true) enabledWorkers.push(worker);
+  }
+  return { settings, copyModes, enabledWorkers };
+}
+
+export function registrationDecisionKey(batchId: string, leadId: string) {
+  if (!batchId || !leadId) throw new Error('Batch and form response identity are required');
+  return `crm_ai_decision_${batchId}_${leadId}`;
+}
+
+export function readRegistrationDecisions(state: RegistrationState, batchId: string) {
+  const decisions = { ...parseRegistrationValue<Record<string, Record<string, any>>>(state.crm_ai4_decisions, {}) };
+  const prefix = `crm_ai_decision_${batchId}_`;
+  for (const [key, value] of Object.entries(state)) {
+    if (key.startsWith(prefix)) {
+      const id = key.slice(prefix.length);
+      decisions[id] = { ...decisions[id], ...parseRegistrationValue<Record<string, any>>(value, {}) };
+    }
+  }
+  return decisions;
+}
+
+export function evaluateRegistrationConditions(raw: Record<string, unknown>, conditions: RegistrationFilterCondition[]) {
+  const normalize = (value: unknown) => String(value ?? '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+  const filters = conditions.filter(condition => condition.question?.trim() || condition.keyword?.trim());
+  const direct = conditions.find(condition => condition.directMoveCategory)?.directMoveCategory;
+  if (!filters.length) return direct ? { passed: true, category: direct, reason: 'Configured direct move' } : null;
+  const failures: string[] = [];
+  let failedCategory: string | undefined;
+  for (const condition of filters) {
+    const key = Object.keys(raw).find(candidate => normalize(candidate) === normalize(condition.question));
+    const answer = key === undefined ? undefined : raw[key];
+    const expected = normalize(condition.keyword);
+    let matched = false;
+    if (answer !== undefined && expected) {
+      const actual = Array.isArray(answer) ? answer.map(normalize) : [normalize(answer)];
+      const range = expected.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+      if (range && /age|वय|उम्र|आयु|ವಯಸ್ಸು/i.test(condition.question)) {
+        const digits = actual[0].replace(/[०-९]/g, character => String(character.charCodeAt(0) - '०'.charCodeAt(0)));
+        const age = /^\d+(?:\s*(?:years?|yrs?))?$/.test(digits) ? Number.parseInt(digits, 10) : NaN;
+        matched = age >= Number(range[1]) && age <= Number(range[2]);
+      } else {
+        matched = actual.includes(expected) || expected.split(',').map(normalize).some(option => Boolean(option) && actual.includes(option));
+      }
+    }
+    if (!matched) {
+      failures.push(condition.question || 'Unmapped question');
+      failedCategory ||= condition.failCategory;
+    }
+  }
+  if (failures.length) return { passed: false, category: failedCategory || '', reason: `Required answers failed: ${failures.join(', ')}` };
+  const category = conditions.find(condition => condition.successCategory)?.successCategory || direct || '';
+  return { passed: true, category, reason: 'All configured question/answer conditions passed' };
+}

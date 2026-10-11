@@ -1,119 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
-// import { getWhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
+import { NextResponse } from 'next/server';
+import { bunnyBatch } from '@/lib/bunnyDatabase';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { registrationLeadOwned, registrationViewer } from '@/lib/registrationAuth';
+import { readRegistrationState } from '@/lib/registrationState';
+import { processRegistrationApprovals } from '@/lib/registrationAutomation';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const body = await req.json();
-    const { ids, status, wtSettings, workshopId, bulkUpdates } = body;
-
-    if (!bulkUpdates && (!ids || !ids.length || !status)) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    const { ids, status, workshopId, bulkUpdates } = await request.json();
+    const updates: Array<{ id: string; status: string; reason?: string; metadata?: Record<string, unknown> }> =
+      Array.isArray(bulkUpdates) ? bulkUpdates : Array.isArray(ids) ? ids.map(id => ({ id: String(id), status })) : [];
+    if (!updates.length || updates.length > 5000 || updates.some(update => !update.id || typeof update.status !== 'string' || !/^[a-z0-9_]+$/.test(update.status))) {
+      return NextResponse.json({ error: 'Valid lead IDs and statuses are required' }, { status: 400 });
     }
-
-    console.log("BULK UPDATE RECEIVED:");
-    console.log("Status:", status);
-    console.log("Updates:", JSON.stringify(bulkUpdates, null, 2));
-
-    let updatedIds = ids || [];
-    let modifiedCount = 0;
+    const state = await readRegistrationState(viewer.superAdmin ? 'shared' : viewer.userId);
+    const allLeads = await loadBunnyLeads();
     const now = new Date().toISOString();
-    
-    if (bulkUpdates && bulkUpdates.length > 0) {
-      updatedIds = bulkUpdates.map((u: any) => u.id);
-      
-      const selectResult = await bunnyExecute({
-        sql: `SELECT document_id, data_json FROM leads_sql WHERE document_id IN (${updatedIds.map(() => '?').join(',')})`,
-        args: updatedIds
-      });
-      const updatesMap = new Map(bulkUpdates.map((u: any) => [u.id, u]));
-      
-      const stmts = selectResult.rows.map((row: any) => {
-        const u = updatesMap.get(row.document_id);
-        const data = JSON.parse(String(row.data_json));
-        data.status = u.status;
-        data.updatedAt = now;
-        data.metadata = data.metadata || {};
-        if (u.reason) {
-          data.metadata.ai9Reason = u.reason;
-        }
-        if (u.metadata) {
-          data.metadata = { ...data.metadata, ...u.metadata };
-        }
-        return {
-          sql: `UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?`,
-          args: [JSON.stringify(data), now, row.document_id]
-        };
-      });
-      
-      if (stmts.length > 0) {
-        await bunnyBatch(stmts);
-        modifiedCount = stmts.length;
+    const changed: Array<Record<string, any>> = [];
+    for (const update of updates) {
+      const lead = allLeads.find(candidate => String(candidate._id) === String(update.id));
+      if (!lead || !registrationLeadOwned(lead, viewer) || (workshopId && lead.workshopId !== workshopId)) continue;
+      const metadata = { ...lead.metadata, ...update.metadata, ...(update.reason ? { ai9Reason: update.reason } : {}) };
+      if (update.status === 'approved') {
+        metadata.approvedAt = lead.status === 'approved' && lead.metadata?.approvedAt ? lead.metadata.approvedAt : now;
+        metadata.ai9WEligible = true;
+        metadata.wtAutoEligible = true;
+      } else if (update.status.includes('pending')) {
+        metadata.wtEligibleAt = now;
+        metadata.wtAutoEligible = true;
+      } else {
+        metadata.wtAutoEligible = false;
       }
-    } else {
-      const selectResult = await bunnyExecute({
-        sql: `SELECT document_id, data_json FROM leads_sql WHERE document_id IN (${ids.map(() => '?').join(',')})`,
-        args: ids
-      });
-      
-      const stmts = selectResult.rows.map((row: any) => {
-        const data = JSON.parse(String(row.data_json));
-        data.status = status;
-        data.updatedAt = now;
-        
-        if (status === 'approved') {
-          data.metadata = data.metadata || {};
-          if (!data.metadata.approvedAt) {
-            data.metadata.approvedAt = now;
-            data.metadata.ai9WEligible = true;
-          }
-        }
-        
-        return {
-          sql: `UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?`,
-          args: [JSON.stringify(data), now, row.document_id]
-        };
-      });
-      
-      if (stmts.length > 0) {
-        await bunnyBatch(stmts);
-        modifiedCount = stmts.length;
-      }
+      Object.assign(lead, { status: update.status, metadata, updatedAt: now });
+      changed.push(lead);
     }
-
-    // Auto-schedule WhatsApp Trigger Jobs (Temporarily disabled to remove MongoDB dependency)
-    /*
-    if (wtSettings) {
-      const stageConfig = status === 'approved' ? wtSettings.approved : status === 'pending' ? wtSettings.pending : null;
-      if (stageConfig && stageConfig.template) {
-        const delayMs = Math.max(0, parseInt(stageConfig.delay) || 0) * 60 * 1000;
-        const nextRunAt = new Date(Date.now() + delayMs);
-        
-        // const WhatsAppScheduledJob = getWhatsAppScheduledJob();
-        
-        const jobs = updatedIds.map((id: string) => ({
-          name: `WT Trigger: ${status} - ${stageConfig.template}`,
-          createdByUserId: 'system',
-          status: 'active',
-          targetType: 'leadIds',
-          targetLeadIds: [id],
-          provider: 'meta',
-          messageType: 'template',
-          metadata: { templateName: stageConfig.template, workshopId, triggerStage: status },
-          nextRunAt,
-          maxRuns: 1,
-        }));
-        
-        if (jobs.length > 0) {
-          // await WhatsAppScheduledJob.insertMany(jobs);
-        }
-      }
-    }
-    */
-
-    return NextResponse.json({ success: true, modifiedCount });
-  } catch (error: any) {
-    console.error('Error updating bulk leads status:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!changed.length) return NextResponse.json({ error: 'No matching accessible leads' }, { status: 404 });
+    await bunnyBatch(changed.map(lead => ({
+      sql: 'UPDATE leads_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(lead), now, String(lead._id)],
+    })));
+    const queued = await processRegistrationApprovals(state, changed, viewer.userId, viewer.superAdmin);
+    return NextResponse.json({ success: true, modifiedCount: changed.length, queued });
+  } catch (error) {
+    console.error('Registration status update failed:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update leads' }, { status: 500 });
   }
 }

@@ -1,4 +1,6 @@
 'use client';
+import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
+
 import React from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download } from 'lucide-react';
 
@@ -29,6 +31,9 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
   });
 };
 
+import { registrationPage } from '@/lib/registrationPagination';
+import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
+
 export interface WorkshopFormTabProps {
   selectedDashboardLang: string;
   [key: string]: any;
@@ -56,8 +61,28 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
   } = props;
 
   const [isMergeModalOpen, setIsMergeModalOpen] = React.useState(false);
+  const [isSavingConnection, setIsSavingConnection] = React.useState(false);
+  const saveConnection = async (openData = false) => {
+    if (isSavingConnection) return;
+    const formId = String(formSource === 'google' ? googleFormUrl : selectedFormId).trim();
+    if (!selectedWorkshop) { toast.error('Select a batch before connecting a form.'); return; }
+    if (!formId) { toast.error('Select a registration form first.'); return; }
+    setIsSavingConnection(true);
+    try {
+      await saveWorkshopSettings({
+        ...selectedWorkshop, formId,
+        metadata: { ...selectedWorkshop.metadata, formSource, mainFilter: leadsFilter, subFilter: leadsSubFilter },
+      });
+      toast.success('Form connection saved permanently for this batch.');
+      setRefreshLeadsCounter((previous: number) => previous + 1);
+      if (openData) { setActiveTab('my_data'); setIsFormSetupCollapsed(true); }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save form connection. Please retry.');
+    } finally { setIsSavingConnection(false); }
+  };
   const [mergeTargetId, setMergeTargetId] = React.useState('');
   const [mergeSourceIds, setMergeSourceIds] = React.useState<string[]>([]);
+  const pagination = useRegistrationPage(`${p.activeTab}:${selectedWorkshop?.id}:${leadsFilter}:${leadsSubFilter}:${leadsSubSubFilter}:${tab2SortOrder}`);
 
   let effectiveLeads = (leadsData || []).filter(Boolean);
   
@@ -137,7 +162,23 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       <span className="text-xs text-slate-500 font-medium">Data Source Selection</span>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={isSavingConnection} onClick={() => setFormSource('internal')} className={`rounded-lg border px-4 py-2 text-sm font-bold ${formSource === 'internal' ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Connect CRM Form</button>
+                      <button type="button" disabled={isSavingConnection} onClick={() => setFormSource('google')} className={`rounded-lg border px-4 py-2 text-sm font-bold ${formSource === 'google' ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Connect Google Form</button>
+                    </div>
+                    <p className="text-xs text-slate-500">Save connects this form to the selected batch until you change it. All Leads Data reads saved Bunny submissions; existing records and workflow gates are preserved.</p>
+                    {formSource === 'internal' && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                        <label htmlFor="registration-crm-form" className="text-sm font-bold text-slate-700">Select connected CRM form</label>
+                        <select id="registration-crm-form" value={selectedFormId} disabled={isLoadingForms || isSavingConnection} onChange={event => setSelectedFormId(event.target.value)} className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm bg-white">
+                          <option value="">{isLoadingForms ? 'Loading saved forms...' : 'Select a saved CRM form...'}</option>
+                          {selectedFormId && !(fetchedForms || []).some((form: any) => form.formId === selectedFormId) && <option value={selectedFormId}>Saved connection: {selectedFormId}</option>}
+                          {(fetchedForms || []).map((form: any) => <option key={form.formId} value={form.formId}>{form.workshopName || form.formId}</option>)}
+                        </select>
+                        <button type="button" disabled={isSavingConnection || !selectedFormId} onClick={() => void saveConnection(true)} className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">{isSavingConnection ? 'Saving connection...' : 'Save & Connect CRM Form'}</button>
+                      </div>
+                    )}
+                    {formSource === 'google' && <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                         <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                           Select Google Form
                           {googleFormsList.length > 0 && (
@@ -176,7 +217,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                            <span className="text-xs font-bold text-indigo-800 self-center mr-2">Quick Switch:</span>
                            <button onClick={() => {
                              setIsManualFormId(true);
-                             setGoogleFormUrl('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
                            }} className="bg-white border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-100 shadow-sm transition-all">
                              📝 Paste Form URL
                            </button>
@@ -191,6 +231,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             disabled={isManualFormId}
                           >
                             <option value="">Select a form from your Google Drive...</option>
+                            {googleFormUrl && !googleFormsList.some((form: any) => form.id === googleFormUrl) && <option value={googleFormUrl}>Saved connection: {googleFormUrl}</option>}
                             {isLoadingGoogleForms ? (
                               <option disabled>Loading Google forms...</option>
                             ) : googleFormsList.length === 0 && !needsGoogleAuth ? (
@@ -262,11 +303,12 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           )}
                           {googleFormUrl && (
                             <button
-                              onClick={saveWorkshopSettings}
+                              onClick={() => void saveConnection()}
+                              disabled={isSavingConnection}
                               className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
                               title="Save selected form"
                             >
-                              <Save size={14} /> Save
+                              <Save size={14} /> {isSavingConnection ? 'Saving...' : 'Save'}
                             </button>
                           )}
                         </div>
@@ -328,32 +370,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                           <div className="flex justify-end mt-4">
                             <button
-                              onClick={() => {
-                                const newFormId = formSource === 'google' ? googleFormUrl : selectedFormId;
-                                setLinkedFormId(newFormId);
-                                
-                                if (selectedWorkshop) {
-                                  const updated = {
-                                    ...selectedWorkshop,
-                                    formId: newFormId,
-                                    metadata: {
-                                      ...selectedWorkshop.metadata,
-                                      formSource,
-                                      mainFilter: leadsFilter,
-                                      subFilter: leadsSubFilter
-                                    }
-                                  };
-                                  setSelectedWorkshop(updated);
-                                  saveWorkshopSettings(updated);
-                                }
-
-                                toast.success('Form configuration saved & mapped!');
-                                setRefreshLeadsCounter(prev => prev + 1);
-
-                                // Make sure we go to my_data tab as requested
-                                setActiveTab('my_data');
-                                setIsFormSetupCollapsed(true);
-                              }}
+                              onClick={() => void saveConnection(true)}
+                              disabled={isSavingConnection}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-lg text-sm transition-all shadow-md flex items-center gap-2"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -448,9 +466,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </div>}
 
-                    {needsGoogleAuth && (
+                    {formSource === 'google' && needsGoogleAuth && (
                       <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
                         <div>
                           <h4 className="font-bold text-orange-800">Google Authentication Required</h4>
@@ -477,7 +495,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         </button>
                       </div>
                     )}
-                    {googleAuthError && (
+                    {formSource === 'google' && googleAuthError && (
                       <div className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
                         <strong>Google API Error:</strong> {googleAuthError}
                       </div>
@@ -548,24 +566,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                   <div className="flex justify-end">
                     <button
-                      onClick={async () => {
-                        if (formSource === 'internal' && !selectedFormId) {
-                          toast.error('Please select a form first');
-                          return;
-                        }
-                        if (formSource === 'google' && !googleFormUrl) {
-                          toast.error('Please enter a Google Form URL');
-                          return;
-                        }
-
-                        if (p.saveWorkshopSettings) {
-                          await p.saveWorkshopSettings();
-                        }
-                        toast.success('Form saved! Mapping fields and fetching leads...');
-                        if (p.setActiveTab) {
-                          p.setActiveTab('my_data');
-                        }
-                      }}
+                      onClick={() => void saveConnection(true)}
+                      disabled={isSavingConnection}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-md transform hover:scale-105 active:scale-95 duration-200"
                     >
                       <Users size={18} /> Save & Map Data
@@ -766,7 +768,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 const nameLeft = 50 + tsWidth;
                 const waLeft = nameLeft + nameWidth;
 
+                const range = registrationPage(tab2Leads.length, pagination.page);
                 return (
+                  <>
                   <table className="min-w-full text-left text-sm text-slate-600">
                     <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                       <tr className="divide-x divide-slate-200">
@@ -870,7 +874,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                           </td>
                         </tr>
                       ) : (
-                        tab2Leads.map((lead, i) => {
+                        tab2Leads.slice(range.offset, range.end).map((lead, i) => {
                           const isProcessed = crmLeadIds.includes(lead.id);
                           const isSelected = selectedRowIds.includes(lead.id);
                           const bgClass = isProcessed ? 'bg-slate-50 opacity-60' : isSelected ? 'bg-indigo-50 group-hover:bg-indigo-100' : 'bg-white group-hover:bg-slate-50';
@@ -956,6 +960,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       )}
                     </tbody>
                   </table>
+                  <RegistrationPagination range={range} onPage={pagination.onPage} />
+                  </>
                 );
               })()}
             </div>
@@ -1078,7 +1084,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         fetch('/api/admin/crm/new-registration/state', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                          body: JSON.stringify({ [`crm_${langPrefix}_workshops`]: JSON.stringify(newWorkshops) })
                         }).catch(console.error);
                       }
                     }

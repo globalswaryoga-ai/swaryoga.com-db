@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, getUser } from '@/lib/db';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +22,6 @@ export async function GET(request: NextRequest) {
       userId = userId.replace('SWARYOGA-', '');
     }
     
-    await connectDB();
-    const User = getUser();
-    
     // Try multiple formats for profileId lookup
     // - Original input (e.g., "007131")
     // - Without leading zeros (e.g., "7131")  
@@ -44,9 +41,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Search by profileId (the 6-digit numeric ID)
-    const user = await User.findOne({ profileId: { $in: searchTerms } })
-      .select('name email phone countryCode country state gender age profession profileId')
-      .lean() as any;
+    const lead = (await loadBunnyLeads()).find(candidate => searchTerms.includes(String(candidate.leadNumber || candidate.profileId || '')));
+    const user = lead ? { ...lead, ...lead.metadata, phone: lead.phoneNumber, profileId: lead.leadNumber } : null;
     
     if (!user) {
       return NextResponse.json({ found: false });

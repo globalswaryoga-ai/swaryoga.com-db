@@ -1,7 +1,10 @@
+import { registrationFetch as fetch } from '@/lib/registrationClient';
+import { registrationTargetMatches } from '@/lib/registrationRules';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X, Users, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
+import { MetaConnectionStatus } from './_MetaConnectionStatus';
 
 export function AITriggersPanel({ 
   workshops, 
@@ -16,15 +19,13 @@ export function AITriggersPanel({
   selectedBatchId?: string;
   batchDecisions?: Record<string, any>;
 }) {
-  // If no batch is selected from the top header, show a blank or placeholder state as requested
-  if (!selectedBatchId) {
-    return <div className="p-6 text-center text-gray-500 mt-20">Please select a Language and Batch in the top header and click Submit.</div>;
-  }
   const toast = useToast();
   const token = useAuth();
   
   // Form State
   const [channel, setChannel] = useState<'meta' | 'qr' | 'group'>('meta');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   
   const [template, setTemplate] = useState(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_template') || '';
@@ -73,161 +74,47 @@ export function AITriggersPanel({
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
-  // Trigger List
-  const [triggers, setTriggers] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_ai_triggers');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-    return [];
-  });
-
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_ai_triggers', JSON.stringify(triggers));
-    }
-  }, [triggers]);
+    if (!token) return;
+    const controller = new AbortController();
+    setTriggers([]);
+    fetch('/api/admin/crm/new-registration/state', { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to load triggers');
+        const saved = data.crm_ai_triggers;
+        if (!controller.signal.aborted) setTriggers(saved ? (typeof saved === 'string' ? JSON.parse(saved) : saved) : []);
+      })
+      .catch(error => { if (!controller.signal.aborted) toast.error(error.message); });
+    return () => controller.abort();
+  }, [token, selectedBatchId]);
+
+  // Trigger List
+  const [triggers, setTriggers] = useState<any[]>([]);
 
   useEffect(() => {
     if (token) {
       fetchTemplates();
-      fetchGroups();
     }
   }, [token]);
-
-  // Background Worker for Executing Triggers
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      // YYYY-MM-DD local timezone
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const currentDateString = `${year}-${month}-${day}`;
-      
-      const currentHourStr = now.getHours().toString().padStart(2, '0');
-      const currentMinStr = now.getMinutes().toString().padStart(2, '0');
-      const currentTime = `${currentHourStr}:${currentMinStr}`;
-
-      setTriggers(prevTriggers => {
-        let triggersUpdated = false;
-        const newTriggers = [...prevTriggers];
-
-        newTriggers.forEach((t) => {
-          if (t.status !== 'active') return;
-          if (t.lastRunTime === currentTime && t.lastRunDate === currentDateString) return;
-
-          // Check if today is a valid date for this trigger
-          let shouldRunToday = false;
-          if (t.dates.includes(currentDateString)) {
-             shouldRunToday = true;
-          } else if (t.dates.length > 0) {
-             const startDate = new Date(t.dates[0]);
-             if (now.getTime() >= startDate.getTime()) {
-                if (t.repeat === 'daily') shouldRunToday = true;
-                else if (t.repeat === 'weekly' && now.getDay() === startDate.getDay()) shouldRunToday = true;
-                else if (t.repeat === 'monthly' && now.getDate() === startDate.getDate()) shouldRunToday = true;
-             }
-          }
-
-          if (shouldRunToday) {
-            // Check if time matches
-            if (t.time === currentTime) {
-              console.log("EXECUTING AI TRIGGER:", t);
-              t.lastRunTime = currentTime;
-              t.lastRunDate = currentDateString;
-              triggersUpdated = true;
-
-              // Process trigger in background
-              const runTrigger = async () => {
-                  try {
-                      // Filter leads based on targetCategory
-                      const targetLeads = leadsData.filter(l => {
-                        const dec = batchDecisions[l.id] || {};
-                        const status = dec.status || 'new_leads';
-                        
-                        if (t.targetCategory === 'All Leads') return true;
-                        if (t.targetCategory === 'New Leads') return true; 
-                        if (t.targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
-                        if (t.targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
-                        if (t.targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
-                        if (t.targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
-                        if (t.targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
-                        if (t.targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
-                        if (t.targetCategory === 'Registerd leads') return dec.isRegistered;
-                        if (t.targetCategory === 'Rejected leads') return dec.isRejected;
-                        
-                        return false;
-                      });
-
-                      const leadIds = targetLeads.map((l: any) => l.id || l._id).filter(Boolean);
-
-                      if (leadIds.length > 0 && t.channel === 'meta') {
-                         await fetch('/api/admin/crm/meta-leads/trigger-wt-now', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ids: leadIds, template: t.template })
-                         });
-                         console.log(`AI Trigger ${t.id} completed. Sent to ${leadIds.length} leads.`);
-                      }
-                  } catch (err) {
-                      console.error("AI Trigger failed:", err);
-                  }
-              };
-              
-              runTrigger();
-            }
-          }
-        });
-
-        return triggersUpdated ? newTriggers : prevTriggers;
-      });
-
-    }, 30000); // Check every 30 seconds
-    
-    return () => clearInterval(interval);
-  }, [leadsData, batchDecisions]);
 
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
       const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
-      url.searchParams.append('limit', '100');
+      url.searchParams.append('limit', '200');
+      url.searchParams.set('provider', 'meta');
+      url.searchParams.set('status', 'approved');
       
       const response = await fetch(url.toString(), {
-        headers: { 'Authorization': `Bearer ${token}` },
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.templates) setTemplates(data.templates);
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to load approved templates');
+      setTemplates((data.templates || data.data?.templates || []).filter((t: any) => String(t.status || '').toLowerCase() === 'approved' && t.provider !== 'qr'));
     } catch (err) {
-      console.error('Failed to fetch templates:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch approved templates');
     } finally {
       setLoadingTemplates(false);
-    }
-  };
-
-  const fetchGroups = async () => {
-    setLoadingGroups(true);
-    try {
-      const response = await fetch('/api/admin/crm/whatsapp/groups', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGroups(data.groups || data || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch groups:', err);
-    } finally {
-      setLoadingGroups(false);
     }
   };
 
@@ -240,6 +127,7 @@ export function AITriggersPanel({
   };
 
   const handleSaveTrigger = async () => {
+    if (saving) return;
     if (selectedDates.length === 0) {
       toast.error('Please select at least one date in the calendar.');
       return;
@@ -264,83 +152,35 @@ export function AITriggersPanel({
     }
 
     try {
-        toast.info('Scheduling broadcasts...');
-        for (const dateStr of selectedDates) {
-            const [yyyy, mm, dd] = dateStr.split('-');
-            const [hh, min] = scheduleTime.split(':');
-            const scheduledAt = new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(hh), Number(min)).toISOString();
+        setSaving(true);
 
-            // Compute actual matching leads using the same logic as filteredPreviewLeads
-            const getMatchingLeads = () => {
-              if (!targetCategory || targetCategory === 'All Leads') return leadsData;
-              return leadsData.filter(l => {
-                const dec = batchDecisions[l.id] || {};
-                const status = dec.status || 'new_leads';
-                if (targetCategory === 'New Leads') return status === 'new_leads' && !dec.isRejected && !dec.isRegistered;
-                if (targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
-                if (targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
-                if (targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
-                if (targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
-                if (targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status) && !dec.isRejected && !dec.isRegistered;
-                if (targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
-                if (targetCategory === 'Registerd leads') return dec.isRegistered;
-                if (targetCategory === 'Rejected leads') return dec.isRejected;
-                return false;
-              });
-            };
-
-            const matchingLeads = getMatchingLeads();
-            const leadIds = matchingLeads.map((l: any) => l.id || l._id).filter(Boolean);
-
-            const payload = {
-                name: `AI Trigger: ${template} (${dateStr} ${scheduleTime})`,
-                templateId: templates.find(t => t.templateName === template)?.id || templates.find(t => t.templateName === template)?._id || template,
-                provider: 'meta',
-                mode: 'schedule',
-                scheduleAt: scheduledAt,
-                target: {
-                    type: 'leadIds',
-                    leadIds: leadIds
-                }
-            };
-            
-            const res = await fetch('/api/admin/crm/broadcast-runs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('token') || ''}`
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || 'Failed to schedule broadcast');
-            }
-        }
-
-        const newTrigger = {
-          id: Date.now().toString(),
-          channel,
-          template,
-          audience: finalAudience,
-          targetGroupId: channel === 'group' ? selectedGroupId : undefined,
-          targetCategory,
-          dates: selectedDates,
-          time: scheduleTime,
-          repeat: repeatMode,
-          status: 'active'
-        };
-        
-        setTriggers([newTrigger, ...triggers]);
-        toast.success('AI Trigger scheduled successfully via Broadcast system!');
+        const matchingLeads = leadsData.filter(lead => registrationTargetMatches(lead, batchDecisions, targetCategory));
+        const leadIds = matchingLeads.map(lead => lead.leadId || lead._id).filter(Boolean);
+        if (!leadIds.length) throw new Error('No matching saved CRM leads. Sync the form first.');
+        const response = await fetch('/api/admin/crm/new-registration/triggers', {
+          method: editingId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingId, channel: 'meta', template, leadIds, responseIds: matchingLeads.map(lead => String(lead.id)), targetCategory, dates: selectedDates, time: scheduleTime,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            repeat: repeatMode, audience: finalAudience, batchId: selectedBatchId,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to schedule trigger');
+        setTriggers(prev => [data.data, ...prev.filter(trigger => trigger.id !== data.data.id)]);
+        setEditingId(null);
+        toast.success('Meta trigger saved. The server will run it automatically, even when this page is closed.');
     } catch (e: any) {
         toast.error(`Error scheduling: ${e.message}`);
+    } finally {
+        setSaving(false);
     }
   };
 
-  const handleEditTrigger = (trigger: any) => {
-    setChannel(trigger.channel);
+  const handleEditTrigger = async (trigger: any) => {
+    setEditingId(trigger.id);
+    setChannel('meta');
     setTemplate(trigger.template);
     setTargetCategory(trigger.targetCategory || 'All Leads');
     if (trigger.channel === 'group' && trigger.targetGroupId) {
@@ -349,34 +189,27 @@ export function AITriggersPanel({
     setSelectedDates(trigger.dates);
     setScheduleTime(trigger.time);
     setRepeatMode(trigger.repeat);
-    setTriggers(prev => prev.filter(t => t.id !== trigger.id));
   };
 
-  const handleDeleteTrigger = (id: string) => {
-    setTriggers(prev => prev.filter(t => t.id !== id));
-    toast.success('Trigger deleted');
-  };
-
-  const filteredPreviewLeads = React.useMemo(() => {
-    if (!targetCategory || targetCategory === 'All Leads') return leadsData;
-    
-    return leadsData.filter(l => {
-      const dec = batchDecisions[l.id] || {};
-      const status = dec.status || 'new_leads';
-      
-      if (targetCategory === 'New Leads') return true; 
-      if (targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
-      if (targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
-      if (targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
-      if (targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
-      if (targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
-      if (targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
-      if (targetCategory === 'Registerd leads') return dec.isRegistered;
-      if (targetCategory === 'Rejected leads') return dec.isRejected;
-      
+  const handleDeleteTrigger = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/crm/new-registration/triggers?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to cancel trigger');
+      setTriggers(prev => prev.filter(t => t.id !== id));
+      toast.success('Trigger cancelled; unsent messages will not be sent.');
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel trigger');
       return false;
-    });
-  }, [leadsData, targetCategory, batchDecisions]);
+    }
+  };
+
+  const filteredPreviewLeads = React.useMemo(
+    () => leadsData.filter(lead => registrationTargetMatches(lead, batchDecisions, targetCategory)),
+    [leadsData, targetCategory, batchDecisions],
+  );
+
 
   const filteredWorkshops = React.useMemo(() => {
     if (!workshops) return [];
@@ -391,6 +224,8 @@ export function AITriggersPanel({
     return templates;
   }, [templates]);
 
+  if (!selectedBatchId) return <div className="p-6 text-center text-gray-500">Please select a language and batch, then click Submit.</div>;
+
   return (
     <div className="p-6 bg-white min-h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
       
@@ -402,12 +237,14 @@ export function AITriggersPanel({
               <Zap size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Create AI Trigger</h2>
-              <p className="text-xs text-gray-500">Schedule automatic recurring broadcasts</p>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Meta Schedule' : 'Schedule Meta Broadcast'}</h2>
+              <p className="text-xs text-gray-500">Approved templates · Bunny queue · Batch-scoped recipients</p>
             </div>
           </div>
 
           <div className="space-y-5">
+            <MetaConnectionStatus />
+            {editingId && <button type="button" onClick={() => setEditingId(null)} className="text-xs text-indigo-700 underline">Cancel edit (existing schedule is unchanged)</button>}
             {/* Channel Selection */}
             <div>
               <label className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><MessageSquare size={14}/> Channel</label>
@@ -415,11 +252,13 @@ export function AITriggersPanel({
                 {(['meta', 'qr', 'group'] as const).map(c => (
                   <button
                     key={c}
+                    disabled={c !== 'meta'}
+                    title={c !== 'meta' ? 'QR and group automation are separate from this Meta broadcast scheduler.' : 'Meta WhatsApp'}
                     onClick={() => setChannel(c)}
                     className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${
                       channel === c 
                         ? 'bg-violet-600 text-white border-violet-600 shadow-md' 
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        : 'bg-white text-gray-400 border-gray-200 disabled:cursor-not-allowed'
                     }`}
                   >
                     {c === 'meta' ? 'Meta' : c === 'qr' ? 'QR Bridge' : 'Group'}
@@ -588,9 +427,10 @@ export function AITriggersPanel({
             
             <button 
               onClick={handleSaveTrigger}
-              className="w-full mt-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+              disabled={saving || loadingTemplates}
+              className="w-full mt-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={16} /> Submit Trigger
+              <Save size={16} /> {saving ? 'Saving schedule...' : editingId ? 'Save Schedule Changes' : 'Schedule Broadcast'}
             </button>
           </div>
         </div>
@@ -602,7 +442,7 @@ export function AITriggersPanel({
           <Clock size={16} className="text-indigo-500"/> Scheduled Triggers
         </h3>
         
-        {triggers.length === 0 ? (
+        {!triggers.some(trigger => trigger.batchId === selectedBatchId) ? (
           <div className="flex-1 bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
               <Calendar className="text-gray-300 w-8 h-8" />
@@ -612,7 +452,7 @@ export function AITriggersPanel({
           </div>
         ) : (
           <div className="space-y-3">
-            {triggers.map(trigger => (
+            {triggers.filter(trigger => trigger.batchId === selectedBatchId).map(trigger => (
               <div key={trigger.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition group">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">

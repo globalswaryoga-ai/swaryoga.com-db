@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, Trash2, Link as LinkIcon, X, Copy } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { registrationFetch, saveRegistrationState } from '@/lib/registrationClient';
 
 // Helper to get days in a month
 const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -29,6 +30,7 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
 
   // Load data when workshop changes
   useEffect(() => {
+    let cancelled = false;
     if (batchId) {
       const saved = localStorage.getItem('crm_zoom_setup_data');
       if (saved) {
@@ -41,7 +43,17 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
       } else {
         setSetupData({});
       }
+      registrationFetch('/api/admin/crm/new-registration/state')
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Failed to load meeting slots');
+          const saved = data[`crm_zoom_setup_${batchId}`];
+          const legacy = typeof data.crm_zoom_setup_data === 'string' ? JSON.parse(data.crm_zoom_setup_data) : data.crm_zoom_setup_data;
+          if (!cancelled) setSetupData(saved ? (typeof saved === 'string' ? JSON.parse(saved) : saved) : legacy?.[batchId] || {});
+        })
+        .catch(error => { if (!cancelled) toast.error(error.message); });
     }
+    return () => { cancelled = true; };
   }, [batchId]);
 
   // Calendar logic
@@ -66,11 +78,15 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
     }
   };
 
-  const handlePopupSave = () => {
+  const handlePopupSave = async () => {
     if (!selectedDateStr || !batchId) return;
 
     // Filter out empty slots
     const validSlots = popupSlots.filter(s => s.time.trim() !== '');
+    if (validSlots.some(slot => !/^https:\/\/([\w-]+\.)?zoom\.us\//.test(slot.link))) {
+      toast.error('Each slot needs a valid HTTPS Zoom meeting link.');
+      return;
+    }
 
     const newSetupData = { ...setupData };
     if (validSlots.length > 0) {
@@ -79,6 +95,12 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
       delete newSetupData[selectedDateStr]; // Remove date if no slots
     }
 
+    try {
+      await saveRegistrationState({ [`crm_zoom_setup_${batchId}`]: JSON.stringify(newSetupData) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Meeting slots were not saved');
+      return;
+    }
     setSetupData(newSetupData);
     
     // Save to localStorage
@@ -106,7 +128,7 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
   };
 
   const getMonthsArray = () => {
-    const months = [];
+    const months: { label: string; totalSlots: number; slots: { date: string; time: string; link: string }[] }[] = [];
     const today = new Date();
     let startYear = today.getFullYear();
     let startMonth = today.getMonth() + monthOffset;
@@ -148,13 +170,13 @@ export function ZoomMeetingSetupCalendar({ batchId }: { batchId: string }) {
           <div>
             <p className="text-sm font-bold">Public Booking Link for this batch</p>
             <p className="text-xs font-medium text-indigo-600/80">
-              {typeof window !== 'undefined' ? window.location.origin : ''}/admin/crm/new-registration/zoom-meet?batchId={batchId}
+              {typeof window !== 'undefined' ? window.location.origin : ''}/zoom-booking?batchId={batchId}
             </p>
           </div>
         </div>
         <button
           onClick={() => {
-            const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/admin/crm/new-registration/zoom-meet?batchId=${batchId}`;
+            const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/zoom-booking?batchId=${batchId}`;
             navigator.clipboard.writeText(link);
             toast.success('Public Booking Link copied to clipboard!');
           }}

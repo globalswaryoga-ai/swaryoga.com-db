@@ -1,9 +1,9 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Calendar, Clock, CheckCircle2, User, Phone, Mail } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 
-export default function BookZoomPage() {
+function BookZoomPage() {
   const searchParams = useSearchParams();
   const batchId = searchParams.get('batchId');
 
@@ -19,38 +19,34 @@ export default function BookZoomPage() {
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isBooking, setIsBooking] = useState(false);
+  const [batchSlots, setBatchSlots] = useState<Record<string, { time: string; link: string }[]>>({});
+  const [joiningLink, setJoiningLink] = useState('');
 
   useEffect(() => {
     if (!batchId) return;
-    // Read the setup data from localStorage (For prototype)
-    const saved = localStorage.getItem('crm_zoom_setup_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const batchData = parsed[batchId] || {};
-        // batchData is { "YYYY-MM-DD": [ {time: "10:00 AM", link: "..."} ] }
-        setAvailableDates(Object.keys(batchData).sort());
-      } catch (e) {}
-    }
+    const controller = new AbortController();
+    fetch(`/api/registration/zoom-booking?batchId=${encodeURIComponent(batchId)}`, { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to load meeting slots');
+        setBatchSlots(data.data);
+        setAvailableDates(Object.keys(data.data).sort());
+      })
+      .catch(error => { if (!controller.signal.aborted) setError(error.message); });
+    return () => controller.abort();
   }, [batchId]);
 
   useEffect(() => {
     if (selectedDate && batchId) {
-      const saved = localStorage.getItem('crm_zoom_setup_data');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const batchData = parsed[batchId] || {};
-          setSetupData(batchData[selectedDate] || []);
-        } catch (e) {}
-      }
+      setSetupData(batchSlots[selectedDate] || []);
     } else {
       setSetupData([]);
     }
     setSelectedSlot('');
-  }, [selectedDate, batchId]);
+  }, [selectedDate, batchId, batchSlots]);
 
-  const handleBook = () => {
+  const handleBook = async () => {
     if (!selectedDate || !selectedSlot || !batchId) {
       setError('Please select a date and time.');
       return;
@@ -60,26 +56,22 @@ export default function BookZoomPage() {
       return;
     }
 
-    const slotInfo = setupData.find(s => s.time === selectedSlot);
-    
-    // Save to a public bookings queue in localStorage
-    const savedBookings = localStorage.getItem('crm_public_zoom_bookings');
-    const parsedBookings = savedBookings ? JSON.parse(savedBookings) : [];
-    
-    parsedBookings.push({
-      batchId,
-      name,
-      whatsapp: whatsapp.replace(/\D/g, ''),
-      email: email.toLowerCase().trim(),
-      date: selectedDate,
-      time: selectedSlot,
-      link: slotInfo?.link || '',
-      submittedAt: new Date().toISOString()
-    });
-    
-    localStorage.setItem('crm_public_zoom_bookings', JSON.stringify(parsedBookings));
-    
-    setIsSuccess(true);
+    setIsBooking(true);
+    setError('');
+    try {
+      const response = await fetch('/api/registration/zoom-booking', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, name, whatsapp, email, date: selectedDate, time: selectedSlot }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Booking was not saved');
+      setJoiningLink(data.data.link);
+      setIsSuccess(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Booking was not saved');
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   if (!batchId) {
@@ -104,7 +96,7 @@ export default function BookZoomPage() {
             <strong className="text-slate-800">{selectedDate}</strong> at <strong className="text-slate-800">{selectedSlot}</strong>.
           </p>
           <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            Please check your WhatsApp / Email. We will verify your details and send you the joining link shortly.
+            Your booking is saved. <a href={joiningLink} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">Open your Zoom meeting</a>
           </p>
         </div>
       </div>
@@ -114,6 +106,7 @@ export default function BookZoomPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
       <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full">
+        {error && <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{error}</div>}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-black text-slate-900 mb-3">Final Zoom Meeting</h1>
           <p className="text-slate-600 text-sm leading-relaxed">
@@ -218,7 +211,7 @@ export default function BookZoomPage() {
 
             <button
               onClick={handleBook}
-              disabled={!selectedDate || !selectedSlot || !name || !whatsapp || !email}
+              disabled={isBooking || !selectedDate || !selectedSlot || !name || !whatsapp || !email}
               className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
                 selectedDate && selectedSlot && name && whatsapp && email
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200'
@@ -232,4 +225,8 @@ export default function BookZoomPage() {
       </div>
     </div>
   );
+}
+
+export default function ZoomBookingPage() {
+  return <Suspense fallback={<div className="p-8 text-center">Loading meeting slots...</div>}><BookZoomPage /></Suspense>;
 }

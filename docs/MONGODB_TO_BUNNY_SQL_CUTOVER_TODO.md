@@ -3,6 +3,138 @@
 **Status:** Active migration — target is Bunny SQL + Bunny Storage only. MongoDB remains temporary read-only safety storage until each module has schema, repository, parity, and rollback validation.
 **Last audited:** 2026-09-18
 
+## Registration repair clarification
+
+The current registration repair targets **Bunny Database only**. Its state,
+Google/CRM saved-data reads, Meta trigger queue/report/retry routes, Zoom booking
+storage, and public form submission/contact/ID/question routes do not connect to
+MongoDB. The preserved `mongo_documents` table is a Bunny SQL archive, not a live
+MongoDB fallback.
+
+Local mocked registration/Google ingestion regressions pass. Production
+deployment and authenticated acceptance are still pending; this does not certify
+all unrelated website routes as Mongo-free. The public website schedule API and
+its legacy schedule editor still require separate Bunny cutover/seat-inventory
+reconciliation before scheduled public workshop intake can be certified.
+
+### Registration automation audit — October 11, 2026
+
+The intended chain is Meta lead -> configured screening -> Meta template ->
+Google form -> saved registration data -> configured funnel -> Meta follow-up ->
+Zoom meeting -> final approval -> WhatsApp group admission.
+
+- [x] Local configuration persistence fixes: per-batch/per-worker Bunny keys,
+  confirmed saves, authoritative restoration, no category deletion on page open.
+- [x] 17 regressions pass, including a local SQL database closed and reopened
+  with the same saved questions, answers, and copy settings.
+- [x] Local Meta queue gate honors AI-9E enablement and its configured filters.
+- [ ] Deploy and verify the new registration SQL state/queue and booking paths.
+  Read-only checks found none of these new state/booking tables in the connected
+  Bunny database; the production state endpoint still returns legacy saved state.
+- [ ] Verify production cron authorization and execution. The tagged local
+  environment has no `CRON_SECRET`; production environment was not inspected.
+- [ ] Migrate/re-save the existing active monthly schedule with canonical lead
+  IDs. Its production state lacks a saved `leadIds` audience.
+- [x] Move configured AI-4A–P processing to the server registration cron and
+  replace its browser mutating timer with read-only decision polling. One form
+  per language/batch is required; re-save each batch's rules to opt into server
+  execution. Legacy global rules are not automatically enabled for every batch.
+- [x] Apply the user's clarified scrutiny semantics: every configured required
+  answer must pass before approval; age ranges come from saved rules. The
+  existing AI-4A configuration still needs a success destination before it can
+  advance leads.
+- [ ] Move legacy AI-1/AI-1A, AI-2/AI-3/AI-5 browser timers and their hardcoded
+  education/profession/age checks into reviewed server-side processing.
+- [x] Keep separate manual gates: Meeting Done or audited Skip Zoom is required
+  for Final Approve. Group Added (Manual) records an admission already performed
+  externally; Skip Group records an explicit override. Neither button adds a
+  WhatsApp member. Gates save to Bunny with viewer/time and stale-write checks.
+- [ ] Define consent, bridge/group permissions, and privacy fallback before
+  enabling an actual final-approval-to-group-add automation.
+- [ ] Perform consented end-to-end acceptance with a test contact, verifying
+  receipts, form identity, funnel transitions, Zoom completion, and group outcome.
+
+### Registration page-speed validation — October 11, 2026
+
+- Read-only browser resource timings measured the deployed Hindi page shell at
+  approximately 1.56 seconds. Existing Google sync, Meta sync, and Meta data
+  requests recorded approximately 40–42 seconds; production has not been
+  redeployed with the worktree repairs.
+- Unused tab code is dynamically loaded across English/Hindi/Marathi/Kannada.
+  All Leads Data, Meta Leads, and Leads Management render at most 50 rows per
+  page while retaining every filtered row for navigation, bulk selection, and
+  exports. No database result limit was introduced.
+- Contact matching uses one phone/email index instead of one full contact scan
+  per submission. Tests preserve earliest phone-or-email match behavior and
+  verify linear contact reads on 5,000 leads/700 responses.
+- A local 5,000-lead/727-response benchmark measured ~989 ms for scanning versus
+  ~5 ms for indexed assembly. Whole-page/network improvements must be measured
+  after deployment; this benchmark does not certify production latency.
+- Meta stale fetches are cancelled, simultaneous syncs are blocked, hidden-tab
+  polling is suppressed, decision polling loads only the selected batch, and
+  concurrent form-table initialization shares one request.
+- Final focused validation: 46 tests pass across eight suites, including
+  pagination navigation/reset, exact first-match identity, linear contact reads,
+  single-flight schema initialization/retry, SQL close/reopen persistence,
+  server scrutiny replay, gate ownership and stale-save rejection.
+  TypeScript reports no matching registration/Google/forms diagnostics;
+  repository-wide pre-existing TypeScript errors remain outside this repair.
+
+### Registration UI and Meta broadcast verification — October 11, 2026
+
+- The repaired Meta-only health API uses tenant credentials from Bunny SQL and
+  app-secret proof, without waiting for QR bridge health. A read-only account
+  probe returned HTTP 200, GREEN quality, and approximately 1,315 ms. The old
+  deployed combined health check incorrectly reported a missing-proof error.
+- Template header media now uploads once per cached account/media identity,
+  including simultaneous requests. The cache is bounded and expires after one
+  hour; failed uploads retry on later calls. Header preparation is outside send
+  retries, and media/send requests have explicit timeouts.
+- Meta Leads and Leads Management use the shared Bunny broadcast run/message
+  queue. Scheduled form audiences retain both response IDs and canonical CRM
+  IDs; category eligibility is checked against the saved batch decision before
+  queueing. Exact template metadata and sender ownership scope duplicate checks.
+- Scheduling no longer fetches the legacy Mongo-backed WhatsApp groups route.
+  The supported automatic delivery channel here is Meta, not QR/group messaging.
+  Zoom/group admission remain the separate manual gates described above.
+- Meta lead sync reads Bunny contacts once, preserves tenant ownership and
+  existing screening stages, skips unchanged responses, and gives new leads the
+  `new` state so AI-9A can screen them. Its Google Contacts side effect also reads
+  Bunny's preserved SQL archive; it does not connect to MongoDB.
+- UI changes include responsive sidebars, visible workflow steps, Meta quality
+  and latency status, batch-only schedule lists, and protected schedule editing.
+  Browser-trigger cache no longer displays another session's saved schedules.
+- Validation: 73 tests pass across 14 suites; `git diff --check` passes. Modified
+  files have no TypeScript diagnostics; full type-check still fails on unrelated
+  baseline errors. A read-only Bunny check took ~889 ms and found 52 completed
+  Meta runs. These aggregate counts do not certify the new registration pipeline.
+- Deployment, canonical batch-rule/schedule re-save, production cron/schema
+  verification, and consented end-to-end delivery/form/gate acceptance remain
+  required. Local repairs do not establish deployed speed or delivery results.
+
+### Saved form connection follow-up — October 11, 2026
+
+- Restored the existing registration CRM-form dropdown. A form imported from
+  Google is selectable as a saved CRM form; the chosen form ID and source remain
+  in the batch's Bunny settings until explicitly saved differently.
+- Connection save confirmation, data refresh, and navigation wait for database
+  success. Tests cover failed/delayed saves and preservation of old selections.
+- All four registration language pages load saved Bunny rows scoped to the
+  selected form. Legacy AI browser polling also reads Bunny; it does not call
+  Google response import. Explicit manual sync is retained in Form Questions.
+- The existing ten-minute server worker now also discovers language workshop/
+  offer links saved in `global_crm_config.google_form_links`. Registered forms
+  and existing batch mappings remain supported. Invalid optional links produce
+  explicit partial-error reports without suppressing existing valid targets.
+- Form Questions Auto-Sync saves its connection for that worker; the interval
+  display is fixed to the existing ten-minute schedule, not a false configurable
+  interval. Production deployment and `CRON_SECRET`/cron verification are still
+  required before certifying automatic intake.
+- Validation: 81 tests pass across 17 suites, including actual local SQL
+  close/reopen persistence of form choice and unchanged approval gates. No
+  scoped TypeScript/editor errors; unrelated baseline errors remain. No live
+  production import or connection setting was changed.
+
 ## Live progress dashboard
 
 - Admin view: `/admin/crm/database-migration`

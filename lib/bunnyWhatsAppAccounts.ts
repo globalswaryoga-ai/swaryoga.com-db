@@ -9,10 +9,17 @@ function mapCredentials(account: any) {
     phoneNumberId: String(account.metaPhoneNumberId),
     phoneNumber: String(account.metaPhoneNumber || ''),
     wabaId: account.metaBusinessAccountId ? String(account.metaBusinessAccountId) : undefined,
+    appSecret: account.metaAppSecret ? decryptCredential(String(account.metaAppSecret)) : process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET,
   };
 }
 
+let initialization: Promise<void> | undefined;
 export async function initBunnyWhatsAppAccountsSchema() {
+  if (!initialization) initialization = initializeSchema().catch(error => { initialization = undefined; throw error; });
+  await initialization;
+}
+
+async function initializeSchema() {
   await bunnyBatch([
     { sql: 'CREATE TABLE IF NOT EXISTS whatsapp_accounts_sql (document_id TEXT PRIMARY KEY,account_type TEXT NOT NULL DEFAULT \'meta\',created_by_user_id TEXT NOT NULL,meta_phone_number_id TEXT,meta_phone_number TEXT,is_active INTEGER NOT NULL DEFAULT 1,status TEXT,data_json TEXT NOT NULL,created_at TEXT,updated_at TEXT)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_owner ON whatsapp_accounts_sql(created_by_user_id,account_type,is_active)', args: [] },

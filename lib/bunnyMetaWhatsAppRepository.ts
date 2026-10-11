@@ -28,7 +28,13 @@ function iso(value: unknown): string | null {
   return null;
 }
 
+let schemaInitialization: Promise<void> | undefined;
 export async function initBunnyMetaWhatsAppSchema() {
+  if (!schemaInitialization) schemaInitialization = initializeSchema().catch(error => { schemaInitialization = undefined; throw error; });
+  await schemaInitialization;
+}
+
+async function initializeSchema() {
   await bunnyBatch([
     { sql: 'CREATE TABLE IF NOT EXISTS meta_messages_sql (document_id TEXT PRIMARY KEY,lead_id TEXT,phone_number TEXT NOT NULL DEFAULT \'\',provider TEXT NOT NULL DEFAULT \'meta\',direction TEXT NOT NULL DEFAULT \'outbound\',message_type TEXT NOT NULL DEFAULT \'text\',status TEXT NOT NULL DEFAULT \'queued\',wa_message_id TEXT,sender_number TEXT,sent_by_user_id TEXT,sent_at TEXT,created_at TEXT,updated_at TEXT,data_json TEXT NOT NULL)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_phone_time ON meta_messages_sql(phone_number,sent_at DESC,created_at DESC)', args: [] },
@@ -71,8 +77,8 @@ export async function upsertBunnyMetaMessage(message: Record<string, any>) {
   row.documentId = documentId;
   row.provider = 'meta';
   await bunnyExecute({
-    sql: `INSERT INTO meta_messages_sql (document_id,lead_id,phone_number,provider,direction,message_type,status,wa_message_id,sender_number,sent_at,created_at,updated_at,data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET lead_id=excluded.lead_id,phone_number=excluded.phone_number,direction=excluded.direction,message_type=excluded.message_type,status=excluded.status,wa_message_id=excluded.wa_message_id,sender_number=excluded.sender_number,sent_at=excluded.sent_at,updated_at=excluded.updated_at,data_json=excluded.data_json`,
-    args: [documentId, row.leadId ? stringValue(row.leadId) : null, stringValue(row.phoneNumber), 'meta', stringValue(row.direction || 'outbound'), stringValue(row.messageType || 'text'), stringValue(row.status || 'queued'), row.waMessageId ? stringValue(row.waMessageId) : null, row.senderNumber ? stringValue(row.senderNumber) : null, iso(row.sentAt), iso(row.createdAt), iso(row.updatedAt) || new Date().toISOString(), JSON.stringify(row)],
+    sql: `INSERT INTO meta_messages_sql (document_id,lead_id,phone_number,provider,direction,message_type,status,wa_message_id,sender_number,sent_by_user_id,sent_at,created_at,updated_at,data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET lead_id=excluded.lead_id,phone_number=excluded.phone_number,direction=excluded.direction,message_type=excluded.message_type,status=excluded.status,wa_message_id=excluded.wa_message_id,sender_number=excluded.sender_number,sent_by_user_id=excluded.sent_by_user_id,sent_at=excluded.sent_at,updated_at=excluded.updated_at,data_json=excluded.data_json`,
+    args: [documentId, row.leadId ? stringValue(row.leadId) : null, stringValue(row.phoneNumber), 'meta', stringValue(row.direction || 'outbound'), stringValue(row.messageType || 'text'), stringValue(row.status || 'queued'), row.waMessageId ? stringValue(row.waMessageId) : null, row.senderNumber ? stringValue(row.senderNumber) : null, row.sentByUserId ? stringValue(row.sentByUserId) : null, iso(row.sentAt), iso(row.createdAt), iso(row.updatedAt) || new Date().toISOString(), JSON.stringify(row)],
   });
   return row;
 }

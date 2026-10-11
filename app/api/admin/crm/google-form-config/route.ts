@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
+import { connectedGoogleFormTargets } from '@/lib/googleFormConnections';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     await ensureConfigTable();
     const res = await bunnyExecute({ sql: `SELECT * FROM global_crm_config WHERE config_key = 'google_form_links'`, args: [] });
     if (res.rows && res.rows.length > 0) {
-      return NextResponse.json({ success: true, config: JSON.parse(res.rows[0].config_value) });
+      return NextResponse.json({ success: true, config: JSON.parse(String(res.rows[0].config_value)) });
     }
     return NextResponse.json({ success: true, config: null });
   } catch (err: any) {
@@ -43,6 +44,10 @@ export async function POST(req: NextRequest) {
     await ensureConfigTable();
     const { config } = await req.json();
     if (!config) return NextResponse.json({ error: 'Config missing' }, { status: 400 });
+    if (typeof config !== 'object' || Array.isArray(config)) return NextResponse.json({ error: 'Invalid form connections' }, { status: 400 });
+    try { connectedGoogleFormTargets(config); } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid Google Form link' }, { status: 400 });
+    }
 
     const jsonString = JSON.stringify(config);
     await bunnyExecute({

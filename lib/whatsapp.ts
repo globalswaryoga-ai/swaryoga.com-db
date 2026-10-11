@@ -174,14 +174,34 @@ export function getWhatsAppEnv() {
  * Pre-upload a media file to Meta's servers and return a media_id.
  * Using media_id is more reliable than link — Meta doesn't need to download from CDN.
  */
+const metaMediaUploads = new Map<string, { expiresAt: number; pending: Promise<string | null> }>();
+
 export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg', creds?: WhatsAppCredentials): Promise<string | null> {
   const env = creds || getWhatsAppEnv();
   if (!env) return null;
+  const key = crypto.createHash('sha256').update(JSON.stringify([env.phoneNumberId, env.accessToken, imageUrl, mimeType])).digest('hex');
+  const existing = metaMediaUploads.get(key);
+  if (existing && existing.expiresAt > Date.now()) return existing.pending;
+  metaMediaUploads.delete(key);
+  if (metaMediaUploads.size >= 128) {
+    const oldest = metaMediaUploads.keys().next().value;
+    if (oldest) metaMediaUploads.delete(oldest);
+  }
+  const pending = performMetaMediaUpload(imageUrl, mimeType, env);
+  metaMediaUploads.set(key, { pending, expiresAt: Date.now() + 60 * 60 * 1000 });
+  const id = await pending;
+  if (!id && metaMediaUploads.get(key)?.pending === pending) metaMediaUploads.delete(key);
+  return id;
+}
 
+async function performMetaMediaUpload(imageUrl: string, mimeType: string, env: WhatsAppCredentials): Promise<string | null> {
   try {
     // Download the image
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) return null;
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    if (!imgRes.ok) {
+      console.warn('[uploadMediaToMeta] Media download failed:', imgRes.status);
+      return null;
+    }
     const imgBuffer = await imgRes.arrayBuffer();
 
     const { accessToken, phoneNumberId, appSecret } = env;
@@ -195,10 +215,10 @@ export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg
 
     const res = await fetch(
       `https://graph.facebook.com/v24.0/${phoneNumberId}/media?${proof}`,
-      { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+      { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData, signal: AbortSignal.timeout(15000) }
     );
     const data = await res.json().catch(() => ({}));
-    console.log('[uploadMediaToMeta] Response:', res.status, data);
+    if (!res.ok || !data?.id) console.warn('[uploadMediaToMeta] Meta upload failed:', res.status, data?.error?.message || 'Missing media ID');
     return data?.id || null;
   } catch (err) {
     console.error('[uploadMediaToMeta] Failed:', err);
@@ -961,28 +981,25 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   // Try Meta Cloud API first (with circuit breaker)
   if (!isCircuitOpen(circuitKey)) {
     try {
-      const result = await withRetry(async () => {
-        const { accessToken, phoneNumberId, appSecret } = env;
-        
-        // Pre-upload header media to Meta (use media_id — more reliable than link)
-        let processedInput = { ...input };
-        if (input.headerMedia?.url) {
+      let processedInput = { ...input };
+      if (input.headerMedia?.url && !input.headerMedia.url.startsWith('meta:id:')) {
           const signedUrl = await getPublicMediaUrl(input.headerMedia.url);
           const mimeType = input.headerMedia.kind === 'video' ? 'video/mp4' : 'image/jpeg';
           const mediaId = await uploadMediaToMeta(signedUrl, mimeType, creds);
           if (mediaId) {
-            console.log('[sendWhatsAppTemplate] Pre-uploaded media, got media_id:', mediaId);
             processedInput = {
               ...input,
               headerMedia: { ...input.headerMedia, url: `meta:id:${mediaId}` },
             };
           } else {
             // Fallback: use link directly
-            console.log('[sendWhatsAppTemplate] Media pre-upload failed, using link fallback');
+            console.warn('[sendWhatsAppTemplate] Media pre-upload failed, using link fallback');
             processedInput = { ...input, headerMedia: { ...input.headerMedia, url: signedUrl } };
           }
-        }
+      }
 
+      const result = await withRetry(async () => {
+        const { accessToken, phoneNumberId, appSecret } = env;
         const language = String(input.language || 'en').trim() || 'en';
         const appSecretProof = generateAppSecretProof(accessToken, appSecret);
         const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
@@ -1000,8 +1017,6 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
           },
         };
 
-        console.log('[sendWhatsAppTemplate] Sending via Meta:', JSON.stringify(payload, null, 2));
-
         const res = await fetch(url, {
           method: 'POST',
           headers: {
@@ -1011,10 +1026,10 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
           },
           body: JSON.stringify(payload),
           cache: 'no-store',
+          signal: AbortSignal.timeout(15000),
         });
 
         const data = await res.json().catch(() => ({}));
-        console.log('[sendWhatsAppTemplate] Meta Response:', res.status, JSON.stringify(data));
         
         if (!res.ok) {
           const message =

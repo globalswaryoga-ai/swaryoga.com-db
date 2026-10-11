@@ -159,6 +159,24 @@ export default function GoogleFormBuilderPage() {
     Marathi: { workshop: false, offer: false },
     Kannada: { workshop: false, offer: false },
   });
+  const [savingGoogleConnection, setSavingGoogleConnection] = useState(false);
+  const saveGoogleConnections = async () => {
+    const response = await fetch('/api/admin/crm/google-form-config', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ config: langLinks }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Failed to save Google Form connections.');
+  };
+  const enableGoogleSync = async () => {
+    if (savingGoogleConnection) return;
+    setSavingGoogleConnection(true);
+    try {
+      await saveGoogleConnections();
+      showToast('Connection saved. The background worker syncs every 10 minutes when the server cron is active.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save connection', 'error');
+    } finally { setSavingGoogleConnection(false); }
+  };
 
   const openSubmissionsModal = async (form: EnquiryForm) => {
     setSelectedFormForSubmissions(form);
@@ -902,17 +920,19 @@ export default function GoogleFormBuilderPage() {
                                     <div className="flex items-center gap-2 w-full">
                                       <input 
                                         type="number" 
-                                        defaultValue={10} 
+                                        value={10}
+                                        readOnly
                                         min={1}
                                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-400" 
-                                        title="Sync interval in minutes"
+                                        title="Existing server worker interval: 10 minutes"
                                       />
                                       <span className="text-xs text-slate-500 font-bold">mins</span>
                                       <button 
                                         className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-colors"
-                                        onClick={() => showToast('Auto-sync started!', 'success')}
+                                        disabled={savingGoogleConnection}
+                                        onClick={() => void enableGoogleSync()}
                                       >
-                                        <Timer size={14} /> Auto-Sync
+                                        <Timer size={14} /> {savingGoogleConnection ? 'Saving...' : 'Auto-Sync'}
                                       </button>
                                     </div>
                                   </div>
@@ -988,22 +1008,20 @@ export default function GoogleFormBuilderPage() {
                                     </button>
                                     <button 
                                       className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                                      disabled={savingGoogleConnection}
                                       onClick={async () => {
-                                        const newConfig = {...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], workshop: langLinks[lang as keyof typeof langLinks].workshop}};
+                                        if (savingGoogleConnection) return;
+                                        setSavingGoogleConnection(true);
                                         try {
-                                          await fetch('/api/admin/crm/google-form-config', {
-                                            method: 'POST',
-                                            headers: authHeaders(),
-                                            body: JSON.stringify({ config: newConfig })
-                                          });
+                                          await saveGoogleConnections();
                                           showToast(`${lang} Workshop Form connection saved!`, 'success');
                                           setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], workshop: false}});
-                                        } catch {
-                                          showToast('Failed to save config', 'error');
-                                        }
+                                        } catch (error) {
+                                          showToast(error instanceof Error ? error.message : 'Failed to save config', 'error');
+                                        } finally { setSavingGoogleConnection(false); }
                                       }}
                                     >
-                                      <Save size={16} /> Save & Connect
+                                      <Save size={16} /> {savingGoogleConnection ? 'Saving...' : 'Save & Connect'}
                                     </button>
                                   </div>
                                 </div>
@@ -1055,17 +1073,19 @@ export default function GoogleFormBuilderPage() {
                                     <div className="flex items-center gap-2 w-full">
                                       <input 
                                         type="number" 
-                                        defaultValue={10} 
+                                        value={10}
+                                        readOnly
                                         min={1}
                                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-400" 
-                                        title="Sync interval in minutes"
+                                        title="Existing server worker interval: 10 minutes"
                                       />
                                       <span className="text-xs text-slate-500 font-bold">mins</span>
                                       <button 
                                         className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-colors"
-                                        onClick={() => showToast('Auto-sync started!', 'success')}
+                                        disabled={savingGoogleConnection}
+                                        onClick={() => void enableGoogleSync()}
                                       >
-                                        <Timer size={14} /> Auto-Sync
+                                        <Timer size={14} /> {savingGoogleConnection ? 'Saving...' : 'Auto-Sync'}
                                       </button>
                                     </div>
                                   </div>
@@ -1142,18 +1162,15 @@ export default function GoogleFormBuilderPage() {
                                     <button 
                                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
                                       onClick={async () => {
-                                        const newConfig = {...langLinks, [lang]: {...langLinks[lang as keyof typeof langLinks], offer: langLinks[lang as keyof typeof langLinks].offer}};
+                                        if (savingGoogleConnection) return;
+                                        setSavingGoogleConnection(true);
                                         try {
-                                          await fetch('/api/admin/crm/google-form-config', {
-                                            method: 'POST',
-                                            headers: authHeaders(),
-                                            body: JSON.stringify({ config: newConfig })
-                                          });
+                                          await saveGoogleConnections();
                                           showToast(`${lang} Offer Form connection saved!`, 'success');
                                           setExpandedGoogleForms({...expandedGoogleForms, [lang]: {...expandedGoogleForms[lang as keyof typeof expandedGoogleForms], offer: false}});
-                                        } catch {
-                                          showToast('Failed to save config', 'error');
-                                        }
+                                        } catch (error) {
+                                          showToast(error instanceof Error ? error.message : 'Failed to save config', 'error');
+                                        } finally { setSavingGoogleConnection(false); }
                                       }}
                                     >
                                       <Save size={16} /> Save & Connect

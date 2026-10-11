@@ -171,6 +171,46 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Saved CRM/Google Form Connection Repairs (Session: October 11, 2026) — Commit `pending`
+
+- Restored Connect CRM Form and its existing saved-form dropdown in `_WorkshopFormTab.tsx`, alongside Google selection. Save now waits for Bunny success before changing the batch connection, refreshing data, or showing confirmation; failed saves leave the prior connection intact.
+- All four language pages persist the chosen form/source per batch, restore it on reload, and read only the selected form's saved Bunny data. Legacy browser response polling now reads Bunny rather than downloading Google responses; filters and AI processing are retained.
+- Wired Form Questions' existing `google_form_links` Bunny configuration into the existing ten-minute Google sync cron. Existing registered/batch targets remain, duplicates are removed per scope, and invalid optional links report blockers without preventing older valid targets from syncing.
+- Form Questions Save & Connect checks actual API success; Auto-Sync now saves the connection instead of displaying a fake worker-start notification. The displayed interval matches the existing ten-minute server schedule; no new AI worker or database replacement was introduced.
+- Validation: 81 tests pass across 17 suites, including delayed/failed UI saves, selected-form Bunny reads, real SQL close/reopen preservation of form choice/gates, and cron discovery/partial-error handling. No scoped TypeScript/editor diagnostics; repository-wide baseline errors remain. Changes are uncommitted/undeployed; no production connection save, import, message, or group mutation was triggered.
+
+### Registration UI and Bunny Meta Health/Broadcast Repairs (Session: October 11, 2026) — Commit `pending`
+
+- Added responsive language-page sidebars, a seven-stage workflow strip, readable approval labels, and Meta account quality/latency cards. Broadcast schedules display only the selected batch; saves show progress, editing preserves the original schedule, and stale concurrent writes return HTTP 409.
+- Repaired Meta health probes with `appsecret_proof`, admin authentication, tenant-owned credentials, a five-second timeout, and a Meta-only path that does not wait for QR bridge health or mutate send circuit state. Read-only account verification returned HTTP 200, GREEN quality, approximately 1,315 ms; no delivery test was sent.
+- Template header uploads are bounded, single-flight, cached by account/token/media identity for one hour, and prepared once outside send retries. Download/upload/send calls have timeouts; failed uploads are not cached. Bunny Meta/account/broadcast schemas initialize once per process with explicit failure/retry behavior.
+- Connected scheduled Leads Management sends through batch-specific form-response decisions to canonical CRM IDs in Bunny broadcasts. Duplicate detection uses exact template metadata and sender ownership; message upserts persist the indexed sender column. Meta sync indexes shared contacts once, skips unchanged responses, preserves existing stages/tenant ownership, and starts new leads before AI-9A screening.
+- Validation: 73 tests pass across 14 focused suites, including UI, tenant health, media payload/reuse, SQL persistence, schedule concurrency, and response-to-broadcast routing; `git diff --check` passes. No TypeScript errors in modified files; unrelated repository baseline errors remain. Read-only Bunny check returned in ~889 ms and found 52 completed Meta runs. Changes are uncommitted/undeployed; production registration schema/cron acceptance and legacy worker migration remain pending.
+
+### Registration Manual Gates and Page-Speed Repairs (Session: October 11, 2026) — Commit `pending`
+
+- Added separate Meeting Done, Skip Zoom (Admin), Final Approve, Group Added (Manual), and Skip Group (Admin) controls in Leads Management. Bunny records viewer/time audit data; form screening never marks a meeting done or adds a group member. Conflicting gate saves return a retry error.
+- Configured AI-4 scrutiny now checks every required question/answer, honors configured age ranges, runs in the server registration cron, and stores batch/response decisions. Saved batch rules must be re-saved to enable the new all-condition server worker; legacy browser AI-1/2/3/5 migration remains pending.
+- All four language pages defer unused tab bundles. All Leads Data, Meta Leads, and Leads Management render 50 rows per page with every result reachable; bulk selection/export remain full-filter operations. Meta fetches abort stale requests, sync requests cannot overlap, and hidden tabs skip polling.
+- Replaced per-response contact scans with indexed matching, retaining first-match behavior. Local benchmark with 5,000 contacts/727 responses measured ~989 ms scan versus ~5 ms indexed assembly; this is not a claim about deployed page latency. Decision polling reads only the selected batch; form-table initialization is single-flight.
+- Read-only production timings: page load ~1.56 s; recorded Google/Meta sync/data requests ~40–42 s. Validation: 46 focused tests pass across eight suites; no matching registration/Google/forms TypeScript errors, with unrelated repository-wide errors remaining. Deployment and consented end-to-end acceptance are still pending. No live message, group mutation, or production save was performed.
+
+### AI Workflow Persistence and Automation Audit (Session: October 11, 2026) — Commit `pending`
+
+- Leads Management now restores AI rules from Bunny, saves each batch/worker configuration independently, and waits for SQL success before displaying confirmation or running rules. Opening the page no longer rewrites/deletes saved categories.
+- AI-1 column saves and worker-toggle restoration now use their language-specific keys in all four registration pages. Workshop configuration is persisted before updating the saved UI state.
+- Registration Meta automation now respects AI-9E's off switch and configured question/answer rules; pending-state transitions record their own delayed-send eligibility time. Zoom booking refresh preserves an unchanged meeting's completed/rejected status.
+- Read-only checks: Bunny is reachable with 727 form submissions; the new registration state/Zoom booking tables and registration queues are not present in the connected database yet. Production legacy state contains configured Meta/funnel workers and one active schedule without canonical recipient IDs. Local `CRON_SECRET` is absent; production secret status was not inspected.
+- Validation: 17 regression tests pass, including real local SQL close/reopen persistence. No matching TypeScript errors in the registration files; repository-wide baseline errors remain. Browser-only funnel workers, hardcoded legacy scrutiny, manual Zoom completion, and unwired final group admission remain explicitly incomplete. No live send/group mutation/deployment was performed.
+
+### Registration Bunny-Only Repair (Session: current worktree) — Commit `pending`
+
+- Registration state, saved Google/CRM form reads, Meta approval queues, trigger reports/retries, and public Zoom bookings now use Bunny SQL; repaired form submit/contact/ID/question routes no longer call MongoDB.
+- Saved registration lists combine Google responses and CRM website leads, retain email-only submissions, and preserve displayed records during sync failures.
+- Replaced browser-only Meta scheduling with authenticated server queues and a five-minute cron; templates must be approved and failed messages remain visible for retry.
+- Added durable public Zoom booking APIs and server-backed booking refresh. Legacy archives named `mongo_documents` are tables in Bunny SQL, not connections to MongoDB.
+- Validation so far: 12 mocked regressions pass. Full repository TypeScript has existing errors; live authenticated acceptance, schema/data reconciliation, credentials, and deployment are not yet verified. No production send or data mutation was performed.
+
 ### Chatbot Builder Bunny SQL CRUD Migration (Session: September 29, 2026) — Commit `pending`
 
 - Added `lib/bunnyChatbotRepository.ts` with Bunny SQL flow storage, ownership filtering, pagination, update, delete, and duplication support.

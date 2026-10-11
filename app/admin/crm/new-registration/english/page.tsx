@@ -1,9 +1,9 @@
 'use client';
+import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
+import { useRegistrationLeads } from '@/hooks/useRegistrationLeads';
 import React, { useState, useEffect, useMemo } from 'react';
-import { WorkshopFormTab } from '../_WorkshopFormTab';
-import { MetaLeadsTab } from '../_MetaLeadsTab';
-import { LeadsManagementTab } from '../_LeadsManagementTab';
-import { WhatsAppMessengerTab } from '../_WhatsAppMessengerTab';
+import { WorkshopFormTab, MetaLeadsTab, LeadsManagementTab, WhatsAppMessengerTab } from '../_LazyRegistrationTabs';
+import { RegistrationWorkflow } from '../_RegistrationWorkflow';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 
@@ -41,7 +41,7 @@ export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'meta_leads' | 'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -380,7 +380,7 @@ export default function NewRegistrationPage() {
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
           }).catch(console.error);
         }
       }
@@ -582,7 +582,7 @@ export default function NewRegistrationPage() {
           fetch('/api/admin/crm/new-registration/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
           }).catch(err => console.error('Auto-sync error:', err));
           
           toast.success(`🤖 AI-1A Auto-Worker: Created or updated batches from new leads!`);
@@ -753,21 +753,7 @@ export default function NewRegistrationPage() {
     return () => clearInterval(interval);
   }, [isRegisteredAiWorkerActive, leadsData, registeredLeadIds, closedLeadIds, registeredAiInsights]);
 
-  useEffect(() => {
-    // Automated Congratulatory Message logic
-    if (registeredLeadIds.length === 0 || leadsData.length === 0) return;
 
-    const unsentIds = registeredLeadIds.filter(id => !sentCongratsLeadIds.includes(id));
-    if (unsentIds.length > 0) {
-      unsentIds.forEach(id => {
-        const lead = leadsData.find(l => l.id === id);
-        if (lead) {
-          toast.success(`Automated Meta/Email sent to ${lead.name || 'Lead'}: "Congratulations, your form has been selected and approved, now final a small zoom meeting is needed for the class, so let me your date and time select any one slot and join for it."`);
-        }
-      });
-      setSentCongratsLeadIds(prev => [...prev, ...unsentIds]);
-    }
-  }, [registeredLeadIds, sentCongratsLeadIds, leadsData]);
 
   useEffect(() => {
     async function loadForms() {
@@ -822,139 +808,18 @@ export default function NewRegistrationPage() {
     return () => clearInterval(interval);
   }, [linkedFormId]);
 
-  useEffect(() => {
-    async function loadLeads() {
-      if (!linkedFormId) return;
-      setIsLoadingLeads(true);
-      try {
-        if (linkedFormId.includes('docs.google.com/spreadsheets')) {
-          const res = await fetch(`/api/admin/google-form-csv?url=${encodeURIComponent(linkedFormId)}`);
-          if (res.ok) {
-            const json = await res.json();
-            const fetchedLeads = json.data || [];
-            setLeadsData(fetchedLeads);
-            setWorkshops(prev => (prev || []).map(w => w?.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
-            setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
-          } else {
-            const errorData = await res.json().catch(() => null);
-            toast.error(errorData?.error || 'Failed to load Google Sheets CSV');
-          }
-        } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms') || linkedFormId) {
-          let fetchedLeads = [];
-          setNeedsGoogleAuth(false);
 
-          const syncHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-          // Check Google Forms OAuth Sync first
-          const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
-            headers: syncHeaders
-          });
-
-          if (syncRes.ok) {
-            const json = await syncRes.json();
-            let mappedLeads = json.data || [];
-            const ws = selectedWorkshop;
-            const mapping = ws?.metadata?.googleFormMapping;
-            if (mapping && mappedLeads.length > 0) {
-              mappedLeads = mappedLeads.map((lead: any) => {
-                const raw = lead._rawRecord || {};
-                return {
-                  ...lead,
-                  name: raw[mapping['NAME']] || raw[mapping['Name']] || lead.name,
-                  email: raw[mapping['EMAIL']] || raw[mapping['Email']] || lead.email,
-                  mobile: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.mobile,
-                  phoneNumber: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.phoneNumber,
-                  city: raw[mapping['CITY']] || raw[mapping['City']] || lead.city,
-                  country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
-                  gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
-                  language: ws?.language || selectedDashboardLang,
-                  workshopName: ws?.name || '',
-                };
-              });
-            } else {
-              mappedLeads = mappedLeads.map((lead: any) => ({
-                ...lead,
-                language: ws?.language || selectedDashboardLang,
-                workshopName: ws?.name || '',
-              }));
-            }
-
-            fetchedLeads = mappedLeads;
-            if (json.linkedSheetId) setActiveLinkedSheetId(json.linkedSheetId);
-            if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
-            if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
-          } else if (syncRes.status === 401) {
-            setNeedsGoogleAuth(true);
-          } else {
-            const err = await syncRes.json().catch(() => ({}));
-            setGoogleAuthError(err.error || 'Failed to sync form');
-            toast.error("Google Forms Sync Failed: " + (err.error || 'Invalid Form ID'));
-            // Fallback to webhook checking
-            const res = await fetch(`/api/admin/enquiries?workshopId=${encodeURIComponent(linkedFormId)}`, {
-              headers: syncHeaders
-            });
-            if (res.ok) {
-              const json = await res.json();
-              fetchedLeads = json.data || [];
-            }
-          }
-
-          // Update leads data
-          setLeadsData(fetchedLeads);
-          setWorkshops(prev => {
-            const updated = (prev || []).map(w => {
-              if (w.id.startsWith('batch_') && w.formId === linkedFormId) {
-                if (w.formFilterKeyword) {
-                  const keywords = w.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                  const ai7MappedQuestion = w.metadata?.googleFormMapping?.['AI-7'] || w.metadata?.googleFormMapping?.['ai7'];
-                  const count = fetchedLeads.filter((lead: any) => {
-                    if (lead._rawRecord) {
-                      if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                        return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-                      } else {
-                        return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
-                      }
-                    }
-                    return true;
-                  }).length;
-                  return { ...w, leads: count };
-                }
-              } else if (w.formId === linkedFormId) {
-                return { ...w, leads: fetchedLeads.length };
-              }
-              return w;
-            });
-            // Also update selectedWorkshop if it's currently selected
-            if (selectedWorkshop) {
-              const updatedSelected = updated.find(w => w.id === selectedWorkshop.id);
-              if (updatedSelected) {
-                setSelectedWorkshop(updatedSelected);
-              }
-            }
-            return updated;
-          });
-        } else {
-          const res = await fetch(`/api/admin/enquiries?workshopId=${linkedFormId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const json = await res.json();
-            const fetchedLeads = json.data || [];
-            setLeadsData(fetchedLeads);
-            setWorkshops(prev => (prev || []).map(w => w?.id === selectedWorkshop?.id ? { ...w, leads: fetchedLeads.length } : w));
-            setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop?.id ? { ...prev, leads: fetchedLeads.length } : prev);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsLoadingLeads(false);
-      }
-    }
-    loadLeads();
-  }, [linkedFormId, token, refreshLeadsCounter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  useRegistrationLeads({
+    token, formId: linkedFormId, language: selectedDashboardLang,
+    refresh: refreshLeadsCounter, ready: isLoaded && (!selectedWorkshop || Boolean(linkedFormId)),
+    setLeads: setLeadsData, setLoading: setIsLoadingLeads,
+    onError: message => toast.error(message),
+  });
+
 
   const workshopsRef = React.useRef(workshops);
   const leadsFilterRef = React.useRef(leadsFilter);
@@ -972,7 +837,7 @@ export default function NewRegistrationPage() {
     let isFetching = false;
 
     const interval = setInterval(async () => {
-      if (isFetching) return;
+      if (isFetching || document.hidden) return;
       isFetching = true;
       try {
         const currentWorkshops = workshopsRef.current || [];
@@ -1007,7 +872,7 @@ export default function NewRegistrationPage() {
 
           if (currentFormId.includes('docs.google.com/forms') || currentFormId) {
             const syncHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(currentFormId)}`, {
+            const syncRes = await fetchWithRetry(`/api/admin/crm/new-registration/leads?formId=${encodeURIComponent(currentFormId)}`, {
               headers: syncHeaders
             });
             if (syncRes.ok) {
@@ -1039,8 +904,9 @@ export default function NewRegistrationPage() {
 
               fetchedLeads = mappedLeads;
               if (json.questionMap) newQuestionMap = json.questionMap;
-            } else if (syncRes.status === 401) {
-              setNeedsGoogleAuth(true);
+            } else {
+              const error = await syncRes.json();
+              throw new Error(error.error || 'Saved registration data is unavailable.');
             }
           }
 
@@ -1140,13 +1006,14 @@ export default function NewRegistrationPage() {
         }
       } catch (err) {
         console.error("AI4 Fetch error", err);
+        toast.error(err instanceof Error ? err.message : 'Failed to refresh saved registration data.');
       } finally {
         isFetching = false;
       }
     }, 10 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [isAi7Active, linkedFormId, token, formSource]);
+  }, [isAi7Active, linkedFormId, token, formSource, isLoaded]);
 
 
   useEffect(() => {
@@ -1202,18 +1069,20 @@ export default function NewRegistrationPage() {
       const loadFromApi = async () => {
         try {
           const res = await fetch('/api/admin/crm/new-registration/state');
+          if (!res.ok) throw new Error('Registration settings could not be loaded. Automatic saving is paused.');
           if (res.ok) {
             const data = await res.json();
             if (data) {
-              if (data.crm_workshops) {
+              if (data.crm_english_workshops || data.crm_workshops) {
                 try {
-                  const parsed = typeof data.crm_workshops === 'string' ? JSON.parse(data.crm_workshops) : data.crm_workshops;
+                  const savedWorkshops = data.crm_english_workshops || data.crm_workshops;
+                  const parsed = typeof savedWorkshops === 'string' ? JSON.parse(savedWorkshops) : savedWorkshops;
                   if (Array.isArray(parsed)) setWorkshops(parsed);
                 } catch (_) {}
               }
-              if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
-              if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
-              if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
+              if (data.crm_english_ai_worker_active !== undefined) setIsAiWorkerActive(String(data.crm_english_ai_worker_active) === 'true');
+              if (data.crm_english_approved_ai_active !== undefined) setIsApprovedAiWorkerActive(String(data.crm_english_approved_ai_active) === 'true');
+              if (data.crm_english_registered_ai_active !== undefined) setIsRegisteredAiWorkerActive(String(data.crm_english_registered_ai_active) === 'true');
               if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
               // Restore selected form/workshop from DB (overrides localStorage if present)
               const langSuffixStr = `_${selectedDashboardLang}`;
@@ -1224,17 +1093,21 @@ export default function NewRegistrationPage() {
                 } catch (_) {}
               }
               // Form settings loaded via general loop and then picked up by language-specific useEffect
-              if (data.crm_ai1_column) {
-                setAi1ColumnInput(data.crm_ai1_column);
+              if (data.crm_english_ai1_column !== undefined || data.crm_ai1_column !== undefined) {
+                setAi1ColumnInput(String(data.crm_english_ai1_column ?? data.crm_ai1_column));
               }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
               }
+              const restoredWorkshop = data['crm_english_selected_workshop' + langSuffixStr] || data.crm_english_selected_workshop;
+              if (restoredWorkshop) setSelectedWorkshop(typeof restoredWorkshop === 'string' ? JSON.parse(restoredWorkshop) : restoredWorkshop);
+              setIsLoaded(true);
             }
           }
         } catch (e) {
-          console.error('API load failed, falling back to local', e);
+          console.error('Registration state load failed:', e);
+          toast.error(e instanceof Error ? e.message : 'Registration settings are unavailable');
         }
       };
 
@@ -1262,7 +1135,6 @@ export default function NewRegistrationPage() {
       }
     } catch (e) { }
 
-    setIsLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -1466,21 +1338,16 @@ export default function NewRegistrationPage() {
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: currentFormSource === 'google' ? googleFormUrl : targetWorkshop.formId,
+      formId: overrideWorkshop?.formId ?? (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
       metadata: updatedMetadata
     };
 
     const newWorkshops = (currentWorkshops || []).map(w => w?.id === targetWorkshop.id ? updatedWorkshop : w);
+    await saveRegistrationState({ crm_english_workshops: safeStringify(newWorkshops) });
     setWorkshops(newWorkshops);
     setSelectedWorkshop(updatedWorkshop);
     setLinkedFormId(updatedWorkshop.formId);
-
     localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-    fetch('/api/admin/crm/new-registration/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
-    }).catch(console.error);
 
     if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
       try {
@@ -1517,7 +1384,7 @@ export default function NewRegistrationPage() {
         fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+          body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
         }).catch(console.error);
       }
     }
@@ -1556,7 +1423,7 @@ export default function NewRegistrationPage() {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+        body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
       });
     } catch (err) { }
   };
@@ -1575,7 +1442,7 @@ export default function NewRegistrationPage() {
       await fetch('/api/admin/crm/new-registration/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+        body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
       });
     } catch (err) { }
   };
@@ -1759,35 +1626,27 @@ export default function NewRegistrationPage() {
     }
   }, [selectedWorkshop?.id]);
 
-  const saveAi1Column = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_english_ai1_column', ai1ColumnInput);
-      fetch('/api/admin/crm/new-registration/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: safeStringify({ crm_ai1_column: ai1ColumnInput })
-      }).catch(console.error);
-    }
-    
-    // Also save to workshop if one is active
-    if (selectedWorkshop) {
-      const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
-      const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
-      setSelectedWorkshop(updatedWorkshop);
-      setWorkshops(prev => {
-        const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('crm_english_workshops', safeStringify(newWorkshops));
-          fetch('/api/admin/crm/new-registration/state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
-          }).catch(console.error);
-        }
-        return newWorkshops;
+
+  const saveAi1Column = async () => {
+    try {
+      const updatedWorkshop = selectedWorkshop ? {
+        ...selectedWorkshop, metadata: { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput },
+      } : null;
+      const updatedWorkshops = updatedWorkshop ? workshops.map(w => w.id === updatedWorkshop.id ? updatedWorkshop : w) : workshops;
+      await saveRegistrationState({
+        crm_english_ai1_column: ai1ColumnInput,
+        ...(updatedWorkshop ? { crm_english_workshops: safeStringify(updatedWorkshops) } : {}),
       });
+      localStorage.setItem('crm_english_ai1_column', ai1ColumnInput);
+      if (updatedWorkshop) {
+        setWorkshops(updatedWorkshops);
+        setSelectedWorkshop(updatedWorkshop);
+        localStorage.setItem('crm_english_workshops', safeStringify(updatedWorkshops));
+      }
+      toast.success('AI-1 column saved in Bunny Database until you change it.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'AI-1 column was not saved');
     }
-    toast.success('AI-1 Column setting saved permanently!');
   };
 
   const handleAi1BatchCreate = async () => {
@@ -1978,7 +1837,7 @@ export default function NewRegistrationPage() {
         await fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+          body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
         });
 
         toast.success(`AI-1A created ${addedCount} new batches successfully!`);
@@ -2059,11 +1918,11 @@ export default function NewRegistrationPage() {
   );
 
   return (
-    <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div className={`flex h-screen min-w-0 bg-slate-50 font-sans overflow-hidden max-sm:flex-col ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
 
       {/* Global Sidebar for Batch Selection */}
       {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger') && (
-        <aside className={`bg-white flex flex-col flex-shrink-0 z-20 relative ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'transition-all duration-300' : ''}`} style={{ width: isSidebarCollapsed ? 80 : sidebarWidth, minWidth: isSidebarCollapsed ? 80 : 200, maxWidth: 600 }}>
+        <aside className={`bg-white flex flex-col flex-shrink-0 z-20 relative max-sm:!w-full max-sm:!max-w-none max-sm:max-h-56 max-sm:overflow-y-auto ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'transition-all duration-300' : ''}`} style={{ width: isSidebarCollapsed ? 80 : sidebarWidth, minWidth: isSidebarCollapsed ? 80 : 200, maxWidth: 'min(360px, 32vw)' }}>
           {!isSidebarCollapsed && (
             <div 
               className={`absolute top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 active:bg-blue-600 z-50 transition-colors ${sidebarPosition === 'right' ? 'left-0 -ml-[4px]' : 'right-0 -mr-[4px]'}`}
@@ -2201,7 +2060,7 @@ export default function NewRegistrationPage() {
                                 fetch('/api/admin/crm/new-registration/state', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+                                  body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
                                 }).catch(console.error);
                                 
                                 if (selectedWorkshop) setSelectedWorkshop(null);
@@ -2304,7 +2163,7 @@ export default function NewRegistrationPage() {
                                           fetch('/api/admin/crm/new-registration/state', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                                            body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+                                            body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
                                           }).catch(console.error);
                                         }
                                       }
@@ -2333,7 +2192,7 @@ export default function NewRegistrationPage() {
                                   fetch('/api/admin/crm/new-registration/state', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: safeStringify({ crm_workshops: safeStringify(newWorkshops) })
+                                    body: safeStringify({ crm_english_workshops: safeStringify(newWorkshops) })
                                   }).catch(console.error);
                                   
                                   if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
@@ -2357,7 +2216,7 @@ export default function NewRegistrationPage() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
 
         {/* Header for Tabs */}
         <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
@@ -2365,8 +2224,8 @@ export default function NewRegistrationPage() {
             <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
               <FileText className="h-6 w-6" />
             </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">
+            <div className="min-w-0">
+              <h1 title={selectedWorkshop?.name} className="truncate text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
               </h1>
               <p className="text-sm text-slate-500 font-medium">
@@ -2374,6 +2233,7 @@ export default function NewRegistrationPage() {
               </p>
             </div>
           </div>
+          <RegistrationWorkflow activeTab={activeTab} />
 
           {/* Top Navigation Tabs */}
           <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
