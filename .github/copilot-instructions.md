@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### QR Group Scheduler Hybrid-Mode Buffering Fix (Session: October 12, 2026) — Commit `pending`
+### QR Group Scheduler Hybrid-Mode Buffering Fix (Session: October 12, 2026) — Commit `c039a691`
 
 - QR group schedule create/list/edit/pause/resume and cron schedule reads now use Bunny SQL regardless of `USE_BUNNY_DATABASE_ONLY`; hybrid configuration can no longer route the schedule collection through unconnected Mongoose.
 - The QR scheduler processor also uses Bunny SQL for message dedup reservations, persisted send caps/gaps, account restrictions and outbound chat/message history, preserving its safeguards when MongoDB is unavailable.
