@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### QR Group Schedule Creation Bunny SQL Repair (Session: October 12, 2026) — Commit `pending`
+### QR Group Schedule Creation Bunny SQL Repair (Session: October 12, 2026) — Commit `892e2ec1`
 
 - Root cause: production runs with MongoDB disabled, while QR schedule create/list/edit/pause/resume still called the Mongoose schedule model; the group-date collision lookup therefore buffered and timed out before creation.
 - Added a Bunny SQL schedule repository and routed schedule CRUD through it in Bunny-only mode, including date-conflict checks, preserving the selected WhatsApp group JIDs and existing auth/owner checks.
@@ -179,7 +179,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Chat-activity writes preserve existing pin/archive state; rate limits remain shared by connected phone across users. No WhatsApp message or group operation was performed.
 - Validation: six focused schedule/send-guard tests pass; changed-file diagnostics and `git diff --check` pass. The production build completes and generates all 473 static pages; it logs an unrelated existing `sadhana_schedules.findOne()` timeout during static generation.
 
-### QR Group Scheduler Missing Groups Fix (Session: October 12, 2026) — Commit `pending`
+### QR Group Scheduler Missing Groups Fix (Session: October 12, 2026) — Commit `892e2ec1`
 
 - Changed the group picker to use the authenticated `/api/admin/crm/whatsapp/qr/chats` endpoint, which returns groups from the resolved isolated QR session instead of the generic proxy's shared-chat privacy filter.
 - Normalized string and serialized-object JIDs, and display an explicit loading error when the session has no visible groups or the request fails.
