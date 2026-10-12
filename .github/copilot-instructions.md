@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### QR Group Scheduler Settings Timeout Repair (Session: October 12, 2026) — Commit `pending`
+### QR Group Scheduler Settings Timeout Repair (Session: October 12, 2026) — Commit `e673c6e7`
 
 - Replaced the QR tenant-session helper's legacy Mongoose `crm_user_settings.findOne()` with the existing Bunny SQL settings store, including permanent-tenant-ID resolution for shared owner sessions.
 - Removed the scheduler worker's duplicate Mongo settings lookup; it now uses the connected phone already resolved with the isolated QR session.
