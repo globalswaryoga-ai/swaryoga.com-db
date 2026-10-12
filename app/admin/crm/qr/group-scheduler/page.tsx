@@ -169,6 +169,7 @@ export default function QRGroupSchedulerPage() {
   // ── Groups (from bridge) ──
   const [chats, setChats] = useState<Chat[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
+  const [chatsError, setChatsError] = useState<string | null>(null);
   const [groupSearch, setGroupSearch] = useState('');
 
   // ── Schedules ──
@@ -223,17 +224,31 @@ export default function QRGroupSchedulerPage() {
   const loadChats = useCallback(async () => {
     if (!token) return;
     setChatsLoading(true);
+    setChatsError(null);
     try {
-      const res = await crmFetch('/api/admin/crm/whatsapp/qr-bridge', { params: { path: '/chats' } });
+      // Use the session-scoped chats endpoint: unlike the generic bridge proxy,
+      // it includes verified group JIDs while keeping discovery inside this
+      // user's isolated WhatsApp session.
+      const res = await crmFetch('/api/admin/crm/whatsapp/qr/chats');
       const arr = Array.isArray(res) ? res : (Array.isArray(res?.chats) ? res.chats : []);
-      const mapped: Chat[] = arr.map((c: any) => ({
-        id: c.id,
-        name: c.name || c.id,
-        isGroup: c.id?.endsWith?.('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined,
-      }));
+      const mapped: Chat[] = arr.flatMap((c: any) => {
+        const id = typeof c?.id === 'string'
+          ? c.id
+          : c?.id?._serialized || c?.chatJid || c?.jid || '';
+        if (!id) return [];
+        return [{
+          id,
+          name: c.name || c.subject || id,
+          isGroup: id.endsWith('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined,
+        }];
+      });
       setChats(mapped);
+      if (!mapped.some(chat => chat.isGroup)) {
+        setChatsError('No groups were returned for this connected WhatsApp session. Refresh the QR connection and try again.');
+      }
     } catch (err) {
       console.error('[Group Scheduler] Error loading chats:', err);
+      setChatsError(err instanceof Error ? err.message : 'Could not load WhatsApp groups. Please try again.');
     } finally {
       setChatsLoading(false);
     }
@@ -557,6 +572,8 @@ export default function QRGroupSchedulerPage() {
               <div className="border rounded-lg max-h-48 overflow-y-auto divide-y">
                 {chatsLoading ? (
                   <div className="p-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                ) : chatsError && groups.length === 0 ? (
+                  <p className="p-4 text-center text-sm text-red-600">{chatsError}</p>
                 ) : filteredGroups.length === 0 ? (
                   <p className="p-4 text-center text-sm text-gray-400">No groups found</p>
                 ) : (

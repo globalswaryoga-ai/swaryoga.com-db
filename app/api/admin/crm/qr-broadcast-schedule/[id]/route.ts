@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
-import { timeToMinutes, minutesToTime, resolveStartTime } from '@/lib/qrGroupScheduleGap';
+import { timeToMinutes, minutesToTime, resolveStartTime, resolveStartTimeFromSchedules } from '@/lib/qrGroupScheduleGap';
 import mongoose from 'mongoose';
+import {
+  deleteBunnyQrBroadcastSchedule,
+  getBunnyQrBroadcastSchedule,
+  listBunnyQrBroadcastSchedules,
+  updateBunnyQrBroadcastSchedule,
+} from '@/lib/bunnyQrBroadcastScheduleRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +40,17 @@ export async function GET(
 
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!USE_BUNNY_DATABASE_ONLY && !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
-    const schedule = await QRBroadcastSchedule.findOne(ownerFilter(decoded, id)).lean();
+    let schedule: any;
+    if (USE_BUNNY_DATABASE_ONLY) {
+      schedule = await getBunnyQrBroadcastSchedule(id, getUserId(decoded));
+    } else {
+      await connectDB();
+      schedule = await getQRBroadcastSchedule().findOne(ownerFilter(decoded, id)).lean();
+    }
 
     if (!schedule) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
@@ -63,7 +73,7 @@ export async function PUT(
 
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!USE_BUNNY_DATABASE_ONLY && !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
@@ -73,9 +83,6 @@ export async function PUT(
     if (body.maxMessagesPerDay && (body.maxMessagesPerDay < 1 || body.maxMessagesPerDay > 300)) {
       return NextResponse.json({ error: 'maxMessagesPerDay must be 1-300' }, { status: 400 });
     }
-
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
 
     // Exclude immutable fields from update
     const { _id, userId, createdBy, createdAt, ...updateFields } = body;
@@ -92,7 +99,19 @@ export async function PUT(
     ) {
       const uid = getUserId(decoded);
       const requestedDates = updateFields.customScheduleDates.map((d: string) => new Date(d));
-      const resolvedStart = await resolveStartTime(QRBroadcastSchedule, uid, id, updateFields.startTime, requestedDates);
+      let resolvedStart: string;
+      if (USE_BUNNY_DATABASE_ONLY) {
+        const existing = await listBunnyQrBroadcastSchedules({ userId: uid, limit: 1000 });
+        resolvedStart = resolveStartTimeFromSchedules(
+          existing.filter(schedule => schedule._id !== id && schedule.frequency === 'custom' &&
+            schedule.isActive !== false && ['scheduled', 'in-progress', 'paused'].includes(schedule.status)),
+          updateFields.startTime,
+          requestedDates,
+        );
+      } else {
+        await connectDB();
+        resolvedStart = await resolveStartTime(getQRBroadcastSchedule(), uid, id, updateFields.startTime, requestedDates);
+      }
       if (resolvedStart !== updateFields.startTime) {
         const durationMin = updateFields.endTime
           ? ((timeToMinutes(updateFields.endTime) - timeToMinutes(updateFields.startTime)) + 1440) % 1440 || 30
@@ -103,11 +122,13 @@ export async function PUT(
       }
     }
 
-    const schedule = await QRBroadcastSchedule.findOneAndUpdate(
-      ownerFilter(decoded, id),
-      { $set: { ...updateFields, updatedAt: new Date() } },
-      { new: true }
-    ).lean();
+    const schedule = USE_BUNNY_DATABASE_ONLY
+      ? await updateBunnyQrBroadcastSchedule(id, getUserId(decoded), updateFields)
+      : await getQRBroadcastSchedule().findOneAndUpdate(
+          ownerFilter(decoded, id),
+          { $set: { ...updateFields, updatedAt: new Date() } },
+          { new: true }
+        ).lean();
 
     if (!schedule) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
@@ -130,13 +151,17 @@ export async function DELETE(
 
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!USE_BUNNY_DATABASE_ONLY && !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
-    const deleted = await QRBroadcastSchedule.findOneAndDelete(ownerFilter(decoded, id)).lean();
+    let deleted: any;
+    if (USE_BUNNY_DATABASE_ONLY) {
+      deleted = await deleteBunnyQrBroadcastSchedule(id, getUserId(decoded));
+    } else {
+      await connectDB();
+      deleted = await getQRBroadcastSchedule().findOneAndDelete(ownerFilter(decoded, id)).lean();
+    }
 
     if (!deleted) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });

@@ -80,6 +80,47 @@ export async function upsertBunnyQrChat(chat: Record<string, any>) {
   return row as BunnyQrChat;
 }
 
+export async function upsertBunnyQrChatActivity(chat: Record<string, any>) {
+  await initBunnyQrSchema();
+  const now = new Date();
+  const row = {
+    ...chat,
+    userId: text(chat.userId),
+    connectedPhone: text(chat.connectedPhone),
+    chatJid: text(chat.chatJid),
+  };
+  if (!row.userId || !row.connectedPhone || !row.chatJid) throw new Error('QR chat identity is incomplete');
+  const timestamp = Number(row.conversationTimestamp || Math.floor(now.getTime() / 1000));
+  const lastMessageTime = row.lastMessageTime ? new Date(row.lastMessageTime).toISOString() : now.toISOString();
+  const createdAt = row.createdAt ? new Date(row.createdAt).toISOString() : now.toISOString();
+  const updatedAt = now.toISOString();
+  const data = JSON.stringify({
+    ...row,
+    lastMessage: text(row.lastMessage),
+    lastMessageTime,
+    lastMessageFromMe: true,
+    conversationTimestamp: timestamp,
+    createdAt,
+    updatedAt,
+  });
+  await bunnyExecute({
+    sql: `INSERT INTO qr_chats_sql
+      (user_id,connected_phone,chat_jid,conversation_timestamp,archived,pinned,unread_count,data_json,created_at,updated_at)
+      VALUES (?,?,?,?,0,0,0,?,?,?)
+      ON CONFLICT(user_id,connected_phone,chat_jid) DO UPDATE SET
+        conversation_timestamp=excluded.conversation_timestamp,
+        data_json=json_set(qr_chats_sql.data_json,
+          '$.lastMessage',json_extract(excluded.data_json,'$.lastMessage'),
+          '$.lastMessageTime',json_extract(excluded.data_json,'$.lastMessageTime'),
+          '$.lastMessageFromMe',json('true'),
+          '$.conversationTimestamp',excluded.conversation_timestamp,
+          '$.updatedAt',excluded.updated_at),
+        updated_at=excluded.updated_at`,
+    args: [row.userId, row.connectedPhone, row.chatJid, timestamp, data, createdAt, updatedAt],
+  });
+  return row as BunnyQrChat;
+}
+
 export async function listBunnyQrChats(input: { userId: string; connectedPhone: string; limit?: number }) {
   await initBunnyQrSchema();
   const limit = Math.min(Math.max(Number(input.limit || 500), 1), 5000);

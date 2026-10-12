@@ -23,8 +23,10 @@
  * If no connected phone can be resolved yet, falls back to a per-user key so
  * the caller isn't blocked outright.
  */
-import { connectDB } from '@/lib/db';
+import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { getCRMUserSettings, getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
+import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 
 export const DAILY_LIMIT = 150;
 export const HOURLY_LIMIT = 15;
@@ -34,6 +36,29 @@ export const HOURLY_LIMIT = 15;
 // coming due in the same 1-minute cron tick and firing near-simultaneously
 // into different groups — see reserveSendGap().
 export const MIN_SEND_GAP_MS = 60000;
+
+let bunnyRateLimitSchemaPromise: Promise<void> | null = null;
+
+async function ensureBunnyRateLimitSchema(): Promise<void> {
+  if (!bunnyRateLimitSchemaPromise) {
+    bunnyRateLimitSchemaPromise = bunnyBatch([{
+      sql: `CREATE TABLE IF NOT EXISTS qr_send_rate_limits_sql (
+        rate_key TEXT PRIMARY KEY,
+        day_key TEXT NOT NULL,
+        day_sent INTEGER NOT NULL DEFAULT 0,
+        hour_key TEXT NOT NULL,
+        hour_sent INTEGER NOT NULL DEFAULT 0,
+        last_send_at TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+      args: [],
+    }]).then(() => undefined).catch(error => {
+      bunnyRateLimitSchemaPromise = null;
+      throw error;
+    });
+  }
+  await bunnyRateLimitSchemaPromise;
+}
 
 /** Day key = YYYY-MM-DD in IST, with cutover at 5:00 AM (not midnight). */
 function getDayKeyIST(now = new Date()): string {
@@ -71,6 +96,12 @@ function getNextHour(now = new Date()): Date {
 
 /** Resolve a userId's connected WhatsApp number, and a stable rate-limit key for it. */
 async function resolveRateLimitKey(userId: string): Promise<{ key: string; isPhoneKeyed: boolean }> {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    const settings = await getBunnyCrmUserSettings(userId);
+    const digits = String(settings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+    if (digits) return { key: `phone:${digits}`, isPhoneKeyed: true };
+    return { key: `user:${userId}`, isPhoneKeyed: false };
+  }
   await connectDB();
   const CRMUserSettings = getCRMUserSettings();
   const settings: any = await CRMUserSettings.findOne({ userId }, { qrConnectedPhoneNumber: 1 }).lean();
@@ -102,6 +133,22 @@ async function getCounterDoc(rateKey: { key: string; isPhoneKeyed: boolean }) {
  * Use this before queuing a broadcast — gives a clear yes/no plus current counts.
  */
 export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    const rateKey = await resolveRateLimitKey(userId);
+    await ensureBunnyRateLimitSchema();
+    const result = await bunnyExecute({
+      sql: 'SELECT day_key, day_sent, hour_key, hour_sent FROM qr_send_rate_limits_sql WHERE rate_key = ? LIMIT 1',
+      args: [rateKey.key],
+    });
+    const counter = result.rows[0];
+    const daySent = counter?.day_key === getDayKeyIST() ? Number(counter.day_sent || 0) : 0;
+    const hourSent = counter?.day_key === getDayKeyIST() && counter?.hour_key === getHourKeyIST()
+      ? Number(counter.hour_sent || 0)
+      : 0;
+    if (daySent >= DAILY_LIMIT) return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
+    if (hourSent >= HOURLY_LIMIT) return { allowed: false, reason: 'hourly_cap', daySent, hourSent, resetAt: getNextHour() };
+    return { allowed: true, daySent, hourSent, dayRemaining: DAILY_LIMIT - daySent, hourRemaining: HOURLY_LIMIT - hourSent };
+  }
   await connectDB();
   const rateKey = await resolveRateLimitKey(userId);
   const { Model, filter } = await getCounterDoc(rateKey);
@@ -135,6 +182,46 @@ export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
  * If it returns allowed:false, DO NOT send — the cap is hit.
  */
 export async function reserveSendSlot(userId: string): Promise<RateCheckResult> {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    const rateKey = await resolveRateLimitKey(userId);
+    await ensureBunnyRateLimitSchema();
+    const dayKey = getDayKeyIST();
+    const hourKey = getHourKeyIST();
+    const now = new Date().toISOString();
+    await bunnyExecute({
+      sql: `INSERT OR IGNORE INTO qr_send_rate_limits_sql
+        (rate_key,day_key,day_sent,hour_key,hour_sent,updated_at) VALUES (?,?,0,?,0,?)`,
+      args: [rateKey.key, dayKey, hourKey, now],
+    });
+    await bunnyExecute({
+      sql: `UPDATE qr_send_rate_limits_sql SET day_key=?,day_sent=0,hour_key=?,hour_sent=0,updated_at=?
+        WHERE rate_key=? AND day_key<>?`,
+      args: [dayKey, hourKey, now, rateKey.key, dayKey],
+    });
+    await bunnyExecute({
+      sql: `UPDATE qr_send_rate_limits_sql SET hour_key=?,hour_sent=0,updated_at=?
+        WHERE rate_key=? AND day_key=? AND hour_key<>?`,
+      args: [hourKey, now, rateKey.key, dayKey, hourKey],
+    });
+    const reservation = await bunnyExecute({
+      sql: `UPDATE qr_send_rate_limits_sql
+        SET day_sent=day_sent+1,hour_sent=hour_sent+1,updated_at=?
+        WHERE rate_key=? AND day_key=? AND hour_key=? AND day_sent<? AND hour_sent<?`,
+      args: [now, rateKey.key, dayKey, hourKey, DAILY_LIMIT, HOURLY_LIMIT],
+    });
+    const countResult = await bunnyExecute({
+      sql: 'SELECT day_sent, hour_sent FROM qr_send_rate_limits_sql WHERE rate_key=? LIMIT 1',
+      args: [rateKey.key],
+    });
+    const counter = countResult.rows[0];
+    const daySent = Number(counter?.day_sent || 0);
+    const hourSent = Number(counter?.hour_sent || 0);
+    if (reservation.rowsAffected === 0) {
+      if (daySent >= DAILY_LIMIT) return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
+      return { allowed: false, reason: 'hourly_cap', daySent, hourSent, resetAt: getNextHour() };
+    }
+    return { allowed: true, daySent, hourSent, dayRemaining: DAILY_LIMIT - daySent, hourRemaining: HOURLY_LIMIT - hourSent };
+  }
   await connectDB();
   const rateKey = await resolveRateLimitKey(userId);
   const { Model, filter, upsertExtra } = await getCounterDoc(rateKey);
@@ -226,6 +313,29 @@ export type GapCheckResult =
  * right alongside reserveSendSlot, immediately before the actual bridge send.
  */
 export async function reserveSendGap(userId: string, minGapMs: number = MIN_SEND_GAP_MS): Promise<GapCheckResult> {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    const rateKey = await resolveRateLimitKey(userId);
+    await ensureBunnyRateLimitSchema();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    await bunnyExecute({
+      sql: `INSERT OR IGNORE INTO qr_send_rate_limits_sql
+        (rate_key,day_key,day_sent,hour_key,hour_sent,updated_at) VALUES (?,?,0,?,0,?)`,
+      args: [rateKey.key, getDayKeyIST(now), getHourKeyIST(now), nowIso],
+    });
+    const reserved = await bunnyExecute({
+      sql: `UPDATE qr_send_rate_limits_sql SET last_send_at=?,updated_at=?
+        WHERE rate_key=? AND (last_send_at IS NULL OR last_send_at<=?)`,
+      args: [nowIso, nowIso, rateKey.key, new Date(now.getTime() - minGapMs).toISOString()],
+    });
+    if (reserved.rowsAffected > 0) return { allowed: true };
+    const current = await bunnyExecute({
+      sql: 'SELECT last_send_at FROM qr_send_rate_limits_sql WHERE rate_key=? LIMIT 1',
+      args: [rateKey.key],
+    });
+    const lastSendAt = current.rows[0]?.last_send_at ? new Date(String(current.rows[0].last_send_at)).getTime() : 0;
+    return { allowed: false, msSinceLastSend: Math.max(0, now.getTime() - lastSendAt) };
+  }
   await connectDB();
   const rateKey = await resolveRateLimitKey(userId);
   const { Model, filter, upsertExtra } = await getCounterDoc(rateKey);
@@ -264,6 +374,20 @@ export async function reserveSendGap(userId: string, minGapMs: number = MIN_SEND
 
 /** Read current counts without mutating — for UI/status display. */
 export async function getCurrentCounts(userId: string): Promise<{ daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number }> {
+  if (USE_BUNNY_DATABASE_ONLY) {
+    const rateKey = await resolveRateLimitKey(userId);
+    await ensureBunnyRateLimitSchema();
+    const result = await bunnyExecute({
+      sql: 'SELECT day_key, day_sent, hour_key, hour_sent FROM qr_send_rate_limits_sql WHERE rate_key=? LIMIT 1',
+      args: [rateKey.key],
+    });
+    const counter = result.rows[0];
+    const daySent = counter?.day_key === getDayKeyIST() ? Number(counter.day_sent || 0) : 0;
+    const hourSent = counter?.day_key === getDayKeyIST() && counter?.hour_key === getHourKeyIST()
+      ? Number(counter.hour_sent || 0)
+      : 0;
+    return { daySent, hourSent, dayRemaining: Math.max(0, DAILY_LIMIT - daySent), hourRemaining: Math.max(0, HOURLY_LIMIT - hourSent) };
+  }
   await connectDB();
   const rateKey = await resolveRateLimitKey(userId);
   const { Model, filter } = await getCounterDoc(rateKey);

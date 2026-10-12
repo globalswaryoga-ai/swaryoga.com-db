@@ -47,6 +47,15 @@ export async function resolveStartTime(
     .select('startTime customScheduleDates')
     .lean();
 
+  return resolveStartTimeFromSchedules(existing, requestedStart, requestedDates);
+}
+
+export function resolveStartTimeFromSchedules(
+  existing: Array<{ startTime?: string; customScheduleDates?: Array<Date | string> }>,
+  requestedStart: string,
+  requestedDates: Date[]
+): string {
+  const requestedDateSet = new Set(requestedDates.map(toIstDateStr));
   const conflictMinutes: number[] = [];
   for (const s of existing) {
     if (!Array.isArray(s.customScheduleDates) || !s.startTime) continue;

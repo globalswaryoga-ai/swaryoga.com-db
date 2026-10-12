@@ -10,8 +10,9 @@
  * and write that state, keyed by the connected phone number, via an upsert
  * so it works whether or not an account doc already exists yet.
  */
-import { connectDB } from '@/lib/db';
+import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
+import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
 
 /**
  * Same keyword-based classification `broadcastRuns.ts` uses to detect a
@@ -34,6 +35,26 @@ function normalizePhone(phoneNumber: string): string {
   return String(phoneNumber || '').replace(/[^\d]/g, '');
 }
 
+let bunnyRestrictionSchemaPromise: Promise<void> | null = null;
+
+async function ensureBunnyRestrictionSchema(): Promise<void> {
+  if (!bunnyRestrictionSchemaPromise) {
+    bunnyRestrictionSchemaPromise = bunnyBatch([{
+      sql: `CREATE TABLE IF NOT EXISTS qr_account_restrictions_sql (
+        phone_number TEXT PRIMARY KEY,
+        restricted_until TEXT NOT NULL,
+        restriction_reason TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      args: [],
+    }]).then(() => undefined).catch(error => {
+      bunnyRestrictionSchemaPromise = null;
+      throw error;
+    });
+  }
+  await bunnyRestrictionSchemaPromise;
+}
+
 /**
  * Mark a QR account as restricted for `hours` (default 24h, matching the
  * existing broadcast hard-stop). Upserts by phone number so it works even
@@ -47,9 +68,21 @@ export async function markQRAccountRestricted(
   const normalized = normalizePhone(phoneNumber);
   if (!normalized) return;
 
+  const restrictedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+  if (USE_BUNNY_DATABASE_ONLY) {
+    await ensureBunnyRestrictionSchema();
+    await bunnyExecute({
+      sql: `INSERT INTO qr_account_restrictions_sql (phone_number,restricted_until,restriction_reason,updated_at)
+        VALUES (?,?,?,?) ON CONFLICT(phone_number) DO UPDATE SET
+        restricted_until=excluded.restricted_until,restriction_reason=excluded.restriction_reason,updated_at=excluded.updated_at`,
+      args: [normalized, restrictedUntil.toISOString(), reason, new Date().toISOString()],
+    });
+    console.error(`[WhatsApp Restriction] ${normalized} marked restricted until ${restrictedUntil.toISOString()}: ${reason}`);
+    return;
+  }
+
   await connectDB();
   const WhatsAppAccount = getWhatsAppAccount();
-  const restrictedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
 
   await WhatsAppAccount.updateOne(
     { commonPhoneNumber: { $regex: `${normalized}$` } },
@@ -83,6 +116,23 @@ export type QRAccountRestriction =
 export async function getQRAccountRestriction(phoneNumber: string): Promise<QRAccountRestriction> {
   const normalized = normalizePhone(phoneNumber);
   if (!normalized) return { restricted: false };
+
+  if (USE_BUNNY_DATABASE_ONLY) {
+    await ensureBunnyRestrictionSchema();
+    const result = await bunnyExecute({
+      sql: 'SELECT restricted_until, restriction_reason FROM qr_account_restrictions_sql WHERE phone_number=? LIMIT 1',
+      args: [normalized],
+    });
+    const row = result.rows[0];
+    if (row?.restricted_until && new Date(String(row.restricted_until)).getTime() > Date.now()) {
+      return {
+        restricted: true,
+        restrictedUntil: new Date(String(row.restricted_until)),
+        reason: String(row.restriction_reason || ''),
+      };
+    }
+    return { restricted: false };
+  }
 
   await connectDB();
   const WhatsAppAccount = getWhatsAppAccount();

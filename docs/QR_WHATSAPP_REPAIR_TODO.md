@@ -69,6 +69,8 @@
 ### 3. Scheduled Group Messages
 
 - [x] Verify group schedules retain full `@g.us` JIDs.
+- [x] Persist and manage group schedules through Bunny SQL when MongoDB is disabled.
+- [x] Load the group picker through the authenticated, session-scoped QR chats API so verified groups are included without bypassing session isolation.
 - [x] Resolve the owner session using the permanent session key/tenant ID without listing all sessions.
 - [x] Correct timezone, time-window, date, carry-over, pause/resume, and recurrence handling.
 - [x] Persist per-group send results using the real WhatsApp message ID.

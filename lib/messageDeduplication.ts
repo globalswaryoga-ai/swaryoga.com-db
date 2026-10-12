@@ -1,3 +1,5 @@
+import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+
 /**
  * Message Deduplication System
  *
@@ -105,9 +107,34 @@ export async function reserveMessageSend(
   db: any
 ): Promise<{ reserved: boolean; reason?: string }> {
   try {
-    const collection = db.collection('message_dedup_log');
     const messageHash = hashMessage(messageText);
     const dayKey = getDayKey();
+    if (!db) {
+      await bunnyBatch([{
+        sql: `CREATE TABLE IF NOT EXISTS message_dedup_log_sql (
+          user_id TEXT NOT NULL,
+          chat_id TEXT NOT NULL,
+          message_hash TEXT NOT NULL,
+          message_text TEXT NOT NULL,
+          schedule_id TEXT NOT NULL,
+          sent_at TEXT NOT NULL,
+          day_key TEXT NOT NULL,
+          PRIMARY KEY(user_id, chat_id, message_hash, day_key)
+        )`,
+        args: [],
+      }]);
+      const reserved = await bunnyExecute({
+        sql: `INSERT OR IGNORE INTO message_dedup_log_sql
+          (user_id,chat_id,message_hash,message_text,schedule_id,sent_at,day_key)
+          VALUES (?,?,?,?,?,?,?)`,
+        args: [userId, chatId, messageHash, messageText, scheduleId, new Date().toISOString(), dayKey],
+      });
+      return reserved.rowsAffected > 0
+        ? { reserved: true }
+        : { reserved: false, reason: 'Message already sent or reserved today' };
+    }
+
+    const collection = db.collection('message_dedup_log');
 
     // Atomic: insert only if NOT already sent today
     const result = await collection.updateOne(

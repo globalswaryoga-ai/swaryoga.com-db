@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
-import { timeToMinutes, minutesToTime, resolveStartTime } from '@/lib/qrGroupScheduleGap';
+import { timeToMinutes, minutesToTime, resolveStartTime, resolveStartTimeFromSchedules } from '@/lib/qrGroupScheduleGap';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
+import { createBunnyQrBroadcastSchedule, listBunnyQrBroadcastSchedules } from '@/lib/bunnyQrBroadcastScheduleRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,8 +31,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
     const body = await req.json().catch(() => null);
 
     if (!body) {
@@ -70,7 +69,19 @@ export async function POST(req: NextRequest) {
     let endTime = body.endTime;
     let timeAdjusted = false;
     if (frequency === 'custom' && customScheduleDates.length > 0) {
-      const resolvedStart = await resolveStartTime(QRBroadcastSchedule, uid, undefined, body.startTime, customScheduleDates);
+      let resolvedStart: string;
+      if (USE_BUNNY_DATABASE_ONLY) {
+        const existing = await listBunnyQrBroadcastSchedules({ userId: uid, limit: 1000 });
+        resolvedStart = resolveStartTimeFromSchedules(
+          existing.filter(schedule => schedule.frequency === 'custom' && schedule.isActive !== false &&
+            ['scheduled', 'in-progress', 'paused'].includes(schedule.status)),
+          body.startTime,
+          customScheduleDates,
+        );
+      } else {
+        await connectDB();
+        resolvedStart = await resolveStartTime(getQRBroadcastSchedule(), uid, undefined, body.startTime, customScheduleDates);
+      }
       if (resolvedStart !== body.startTime) {
         const durationMin = ((timeToMinutes(body.endTime) - timeToMinutes(body.startTime)) + 1440) % 1440 || 30;
         startTime = resolvedStart;
@@ -79,7 +90,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const schedule = await QRBroadcastSchedule.create({
+    const scheduleInput = {
       userId: uid,
       tenantId: decoded?.tenantId || 'default',
       sessionKey: qrSession.sessionKey,
@@ -130,11 +141,19 @@ export async function POST(req: NextRequest) {
       firstRunDate: body.scheduledDate
         ? new Date(body.scheduledDate + 'T00:00:00+05:30') // parse as IST midnight
         : undefined,
-    });
+    };
+    let schedule: any;
+    if (USE_BUNNY_DATABASE_ONLY) {
+      schedule = await createBunnyQrBroadcastSchedule(scheduleInput);
+    } else {
+      await connectDB();
+      schedule = await getQRBroadcastSchedule().create(scheduleInput);
+      schedule = schedule.toObject();
+    }
 
     return NextResponse.json({
       success: true,
-      data: { ...schedule.toObject(), timeAdjusted, requestedStartTime: body.startTime },
+      data: { ...schedule, timeAdjusted, requestedStartTime: body.startTime },
     }, { status: 201 });
   } catch (error) {
     console.error('[QR Broadcast Schedule POST] Error:', error);
@@ -153,21 +172,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
-
     const url = new URL(req.url);
     const search = url.searchParams.get('search') || '';
     const status = url.searchParams.get('status') || '';
 
-    const filter: any = { ...ownerFilter(decoded) };
-    if (status) filter.status = status;
-    if (search) filter.name = { $regex: search, $options: 'i' };
-
-    const schedules = await QRBroadcastSchedule.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
+    let schedules: any[];
+    if (USE_BUNNY_DATABASE_ONLY) {
+      schedules = await listBunnyQrBroadcastSchedules({
+        userId: getUserId(decoded),
+        status,
+        search,
+        limit: 100,
+      });
+    } else {
+      await connectDB();
+      const filter: any = { ...ownerFilter(decoded) };
+      if (status) filter.status = status;
+      if (search) filter.name = { $regex: search, $options: 'i' };
+      schedules = await getQRBroadcastSchedule().find(filter).sort({ createdAt: -1 }).limit(100).lean();
+    }
 
     return NextResponse.json({ success: true, data: schedules });
   } catch (error) {

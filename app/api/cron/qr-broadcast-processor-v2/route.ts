@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
-import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
+import { USE_BUNNY_DATABASE_ONLY, connectDB } from '@/lib/db';
+import { getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -11,6 +11,13 @@ import { reserveSendSlot, reserveSendGap, DAILY_LIMIT, HOURLY_LIMIT } from '@/li
 import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 import { isWithinTimeWindow, shouldRunToday } from '@/lib/qrGroupScheduleTime';
 import { isWhatsAppBlockedSignal, getQRAccountRestriction, markQRAccountRestricted } from '@/lib/whatsappRestriction';
+import { upsertBunnyQrChatActivity, upsertBunnyQrMessage } from '@/lib/bunnyQrRepository';
+import {
+  claimBunnyQrBroadcastSchedule,
+  listDueBunnyQrBroadcastSchedules,
+  patchBunnyQrBroadcastSchedule,
+  releaseBunnyQrBroadcastSchedule,
+} from '@/lib/bunnyQrBroadcastScheduleRepository';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
@@ -183,18 +190,8 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
   const db = mongoose.connection.db;
   const lockExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min lock
-  const ScheduleModel = getQRBroadcastSchedule();
-  const claim = await ScheduleModel.updateOne(
-    {
-      _id: schedule._id,
-      $or: [
-        { processingLockUntil: { $exists: false } },
-        { processingLockUntil: { $lte: now } },
-      ],
-    },
-    { $set: { processingLockUntil: lockExpiry } }
-  );
-  if (!claim.modifiedCount) {
+  const claimed = await claimBunnyQrBroadcastSchedule(String(schedule._id), lockExpiry);
+  if (!claimed) {
     console.log(`[QR Broadcast V2] ⚠️ Schedule is already being processed. Skipping.`);
     return { status: 'skipped', reason: 'already_being_processed' };
   }
@@ -219,15 +216,11 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // If no connected session found for THIS user, pause — never send via another user's session
     if (!sessionInfo) {
       console.warn(`[QR Broadcast V2] ⚠️ No connected WhatsApp session for userId=${schedule.userId}. Pausing.`);
-      const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-      await QRBroadcastSchedule.updateOne(
-        { _id: schedule._id },
-        {
+      await patchBunnyQrBroadcastSchedule(String(schedule._id), {
           status: 'paused',
           lastError: 'No connected WhatsApp session — please reconnect your QR WhatsApp',
           lastErrorAt: new Date(),
-        }
-      );
+        });
       return {
         status: 'paused',
         reason: 'no_session',
@@ -244,15 +237,11 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
     if (!sessionHealth.connected) {
       console.warn(`[QR Broadcast V2] ⚠️ Session health check failed: ${sessionHealth.message}`);
-      const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-      await QRBroadcastSchedule.updateOne(
-        { _id: schedule._id },
-        {
+      await patchBunnyQrBroadcastSchedule(String(schedule._id), {
           status: 'paused',
           lastError: 'Auto-signout detected - pausing to reconnect',
           lastErrorAt: new Date(),
-        }
-      );
+        });
       return {
         status: 'paused',
         reason: 'auto_signout_detected',
@@ -289,7 +278,8 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       }
     }
 
-    const QRBroadcastScheduleModel = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
+    const QRBroadcastScheduleModel = { updateOne: (_filter: unknown, update: Record<string, any>) =>
+      patchBunnyQrBroadcastSchedule(String(schedule._id), update) };
 
     const isRecurring = schedule.frequency !== 'once';
 
@@ -423,10 +413,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
         if (!heartbeat.alive) {
           console.error('[QR Broadcast V2] 🚨 Session lost during broadcast. Pausing.');
-          const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-          await QRBroadcastSchedule.updateOne(
-            { _id: schedule._id },
-            {
+          await patchBunnyQrBroadcastSchedule(String(schedule._id), {
               status: 'paused',
               lastError: 'Auto-signout during broadcast - pausing to reconnect',
               lastErrorAt: new Date(),
@@ -434,8 +421,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
               'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
               'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
               'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
-            }
-          );
+            });
           return {
             status: 'paused',
             reason: 'auto_signout_during_broadcast',
@@ -472,7 +458,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         };
         const capUpdateOp: any = { $set: update };
         if (newlySentIds.length > 0) capUpdateOp.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
-        await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, capUpdateOp);
+        await patchBunnyQrBroadcastSchedule(String(schedule._id), capUpdateOp);
         console.log(`[QR Broadcast V2] 🛑 ${slot.reason} reached for user=${schedule.userId}. ${sent} sent this tick. ${pending.length - newlySentIds.length} carry over.`);
         return {
           status: 'rate_capped',
@@ -505,7 +491,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         };
         const gapUpdateOp: any = { $set: update };
         if (newlySentIds.length > 0) gapUpdateOp.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
-        await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, gapUpdateOp);
+        await patchBunnyQrBroadcastSchedule(String(schedule._id), gapUpdateOp);
         return {
           status: 'gap_wait',
           reason: 'min_gap_guard',
@@ -535,10 +521,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       // ── HARD STOP on WhatsApp restriction signal ──
       if (result.restricted) {
         console.error(`[QR Broadcast V2] 🚨 WhatsApp restriction detected — aborting schedule to protect number`);
-        const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-        await QRBroadcastSchedule.updateOne(
-          { _id: schedule._id },
-          {
+        await patchBunnyQrBroadcastSchedule(String(schedule._id), {
             status: 'paused',
             isActive: false, // disable until human investigates
             lastError: `WhatsApp restricted the account: "${result.error}". Stop broadcasting for 24h.`,
@@ -547,8 +530,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
             'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
             'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed + 1,
             'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
-          }
-        );
+          });
         // Record the ban account-wide (shared with Merge Groups' own preflight
         // check via lib/whatsappRestriction.ts) — previously this hard-stop only
         // paused THIS schedule, leaving the number's restricted state invisible
@@ -585,22 +567,17 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         console.log(
           `[QR Broadcast V2] ✓ ${i + 1}/${recipients.length} sent (gap: ${(gap / 1000).toFixed(1)}s)`
         );
-        // Save directly to qr_whatsapp_messages (the collection the history/stats page reads).
-        // The bridge webhook also saves here when it fires, but this guarantees the record
-        // exists even if the webhook misfires or the phone isn't yet hydrated on the bridge.
+        // Persist locally even when the bridge webhook misses this send.
         try {
           const chatJid = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@s.whatsapp.net`;
           const hasMedia = Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0;
-          const QrMsg = getQrWhatsAppMessage();
           // Use the REAL bridge message id when available so status_update webhooks
           // (delivered/read/failed) can match this record by messageId. Falls back to
           // a synthetic id only if the bridge didn't return one.
           const msgId = result.waMessageId || `broadcast-${schedule._id}-${chatId.replace(/\D/g, '')}-${Date.now()}`;
           if (connectedPhone) {
-            await QrMsg.updateOne(
-              { userId: schedule.userId, connectedPhone, messageId: msgId, chatJid },
-              {
-                $set: {
+            const now = new Date();
+            const messageRecord = {
                   userId: schedule.userId,
                   connectedPhone,
                   chatJid,
@@ -611,18 +588,26 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
                   type: hasMedia ? 'image' : 'text',
                   participant: '',
                   pushName: '',
-                  timestamp: Math.floor(Date.now() / 1000),
+                  timestamp: Math.floor(now.getTime() / 1000),
                   status: 1, // sent
                   hasMedia,
                   mediaUrl: hasMedia ? schedule.mediaUrls[0] : '',
                   mediaMimetype: '',
                   mediaFileName: '',
                   metadata: { sessionKey: sessionInfo.sessionKey, tenantId: sessionInfo.tenantId, scheduleId: String(schedule._id) },
-                },
-                $setOnInsert: { createdAt: new Date() },
-              },
-              { upsert: true }
-            );
+                  createdAt: now,
+                  updatedAt: now,
+            };
+            if (USE_BUNNY_DATABASE_ONLY) {
+              await upsertBunnyQrMessage(messageRecord);
+            } else {
+              const { createdAt, ...messageUpdate } = messageRecord;
+              await getQrWhatsAppMessage().updateOne(
+                { userId: schedule.userId, connectedPhone, messageId: msgId, chatJid },
+                { $set: messageUpdate, $setOnInsert: { createdAt } },
+                { upsert: true }
+              );
+            }
 
             // Also upsert qr_whatsapp_chats so this group/chat's last-activity
             // date in the inbox reflects this broadcast — without this, groups
@@ -631,25 +616,36 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
             // own tenant (schedule.userId) — never touch another tenant's chat
             // record even if they share the same connectedPhone.
             try {
-              const QrChat = getQrWhatsAppChat();
-              const nowSeconds = Math.floor(Date.now() / 1000);
-              await QrChat.findOneAndUpdate(
-                { userId: schedule.userId, connectedPhone, chatJid },
-                {
-                  $set: {
+              const nowSeconds = Math.floor(now.getTime() / 1000);
+              const chatRecord = {
                     userId: schedule.userId,
                     connectedPhone,
                     chatJid,
                     isGroup: chatJid.endsWith('@g.us'),
                     lastMessage: schedule.messageText || (hasMedia ? '[media]' : ''),
-                    lastMessageTime: new Date(),
+                    lastMessageTime: now,
                     lastMessageFromMe: true,
                     conversationTimestamp: nowSeconds,
+                    name: chatId,
+                    pinned: false,
+                    archived: false,
+                    profilePicUrl: '',
+                    unreadCount: 0,
+                    createdAt: now,
+                    updatedAt: now,
+              };
+              if (USE_BUNNY_DATABASE_ONLY) {
+                await upsertBunnyQrChatActivity(chatRecord);
+              } else {
+                await getQrWhatsAppChat().findOneAndUpdate(
+                  { userId: schedule.userId, connectedPhone, chatJid },
+                  {
+                    $set: chatRecord,
+                    $setOnInsert: { name: chatId, pinned: false, archived: false, profilePicUrl: '', unreadCount: 0, createdAt: now },
                   },
-                  $setOnInsert: { name: chatId, pinned: false, archived: false, profilePicUrl: '', unreadCount: 0, createdAt: new Date() },
-                },
-                { upsert: true }
-              );
+                  { upsert: true }
+                );
+              }
             } catch (chatErr) {
               console.warn(`[QR Broadcast V2] Warning: Failed to update qr_whatsapp_chats:`, chatErr instanceof Error ? chatErr.message : String(chatErr));
             }
@@ -707,7 +703,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     };
     if (newlySentIds.length > 0) finalUpdate.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
 
-    await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, finalUpdate);
+    await patchBunnyQrBroadcastSchedule(String(schedule._id), finalUpdate);
 
     const remaining = allRecipients.length - totalDoneNow;
     console.log(`[QR Broadcast V2] ${allDone ? '✅ COMPLETE' : '⏳ Drip tick done'}: ${sent} sent, ${skipped} dup, ${failed} failed. ${remaining} pending of ${allRecipients.length}.`);
@@ -730,22 +726,22 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // retries instead of permanently parking it as 'failed'.
     const isTransient = (error as any)?.code === 11000 || /E11000/.test(errMsg);
 
-    const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-    await QRBroadcastSchedule.updateOne(
-      { _id: schedule._id },
-      {
+    await patchBunnyQrBroadcastSchedule(String(schedule._id), {
         ...(isTransient ? {} : { status: 'failed', lastRunDate: new Date() }), // prevent infinite retry on real errors only
         lastError: errMsg,
         lastErrorAt: new Date(),
-      }
-    );
+      });
 
     return {
       status: isTransient ? 'retry' : 'error',
       error: errMsg,
     };
   } finally {
-    await ScheduleModel.updateOne({ _id: schedule._id }, { $unset: { processingLockUntil: 1 } }).catch(() => {});
+    try {
+      await releaseBunnyQrBroadcastSchedule(String(schedule._id));
+    } catch (releaseError) {
+      console.error(`[QR Broadcast V2] Failed to release schedule lock for ${schedule._id}:`, releaseError);
+    }
   }
 }
 
@@ -766,24 +762,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    const QRBroadcastSchedule = getQRBroadcastSchedule();
-
     const { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } = await import('@/lib/whatsappBridgeConfig');
     const bridgeUrl = getWhatsAppBridgeUrl();
     const bridgeSecret = getWhatsAppBridgeSecret();
 
     // Find active schedules — include draft, scheduled, in-progress, paused
     // Draft = newly created and ready to send, Paused = auto-paused (session lost), etc.
-    const schedules = await QRBroadcastSchedule.find({
-      isActive: true,
-      status: { $in: ['draft', 'scheduled', 'in-progress', 'paused'] },
-    });
+    let schedules: any[];
+    if (USE_BUNNY_DATABASE_ONLY) {
+      schedules = await listDueBunnyQrBroadcastSchedules();
+    } else {
+      await connectDB();
+      const { getQRBroadcastSchedule } = await import('@/lib/schemas/enterpriseSchemas');
+      schedules = await getQRBroadcastSchedule().find({
+        isActive: true,
+        status: { $in: ['draft', 'scheduled', 'in-progress', 'paused'] },
+      });
+    }
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);
 
-    if (schedules.length === 0) {
+    if (schedules.length === 0 && !USE_BUNNY_DATABASE_ONLY) {
       // Debug: check why no schedules found
+      const QRBroadcastSchedule = (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule();
       const allCount = await QRBroadcastSchedule.countDocuments({});
       const inactiveCount = await QRBroadcastSchedule.countDocuments({ isActive: false });
       const badStatusCount = await QRBroadcastSchedule.countDocuments({
