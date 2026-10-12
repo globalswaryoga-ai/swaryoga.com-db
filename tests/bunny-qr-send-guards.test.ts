@@ -1,5 +1,5 @@
 jest.mock('@/lib/db', () => ({
-  USE_BUNNY_DATABASE_ONLY: true,
+  USE_BUNNY_DATABASE_ONLY: false,
   connectDB: jest.fn(),
 }));
 
@@ -15,8 +15,9 @@ jest.mock('@/lib/bunnyCrmSettings', () => ({
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { reserveSendSlot, reserveSendGap } from '@/lib/qrSendRateLimit';
 import { getQRAccountRestriction, markQRAccountRestricted } from '@/lib/whatsappRestriction';
+import { connectDB } from '@/lib/db';
 
-describe('Bunny-only QR send guards', () => {
+describe('Bunny-backed QR scheduler send guards', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('atomically reserves a per-phone message slot in Bunny SQL', async () => {
@@ -27,13 +28,14 @@ describe('Bunny-only QR send guards', () => {
       return { rows: [], rowsAffected: statement.sql.includes('day_sent=day_sent+1') ? 1 : 0 } as never;
     });
 
-    const result = await reserveSendSlot('tenant-1');
+    const result = await reserveSendSlot('tenant-1', true);
 
     expect(result).toMatchObject({ allowed: true, daySent: 1, hourSent: 1 });
     expect(jest.mocked(bunnyExecute)).toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining('day_sent=day_sent+1'),
       args: expect.arrayContaining(['phone:919876543210']),
     }));
+    expect(connectDB).not.toHaveBeenCalled();
   });
 
   it('reserves a global per-phone send gap in Bunny SQL', async () => {
@@ -42,7 +44,7 @@ describe('Bunny-only QR send guards', () => {
       rowsAffected: statement.sql.includes('last_send_at=?') ? 1 : 0,
     }) as never);
 
-    await expect(reserveSendGap('tenant-1')).resolves.toEqual({ allowed: true });
+    await expect(reserveSendGap('tenant-1', undefined, true)).resolves.toEqual({ allowed: true });
     expect(jest.mocked(bunnyExecute)).toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining('last_send_at IS NULL OR last_send_at<=?'),
       args: expect.arrayContaining(['phone:919876543210']),
@@ -57,8 +59,8 @@ describe('Bunny-only QR send guards', () => {
       rowsAffected: 1,
     }) as never);
 
-    await markQRAccountRestricted('+91 98765 43210', 'provider restriction');
-    await expect(getQRAccountRestriction('919876543210')).resolves.toMatchObject({
+    await markQRAccountRestricted('+91 98765 43210', 'provider restriction', 24, true);
+    await expect(getQRAccountRestriction('919876543210', true)).resolves.toMatchObject({
       restricted: true,
       reason: 'provider restriction',
     });

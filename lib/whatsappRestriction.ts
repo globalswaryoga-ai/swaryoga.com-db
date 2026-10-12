@@ -63,13 +63,14 @@ async function ensureBunnyRestrictionSchema(): Promise<void> {
 export async function markQRAccountRestricted(
   phoneNumber: string,
   reason: string,
-  hours = 24
+  hours = 24,
+  useBunny = USE_BUNNY_DATABASE_ONLY
 ): Promise<void> {
   const normalized = normalizePhone(phoneNumber);
   if (!normalized) return;
 
   const restrictedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
-  if (USE_BUNNY_DATABASE_ONLY) {
+  if (useBunny) {
     await ensureBunnyRestrictionSchema();
     await bunnyExecute({
       sql: `INSERT INTO qr_account_restrictions_sql (phone_number,restricted_until,restriction_reason,updated_at)
@@ -113,11 +114,14 @@ export type QRAccountRestriction =
   | { restricted: true; restrictedUntil: Date; reason?: string };
 
 /** Check whether a QR account is currently within an active restriction window. */
-export async function getQRAccountRestriction(phoneNumber: string): Promise<QRAccountRestriction> {
+export async function getQRAccountRestriction(
+  phoneNumber: string,
+  useBunny = USE_BUNNY_DATABASE_ONLY
+): Promise<QRAccountRestriction> {
   const normalized = normalizePhone(phoneNumber);
   if (!normalized) return { restricted: false };
 
-  if (USE_BUNNY_DATABASE_ONLY) {
+  if (useBunny) {
     await ensureBunnyRestrictionSchema();
     const result = await bunnyExecute({
       sql: 'SELECT restricted_until, restriction_reason FROM qr_account_restrictions_sql WHERE phone_number=? LIMIT 1',

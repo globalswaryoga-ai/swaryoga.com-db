@@ -95,8 +95,8 @@ function getNextHour(now = new Date()): Date {
 }
 
 /** Resolve a userId's connected WhatsApp number, and a stable rate-limit key for it. */
-async function resolveRateLimitKey(userId: string): Promise<{ key: string; isPhoneKeyed: boolean }> {
-  if (USE_BUNNY_DATABASE_ONLY) {
+async function resolveRateLimitKey(userId: string, useBunny = USE_BUNNY_DATABASE_ONLY): Promise<{ key: string; isPhoneKeyed: boolean }> {
+  if (useBunny) {
     const settings = await getBunnyCrmUserSettings(userId);
     const digits = String(settings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
     if (digits) return { key: `phone:${digits}`, isPhoneKeyed: true };
@@ -132,9 +132,9 @@ async function getCounterDoc(rateKey: { key: string; isPhoneKeyed: boolean }) {
  * Check (without incrementing) whether one more send is allowed for this user.
  * Use this before queuing a broadcast — gives a clear yes/no plus current counts.
  */
-export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
-  if (USE_BUNNY_DATABASE_ONLY) {
-    const rateKey = await resolveRateLimitKey(userId);
+export async function checkRateLimit(userId: string, useBunny = USE_BUNNY_DATABASE_ONLY): Promise<RateCheckResult> {
+  if (useBunny) {
+    const rateKey = await resolveRateLimitKey(userId, useBunny);
     await ensureBunnyRateLimitSchema();
     const result = await bunnyExecute({
       sql: 'SELECT day_key, day_sent, hour_key, hour_sent FROM qr_send_rate_limits_sql WHERE rate_key = ? LIMIT 1',
@@ -181,9 +181,9 @@ export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
  * AND the post-reservation counts. Call this immediately before each send.
  * If it returns allowed:false, DO NOT send — the cap is hit.
  */
-export async function reserveSendSlot(userId: string): Promise<RateCheckResult> {
-  if (USE_BUNNY_DATABASE_ONLY) {
-    const rateKey = await resolveRateLimitKey(userId);
+export async function reserveSendSlot(userId: string, useBunny = USE_BUNNY_DATABASE_ONLY): Promise<RateCheckResult> {
+  if (useBunny) {
+    const rateKey = await resolveRateLimitKey(userId, useBunny);
     await ensureBunnyRateLimitSchema();
     const dayKey = getDayKeyIST();
     const hourKey = getHourKeyIST();
@@ -312,9 +312,13 @@ export type GapCheckResult =
  * pattern that's a well-known WhatsApp spam-detection trigger. Call this
  * right alongside reserveSendSlot, immediately before the actual bridge send.
  */
-export async function reserveSendGap(userId: string, minGapMs: number = MIN_SEND_GAP_MS): Promise<GapCheckResult> {
-  if (USE_BUNNY_DATABASE_ONLY) {
-    const rateKey = await resolveRateLimitKey(userId);
+export async function reserveSendGap(
+  userId: string,
+  minGapMs: number = MIN_SEND_GAP_MS,
+  useBunny = USE_BUNNY_DATABASE_ONLY,
+): Promise<GapCheckResult> {
+  if (useBunny) {
+    const rateKey = await resolveRateLimitKey(userId, useBunny);
     await ensureBunnyRateLimitSchema();
     const now = new Date();
     const nowIso = now.toISOString();

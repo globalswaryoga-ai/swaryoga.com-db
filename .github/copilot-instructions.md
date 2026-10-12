@@ -171,6 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### QR Group Scheduler Hybrid-Mode Buffering Fix (Session: October 12, 2026) — Commit `pending`
+
+- QR group schedule create/list/edit/pause/resume and cron schedule reads now use Bunny SQL regardless of `USE_BUNNY_DATABASE_ONLY`; hybrid configuration can no longer route the schedule collection through unconnected Mongoose.
+- The QR scheduler processor also uses Bunny SQL for message dedup reservations, persisted send caps/gaps, account restrictions and outbound chat/message history, preserving its safeguards when MongoDB is unavailable.
+- Schedule statistics now aggregate the Bunny dedup table after checking schedule ownership; the obsolete Mongo-backed processor endpoint returns 410 and directs callers to the configured Bunny v2 worker.
+- Removed the unused Mongo schedule-gap helper. Validation: 11 focused tests across six suites pass, changed-file diagnostics and `git diff --check` are clean, and the production build generates all 473 pages. Build output still shows the unrelated `sadhana_schedules.findOne()` timeout.
+
 ### QR Group Schedule Creation Bunny SQL Repair (Session: October 12, 2026) — Commit `892e2ec1`
 
 - Root cause: production runs with MongoDB disabled, while QR schedule create/list/edit/pause/resume still called the Mongoose schedule model; the group-date collision lookup therefore buffered and timed out before creation.

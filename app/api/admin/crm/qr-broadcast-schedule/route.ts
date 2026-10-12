@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, USE_BUNNY_DATABASE_ONLY } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
-import { timeToMinutes, minutesToTime, resolveStartTime, resolveStartTimeFromSchedules } from '@/lib/qrGroupScheduleGap';
+import { timeToMinutes, minutesToTime, resolveStartTimeFromSchedules } from '@/lib/qrGroupScheduleGap';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 import { createBunnyQrBroadcastSchedule, listBunnyQrBroadcastSchedules } from '@/lib/bunnyQrBroadcastScheduleRepository';
@@ -12,13 +10,6 @@ export const dynamic = 'force-dynamic';
 /** Get consistent user ID from token (handles both admin and regular tokens) */
 function getUserId(decoded: any): string {
   return decoded?.userId || decoded?.username || decoded?.id || 'admin';
-}
-
-/** Build filter for finding schedules owned by this user */
-function ownerFilter(decoded: any) {
-  const uid = getUserId(decoded);
-  // Match by userId OR createdBy — covers both creation paths
-  return { $or: [{ userId: uid }, { createdBy: uid }] };
 }
 
 export async function POST(req: NextRequest) {
@@ -70,18 +61,13 @@ export async function POST(req: NextRequest) {
     let timeAdjusted = false;
     if (frequency === 'custom' && customScheduleDates.length > 0) {
       let resolvedStart: string;
-      if (USE_BUNNY_DATABASE_ONLY) {
-        const existing = await listBunnyQrBroadcastSchedules({ userId: uid, limit: 1000 });
-        resolvedStart = resolveStartTimeFromSchedules(
-          existing.filter(schedule => schedule.frequency === 'custom' && schedule.isActive !== false &&
-            ['scheduled', 'in-progress', 'paused'].includes(schedule.status)),
-          body.startTime,
-          customScheduleDates,
-        );
-      } else {
-        await connectDB();
-        resolvedStart = await resolveStartTime(getQRBroadcastSchedule(), uid, undefined, body.startTime, customScheduleDates);
-      }
+      const existing = await listBunnyQrBroadcastSchedules({ userId: uid, limit: 1000 });
+      resolvedStart = resolveStartTimeFromSchedules(
+        existing.filter(schedule => schedule.frequency === 'custom' && schedule.isActive !== false &&
+          ['scheduled', 'in-progress', 'paused'].includes(schedule.status)),
+        body.startTime,
+        customScheduleDates,
+      );
       if (resolvedStart !== body.startTime) {
         const durationMin = ((timeToMinutes(body.endTime) - timeToMinutes(body.startTime)) + 1440) % 1440 || 30;
         startTime = resolvedStart;
@@ -142,14 +128,7 @@ export async function POST(req: NextRequest) {
         ? new Date(body.scheduledDate + 'T00:00:00+05:30') // parse as IST midnight
         : undefined,
     };
-    let schedule: any;
-    if (USE_BUNNY_DATABASE_ONLY) {
-      schedule = await createBunnyQrBroadcastSchedule(scheduleInput);
-    } else {
-      await connectDB();
-      schedule = await getQRBroadcastSchedule().create(scheduleInput);
-      schedule = schedule.toObject();
-    }
+    const schedule = await createBunnyQrBroadcastSchedule(scheduleInput);
 
     return NextResponse.json({
       success: true,
@@ -176,21 +155,12 @@ export async function GET(req: NextRequest) {
     const search = url.searchParams.get('search') || '';
     const status = url.searchParams.get('status') || '';
 
-    let schedules: any[];
-    if (USE_BUNNY_DATABASE_ONLY) {
-      schedules = await listBunnyQrBroadcastSchedules({
-        userId: getUserId(decoded),
-        status,
-        search,
-        limit: 100,
-      });
-    } else {
-      await connectDB();
-      const filter: any = { ...ownerFilter(decoded) };
-      if (status) filter.status = status;
-      if (search) filter.name = { $regex: search, $options: 'i' };
-      schedules = await getQRBroadcastSchedule().find(filter).sort({ createdAt: -1 }).limit(100).lean();
-    }
+    const schedules = await listBunnyQrBroadcastSchedules({
+      userId: getUserId(decoded),
+      status,
+      search,
+      limit: 100,
+    });
 
     return NextResponse.json({ success: true, data: schedules });
   } catch (error) {

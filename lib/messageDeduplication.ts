@@ -8,7 +8,7 @@ import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
  * 2. Duplicate messages from being sent
  * 3. User receiving same message content twice
  *
- * Solution: Track sent messages in MongoDB with date key
+ * Scheduler sends can track reservations in Bunny SQL when no Mongo database is supplied.
  */
 
 interface MessageRecord {
@@ -50,6 +50,77 @@ export function getDayKey(date: Date = new Date()): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+let bunnyDedupSchemaPromise: Promise<void> | null = null;
+
+async function ensureBunnyDedupSchema(): Promise<void> {
+  if (!bunnyDedupSchemaPromise) {
+    bunnyDedupSchemaPromise = bunnyBatch([
+      {
+        sql: `CREATE TABLE IF NOT EXISTS message_dedup_log_sql (
+          user_id TEXT NOT NULL,
+          chat_id TEXT NOT NULL,
+          message_hash TEXT NOT NULL,
+          message_text TEXT NOT NULL,
+          schedule_id TEXT NOT NULL,
+          sent_at TEXT NOT NULL,
+          day_key TEXT NOT NULL,
+          PRIMARY KEY(user_id, chat_id, message_hash, day_key)
+        )`,
+        args: [],
+      },
+      {
+        sql: 'CREATE INDEX IF NOT EXISTS idx_message_dedup_schedule_sent ON message_dedup_log_sql(schedule_id, sent_at)',
+        args: [],
+      },
+    ]).then(() => undefined).catch(error => {
+      bunnyDedupSchemaPromise = null;
+      throw error;
+    });
+  }
+
+  await bunnyDedupSchemaPromise;
+}
+
+export async function getBunnyMessageDedupStats(
+  scheduleId: string,
+  now: Date = new Date(),
+): Promise<{
+  totalSent: number;
+  totalUniqueRecipients: number;
+  todaySent: number;
+  todayUniqueRecipients: number;
+  weekSent: number;
+  weekUniqueRecipients: number;
+  lastMessageAt: string | null;
+}> {
+  await ensureBunnyDedupSchema();
+  const todayKey = getDayKey(now);
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const result = await bunnyExecute({
+    sql: `SELECT
+        COUNT(*) AS totalSent,
+        COUNT(DISTINCT chat_id) AS totalUniqueRecipients,
+        SUM(CASE WHEN day_key = ? THEN 1 ELSE 0 END) AS todaySent,
+        COUNT(DISTINCT CASE WHEN day_key = ? THEN chat_id END) AS todayUniqueRecipients,
+        SUM(CASE WHEN sent_at >= ? THEN 1 ELSE 0 END) AS weekSent,
+        COUNT(DISTINCT CASE WHEN sent_at >= ? THEN chat_id END) AS weekUniqueRecipients,
+        MAX(sent_at) AS lastMessageAt
+      FROM message_dedup_log_sql
+      WHERE schedule_id = ?`,
+    args: [todayKey, todayKey, weekAgo, weekAgo, scheduleId],
+  });
+  const row = result.rows[0] || {};
+  return {
+    totalSent: Number(row.totalSent || 0),
+    totalUniqueRecipients: Number(row.totalUniqueRecipients || 0),
+    todaySent: Number(row.todaySent || 0),
+    todayUniqueRecipients: Number(row.todayUniqueRecipients || 0),
+    weekSent: Number(row.weekSent || 0),
+    weekUniqueRecipients: Number(row.weekUniqueRecipients || 0),
+    lastMessageAt: row.lastMessageAt ? String(row.lastMessageAt) : null,
+  };
 }
 
 /**
@@ -110,19 +181,7 @@ export async function reserveMessageSend(
     const messageHash = hashMessage(messageText);
     const dayKey = getDayKey();
     if (!db) {
-      await bunnyBatch([{
-        sql: `CREATE TABLE IF NOT EXISTS message_dedup_log_sql (
-          user_id TEXT NOT NULL,
-          chat_id TEXT NOT NULL,
-          message_hash TEXT NOT NULL,
-          message_text TEXT NOT NULL,
-          schedule_id TEXT NOT NULL,
-          sent_at TEXT NOT NULL,
-          day_key TEXT NOT NULL,
-          PRIMARY KEY(user_id, chat_id, message_hash, day_key)
-        )`,
-        args: [],
-      }]);
+      await ensureBunnyDedupSchema();
       const reserved = await bunnyExecute({
         sql: `INSERT OR IGNORE INTO message_dedup_log_sql
           (user_id,chat_id,message_hash,message_text,schedule_id,sent_at,day_key)

@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { USE_BUNNY_DATABASE_ONLY, connectDB } from '@/lib/db';
-import { getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -188,7 +185,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
   console.log(`  Current time (IST): ${currentTimeStr}, Window: ${schedule.startTime}-${schedule.endTime}, Freq: ${schedule.frequency}, isActive: ${schedule.isActive}`);
 
-  const db = mongoose.connection.db;
+  const db = null;
   const lockExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min lock
   const claimed = await claimBunnyQrBroadcastSchedule(String(schedule._id), lockExpiry);
   if (!claimed) {
@@ -267,7 +264,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // getting hit every tick. Go quiet for the same window everything else
     // already respects, without touching nextSendAt/counters.
     if (connectedPhone) {
-      const restriction = await getQRAccountRestriction(connectedPhone);
+      const restriction = await getQRAccountRestriction(connectedPhone, true);
       if (restriction.restricted) {
         console.warn(`[QR Broadcast V2] 🚫 ${connectedPhone} is WhatsApp-restricted until ${restriction.restrictedUntil.toISOString()} — skipping.`);
         return {
@@ -394,7 +391,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     let heartbeatCheckCounter = 0;
 
     // Get database for deduplication
-    const db = mongoose.connection.db;
+    const db = null;
 
     // Send this tick's recipient (real spacing comes from the randomized nextSendAt gap)
     for (let i = 0; i < recipients.length; i++) {
@@ -442,7 +439,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       // (hourly cap → next hour, daily cap → 5 AM IST). The carry-over cursor
       // (sentRecipientChatIds) preserves exactly who still needs the message,
       // so the remainder is sent on following ticks/days — nothing is dropped.
-      const slot = await reserveSendSlot(schedule.userId);
+      const slot = await reserveSendSlot(schedule.userId, true);
       if (!slot.allowed) {
         // Persist anyone already sent in this tick before we stop.
         const update: any = {
@@ -479,7 +476,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       // into different groups — each schedule's own ~15min nextSendAt pacing
       // only coordinates against itself. This is a shared floor (default 60s)
       // between ANY two sends on the same number, regardless of which schedule.
-      const gapSlot = await reserveSendGap(schedule.userId);
+      const gapSlot = await reserveSendGap(schedule.userId, undefined, true);
       if (!gapSlot.allowed) {
         console.log(`[QR Broadcast V2] ⏳ Min-gap guard: another schedule on this number sent ${gapSlot.msSinceLastSend}ms ago. Deferring to next tick.`);
         const update: any = {
@@ -537,7 +534,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         // to every other feature that touches it.
         if (connectedPhone) {
           try {
-            await markQRAccountRestricted(connectedPhone, `Group/broadcast scheduler blocked by WhatsApp: ${result.error}`);
+            await markQRAccountRestricted(connectedPhone, `Group/broadcast scheduler blocked by WhatsApp: ${result.error}`, 24, true);
           } catch (markErr) {
             console.warn('[QR Broadcast V2] Failed to record account-level restriction:', markErr);
           }
@@ -598,16 +595,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
                   createdAt: now,
                   updatedAt: now,
             };
-            if (USE_BUNNY_DATABASE_ONLY) {
-              await upsertBunnyQrMessage(messageRecord);
-            } else {
-              const { createdAt, ...messageUpdate } = messageRecord;
-              await getQrWhatsAppMessage().updateOne(
-                { userId: schedule.userId, connectedPhone, messageId: msgId, chatJid },
-                { $set: messageUpdate, $setOnInsert: { createdAt } },
-                { upsert: true }
-              );
-            }
+            await upsertBunnyQrMessage(messageRecord);
 
             // Also upsert qr_whatsapp_chats so this group/chat's last-activity
             // date in the inbox reflects this broadcast — without this, groups
@@ -634,18 +622,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
                     createdAt: now,
                     updatedAt: now,
               };
-              if (USE_BUNNY_DATABASE_ONLY) {
-                await upsertBunnyQrChatActivity(chatRecord);
-              } else {
-                await getQrWhatsAppChat().findOneAndUpdate(
-                  { userId: schedule.userId, connectedPhone, chatJid },
-                  {
-                    $set: chatRecord,
-                    $setOnInsert: { name: chatId, pinned: false, archived: false, profilePicUrl: '', unreadCount: 0, createdAt: now },
-                  },
-                  { upsert: true }
-                );
-              }
+              await upsertBunnyQrChatActivity(chatRecord);
             } catch (chatErr) {
               console.warn(`[QR Broadcast V2] Warning: Failed to update qr_whatsapp_chats:`, chatErr instanceof Error ? chatErr.message : String(chatErr));
             }
@@ -768,31 +745,9 @@ export async function GET(req: NextRequest) {
 
     // Find active schedules — include draft, scheduled, in-progress, paused
     // Draft = newly created and ready to send, Paused = auto-paused (session lost), etc.
-    let schedules: any[];
-    if (USE_BUNNY_DATABASE_ONLY) {
-      schedules = await listDueBunnyQrBroadcastSchedules();
-    } else {
-      await connectDB();
-      const { getQRBroadcastSchedule } = await import('@/lib/schemas/enterpriseSchemas');
-      schedules = await getQRBroadcastSchedule().find({
-        isActive: true,
-        status: { $in: ['draft', 'scheduled', 'in-progress', 'paused'] },
-      });
-    }
+    const schedules = await listDueBunnyQrBroadcastSchedules();
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);
-
-    if (schedules.length === 0 && !USE_BUNNY_DATABASE_ONLY) {
-      // Debug: check why no schedules found
-      const QRBroadcastSchedule = (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule();
-      const allCount = await QRBroadcastSchedule.countDocuments({});
-      const inactiveCount = await QRBroadcastSchedule.countDocuments({ isActive: false });
-      const badStatusCount = await QRBroadcastSchedule.countDocuments({
-        isActive: true,
-        status: { $nin: ['draft', 'scheduled', 'in-progress', 'paused'] },
-      });
-      console.log(`[QR Broadcast V2] Debug: Total=${allCount}, Inactive=${inactiveCount}, BadStatus=${badStatusCount}`);
-    }
 
     // ── GLOBAL TIME GUARD: Never send QR messages after 10:30 PM or before 5:00 AM IST ──
     // Previously 'custom' frequency schedules (Group Scheduler — recurring

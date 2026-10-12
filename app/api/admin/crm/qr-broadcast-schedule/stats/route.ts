@@ -1,21 +1,13 @@
-/**
- * GET /api/admin/crm/qr-broadcast-schedule/stats?scheduleId=xxx
- *
- * Returns statistics for a QR broadcast schedule:
- * - Total recipients
- * - Messages sent today
- * - Messages sent this week
- * - Messages sent overall
- * - Failed count
- * - Pending count
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getDayKey } from '@/lib/messageDeduplication';
+import { getBunnyQrBroadcastSchedule } from '@/lib/bunnyQrBroadcastScheduleRepository';
+import { getBunnyMessageDedupStats } from '@/lib/messageDeduplication';
 
 export const dynamic = 'force-dynamic';
+
+function getUserId(decoded: any): string | null {
+  return decoded?.userId || decoded?.username || decoded?.id || null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,56 +19,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const url = new URL(req.url);
-    const scheduleId = url.searchParams.get('scheduleId');
-
+    const scheduleId = new URL(req.url).searchParams.get('scheduleId');
     if (!scheduleId) {
       return NextResponse.json({ error: 'scheduleId parameter required' }, { status: 400 });
     }
 
-    await connectDB();
+    const userId = getUserId(decoded);
+    if (!userId) return NextResponse.json({ error: 'Admin identity required' }, { status: 403 });
 
-    // Get MongoDB connection using native driver
-    const mongoose = await import('mongoose');
-    const connection = mongoose.connection;
-    const mongoDb = connection.getClient().db();
+    const schedule = await getBunnyQrBroadcastSchedule(scheduleId, userId);
+    if (!schedule) return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
 
-    const dedupCollection = mongoDb.collection('message_dedup_log');
-
-    const today = new Date();
-    const todayKey = getDayKey(today);
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    // Get messages sent for this schedule
-    const allMessages = await dedupCollection
-      .find({ scheduleId })
-      .toArray();
-
-    const todayMessages = allMessages.filter(m => m.dayKey === todayKey);
-    const weekMessages = allMessages.filter(m => {
-      const msgDate = new Date(m.sentAt);
-      return msgDate >= weekAgo && msgDate <= today;
-    });
-
-    // Count unique recipients and messages
-    const totalChats = new Set(allMessages.map(m => m.chatId)).size;
-    const todayChats = new Set(todayMessages.map(m => m.chatId)).size;
-    const weekChats = new Set(weekMessages.map(m => m.chatId)).size;
-
-    return NextResponse.json({
-      success: true,
-      stats: {
-        totalSent: allMessages.length,
-        totalUniqueRecipients: totalChats,
-        todaySent: todayMessages.length,
-        todayUniqueRecipients: todayChats,
-        weekSent: weekMessages.length,
-        weekUniqueRecipients: weekChats,
-        lastMessageAt: allMessages.length > 0
-          ? new Date(Math.max(...allMessages.map(m => new Date(m.sentAt).getTime())))
-          : null,
-      }
-    });
+    const stats = await getBunnyMessageDedupStats(scheduleId);
+    return NextResponse.json({ success: true, stats });
   } catch (error) {
     console.error('[QR Broadcast Stats]', error);
     const msg = error instanceof Error ? error.message : 'Internal server error';

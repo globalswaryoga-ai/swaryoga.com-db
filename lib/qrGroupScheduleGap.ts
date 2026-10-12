@@ -21,35 +21,6 @@ export function toIstDateStr(d: Date | string): string {
   return new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
 }
 
-/**
- * Push `requestedStart` forward in 15-min steps until it's at least
- * MIN_SCHEDULE_GAP_MINUTES away from every other active 'custom' schedule
- * (owned by `uid`) that shares a date with `requestedDates`.
- */
-export async function resolveStartTime(
-  QRBroadcastSchedule: any,
-  uid: string,
-  excludeId: string | undefined,
-  requestedStart: string,
-  requestedDates: Date[]
-): Promise<string> {
-  const requestedDateSet = new Set(requestedDates.map(toIstDateStr));
-
-  const filter: any = {
-    $or: [{ userId: uid }, { createdBy: uid }],
-    frequency: 'custom',
-    isActive: true,
-    status: { $in: ['scheduled', 'in-progress', 'paused'] },
-  };
-  if (excludeId) filter._id = { $ne: excludeId };
-
-  const existing = await QRBroadcastSchedule.find(filter)
-    .select('startTime customScheduleDates')
-    .lean();
-
-  return resolveStartTimeFromSchedules(existing, requestedStart, requestedDates);
-}
-
 export function resolveStartTimeFromSchedules(
   existing: Array<{ startTime?: string; customScheduleDates?: Array<Date | string> }>,
   requestedStart: string,
