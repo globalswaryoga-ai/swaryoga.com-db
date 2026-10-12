@@ -12,6 +12,16 @@ export async function getBunnyCrmUserSettings(userId: string): Promise<BunnyCrmU
   return row ? { ...parse(row.data_json), userId: String(row.user_id) } : null;
 }
 
+export async function findBunnyCrmUserSettingsByPermanentTenantId(permanentTenantId: string): Promise<BunnyCrmUserSettings | null> {
+  const result = await bunnyExecute({
+    sql: `SELECT user_id, data_json FROM crm_user_settings_sql
+      WHERE json_extract(data_json, '$.permanentTenantId') = ? LIMIT 1`,
+    args: [permanentTenantId],
+  });
+  const row = result.rows[0];
+  return row ? { ...parse(row.data_json), userId: String(row.user_id) } : null;
+}
+
 export async function findBunnyCrmUserSettingsBySecret(secret: string, excludeUserId?: string): Promise<BunnyCrmUserSettings | null> {
   const result = await bunnyExecute({
     sql: 'SELECT user_id, data_json FROM crm_user_settings_sql WHERE json_extract(data_json, \'$.qrBridgeSecret\') = ? AND user_id <> ? LIMIT 1',

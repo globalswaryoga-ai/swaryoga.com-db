@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getQrWhatsAppChat, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -27,9 +27,13 @@ async function resolveSessionInfo(
   bridgeUrl: string,
   bridgeSecret: string,
   storedSessionKey?: string,
-): Promise<{ sessionKey: string; tenantId: string } | null> {
+): Promise<{ sessionKey: string; tenantId: string; connectedPhone: string } | null> {
   const session = await resolveQrTenantBridge(userId, storedSessionKey);
-  return session ? { sessionKey: session.sessionKey, tenantId: session.tenantId } : null;
+  return session ? {
+    sessionKey: session.sessionKey,
+    tenantId: session.tenantId,
+    connectedPhone: session.connectedPhone,
+  } : null;
 }
 
 // Zero-width chars used to vary outgoing message payloads so WhatsApp
@@ -263,13 +267,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // times per day. Cross-day progress is tracked by sentRecipientChatIds
     // (carry-over cursor) + the 150/day rate cap, not by lastRunDate.
 
-    // Look up the owner's connected WhatsApp phone number (needed for qr_whatsapp_messages save)
-    const CRMUserSettings = getCRMUserSettings();
-    const ownerSettings = await CRMUserSettings.findOne(
-      { userId: schedule.userId },
-      { qrConnectedPhoneNumber: 1 }
-    ).lean();
-    const connectedPhone = String((ownerSettings as any)?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+    const connectedPhone = sessionInfo.connectedPhone;
 
     // ── ACCOUNT-LEVEL RESTRICTION PREFLIGHT ──
     // lib/whatsappRestriction.ts is the shared "is this number currently

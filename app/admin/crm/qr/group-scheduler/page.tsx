@@ -125,6 +125,26 @@ function guessMediaKind(url: string): 'image' | 'document' {
   return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url) ? 'image' : 'document';
 }
 
+// The bridge reports its live WhatsApp session as connected when either
+// `connected` is true or `status` is 'connected'/'open'.
+function isStatusConnected(status: any): boolean {
+  if (!status) return false;
+  if (status.connected === true) return true;
+  const state = String(status.status || '').toLowerCase();
+  return state === 'connected' || state === 'open';
+}
+
+// Pull the phone number out of the bridge /status payload. The bridge returns
+// it as `phone` (string or { id, name }), `me.id`, or `phoneNumber`.
+function extractStatusPhone(status: any): string | null {
+  if (!status) return null;
+  const candidate =
+    typeof status.phone === 'string' ? status.phone
+      : status.phone?.id || status.phone?.name || status.me?.id || status.phoneNumber || '';
+  const digits = String(candidate).split(':')[0].split('@')[0].replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+}
+
 export default function QRGroupSchedulerPage() {
   const token = useAuth();
   const { fetch: crmFetch } = useCRM({ token });
@@ -136,15 +156,15 @@ export default function QRGroupSchedulerPage() {
     if (!token) return;
     Promise.all([
       fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('/api/admin/crm/qr/health-check', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      crmFetch('/api/admin/crm/whatsapp/qr-bridge', { params: { path: '/status' } })
     ]).then(([settingsData, healthData]) => {
       const phone = settingsData?.data?.qrConnectedPhoneNumber || settingsData?.qrConnectedPhoneNumber || null;
-      const connected = healthData?.health?.overallStatus === 'healthy' || healthData?.health?.overallStatus === 'warning';
-      setQrConnection({ connected, phone, loading: false });
+      const status = healthData?.data || healthData;
+      setQrConnection({ connected: isStatusConnected(status), phone: extractStatusPhone(status) || phone, loading: false });
     }).catch(() => {
       setQrConnection(prev => ({ ...prev, loading: false }));
     });
-  }, [token]);
+  }, [token, crmFetch]);
 
   // ── Groups (from bridge) ──
   const [chats, setChats] = useState<Chat[]>([]);

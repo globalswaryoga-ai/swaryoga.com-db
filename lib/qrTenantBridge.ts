@@ -1,5 +1,4 @@
-import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { findBunnyCrmUserSettingsByPermanentTenantId, getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 export type QrTenantBridge = {
@@ -12,17 +11,13 @@ export type QrTenantBridge = {
   connectedPhone: string;
 };
 
-/** O(1) tenant/session resolution; never lists or falls back to another tenant's session. */
+/** Resolve only the requested owner's session; never fall back to another tenant. */
 export async function resolveQrTenantBridge(userId: string, storedSessionKey?: string): Promise<QrTenantBridge | null> {
   const ownerId = String(userId || '').trim();
   if (!ownerId) return null;
-  await connectDB();
-
-  const Settings = getCRMUserSettings();
-  const settings: any = await Settings.findOne(
-    storedSessionKey ? { permanentTenantId: storedSessionKey } : { userId: ownerId },
-    { userId: 1, permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrConnectedPhoneNumber: 1 }
-  ).lean();
+  const settings = storedSessionKey
+    ? await findBunnyCrmUserSettingsByPermanentTenantId(storedSessionKey)
+    : await getBunnyCrmUserSettings(ownerId);
   const fallback = getWhatsAppBridgeConfig();
   const sessionKey = String(storedSessionKey || settings?.permanentTenantId || '').trim();
   if (!sessionKey) return null;

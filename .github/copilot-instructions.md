@@ -171,6 +171,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### QR Group Scheduler Settings Timeout Repair (Session: October 12, 2026) — Commit `pending`
+
+- Replaced the QR tenant-session helper's legacy Mongoose `crm_user_settings.findOne()` with the existing Bunny SQL settings store, including permanent-tenant-ID resolution for shared owner sessions.
+- Removed the scheduler worker's duplicate Mongo settings lookup; it now uses the connected phone already resolved with the isolated QR session.
+- The Group Scheduler connection badge now checks authenticated QR bridge `/status` directly, so an unrelated health-check/database warning cannot be mistaken for an active WhatsApp connection.
+- Validation: three focused resolver tests pass, changed-file diagnostics are clean, `git diff --check` passes, and the production build exits successfully. Static generation logged an unrelated existing `sadhana_schedules.findOne()` timeout. No group message was sent.
+
 ### Workshop Group Live Verification and Schema Initialization (Session: October 12, 2026) — Commit `ae69bae1`
 
 - Live Marathi October group import persisted 47 students: 43 linked CRM leads, 41 emails and 23 city records; zero unresolved phones were reported. Existing source records and WhatsApp membership were not deleted/changed.
