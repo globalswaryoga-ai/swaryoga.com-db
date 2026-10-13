@@ -8,12 +8,23 @@ export async function GET(request: NextRequest) {
   const viewer = registrationViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const accounts = await resolveGoogleAccounts(viewer.superAdmin ? 'shared' : viewer.userId);
+    const userScope = viewer.superAdmin ? 'shared' : viewer.userId;
+    let accounts = await resolveGoogleAccounts(userScope);
+    if (!accounts.length && userScope !== 'shared') {
+      accounts = await resolveGoogleAccounts('shared');
+    }
     if (!accounts.length) return NextResponse.json({ error: 'Google Forms is not connected. Reconnect Google.', needsAuth: true }, { status: 401 });
     const errors: string[] = [];
     for (const entry of accounts) {
       try {
         let token = await getGoogleAccessToken(entry);
+        if (entry.account.tokenExpiresAt && new Date(entry.account.tokenExpiresAt).getTime() <= Date.now() + 60000 && entry.account.refreshToken) {
+          try {
+            token = await refreshGoogleAccessToken(entry);
+          } catch (refreshErr) {
+            console.warn('[Google Forms List] Preemptive token refresh failed:', refreshErr);
+          }
+        }
         const forms: Array<{ id: string; name: string; webViewLink?: string }> = [];
         let pageToken = '';
         const pageTokens = new Set<string>();
@@ -27,7 +38,7 @@ export async function GET(request: NextRequest) {
           }).toString();
           const fetchPage = () => fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) });
           let response = await fetchPage();
-          if (response.status === 401 && entry.account.refreshToken) {
+          if ((response.status === 401 || response.status === 403) && entry.account.refreshToken) {
             token = await refreshGoogleAccessToken(entry);
             response = await fetchPage();
           }

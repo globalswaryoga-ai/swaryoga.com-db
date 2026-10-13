@@ -579,8 +579,10 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             onClick={async () => {
                               setIsLoadingGoogleForms(true);
                               try {
+                                const activeToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || localStorage.getItem('crm_token') || localStorage.getItem('token') || '') : '');
+                                const cleanToken = activeToken.trim().replace(/^Bearer\s+/i, '');
                                 const res = await fetch('/api/admin/google-forms/list', {
-                                  headers: token ? { Authorization: `Bearer ${token}` } : {}
+                                  headers: cleanToken ? { Authorization: `Bearer ${cleanToken}` } : {}
                                 });
                                 const data = await res.json();
                                 if (res.ok && data.forms) {

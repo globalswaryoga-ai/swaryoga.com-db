@@ -735,8 +735,10 @@ export default function NewRegistrationPage() {
           }
         }
 
+        const activeToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || localStorage.getItem('crm_token') || localStorage.getItem('token') || '') : '');
+        const cleanToken = activeToken.trim().replace(/^Bearer\s+/i, '');
         const gRes = await fetch('/api/admin/google-forms/list', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: cleanToken ? { Authorization: `Bearer ${cleanToken}` } : {}
         });
         const gJson = await gRes.json();
         if (gRes.ok) {

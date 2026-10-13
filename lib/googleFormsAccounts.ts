@@ -12,7 +12,7 @@ export type GoogleAccount = {
 function inScope(account: Record<string, any>, scope: string) {
   const owner = String(account.ownerUserId || account.userId || '').trim();
   return scope === 'shared'
-    ? ['', 'admin', 'admincrm'].includes(owner) || (account.scopeType === 'super_admin' && account.scopeKey === 'super_admin')
+    ? ['', 'admin', 'admincrm', 'super_admin'].includes(owner) || (account.scopeType === 'super_admin' && account.scopeKey === 'super_admin')
     : owner === scope;
 }
 
@@ -49,12 +49,18 @@ export async function resolveGoogleAccounts(scope: string): Promise<GoogleAccoun
     console.warn('[Google Forms] Archived account lookup unavailable:', error instanceof Error ? error.message : 'Unknown error');
   }
   const seen = new Set<string>();
-  return accounts.filter(entry => {
+  const filtered = accounts.filter(entry => {
     const key = `${entry.account.platform}:${entry.account.refreshToken || entry.account.accessToken}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+
+  if (filtered.length === 0 && scope !== 'shared') {
+    return resolveGoogleAccounts('shared');
+  }
+
+  return filtered;
 }
 
 export async function getGoogleAccessToken(entry: GoogleAccount) {

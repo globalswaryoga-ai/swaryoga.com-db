@@ -36,11 +36,18 @@ function isAuthorizedCron(request: NextRequest): boolean {
 
 async function fetchFormUsingAccount(formId: string, entry: GoogleAccount) {
   let accessToken = await getGoogleAccessToken(entry);
+  if (entry.account.tokenExpiresAt && new Date(entry.account.tokenExpiresAt).getTime() <= Date.now() + 60000 && entry.account.refreshToken) {
+    try {
+      accessToken = await refreshGoogleAccessToken(entry);
+    } catch (e) {
+      console.warn('[Google Forms Sync] Preemptive token refresh failed:', e);
+    }
+  }
   let formResponse = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(30_000),
   });
-  if (formResponse.status === 401 && entry.account.refreshToken) {
+  if ((formResponse.status === 401 || formResponse.status === 403) && entry.account.refreshToken) {
     accessToken = await refreshGoogleAccessToken(entry);
     formResponse = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
