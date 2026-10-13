@@ -1104,7 +1104,7 @@ export default function NewRegistrationPage() {
       };
 
       setAndCollect('crm_english_registration_layout', safeStringify({ sidebarPosition, sidebarWidth, isSidebarCollapsed, isMapDataCollapsed, isStatsCollapsed }));
-      setAndCollect('crm_english_workshops', safeStringify(workshops));
+      // Workshops/batches are explicitly persisted via saveRegistrationWorkshop and batch management controls
       setAndCollect('crm_english_ai_worker_active', String(isAiWorkerActive));
       setAndCollect('crm_english_approved_ai_active', String(isApprovedAiWorkerActive));
       setAndCollect('crm_english_registered_ai_active', String(isRegisteredAiWorkerActive));
@@ -1262,26 +1262,12 @@ export default function NewRegistrationPage() {
 
     if (!currentWorkshops.some(workshop => workshop?.id === targetWorkshop.id)) throw new Error('This selected batch is no longer in the saved list. Select an existing batch before saving its settings.');
     const saved = await saveRegistrationWorkshop('crm_english_workshops', updatedWorkshop, workshops.find(w => w?.id === targetWorkshop.id));
-    const baseLang = getBaseLanguage(selectedDashboardLang);
-    const updatedWorkshopsList = saved.workshops.map((w: any) => {
-      if (w && getBaseLanguage(w.language || w.name) === baseLang && updatedWorkshop.formId) {
-        return {
-          ...w,
-          formId: updatedWorkshop.formId,
-          metadata: {
-            ...(w.metadata || {}),
-            formSource: currentFormSource,
-            googleFormMapping: updatedMetadata.googleFormMapping || w.metadata?.googleFormMapping || fieldMapping,
-            crmFields: updatedMetadata.crmFields || w.metadata?.crmFields || crmFields,
-          }
-        };
-      }
-      return w;
-    });
-    setWorkshops(updatedWorkshopsList);
-    setSelectedWorkshop(saved.workshop);
-    setLinkedFormId(updatedWorkshop.formId);
-    localStorage.setItem('crm_english_workshops', safeStringify(updatedWorkshopsList));
+    const finalWorkshops = saved.workshops || workshops;
+    setWorkshops(finalWorkshops);
+    setSelectedWorkshop(saved.workshop || updatedWorkshop);
+    setLinkedFormId(saved.workshop?.formId || updatedWorkshop.formId);
+    localStorage.setItem('crm_english_workshops', safeStringify(finalWorkshops));
+    autosave.current.hydrate({ crm_english_workshops: safeStringify(finalWorkshops) });
 
     if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
       try {
