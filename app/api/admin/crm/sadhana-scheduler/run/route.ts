@@ -1,84 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import { autoCloseMeeting } from '@/lib/zoomBotServiceSimple';
 import { startSadhanaBot, stopSadhanaBot, isBotApiConfigured } from '@/lib/crm/zoomMeetingSdkBot';
+import {
+  listSadhanaSchedules,
+  updateSadhanaSchedule,
+  SadhanaScheduleItem,
+} from '@/lib/bunnySadhanaSchedulerRepository';
+import { listPrograms, updateProgram } from '@/lib/bunnySadhanaRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-import mongoose from 'mongoose';
-
-// This is the single production trigger path for Sadhana schedules (hit
-// every minute by the Vercel Cron entry for this route in vercel.json).
-//
-// It used to run alongside a second, independent trigger mechanism: an
-// in-process setInterval scheduler (lib/sadhanaSchedulerServiceV2.ts)
-// bootstrapped as a module-level side effect in app/layout.tsx. On Vercel,
-// every cold serverless container that renders a page re-runs that side
-// effect and starts its own copy of the interval loop, so multiple warm
-// containers ran independent, un-coordinated schedulers against the same
-// DB state at once — each with its own in-memory "already triggered this
-// minute" Set that no other container could see. That's what caused a
-// schedule to fire twice ("meeting not ended, it restarted"), and it also
-// meant `autoCloseMeeting` was scheduled via a bare setTimeout() living
-// inside one particular invocation — which is not guaranteed to survive
-// long enough to actually fire (a Sadhana session is 40+ minutes; Vercel
-// functions are not). See app/layout.tsx for the removal of that bootstrap.
-//
-// The fix: this cron-invoked route is now the *only* trigger, and all
-// state that needs to survive between the 1-minute cron ticks (whether a
-// schedule already fired for its current slot, and when an active bot
-// session should be auto-closed) is persisted on the schedule document
-// itself, not in process memory.
-
-const sadhanaScheduleSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    botName: { type: String, default: 'Swar Sadhana' },
-    videoUrl: { type: String, required: true },
-    videoDuration: { type: Number, default: 40 },
-    botJoinMinutes: { type: Number, default: 5 },
-    chatMessages: [{ message: String, delayMinutes: Number }],
-    enableAiChatReplies: { type: Boolean, default: false },
-    zoomLink: { type: String },
-    zoomId: { type: String },
-    zoomPassword: { type: String },
-    zoomMeetingId: { type: String },
-    enableBotAutomation: { type: Boolean, default: true },
-    schedule: {
-      times: [String],
-      days: [Number],
-      repeatFrequency: String,
-      startDate: String,
-      timezone: { type: String, default: 'Asia/Kolkata' },
-    },
-    status: { type: String, default: 'active' },
-    userId: String,
-    tenantId: String,
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-    // Idempotency: which scheduled slot ("YYYY-MM-DD HH:MM" in the
-    // schedule's own timezone) we last triggered a bot join for, so a
-    // schedule is never joined twice for the same slot even if the cron
-    // overlaps itself or a manual Test Bot click races it.
-    lastTriggeredSlot: String,
-    // The currently-running bot session, if any, so auto-close survives
-    // across cron invocations instead of relying on an in-memory timer.
-    activeBotSession: {
-      meetingId: String,
-      meetingPassword: String,
-      startedAt: Date,
-      closeAt: Date,
-    },
-  },
-  { collection: 'sadhana_schedules' }
-);
-
-async function getSadhanaScheduleModel() {
-  const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-  return db.models.SadhanaSchedule || db.model('SadhanaSchedule', sadhanaScheduleSchema);
-}
 
 function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; password?: string } {
   if (!zoomLink) return {};
@@ -91,14 +24,22 @@ function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; pas
 }
 
 function resolveMeetingId(schedule: any): string | null {
-  return schedule.zoomMeetingId || schedule.zoomId || extractZoomDetailsFromLink(schedule.zoomLink || '').meetingId || null;
+  return (
+    schedule.zoomMeetingId ||
+    schedule.zoomId ||
+    extractZoomDetailsFromLink(schedule.zoomLink || '').meetingId ||
+    null
+  );
 }
 
 function resolveMeetingPassword(schedule: any): string {
-  return schedule.zoomPassword || extractZoomDetailsFromLink(schedule.zoomLink || '').password || '';
+  return (
+    schedule.zoomPassword ||
+    extractZoomDetailsFromLink(schedule.zoomLink || '').password ||
+    ''
+  );
 }
 
-/** "YYYY-MM-DD HH:MM" for `now` in `timezone`, used as the idempotency key for a scheduled slot. */
 function slotKey(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -114,15 +55,21 @@ function slotKey(now: Date, timezone: string): string {
   return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}`;
 }
 
-// `offsetMinutes` shifts the check earlier — e.g. offsetMinutes=5 matches
-// when `now` is 5 minutes before a scheduled time, so the bot can join
-// ahead of the actual start for a pre-roll countdown/welcome message.
-function isScheduledNow(schedule: any, now: Date, timezone: string, offsetMinutes: number = 0): boolean {
-  const times: string[] = Array.isArray(schedule.schedule?.times) ? schedule.schedule.times : [];
-  const days: number[] = Array.isArray(schedule.schedule?.days) ? schedule.schedule.days : [];
-  if (times.length === 0 || days.length === 0) return false;
+function isScheduledNow(
+  times: string[],
+  days: number[],
+  now: Date,
+  timezone: string,
+  offsetMinutes: number = 0
+): boolean {
+  if (!times || times.length === 0 || !days || days.length === 0) return false;
 
-  const dtf = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
   const map: Record<string, string> = {};
   for (const p of dtf.formatToParts(now)) if (p.type !== 'literal') map[p.type] = p.value;
   const currentTotalMin = parseInt(map.hour || '0', 10) * 60 + parseInt(map.minute || '0', 10);
@@ -151,91 +98,90 @@ function buildSadhanaMessage(schedule: any): string {
   return message;
 }
 
-async function notifyLeads(schedule: any): Promise<{ sent: number; failed: number }> {
+async function notifyLeadsFromBunny(userId?: string, schedule?: any): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
+  if (!schedule) return { sent, failed };
+
   try {
-    const Lead = mongoose.connection.db?.collection('leads');
+    let sql = 'SELECT data_json FROM leads_sql';
+    const args: any[] = [];
+    if (userId) {
+      sql += ' WHERE owner_user_id = ?';
+      args.push(userId);
+    }
+    sql += ' LIMIT 100';
+
+    const r = await bunnyExecute({ sql, args });
     const message = buildSadhanaMessage(schedule);
-    const leads = (await Lead?.find({ userId: schedule.userId }).toArray()) ?? [];
-    for (const lead of leads) {
-      const phoneNumber = lead.phone || lead.phoneNumber;
-      if (!phoneNumber) continue;
+
+    for (const row of r.rows) {
       try {
-        await sendWhatsAppText(phoneNumber, message);
+        const lead = row.data_json ? JSON.parse(String(row.data_json)) : null;
+        const phone = lead?.phone || lead?.phoneNumber;
+        if (!phone) continue;
+        await sendWhatsAppText(phone, message);
         sent++;
       } catch (err) {
-        console.error(`[Sadhana RUN] Failed to notify lead ${phoneNumber}:`, err);
         failed++;
       }
     }
   } catch (err) {
-    console.warn('[Sadhana RUN] Lead notification skipped:', err);
+    console.warn('[Sadhana RUN] Lead notification error:', err);
   }
   return { sent, failed };
 }
 
 async function runSadhanaSchedulerTick() {
-  await connectDB();
-
   const now = new Date();
-  const Model = await getSadhanaScheduleModel();
-  const schedules = await Model.find({ status: 'active' });
+  const schedules = await listSadhanaSchedules({ status: 'active' });
+  const programs = await listPrograms({ active: true });
 
-  console.log(`[Sadhana RUN] 🔍 Found ${schedules.length} active schedule(s) at ${now.toISOString()}`);
+  console.log(`[Sadhana RUN] 🔍 Found ${schedules.length} schedule(s) & ${programs.length} program(s) in Bunny DB at ${now.toISOString()}`);
 
   let sent = 0;
   let failed = 0;
   let joined = 0;
   let closed = 0;
 
+  // 1. Process standard schedules in crm_sadhana_schedules_sql
   for (const schedule of schedules) {
     try {
       const timezone = schedule.schedule?.timezone || 'Asia/Kolkata';
 
-      // ---- Auto-close: independent of the trigger check below, so a
-      // session started at any point still gets closed on time even if
-      // this schedule isn't "due" again right now. ----
-      if (schedule.activeBotSession?.closeAt && schedule.activeBotSession.closeAt <= now) {
-        const session = schedule.activeBotSession;
-        console.log(`[Sadhana RUN] 🛑 Auto-closing meeting ${session.meetingId} for "${schedule.name}"`);
-        try {
-          await stopSadhanaBot(session.meetingId);
-          await autoCloseMeeting({
-            meetingId: session.meetingId,
-            meetingPassword: session.meetingPassword || undefined,
-            videoDurationMinutes: schedule.videoDuration || 40,
-          });
-          closed++;
-        } catch (err) {
-          console.error(`[Sadhana RUN] Auto-close error for "${schedule.name}":`, err);
-        } finally {
-          // Clear regardless of outcome — a retry storm hitting a meeting
-          // that's already gone is worse than a rare missed close.
-          schedule.activeBotSession = undefined;
-          await schedule.save();
+      // Auto-close active bot sessions when due
+      if (schedule.activeBotSession?.closeAt) {
+        const closeAtDate = new Date(schedule.activeBotSession.closeAt);
+        if (closeAtDate <= now) {
+          const session = schedule.activeBotSession;
+          console.log(`[Sadhana RUN] 🛑 Auto-closing meeting ${session.meetingId} for "${schedule.name}"`);
+          try {
+            await stopSadhanaBot(session.meetingId);
+            await autoCloseMeeting({
+              meetingId: session.meetingId,
+              meetingPassword: session.meetingPassword,
+              videoDurationMinutes: schedule.videoDuration || 40,
+            });
+            closed++;
+          } catch (err) {
+            console.error(`[Sadhana RUN] Auto-close error for "${schedule.name}":`, err);
+          } finally {
+            await updateSadhanaSchedule(schedule.id, { activeBotSession: null });
+          }
         }
       }
 
       if (!schedule.enableBotAutomation) continue;
-      // Bot joins botJoinMinutes before the scheduled start (default 5) so
-      // it can post an early countdown/welcome chat message; the video
-      // itself is delayed on the bot side to still start at the real time.
       const botJoinMinutes = schedule.botJoinMinutes || 5;
-      if (!isScheduledNow(schedule, now, timezone, botJoinMinutes)) continue;
+      if (!isScheduledNow(schedule.schedule?.times || [], schedule.schedule?.days || [], now, timezone, botJoinMinutes)) {
+        continue;
+      }
 
       const currentSlot = slotKey(now, timezone);
-      if (schedule.lastTriggeredSlot === currentSlot) continue; // already handled this slot
+      if (schedule.lastTriggeredSlot === currentSlot) continue;
 
-      // Claim this slot atomically before doing any work, so a slower
-      // concurrent invocation (or a Test Bot click landing in the same
-      // minute) can't also pass the check above and double-join.
-      const claim = await Model.findOneAndUpdate(
-        { _id: schedule._id, lastTriggeredSlot: { $ne: currentSlot } },
-        { $set: { lastTriggeredSlot: currentSlot } },
-        { new: true }
-      );
-      if (!claim) continue; // another invocation already claimed this slot
+      // Idempotency: claim this slot in Bunny Database
+      await updateSadhanaSchedule(schedule.id, { lastTriggeredSlot: currentSlot });
 
       const meetingId = resolveMeetingId(schedule);
       if (!meetingId) {
@@ -247,15 +193,14 @@ async function runSadhanaSchedulerTick() {
         continue;
       }
       if (!isBotApiConfigured()) {
-        console.error('[Sadhana RUN] ❌ Sadhana bot API not configured (ZOOM_SDK_KEY/SECRET or SADHANA_BOT_API_URL/SECRET missing)');
+        console.error('[Sadhana RUN] ❌ Sadhana bot API not configured');
         continue;
       }
 
       const meetingPassword = resolveMeetingPassword(schedule);
       const videoDuration = schedule.videoDuration || 40;
 
-      console.log(`[Sadhana RUN] 🤖 Joining "${schedule.name}" (meeting ${meetingId}) for slot ${currentSlot}, video starts in ${botJoinMinutes}min`);
-
+      console.log(`[Sadhana RUN] 🤖 Joining "${schedule.name}" (meeting ${meetingId}) for slot ${currentSlot}`);
       const result = await startSadhanaBot({
         meetingNumber: meetingId,
         meetingPassword,
@@ -275,36 +220,102 @@ async function runSadhanaSchedulerTick() {
       }
 
       joined++;
-      console.log(`[Sadhana RUN] ✅ Bot joined "${schedule.name}" (pid ${result.pid})`);
+      const closeAt = new Date(now.getTime() + (botJoinMinutes + videoDuration + 2) * 60 * 1000).toISOString();
+      await updateSadhanaSchedule(schedule.id, {
+        activeBotSession: {
+          meetingId,
+          meetingPassword,
+          startedAt: now.toISOString(),
+          closeAt,
+        },
+      });
 
-      const closeAt = new Date(now.getTime() + (botJoinMinutes + videoDuration + 2) * 60 * 1000);
-      await Model.updateOne(
-        { _id: schedule._id },
-        { $set: { activeBotSession: { meetingId, meetingPassword, startedAt: now, closeAt } } }
-      );
-
-      const notifyResult = await notifyLeads(schedule);
+      const notifyResult = await notifyLeadsFromBunny(schedule.userId, schedule);
       sent += notifyResult.sent;
       failed += notifyResult.failed;
     } catch (err) {
-      console.error(`[Sadhana RUN] Error processing schedule ${schedule._id}:`, err);
+      console.error(`[Sadhana RUN] Error processing schedule ${schedule.id}:`, err);
       failed++;
     }
   }
 
-  return { scannedSchedules: schedules.length, joined, closed, sent, failed, timestamp: now.toISOString() };
+  // 2. Process programs in sadhana_programs_sql (e.g. Hindi Swar YOga L-1 Sadhana)
+  for (const prog of programs) {
+    try {
+      if (!prog.enableBotAutomation || !prog.active) continue;
+
+      const meetingId = resolveMeetingId(prog);
+      if (!meetingId) continue; // No zoom meeting configured for this program
+
+      const timezone = prog.timezone || 'Asia/Kolkata';
+      const botJoinMinutes = prog.botJoinMinutes || 5;
+      const times = Array.isArray(prog.timeSlots) ? prog.timeSlots : [];
+      const days = Array.isArray(prog.days) ? prog.days : [0, 1, 2, 3, 4, 5, 6];
+
+      if (!isScheduledNow(times, days, now, timezone, botJoinMinutes)) continue;
+
+      const currentSlot = slotKey(now, timezone);
+      const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).split(' ')[0];
+      const todayVideo = prog.videoCalendar?.[todayStr];
+      const videoUrl = todayVideo?.hlsUrl || todayVideo?.videoUrl || prog.playerUrl || '';
+
+      if (!videoUrl) {
+        console.warn(`[Sadhana RUN] Program "${prog.name}" has slot now but no video assigned for date ${todayStr}`);
+        continue;
+      }
+
+      if (!isBotApiConfigured()) {
+        console.error('[Sadhana RUN] ❌ Sadhana bot API not configured');
+        continue;
+      }
+
+      const meetingPassword = resolveMeetingPassword(prog);
+      const videoDuration = prog.videoDuration || 40;
+
+      console.log(`[Sadhana RUN] 🤖 Joining program "${prog.name}" (meeting ${meetingId}) for slot ${currentSlot}`);
+      const result = await startSadhanaBot({
+        meetingNumber: meetingId,
+        meetingPassword,
+        botName: prog.botName || '🤖 Swar Yoga Bot',
+        videoUrl,
+        chatMessages: [
+          { message: `🧘 Sadhana starting in ${botJoinMinutes} minutes — Namaste 🙏`, delayMinutes: 0 },
+        ],
+        enableAiChatReplies: false,
+        durationMinutes: videoDuration,
+        videoStartDelayMinutes: botJoinMinutes,
+      });
+
+      if (result.success) {
+        joined++;
+        console.log(`[Sadhana RUN] ✅ Bot joined program "${prog.name}"`);
+      }
+    } catch (progErr) {
+      console.error(`[Sadhana RUN] Error processing program ${prog.id}:`, progErr);
+    }
+  }
+
+  return {
+    scannedSchedules: schedules.length,
+    scannedPrograms: programs.length,
+    joined,
+    closed,
+    sent,
+    failed,
+    timestamp: now.toISOString(),
+  };
 }
 
 /**
  * POST /api/admin/crm/sadhana-scheduler/run
- * Run scheduled Sadhana bot joins/closes (called by Vercel Cron).
  */
 export async function POST(request: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret) {
       const provided =
-        request.headers.get('x-cron-secret') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+        request.headers.get('x-cron-secret') ||
+        request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       const userAgent = request.headers.get('user-agent') || '';
       if (!userAgent.includes('vercel-cron') && provided !== cronSecret) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -320,14 +331,14 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/admin/crm/sadhana-scheduler/run
- * Same tick logic — kept for Vercel Cron configurations that send GET.
  */
 export async function GET(request: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret) {
       const provided =
-        request.headers.get('x-cron-secret') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+        request.headers.get('x-cron-secret') ||
+        request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       const userAgent = request.headers.get('user-agent') || '';
       if (!userAgent.includes('vercel-cron') && provided !== cronSecret) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,21 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stopSadhanaScheduler } from '@/lib/sadhanaSchedulerServiceV2';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initSadhanaSchedulerBunnySchema } from '@/lib/bunnySadhanaSchedulerRepository';
 
-// The in-process setInterval scheduler this used to restart is retired: on
-// Vercel, every warm serverless container ran its own independent copy of
-// it, so multiple containers could trigger the same schedule at once (a
-// bot "restarting" mid-session). The Vercel Cron hitting
-// /api/admin/crm/sadhana-scheduler/run every minute is now the single
-// trigger path, with idempotency tracked on the schedule document itself
-// instead of in process memory. This endpoint just makes sure no leftover
-// instance of the old loop is still ticking.
-export async function POST(request: NextRequest) {
-  stopSadhanaScheduler();
-  return NextResponse.json(
-    {
-      success: true,
-      message: 'Legacy in-process scheduler stopped (if it was running). Scheduling now runs via the /run cron route only.',
-    },
-    { status: 200 }
-  );
+export const dynamic = 'force-dynamic';
+
+export async function POST(_request: NextRequest) {
+  try {
+    stopSadhanaScheduler();
+    await initSadhanaSchedulerBunnySchema();
+    // Clear any stuck active sessions in Bunny Database so schedules restart clean
+    await bunnyExecute({
+      sql: `UPDATE crm_sadhana_schedules_sql SET active_bot_session_json = NULL, last_triggered_slot = NULL WHERE status = 'active'`,
+      args: [],
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Sadhana Scheduler restarted cleanly. Active sessions refreshed in Bunny Database.',
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Failed to restart scheduler' },
+      { status: 500 }
+    );
+  }
 }

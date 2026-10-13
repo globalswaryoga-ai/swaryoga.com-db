@@ -15,6 +15,7 @@ import {
   Pause,
   CheckCircle,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import SadhanaForm from './components/SadhanaForm';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
@@ -65,6 +66,7 @@ export default function SadhanaSchedulerPage() {
     logs: string[];
   } | null>(null);
   const [showTestResults, setShowTestResults] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   // Sync token from localStorage as fallback
   useEffect(() => {
@@ -230,6 +232,29 @@ try {
     }
   };
 
+  const handleRestartScheduler = async () => {
+    try {
+      setRestarting(true);
+      const cleanToken = effectiveToken?.trim().replace(/^Bearer\s+/i, '') || '';
+      const res = await fetch('/api/admin/sadhana-scheduler/restart', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cleanToken}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage('Scheduler restarted cleanly! Active sessions refreshed in Bunny Database.');
+        setTimeout(() => setSuccessMessage(null), 3500);
+        fetchSchedules();
+      } else {
+        throw new Error(data.error || 'Failed to restart scheduler');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Error restarting scheduler');
+    } finally {
+      setRestarting(false);
+    }
+  };
+
   // Handle form submit
   const handleFormSubmit = async (data: any) => {
     try {
@@ -298,18 +323,28 @@ try {
           </div>
         )}
 
-        {/* Add New Button */}
+        {/* Action Buttons */}
         {!showForm && (
-          <button
-            onClick={() => {
-              setShowForm(true);
-              setEditingId(null);
-              setEditingData(null);
-            }}
-            className="mb-6 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2 transition"
-          >
-            <Plus size={20} /> Add New Schedule
-          </button>
+          <div className="flex items-center gap-3 mb-6 flex-wrap">
+            <button
+              onClick={() => {
+                setShowForm(true);
+                setEditingId(null);
+                setEditingData(null);
+              }}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2 transition"
+            >
+              <Plus size={20} /> Add New Schedule
+            </button>
+            <button
+              onClick={handleRestartScheduler}
+              disabled={restarting}
+              className="px-5 py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-600 rounded-lg font-medium flex items-center gap-2 transition disabled:opacity-50 text-sm"
+            >
+              <RefreshCw size={16} className={restarting ? 'animate-spin' : ''} />
+              {restarting ? 'Restarting Scheduler...' : 'Restart Scheduler'}
+            </button>
+          </div>
         )}
 
         {/* Form Modal */}

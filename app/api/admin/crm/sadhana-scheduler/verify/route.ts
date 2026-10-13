@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getZoomAccessToken } from '@/lib/zoomBotService';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,64 +105,34 @@ export async function GET(request: NextRequest) {
     // ============================================================================
     console.log('[Sadhana Verify] 3️⃣ Checking database connection...');
 
-    try {
-      await connectDB();
-      const isConnected = mongoose.connection.readyState === 1;
-      checks.database.connection = isConnected ? '✅ Connected' : '❌ Not connected';
-      console.log('[Sadhana Verify] ✅ Database: OK');
+      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const { listSadhanaSchedules } = await import('@/lib/bunnySadhanaSchedulerRepository');
+      const { listPrograms } = await import('@/lib/bunnySadhanaRepository');
 
-      // Check if sadhana_schedules collection exists and has data
-      const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-      const SadhanaSchedule =
-        db.models.SadhanaSchedule ||
-        db.model(
-          'SadhanaSchedule',
-          new mongoose.Schema(
-            {
-              name: String,
-              videoUrl: String,
-              zoomLink: String,
-              zoomId: String,
-              zoomPassword: String,
-              schedule: { times: [String], days: [Number], timezone: String },
-              status: String,
-              enableBotAutomation: Boolean,
-              lastTriggered: Date,
-            },
-            { collection: 'sadhana_schedules' }
-          )
-        );
+      const progCountRes = await bunnyExecute({ sql: 'SELECT COUNT(*) as c FROM sadhana_programs_sql', args: [] });
+      const totalPrograms = Number(progCountRes.rows[0]?.c || 0);
 
-      const totalSchedules = await SadhanaSchedule.countDocuments();
-      const activeSchedules = await SadhanaSchedule.countDocuments({ status: 'active' });
-      const enabledSchedules = await SadhanaSchedule.countDocuments({
-        enableBotAutomation: { $ne: false },
-      });
+      const schedules = await listSadhanaSchedules();
+      const activeSchedules = schedules.filter((s) => s.status === 'active');
+      const programs = await listPrograms({ active: true });
 
+      checks.database.connection = '✅ Connected (Bunny Database)';
       checks.database.schedules = {
-        total: totalSchedules,
-        active: activeSchedules,
-        botAutomationEnabled: enabledSchedules,
+        totalSchedules: schedules.length,
+        activeSchedules: activeSchedules.length,
+        totalPrograms: totalPrograms,
+        activePrograms: programs.length,
       };
 
-      // Get first schedule as example
-      const example = await SadhanaSchedule.findOne({ status: 'active' });
-      if (example) {
-        checks.database.exampleSchedule = {
-          name: example.name,
-          time: example.schedule?.times?.[0] || 'N/A',
-          days: example.schedule?.days || [],
-          timezone: example.schedule?.timezone || 'Asia/Kolkata',
-          hasZoomId: !!example.zoomId,
-          hasZoomLink: !!example.zoomLink,
-          hasVideoUrl: !!example.videoUrl,
-          botAutomation: example.enableBotAutomation !== false,
+      if (programs.length > 0) {
+        const p = programs[0];
+        checks.database.exampleProgram = {
+          name: p.name,
+          timeSlots: p.timeSlots,
+          days: p.days,
+          botAutomation: p.enableBotAutomation !== false,
         };
       }
-    } catch (err: any) {
-      checks.database.error = err.message;
-      console.log('[Sadhana Verify] ❌ Database error:', err.message);
-    }
 
     // ============================================================================
     // 4. SCHEDULER CHECK
@@ -202,8 +170,8 @@ export async function GET(request: NextRequest) {
     const allGood =
       envValid &&
       zoomAccessToken &&
-      checks.database.connection === '✅ Connected' &&
-      (checks.database.schedules?.active || 0) > 0;
+      checks.database.connection?.includes('✅ Connected') &&
+      (checks.database.schedules?.activeSchedules || 0) > 0;
 
     checks.summary = {
       overallStatus: allGood

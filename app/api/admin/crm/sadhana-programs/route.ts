@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const filter = isSuperAdmin(decoded) ? {} : { createdByUserId: getViewerUserId(decoded) };
-    const programs = await listPrograms(filter);
+    // All authenticated admins have access to platform sadhana programs from Bunny Database
+    const programs = await listPrograms();
     
     return NextResponse.json({
       success: true,

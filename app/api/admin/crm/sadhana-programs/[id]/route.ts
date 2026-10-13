@@ -13,7 +13,8 @@ async function authorizeProgramMutation(request: NextRequest, id: string): Promi
   const program = await getProgram(id);
   if (!program) return { error: NextResponse.json({ error: 'Program not found' }, { status: 404 }) };
   
-  if (!isSuperAdmin(decoded) && String(program.createdByUserId || '') !== getViewerUserId(decoded)) {
+  // Allow super admin or any authenticated platform admin
+  if (!decoded?.isAdmin && !isSuperAdmin(decoded) && String(program.createdByUserId || '') !== getViewerUserId(decoded)) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
   return { program };

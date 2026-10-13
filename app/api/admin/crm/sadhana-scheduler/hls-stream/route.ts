@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { handleCrmError, isSuperAdmin } from '@/lib/crm-handlers';
 import {
@@ -29,7 +28,6 @@ interface HLSStreamRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
@@ -183,8 +181,6 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 

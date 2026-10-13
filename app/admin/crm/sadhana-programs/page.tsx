@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck } from 'lucide-react';
+import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck, RefreshCw } from 'lucide-react';
 
 interface Program {
   id: string;
@@ -76,20 +76,69 @@ export default function SadhanaProgramsPage() {
     zoomPassword: '',
   });
 
-  const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const [effectiveToken, setEffectiveToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      setEffectiveToken(token);
+    } else if (typeof window !== 'undefined') {
+      const stored =
+        localStorage.getItem('crm_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('token');
+      if (stored) setEffectiveToken(stored);
+    }
+  }, [token]);
+
+  const activeToken = effectiveToken || token;
+  const authHeader: Record<string, string> = activeToken
+    ? { Authorization: `Bearer ${activeToken.trim().replace(/^Bearer\s+/i, '')}` }
+    : {};
+
+  const [restarting, setRestarting] = useState(false);
+
+  const restartScheduler = async () => {
+    if (!confirm('Are you sure you want to restart the Sadhana Scheduler? This will reset all active bot sessions and allow clean restarts.')) return;
+    setRestarting(true);
+    try {
+      const res = await fetch('/api/admin/sadhana-scheduler/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast('✅ Sadhana Scheduler restarted successfully!');
+        load();
+      } else {
+        setToast(`❌ Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ Error: ${e.message}`);
+    } finally {
+      setRestarting(false);
+      setTimeout(() => setToast(''), 4000);
+    }
+  };
 
   const load = async () => {
-    if (!token) return;
+    if (!activeToken) return;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/crm/sadhana-programs', { headers: authHeader });
       const data = await res.json();
-      if (data.success) setPrograms(data.programs);
-    } catch (err) { console.error(err); }
+      if (data.success && Array.isArray(data.programs)) {
+        setPrograms(data.programs);
+      }
+    } catch (err) {
+      console.error(err);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { if (token) load(); }, [token]);
+  useEffect(() => {
+    if (activeToken) load();
+  }, [activeToken]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,17 +235,37 @@ export default function SadhanaProgramsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">📚 Sadhana Programs</h1>
           <p className="text-gray-600">One link per program — play different videos each day</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-gradient-to-r from-pink-500 to-violet-500 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 font-semibold"
-        >
-          <Plus size={18} /> New Program
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => load()}
+            disabled={loading}
+            className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm"
+            title="Refresh programs"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={restartScheduler}
+            disabled={restarting}
+            className="border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 px-3.5 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-colors shadow-sm"
+            title="Restart Sadhana scheduler sessions"
+          >
+            <RefreshCw size={15} className={restarting ? 'animate-spin text-amber-600' : 'text-amber-600'} />
+            <span>{restarting ? 'Restarting...' : 'Restart Scheduler'}</span>
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="bg-gradient-to-r from-pink-500 to-violet-500 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 font-semibold shadow-sm"
+          >
+            <Plus size={18} /> New Program
+          </button>
+        </div>
       </div>
 
       {loading ? (
