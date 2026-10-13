@@ -2,16 +2,31 @@ import { registrationFetch as fetch, saveRegistrationState, saveRegistrationSnap
 import { createRegistrationAutosave, type RegistrationSaveStatus } from '@/lib/registrationAutosave';
 import { AutosaveStatus } from './_AutosaveStatus';
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2, Layers } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 import { registrationBatchRows } from '@/lib/registrationLeads';
-import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationAiDraft, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
+import { copyRegistrationDecisionToCategory, isRegistrationStageCategory, isRegistrationStageMember, moveRegistrationDecisionToCategory, registrationAiConfigKey, readRegistrationAiConfig, readRegistrationAiDraft, readRegistrationDecisions, registrationDecisionKey, validateRegistrationConditions, isTechnicalCrmField, isQuestionMatchingLanguage, type RegistrationFilterCondition } from '@/lib/registrationAiConfig';
 import { REGISTRATION_GATE_FIELDS, needsZoomReview, zoomGatePassed, type RegistrationGateAction } from '@/lib/registrationGates';
 import { registrationPage } from '@/lib/registrationPagination';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
 import { QuestionRulesEditor } from './_QuestionRulesEditor';
+import { Bot, Save as SaveIcon, Eye, Check } from 'lucide-react';
+import { saveRegistrationWorkshop } from '@/lib/registrationClient';
+import { WhatsAppAutoTriggerModal } from './_WhatsAppAutoTriggerModal';
+import {
+  getCleanDynamicColumns,
+  getLeadPhone,
+  getLeadName,
+  getLeadEmail,
+  getLeadGender,
+  getLeadAge,
+  getLeadCity,
+  getLeadCountry,
+  getLeadTimestamp,
+  getLeadAnswer,
+} from '@/lib/crmTableColumns';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -41,7 +56,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 };
 
 const DEFAULT_SIDEBAR_TABS = [
-  { id: 'new_leads', label: 'All Batch Leads', icon: FileText, isSystem: true },
+  { id: 'new_leads', label: 'Total Leads', icon: FileText, isSystem: true },
 ];
 
 const INITIAL_CUSTOM_CATEGORIES = [
@@ -60,37 +75,64 @@ const INITIAL_CUSTOM_CATEGORIES = [
   { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap, isSystem: true },
 ];
 
-const LANGUAGES = ['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'];
+export const LANGUAGES = ['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'];
 
-const getBaseLanguage = (langStr?: string): string => {
+export const getBaseLanguage = (langStr?: string): string => {
   if (!langStr) return 'english';
-  const lower = langStr.toLowerCase();
+  const lower = String(langStr).toLowerCase();
   if (lower.includes('hindi')) return 'hindi';
   if (lower.includes('marathi')) return 'marathi';
   if (lower.includes('kannada')) return 'kannada';
+  if (lower.includes('english')) return 'english';
   return 'english';
 };
 
-const matchesLanguage = (w: any, targetLang: string) => {
+export const canonicalLanguage = (lang?: string): string => {
+  const base = getBaseLanguage(lang);
+  if (base === 'hindi') return 'Hindi Workshop';
+  if (base === 'marathi') return 'Marathi Workshop';
+  if (base === 'kannada') return 'Kannada Workshop';
+  return 'English Workshop';
+};
+
+export const getBatchBaseLanguage = (w: any): string => {
+  if (!w) return '';
+  const combined = `${w.language || ''} ${w.name || ''} ${w.id || ''}`.toLowerCase();
+  if (combined.includes('hindi')) return 'hindi';
+  if (combined.includes('marathi')) return 'marathi';
+  if (combined.includes('kannada')) return 'kannada';
+  if (combined.includes('english')) return 'english';
+  if (w.language) return getBaseLanguage(w.language);
+  return 'english';
+};
+
+export const matchesLanguage = (w: any, targetLang: string) => {
   if (!w || !targetLang) return false;
+  const tBase = getBaseLanguage(targetLang);
+  const wBase = getBatchBaseLanguage(w);
   const wLang = String(w.language || w.name || '').toLowerCase();
-  const tLang = String(targetLang).toLowerCase();
   const isWOffer = wLang.includes('offer') || String(w.id || '').toLowerCase().includes('offer');
-  const isTOffer = tLang.includes('offer');
+  const isTOffer = String(targetLang).toLowerCase().includes('offer');
   if (isWOffer !== isTOffer) return false;
-  return getBaseLanguage(wLang) === getBaseLanguage(tLang);
+  return wBase === tBase;
 };
 
 export function LeadsManagementTab({
   workshops,
   selectedDashboardLang = 'English',
   selectedWorkshop = null,
-  leadsData = []
+  leadsData = [],
+  googleFormQuestionMap = {},
+  fieldMapping = {},
+  dynamicColumns: propDynamicColumns,
 }: {
   workshops: any[];
   selectedDashboardLang?: string;
   selectedWorkshop?: any;
   leadsData?: any[];
+  googleFormQuestionMap?: Record<string, string>;
+  fieldMapping?: Record<string, string>;
+  dynamicColumns?: string[];
 }) {
   const toast = useToast();
   const [savingGate, setSavingGate] = useState(false);
@@ -104,6 +146,7 @@ export function LeadsManagementTab({
     setSettingsError(error || '');
   }));
   const aiStateRef = React.useRef<Record<string, unknown>>({});
+  const [dbQuestions, setDbQuestions] = useState<string[]>([]);
 
 
   const syncStateToBackend = (key: string, data: any) => {
@@ -118,11 +161,21 @@ export function LeadsManagementTab({
     void saveRegistrationState(patch).catch(error => toast.error(error.message));
   };
 
-  const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
+  const [selectedLanguage, setSelectedLanguage] = useState(() => canonicalLanguage(selectedWorkshop?.language || selectedDashboardLang));
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
   const activeBatchRef = React.useRef(activeBatchId);
   activeBatchRef.current = activeBatchId;
+
+  // Keep selectedLanguage and activeBatchId synchronized when page language or selected form/workshop changes
+  useEffect(() => {
+    const target = canonicalLanguage(selectedWorkshop?.language || selectedDashboardLang);
+    setSelectedLanguage(target);
+    if (selectedWorkshop?.id) {
+      setSelectedBatchId(selectedWorkshop.id);
+      setActiveBatchId(selectedWorkshop.id);
+    }
+  }, [selectedDashboardLang, selectedWorkshop]);
   const [activeTab, setActiveTab] = useState('new_leads');
   const pagination = useRegistrationPage(`${activeBatchId}:${activeTab}`);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -172,15 +225,55 @@ export function LeadsManagementTab({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
 
+  // Edit Lead (Phone / Batch) State
+  const [editingLead, setEditingLead] = useState<{ id: string; name: string; phone: string; country?: string; currentBatchId?: string; currentBatchName?: string } | null>(null);
+  const [savingLeadEdit, setSavingLeadEdit] = useState(false);
 
-  // Auto-select 1st matching batch on mount
-  useEffect(() => {
-    if (!activeBatchId && workshops && workshops.length > 0) {
-      const firstBatch = workshops.find(w => w && w.id && matchesLanguage(w, selectedLanguage || 'English Workshop'));
-      if (firstBatch) {
-        setSelectedBatchId(firstBatch.id);
-        setActiveBatchId(firstBatch.id);
+  const saveLeadEdit = async (leadId: string, newPhone: string, country?: string, newBatchId?: string) => {
+    setSavingLeadEdit(true);
+    try {
+      const targetBatch = (workshops || []).find(w => w.id === newBatchId);
+      const res = await fetch('/api/admin/crm/new-registration/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: leadId,
+          phone: newPhone,
+          country: country,
+          batchId: newBatchId,
+          batchName: targetBatch?.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update lead');
+      toast.success('Lead updated successfully! Corrected phone: ' + (data.phone || newPhone));
+      // Update local state if phone changed
+      if (data.phone) {
+        const lead = leadsData.find(l => l.id === leadId);
+        if (lead) {
+          lead.phone = data.phone;
+          lead.mobile = data.phone;
+          lead.phoneNumber = data.phone;
+        }
       }
+      setEditingLead(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update lead');
+    } finally {
+      setSavingLeadEdit(false);
+    }
+  };
+
+
+  // Auto-select 1st matching batch on mount or when language changes, ensuring 100% strict matching
+  useEffect(() => {
+    if (!workshops || workshops.length === 0) return;
+    const currentActive = workshops.find(w => w && w.id === activeBatchId);
+    if (!currentActive || !matchesLanguage(currentActive, selectedLanguage)) {
+      const firstBatch = workshops.find(w => w && w.id && matchesLanguage(w, selectedLanguage));
+      const nextId = firstBatch ? firstBatch.id : '';
+      setSelectedBatchId(nextId);
+      setActiveBatchId(nextId);
     }
   }, [activeBatchId, workshops, selectedLanguage]);
 
@@ -231,8 +324,15 @@ export function LeadsManagementTab({
 
 
   const activeBatchLeads = React.useMemo(() =>
-    activeBatch ? registrationBatchRows(leadsData || [], activeBatch) : [],
+    leadsData && leadsData.length > 0
+      ? leadsData
+      : (activeBatch ? registrationBatchRows(leadsData || [], activeBatch) : []),
     [activeBatch, leadsData]);
+
+  const dynamicColumns = React.useMemo(() => {
+    if (propDynamicColumns && propDynamicColumns.length > 0) return propDynamicColumns;
+    return getCleanDynamicColumns(activeBatchLeads, fieldMapping);
+  }, [propDynamicColumns, activeBatchLeads, fieldMapping]);
 
   useEffect(() => {
     if (!activeBatchId) return;
@@ -266,16 +366,6 @@ export function LeadsManagementTab({
     return () => { controller.abort(); clearInterval(interval); };
   }, [activeBatchId, leadsData]);
 
-  const availableQuestions = React.useMemo(() => {
-    const questions = new Set<string>();
-    (leadsData || []).forEach(lead => {
-      if (lead._rawRecord) {
-        Object.keys(lead._rawRecord).forEach(k => questions.add(k));
-      }
-    });
-    return Array.from(questions);
-  }, [leadsData]);
-
   type FilterCondition = RegistrationFilterCondition;
   const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>({});
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -290,12 +380,254 @@ export function LeadsManagementTab({
   const [aiCopyModes, setAiCopyModes] = useState<Record<string, boolean>>({});
   const [modalCopyMode, setModalCopyMode] = useState<boolean>(true);
 
+  // Fetch saved questions from form builder database for the active language/form.
+  // We scope to the active batch's formId when available so only that form's questions appear.
+  // NOTE: All questions in the Hindi workshop form are stored in label_en (label_hi is empty).
+  // We fall back to label_en when the language-specific label is absent, and we skip the
+  // isQuestionMatchingLanguage script-filter because the form builder is authoritative.
+  useEffect(() => {
+    async function loadFormQuestions() {
+      try {
+        if (typeof window === 'undefined' || typeof globalThis.fetch !== 'function') return;
+        // Prefer the active batch's formId, then the selected workshop's formId.
+        const activeFormId = activeBatch?.formId || selectedWorkshop?.formId || '';
+        const url = activeFormId
+          ? `/api/admin/form-questions?formId=${encodeURIComponent(activeFormId)}`
+          : '/api/admin/form-questions';
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.questions)) {
+          const base = getBaseLanguage(selectedLanguage);
+          const harvested: string[] = [];
+          data.questions.forEach((q: any) => {
+            // Pick the most-specific label; fall back to English label when the
+            // language-specific slot is empty (common for bilingual Hindi forms).
+            let label = '';
+            if (base === 'hindi') label = q.label?.hi || q.label?.en || '';
+            else if (base === 'marathi') label = q.label?.mr || q.label?.en || '';
+            else if (base === 'kannada') label = q.label?.kn || q.label?.en || '';
+            else label = q.label?.en || '';
+            const trimmed = label.trim();
+            if (trimmed && !isTechnicalCrmField(trimmed)) {
+              harvested.push(trimmed);
+            }
+          });
+          setDbQuestions(harvested.filter(Boolean));
+        }
+      } catch (_) {}
+    }
+    loadFormQuestions();
+  }, [selectedLanguage, activeBatch?.formId, selectedWorkshop?.formId]);
+
+  const availableQuestions = React.useMemo(() => {
+    const questions = new Set<string>();
+
+    // For questions from arbitrary sources (leads, workshop metadata) we enforce
+    // the script-based language filter to avoid mixing scripts across language tabs.
+    const addQuestionIfValid = (title: unknown) => {
+      if (typeof title !== 'string') return;
+      const t = title.trim();
+      if (!t || isTechnicalCrmField(t)) return;
+      if (isQuestionMatchingLanguage(t, selectedLanguage)) {
+        questions.add(t);
+      }
+    };
+
+    // For questions coming directly from the form builder DB we trust the form
+    // association and skip the script filter (Hindi forms mix English + Devanagari).
+    const addDbQuestion = (title: unknown) => {
+      if (typeof title !== 'string') return;
+      const t = title.trim();
+      if (!t || isTechnicalCrmField(t)) return;
+      questions.add(t);
+    };
+
+    // 1. From database questions configured for this language section (form-authoritative, no script filter)
+    dbQuestions.forEach(q => addDbQuestion(q));
+
+    // 2. From Google Form Question Maps & Mappings passed for this section (strictly matching this language)
+    const isPropsBatchMatching = !selectedWorkshop || matchesLanguage(selectedWorkshop, selectedLanguage);
+    if (isPropsBatchMatching) {
+      if (googleFormQuestionMap && typeof googleFormQuestionMap === 'object') {
+        Object.values(googleFormQuestionMap).forEach(title => addQuestionIfValid(title));
+      }
+
+      if (fieldMapping && typeof fieldMapping === 'object') {
+        Object.values(fieldMapping).forEach(title => addQuestionIfValid(title));
+      }
+    }
+
+    // 3. From leadsData (_rawRecord, dynamicAnswers, and formData answers) strictly for leads matching this language
+    (leadsData || []).forEach(lead => {
+      if (!lead || !matchesLanguage(lead, selectedLanguage)) return;
+      if (lead._rawRecord && typeof lead._rawRecord === 'object') {
+        Object.keys(lead._rawRecord).forEach(k => addQuestionIfValid(k));
+      }
+      if (lead.dynamicAnswers && typeof lead.dynamicAnswers === 'object') {
+        Object.keys(lead.dynamicAnswers).forEach(k => addQuestionIfValid(k));
+      }
+      if (lead.formData && typeof lead.formData === 'object' && !Array.isArray(lead.formData)) {
+        Object.keys(lead.formData).forEach(k => addQuestionIfValid(k));
+      }
+    });
+
+    // 4. From Google Form Question Maps & Mappings across workshops of this language
+    const harvestWorkshopQuestions = (w: any) => {
+      if (!w || !matchesLanguage(w, selectedLanguage) || !w.metadata) return;
+      const qMap = w.metadata.googleFormQuestionMap;
+      if (qMap && typeof qMap === 'object') {
+        Object.values(qMap).forEach(title => addQuestionIfValid(title));
+      }
+      const mapping = w.metadata.googleFormMapping;
+      if (mapping && typeof mapping === 'object') {
+        Object.values(mapping).forEach(title => addQuestionIfValid(title));
+      }
+      const cFields = w.metadata.crmFields;
+      if (Array.isArray(cFields)) {
+        cFields.forEach((cf: any) => {
+          const lbl = cf?.label || cf?.id;
+          addQuestionIfValid(lbl);
+        });
+      }
+    };
+
+    if (selectedWorkshop && matchesLanguage(selectedWorkshop, selectedLanguage)) {
+      harvestWorkshopQuestions(selectedWorkshop);
+    }
+    if (activeBatch && matchesLanguage(activeBatch, selectedLanguage)) {
+      harvestWorkshopQuestions(activeBatch);
+    }
+    (workshops || []).forEach(w => {
+      if (matchesLanguage(w, selectedLanguage)) harvestWorkshopQuestions(w);
+    });
+
+    // 5. From saved AI configurations of this language
+    Object.values(aiSettings).forEach(conds => {
+      if (Array.isArray(conds)) {
+        conds.forEach(c => {
+          if (c.question) addQuestionIfValid(c.question);
+        });
+      }
+    });
+
+    // 6. From current modal conditions
+    modalConditions.forEach(c => {
+      if (c.question) addQuestionIfValid(c.question);
+    });
+
+    return Array.from(questions).filter(Boolean);
+  }, [leadsData, dbQuestions, googleFormQuestionMap, fieldMapping, selectedWorkshop, activeBatch, workshops, selectedLanguage, aiSettings, modalConditions]);
+
   const openAiModal = (type: string) => {
-    const draft = readRegistrationAiDraft(aiStateRef.current, activeBatchId, type);
-    const current = draft?.conditions || aiSettings[type] || [{ question: '', keyword: '' }];
-    setModalConditions(current.map(c => ({ ...c })));
-    setModalCopyMode(draft?.copyMode ?? aiCopyModes[type] !== false); // Default to true (Save data here & forward copy ahead)
+    // 1. Try draft for activeBatchId with language check
+    const draft = readRegistrationAiDraft(aiStateRef.current, activeBatchId, type, selectedLanguage);
+    // 2. Try saved settings for activeBatchId
+    let current = draft?.conditions?.length ? draft.conditions : aiSettings[type];
+
+    // 3. If empty, check master list or sibling batches for this worker strictly within SAME language
+    if (!current || current.length === 0 || (current.length === 1 && !current[0].question && !current[0].keyword)) {
+      const baseLang = getBaseLanguage(selectedLanguage);
+      const masterBatchId = `master_${baseLang}_workshop`;
+      const masterDraft = readRegistrationAiDraft(aiStateRef.current, masterBatchId, type, selectedLanguage);
+      if (masterDraft?.conditions?.length) {
+        current = masterDraft.conditions;
+      } else {
+        for (const [key, value] of Object.entries(aiStateRef.current)) {
+          if (key.startsWith('crm_ai_config_') && key.endsWith(`_${type}`)) {
+            if (!key.toLowerCase().includes(baseLang)) continue;
+            try {
+              const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+              const conds = (parsed?.conditions?.length ? parsed.conditions : parsed?.draft?.conditions);
+              if (Array.isArray(conds) && conds.length > 0 && conds.some((c: any) => c.question || c.keyword)) {
+                current = conds;
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    const initialConditions = (current && current.length > 0)
+      ? current.map(c => ({
+          ...c,
+          question: (c.question && isTechnicalCrmField(c.question))
+            ? ''
+            : (c.question || '')
+        }))
+      : [{ question: '', keyword: '' }];
+
+    setModalConditions(initialConditions);
+    setModalCopyMode(true);
     setActiveModal(type);
+  };
+
+  // WhatsApp Automation (Meta Templates) State
+  const [showWTSettingsModal, setShowWTSettingsModal] = useState(false);
+  const [wtActiveSubTab, setWtActiveSubTab] = useState<'approved' | 'pending'>('approved');
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [savingWTSettings, setSavingWTSettings] = useState(false);
+  const [wtSettings, setWtSettings] = useState({
+    approved: { template: '', delay: 5 },
+    pending: { template: '', delay: 30 }
+  });
+
+  // Sync wtSettings when active batch changes
+  useEffect(() => {
+    if (activeBatch?.metadata?.wtSettings) {
+      setWtSettings({
+        approved: {
+          template: activeBatch.metadata.wtSettings.approved?.template || '',
+          delay: activeBatch.metadata.wtSettings.approved?.delay ?? 5
+        },
+        pending: {
+          template: activeBatch.metadata.wtSettings.pending?.template || '',
+          delay: activeBatch.metadata.wtSettings.pending?.delay ?? 30
+        }
+      });
+    }
+  }, [activeBatchId, activeBatch]);
+
+  // Load Meta WhatsApp Templates on modal open
+  useEffect(() => {
+    if (showWTSettingsModal && templates.length === 0) {
+      setLoadingTemplates(true);
+      fetch('/api/admin/crm/templates?provider=meta')
+        .then(res => res.json())
+        .then(data => {
+          setTemplates(data.data?.templates || data.templates || []);
+        })
+        .catch(err => console.error('Failed to load templates:', err))
+        .finally(() => setLoadingTemplates(false));
+    }
+  }, [showWTSettingsModal, templates.length]);
+
+  const saveWTSettings = async () => {
+    if (!activeBatch) {
+      toast.error('No active batch selected.');
+      return;
+    }
+    setSavingWTSettings(true);
+    try {
+      const listKey = `crm_${getBaseLanguage(activeBatch.language || selectedLanguage)}_workshops`;
+      const updatedWorkshop = {
+        ...activeBatch,
+        metadata: {
+          ...(activeBatch.metadata || {}),
+          wtSettings: wtSettings
+        }
+      };
+      await saveRegistrationWorkshop(listKey, updatedWorkshop, activeBatch);
+      toast.success('WhatsApp Automation settings saved! Approved leads will receive automated messages.');
+      setShowWTSettingsModal(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
+    } finally {
+      setSavingWTSettings(false);
+    }
   };
 
   const [batchDecisions, setBatchDecisions] = useState<Record<string, any>>(() => {
@@ -311,29 +643,74 @@ export function LeadsManagementTab({
     let incomplete = false;
     try { validateRegistrationConditions(conditions); }
     catch (error) {
-      if (!automatic) throw error;
       incomplete = true;
     }
     if (configSaveRef.current) throw new Error('A configuration save is already in progress');
     configSaveRef.current = true;
     setSavingConfig(true);
     try {
-      const key = registrationAiConfigKey(activeBatchId, type);
-      const previous = aiStateRef.current[key];
-      const previousConfig = (typeof previous === 'string' ? JSON.parse(previous) : previous) as Record<string, unknown> | undefined;
-      const saved = await saveRegistrationSnapshot({
-        [key]: incomplete ? { ...previousConfig, conditions: previousConfig?.conditions || [],
-          autoEnabled: previousConfig?.autoEnabled === true, draft: { conditions, copyMode: modalCopyMode } } :
-        { conditions, copyMode: modalCopyMode,
-          autoEnabled: automatic ? previousConfig?.autoEnabled === true : conditions.some(condition => condition.question?.trim() || condition.directMoveCategory),
-          matchMode: 'all_questions_any_answer' },
-      }, { [key]: previous });
+      const baseLang = getBaseLanguage(activeBatch?.language || selectedLanguage);
+      const allTargetBatchIds = new Set<string>([
+        activeBatchId,
+        `master_${baseLang}_workshop`,
+        ...(workshops || []).filter(w => w && w.id && matchesLanguage(w, selectedLanguage)).map(w => w.id),
+      ]);
+
+      const patch: Record<string, unknown> = {};
+      const previousMap: Record<string, unknown> = {};
+
+      for (const bId of allTargetBatchIds) {
+        if (!bId) continue;
+        const key = registrationAiConfigKey(bId, type);
+        const previous = aiStateRef.current[key];
+        previousMap[key] = previous;
+        const previousConfig = (typeof previous === 'string' ? JSON.parse(previous) : previous) as Record<string, unknown> | undefined;
+
+        patch[key] = incomplete
+          ? {
+              ...previousConfig,
+              conditions: previousConfig?.conditions || [],
+              autoEnabled: previousConfig?.autoEnabled === true,
+              draft: { conditions, copyMode: modalCopyMode },
+            }
+          : {
+              conditions,
+              copyMode: modalCopyMode,
+              draft: { conditions, copyMode: modalCopyMode },
+              autoEnabled: automatic ? previousConfig?.autoEnabled === true : conditions.some(condition => condition.question?.trim() || condition.directMoveCategory),
+              matchMode: 'all_questions_any_answer',
+            };
+      }
+
+      let saved: Record<string, unknown>;
+      try {
+        saved = await saveRegistrationSnapshot(patch, previousMap);
+      } catch (err: any) {
+        if (err?.message?.includes('another update') || err?.message?.includes('conflict') || err?.message?.includes('changed')) {
+          const freshRes = await fetch('/api/admin/crm/new-registration/state');
+          if (freshRes.ok) {
+            const freshState = await freshRes.json();
+            aiStateRef.current = { ...aiStateRef.current, ...freshState };
+            const freshPreviousMap: Record<string, unknown> = {};
+            for (const bId of allTargetBatchIds) {
+              if (!bId) continue;
+              const k = registrationAiConfigKey(bId, type);
+              freshPreviousMap[k] = freshState[k];
+            }
+            saved = await saveRegistrationSnapshot(patch, freshPreviousMap);
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
       aiStateRef.current = { ...aiStateRef.current, ...saved };
       const newSettings = { ...aiSettings, [type]: conditions };
       if (!incomplete) setAiSettings(newSettings);
       const updatedCopyModes = { ...aiCopyModes, [type]: modalCopyMode };
       setAiCopyModes(updatedCopyModes);
-      if (!automatic) toast.success(`${type} configuration saved in Bunny Database until you change it.`);
+      if (!automatic) toast.success(`${type} configuration saved permanently for all batches.`);
     } finally {
       setSavingConfig(false);
       configSaveRef.current = false;
@@ -369,7 +746,7 @@ export function LeadsManagementTab({
       .then(async response => {
         const state = await response.json();
         if (!response.ok) throw new Error(state.error || 'Failed to load saved AI configuration');
-        const saved = readRegistrationAiConfig(state, activeBatchId, activeBatch?.metadata);
+        const saved = readRegistrationAiConfig(state, activeBatchId, { ...(activeBatch?.metadata || {}), language: selectedLanguage });
         if (!controller.signal.aborted) {
           aiStateRef.current = state;
           setAiSettings(saved.settings);
@@ -415,8 +792,11 @@ export function LeadsManagementTab({
     try {
       const snapshot = JSON.stringify({ activeBatchId, activeModal, modalConditions, modalCopyMode });
       if (activeModal && snapshot !== modalSnapshotRef.current) await saveAiConfig(activeModal, modalConditions, true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The edited rules were not saved.');
+    } finally {
       setActiveModal(null);
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'The edited rules were not saved.'); }
+    }
   };
 
 
@@ -464,7 +844,19 @@ export function LeadsManagementTab({
     SIDEBAR_TABS.forEach(tab => {
       let count = 0;
       if (isRegistrationStageCategory(tab.id)) {
-        count = activeBatchLeads.filter(l => isRegistrationStageMember(batchDecisions[l.id] || {}, tab.id)).length;
+        if (tab.id.startsWith('pending_')) {
+          count = activeBatchLeads.filter(l => {
+            const dec = batchDecisions[l.id] || {};
+            const isApproved = dec.status?.startsWith('approval') ||
+              dec.status === 'registered_leads' ||
+              Boolean(dec.isRegistered) ||
+              (dec.copies || []).some((c: string) => c.startsWith('approval') || c === 'registered_leads');
+            if (isApproved) return false;
+            return isRegistrationStageMember(dec, tab.id);
+          }).length;
+        } else {
+          count = activeBatchLeads.filter(l => isRegistrationStageMember(batchDecisions[l.id] || {}, tab.id)).length;
+        }
       } else if (tab.id === 'take_zoom_meeting') {
         count = activeBatchLeads.filter(l => needsZoomReview(batchDecisions[l.id] || {})).length;
       } else if (tab.id === 'new_leads') {
@@ -472,6 +864,11 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
+          const isApproved = dec.status?.startsWith('approval') ||
+            dec.status === 'registered_leads' ||
+            Boolean(dec.isRegistered) ||
+            (dec.copies || []).some((c: string) => c.startsWith('approval') || c === 'registered_leads');
+          if (isApproved) return false;
           return (String(dec.status || '').startsWith('pending') ||
             (dec.copies || []).some((category: string) => category.startsWith('pending'))) && !dec.isRejected;
         }).length;
@@ -501,6 +898,17 @@ export function LeadsManagementTab({
   const currentTabLeads = React.useMemo(() => {
     const activeTabLabel = getCategoryLabel(activeTab);
     if (isRegistrationStageCategory(activeTab)) {
+      if (activeTab.startsWith('pending_')) {
+        return activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          const isApproved = dec.status?.startsWith('approval') ||
+            dec.status === 'registered_leads' ||
+            Boolean(dec.isRegistered) ||
+            (dec.copies || []).some((c: string) => c.startsWith('approval') || c === 'registered_leads');
+          if (isApproved) return false;
+          return isRegistrationStageMember(dec, activeTab);
+        });
+      }
       return activeBatchLeads.filter(l => isRegistrationStageMember(batchDecisions[l.id] || {}, activeTab));
     }
     if (activeTab === 'take_zoom_meeting') {
@@ -515,6 +923,11 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
+        const isApproved = dec.status?.startsWith('approval') ||
+          dec.status === 'registered_leads' ||
+          Boolean(dec.isRegistered) ||
+          (dec.copies || []).some((c: string) => c.startsWith('approval') || c === 'registered_leads');
+        if (isApproved) return false;
         return (String(dec.status || '').startsWith('pending') ||
           (dec.copies || []).some((category: string) => category.startsWith('pending'))) && !dec.isRejected;
       });
@@ -751,14 +1164,7 @@ export function LeadsManagementTab({
   };
 
   return (
-    <div>
-    <AutosaveStatus status={settingsStatus} error={settingsError} retry={() => {
-      const retry = activeModal ? saveAiConfig(activeModal, modalConditions, true) : settingsSaver.current.retry();
-      void retry.then(() => { setSettingsStatus('saved'); setSettingsError(''); }).catch(error => {
-        setSettingsStatus('error'); setSettingsError(error.message); toast.error(error.message);
-      });
-    }} />
-    <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
+    <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full min-h-[520px] animate-fade-in">
 
       {/* Sidebar Section */}
       <aside ref={sidebarRef} className="bg-slate-50 border-r border-slate-200 flex flex-col z-10 flex-shrink-0 relative transition-none select-none" style={{ width: sidebarWidth }}>
@@ -766,130 +1172,221 @@ export function LeadsManagementTab({
           className="absolute right-[-4px] top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 z-50 transition-colors"
           onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
         />
-        <div className="p-4 border-b border-slate-200">
-          <h2 className="font-black text-slate-900 text-lg">
-            Categories
-          </h2>
-        </div>
-        <div className="p-3 flex-1 overflow-y-auto space-y-1">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dynamic</h3>
-            <button aria-label="Add category" onClick={() => { setEditingCategory(null); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors">
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
-          {SIDEBAR_TABS.map(tab => {
-            const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$$typeof) ? tab.icon : (
-  tab.id.includes('pending') ? Clock :
-  tab.id.includes('approval') ? CheckCircle :
-  tab.id.includes('registered') ? UserCheck :
-  tab.id.includes('set_zoom') ? Calendar :
-  tab.id.includes('take_zoom') ? Video :
-  tab.id.includes('rejected') ? XCircle :
-  tab.id.includes('ai_triggers') ? Zap :
-  tab.id.includes('new_leads') ? FileText : Clock
-);
-            const isSystem = tab.isSystem;
-            const isCustom = !isSystem;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                }`}
-              >
-                <TabIcon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                <span className="flex-1 whitespace-nowrap truncate text-left">
-                  {tab.label} ({tabCounts[tab.id] || 0})
-                </span>
-                <div className={`gap-0.5 ml-1 ${activeTab === tab.id ? 'flex opacity-100' : 'hidden'}`}>
-                  {tab.id !== 'new_leads' && (
-                    <>
-                      <div onClick={(e) => moveCategory(customCategories.findIndex(c => c.id === tab.id), 'up', e)} className="p-1 hover:bg-slate-700 hover:text-white rounded text-slate-300 transition-colors cursor-pointer" title="Move Up">
-                        <ChevronUp className="h-3 w-3" />
-                      </div>
-                      <div onClick={(e) => moveCategory(customCategories.findIndex(c => c.id === tab.id), 'down', e)} className="p-1 hover:bg-slate-700 hover:text-white rounded text-slate-300 transition-colors cursor-pointer" title="Move Down">
-                        <ChevronDown className="h-3 w-3" />
-                      </div>
-                    </>
-                  )}
-                  {isCustom && (
-                    <>
-                      <div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer" title="Edit">
-                        <Edit2 className="h-3 w-3" />
-                      </div>
-                      <div onClick={(e) => deleteCategory(tab.id, e)} className="p-1 hover:bg-red-500 hover:text-white rounded text-red-200 transition-colors cursor-pointer">
-                        <Trash2 className="h-3 w-3" />
-                      </div>
-                    </>
-                  )}
-                </div>
+        
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          {/* Categories in Sidebar */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2">
+              <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText size={14} className="text-blue-600" />
+                Categories
+              </h3>
+              <button aria-label="Add category" onClick={() => { setEditingCategory(null); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Add category">
+                <Plus className="h-4 w-4" />
               </button>
-            );
-          })}
+            </div>
+            <div className="space-y-1">
+              {SIDEBAR_TABS.map(tab => {
+                const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$$typeof) ? tab.icon : (
+      tab.id.includes('pending') ? Clock :
+      tab.id.includes('approval') ? CheckCircle :
+      tab.id.includes('registered') ? UserCheck :
+      tab.id.includes('set_zoom') ? Calendar :
+      tab.id.includes('take_zoom') ? Video :
+      tab.id.includes('rejected') ? XCircle :
+      tab.id.includes('ai_triggers') ? Zap :
+      tab.id.includes('new_leads') ? FileText : Clock
+    );
+                const isSystem = tab.isSystem;
+                const isCustom = !isSystem;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                    }`}
+                  >
+                    <TabIcon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                    <span className="flex-1 whitespace-nowrap truncate text-left">
+                      {tab.label} ({tabCounts[tab.id] || 0})
+                    </span>
+                    <div className={`gap-0.5 ml-1 ${activeTab === tab.id ? 'flex opacity-100' : 'hidden'}`}>
+                      {tab.id !== 'new_leads' && (
+                        <>
+                          <div onClick={(e) => moveCategory(customCategories.findIndex(c => c.id === tab.id), 'up', e)} className="p-1 hover:bg-slate-700 hover:text-white rounded text-slate-300 transition-colors cursor-pointer" title="Move Up">
+                            <ChevronUp className="h-3 w-3" />
+                          </div>
+                          <div onClick={(e) => moveCategory(customCategories.findIndex(c => c.id === tab.id), 'down', e)} className="p-1 hover:bg-slate-700 hover:text-white rounded text-slate-300 transition-colors cursor-pointer" title="Move Down">
+                            <ChevronDown className="h-3 w-3" />
+                          </div>
+                        </>
+                      )}
+                      {isCustom && (
+                        <>
+                          <div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer" title="Edit">
+                            <Edit2 className="h-3 w-3" />
+                          </div>
+                          <div onClick={(e) => deleteCategory(tab.id, e)} className="p-1 hover:bg-red-500 hover:text-white rounded text-red-200 transition-colors cursor-pointer">
+                            <Trash2 className="h-3 w-3" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
 
-        {/* Header Section */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-            <Users className="text-indigo-600" size={24} />
-            Leads Management
-          </h2>
+        {/* Header Section with 3 Categorized Dropdowns */}
+        <header className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 whitespace-nowrap">
+              <Users className="text-indigo-600" size={22} />
+              Leads Management
+            </h2>
+            <span className="hidden sm:inline-block px-2.5 py-1 bg-slate-100 text-slate-600 font-bold text-xs rounded-lg truncate max-w-[220px]" title={activeBatchName}>
+              {activeBatchName || 'Select Batch'}
+            </span>
+          </div>
 
-          <div className="flex items-center gap-3">
-            <select
-              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              value={selectedLanguage}
-              onChange={(e) => {
-                setSelectedLanguage(e.target.value);
-                setSelectedBatchId('');
-              }}
-            >
-              {LANGUAGES.map(lang => (
-                <option key={lang} value={lang}>{lang}</option>
-              ))}
-            </select>
-
-            <select
-              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[320px] max-w-lg truncate"
-              value={selectedBatchId}
-              onChange={(e) => setSelectedBatchId(e.target.value)}
-            >
-              <option value="">-- Select Batch Name --</option>
-              {filteredBatches.map(batch => (
-                <option key={batch.id} value={batch.id}>{batch.name}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleSubmit}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-colors"
-            >
-              Submit
-            </button>
+          {/* Autosave in header */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg">
+              {canonicalLanguage(selectedLanguage)}
+            </span>
+            <AutosaveStatus status={settingsStatus} error={settingsError} retry={() => {
+              const retry = activeModal ? saveAiConfig(activeModal, modalConditions, true) : settingsSaver.current.retry();
+              void retry.then(() => { setSettingsStatus('saved'); setSettingsError(''); }).catch(error => {
+                setSettingsStatus('error'); setSettingsError(error.message); toast.error(error.message);
+              });
+            }} />
           </div>
         </header>
 
         {/* Working Area Section */}
         <main className="flex-1 p-6 bg-slate-50/50 overflow-y-auto">
-          {activeBatchId ? (
+          {(activeBatchId || (leadsData && leadsData.length > 0) || (workshops && workshops.length > 0)) ? (
             <div className="space-y-4">
+              {/* Upper Side Status Cards: Total, Approved, Triggered, Pending, Rejected */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* 1. Total Leads Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('new_leads')}
+                  className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
+                    activeTab === 'new_leads'
+                      ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-400'
+                      : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-slate-500 mb-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-700">Total</span>
+                    <FileText size={16} className="text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-black text-slate-900">{activeBatchLeads.length}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">All batch leads</div>
+                </button>
+
+                {/* 2. Approved Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('approval_1')}
+                  className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
+                    activeTab.startsWith('approval') || activeTab === 'registered_leads'
+                      ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-400'
+                      : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-slate-500 mb-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Approved</span>
+                    <CheckCircle size={16} className="text-emerald-600" />
+                  </div>
+                  <div className="text-2xl font-black text-emerald-700">
+                    {(tabCounts['approval_1'] || 0) + (tabCounts['approval_2'] || 0) + (tabCounts['approval_3'] || 0) + (tabCounts['approval_4'] || 0) + (tabCounts['registered_leads'] || 0)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Approval 1-4 & Reg</div>
+                </button>
+
+                {/* 3. Triggered Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('ai_triggers')}
+                  className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
+                    activeTab === 'ai_triggers'
+                      ? 'border-purple-600 bg-purple-50/80 ring-2 ring-purple-400'
+                      : 'border-slate-200 bg-white hover:border-purple-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-slate-500 mb-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-purple-700">Triggered</span>
+                    <Zap size={16} className="text-purple-600" />
+                  </div>
+                  <div className="text-2xl font-black text-purple-700">
+                    {activeBatchLeads.filter(l => batchDecisions[l.id]?.wtTriggered || batchDecisions[l.id]?.whatsappSent || batchDecisions[l.id]?.triggeredAt || batchDecisions[l.id]?.status === 'ai_triggers' || batchDecisions[l.id]?.copies?.includes('ai_triggers')).length}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">WhatsApp Triggered</div>
+                </button>
+
+                {/* 4. Pending Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('pending_leads_1')}
+                  className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
+                    activeTab.startsWith('pending')
+                      ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-400'
+                      : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-slate-500 mb-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">Pending</span>
+                    <Clock size={16} className="text-amber-600" />
+                  </div>
+                  <div className="text-2xl font-black text-amber-700">
+                    {(tabCounts['pending_leads_1'] || 0) + (tabCounts['pending_leads_2'] || 0) + (tabCounts['pending_leads_3'] || 0) + (tabCounts['pending_leads_4'] || 0)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Pending 1-4 review</div>
+                </button>
+
+                {/* 5. Rejected Card */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('rejected_leads')}
+                  className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
+                    activeTab === 'rejected_leads'
+                      ? 'border-rose-600 bg-rose-50/80 ring-2 ring-rose-400'
+                      : 'border-slate-200 bg-white hover:border-rose-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-slate-500 mb-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-rose-700">Rejected</span>
+                    <XCircle size={16} className="text-rose-600" />
+                  </div>
+                  <div className="text-2xl font-black text-rose-700">
+                    {tabCounts['rejected_leads'] || 0}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Rejected leads</div>
+                </button>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800">
                     {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
                   </h3>
                   <p className="text-sm text-slate-500">
-                    Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
+                    Showing leads data for: <strong className="text-slate-700">{selectedLanguage}</strong>
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Funnel-stage tabs include the current stage and explicit copies, so counts can overlap; All Batch Leads is the total. Zoom, final approval, and group admission remain separate gates.</p>
+                  <p className="mt-1 text-xs text-slate-500">Different questions must all pass; answers for the same question are alternatives. Funnel-stage tabs include the current stage and explicit copies, so counts can overlap; Total Leads is the total. Zoom, final approval, and group admission remain separate gates.</p>
                   <p className="mt-2 text-sm font-semibold text-slate-700">
                     Current status: Total {activeBatchLeads.length}
                     {' · Unprocessed '}{activeBatchLeads.filter(lead => !batchDecisions[lead.id]?.status || batchDecisions[lead.id]?.status === 'new_leads').length}
@@ -927,6 +1424,17 @@ export function LeadsManagementTab({
                           💬 WhatsApp Messenger
                         </button>
                       )}
+                      <button
+                        onClick={() => setShowWTSettingsModal(true)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors ${
+                          wtSettings.approved.template
+                            ? 'bg-[#25D366] hover:bg-[#128C7E] text-white'
+                            : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
+                        }`}
+                        title="Configure WhatsApp Auto-Trigger for Approved Leads"
+                      >
+                        <span className="text-base">🟢</span> {wtSettings.approved.template ? `Auto-WhatsApp (${wtSettings.approved.template})` : 'Auto-WhatsApp Trigger'}
+                      </button>
                       {selectedLeads.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
                           <span className="text-xs font-bold text-indigo-800">{selectedLeads.length} selected</span>
@@ -977,41 +1485,30 @@ export function LeadsManagementTab({
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-sm text-slate-600">
                       <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                        {activeTab === 'take_zoom_meeting' ? (
-                          <tr>
-                            <th className="px-4 py-3 min-w-[50px]">
-                              <input
-                                type="checkbox"
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
-                                onChange={toggleSelectAll}
-                              />
+                        <tr>
+                          <th className="px-4 py-3 min-w-[50px] w-[50px]">
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
+                              onChange={toggleSelectAll}
+                            />
+                          </th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[140px]">Timestamp</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[140px]">WhatsApp</th>
+                          {dynamicColumns.map(col => (
+                            <th key={col} className="px-4 py-3 font-bold text-slate-500 min-w-[160px] max-w-[260px] whitespace-normal break-words leading-tight">
+                              <div className="line-clamp-4" title={col}>{col}</div>
                             </th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Email</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">City / Country</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Gender / Age</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Profession</th>
-                          </tr>
-                        ) : (
-                          <tr>
-                            <th className="px-4 py-3 min-w-[50px]">
-                              <input
-                                type="checkbox"
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
-                                onChange={toggleSelectAll}
-                              />
-                            </th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                          </tr>
-                        )}
+                          ))}
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[180px]">Email</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[90px]">Age</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">City</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Country</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 text-right min-w-[140px]">Actions</th>
+                        </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {currentTabLeads.length > 0 ? (
@@ -1046,21 +1543,55 @@ export function LeadsManagementTab({
                                         onChange={() => toggleLeadSelection(lead.id)}
                                       />
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
-                                    <td className="px-4 py-3">
-                                      {lead.phone && (
-                                        <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
-                                          {lead.phone}
-                                        </a>
-                                      )}
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">{getLeadTimestamp(lead)}</td>
+                                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{getLeadName(lead)}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        {getLeadPhone(lead) ? (
+                                          <a href={`https://wa.me/${getLeadPhone(lead).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1 font-mono text-xs">
+                                            {getLeadPhone(lead)}
+                                          </a>
+                                        ) : (
+                                          <span className="text-xs text-slate-400 italic">No phone</span>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingLead({
+                                            id: lead.id,
+                                            name: getLeadName(lead),
+                                            phone: getLeadPhone(lead),
+                                            country: getLeadCountry(lead),
+                                            currentBatchId: activeBatchId,
+                                            currentBatchName: activeBatchName,
+                                          })}
+                                          className="p-1 hover:bg-slate-200 text-slate-400 hover:text-indigo-600 rounded transition-colors"
+                                          title="Edit Phone Number or Switch Batch"
+                                        >
+                                          <Edit2 size={13} />
+                                        </button>
+                                      </div>
                                     </td>
-                                    <td className="px-4 py-3 truncate max-w-[150px]" title={getEmail(lead._rawRecord)}>{getEmail(lead._rawRecord)}</td>
-                                    <td className="px-4 py-3">{lead.city || '-'} / {getCountry(lead._rawRecord)}</td>
-                                    <td className="px-4 py-3">{lead.gender || '-'} / {getAge(lead._rawRecord)}</td>
-                                    <td className="px-4 py-3 truncate max-w-[150px]" title={getProfession(lead._rawRecord)}>{getProfession(lead._rawRecord)}</td>
+                                    {dynamicColumns.map(col => {
+                                      const val = getLeadAnswer(lead, col);
+                                      return (
+                                        <td key={col} className="px-4 py-3 whitespace-normal break-words text-slate-500 text-xs min-w-[160px] max-w-[260px]">
+                                          <div className="line-clamp-2" title={val}>{val}</div>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-4 py-3 truncate max-w-[180px] text-xs" title={getLeadEmail(lead)}>{getLeadEmail(lead) || '-'}</td>
+                                    <td className="px-4 py-3 capitalize whitespace-nowrap text-xs">{getLeadGender(lead) || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadAge(lead) || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadCity(lead) || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadCountry(lead) || '-'}</td>
+                                    <td className="px-4 py-3 text-right">
+                                      <span className="text-xs text-slate-500 font-medium">
+                                        {zd.zoomStatus === 'meeting_done' ? '✓ Done' : zd.zoomStatus === 'skipped' ? 'Skipped' : zd.zoomStatus || 'Pending'}
+                                      </span>
+                                    </td>
                                   </tr>
                                   <tr>
-                                    <td colSpan={7} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
+                                    <td colSpan={10 + dynamicColumns.length} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
                                       <div className="flex flex-wrap items-center gap-3">
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs font-medium text-slate-500">Date:</span>
@@ -1099,19 +1630,47 @@ export function LeadsManagementTab({
                                     onChange={() => toggleLeadSelection(lead.id)}
                                   />
                                 </td>
-                                <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
-                                <td className="px-4 py-3">
-                                  {lead.phone && (
-                                    <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
-                                      {lead.phone}
-                                    </a>
-                                  )}
+                                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">{getLeadTimestamp(lead)}</td>
+                                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{getLeadName(lead)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    {getLeadPhone(lead) ? (
+                                      <a href={`https://wa.me/${getLeadPhone(lead).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1 font-mono text-xs">
+                                        {getLeadPhone(lead)}
+                                      </a>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">No phone</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingLead({
+                                        id: lead.id,
+                                        name: getLeadName(lead),
+                                        phone: getLeadPhone(lead),
+                                        country: getLeadCountry(lead),
+                                        currentBatchId: activeBatchId,
+                                        currentBatchName: activeBatchName,
+                                      })}
+                                      className="p-1 hover:bg-slate-200 text-slate-400 hover:text-indigo-600 rounded transition-colors"
+                                      title="Edit Phone Number or Switch Batch"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                  </div>
                                 </td>
-                                <td className="px-4 py-3">{lead.gender || '-'}</td>
-                                <td className="px-4 py-3">{lead.city || '-'}</td>
-                                <td className="px-4 py-3 text-xs text-slate-500">
-                                  {lead._rawRecord?.['Timestamp'] || '-'}
-                                </td>
+                                {dynamicColumns.map(col => {
+                                  const val = getLeadAnswer(lead, col);
+                                  return (
+                                    <td key={col} className="px-4 py-3 whitespace-normal break-words text-slate-500 text-xs min-w-[160px] max-w-[260px]">
+                                      <div className="line-clamp-2" title={val}>{val}</div>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-4 py-3 truncate max-w-[180px] text-xs" title={getLeadEmail(lead)}>{getLeadEmail(lead) || '-'}</td>
+                                <td className="px-4 py-3 capitalize whitespace-nowrap text-xs">{getLeadGender(lead) || '-'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadAge(lead) || '-'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadCity(lead) || '-'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-xs">{getLeadCountry(lead) || '-'}</td>
                                 <td className="px-4 py-3 text-right flex justify-end gap-2">
                                   {leadStatus !== 'new_leads' && leadStatus !== '' && !batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
                                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border ${
@@ -1178,7 +1737,7 @@ export function LeadsManagementTab({
                           })
                         ) : (
                           <tr>
-                            <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                            <td colSpan={10 + dynamicColumns.length} className="px-4 py-12 text-center text-slate-500">
                               <div className="flex flex-col items-center justify-center gap-2">
                                 <Users size={32} className="text-slate-300" />
                                 <p>No leads found in {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}.</p>
@@ -1223,46 +1782,6 @@ export function LeadsManagementTab({
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 bg-slate-50 flex-1">
-              
-              {/* Data Preservation & Copy Ahead Setting Banner */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-amber-100 rounded-lg text-amber-800 text-lg">
-                    💾
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-amber-900">
-                        Data Preservation & Routing
-                      </h4>
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        modalCopyMode 
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                          : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {modalCopyMode ? '✓ Save & Copy Ahead' : 'Move Only'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                      {modalCopyMode 
-                        ? 'All data will be saved here on this page, and a copy will go ahead in the mapped pages/categories.' 
-                        : 'Leads will be removed from this page and moved to the mapped categories.'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalCopyMode(!modalCopyMode)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap flex items-center justify-center gap-1.5 ${
-                    modalCopyMode 
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white' 
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
-                  }`}
-                >
-                  {modalCopyMode ? '✓ Save & Copy Ahead ON' : 'Switch to Copy Ahead'}
-                </button>
-              </div>
-
               <QuestionRulesEditor conditions={modalConditions} onChange={setModalConditions} questions={availableQuestions} categories={SIDEBAR_TABS} />
             </div>
 
@@ -1274,17 +1793,28 @@ export function LeadsManagementTab({
                 <button
                   disabled={!configLoaded || savingConfig || runningConfig}
                   onClick={async () => {
-                    try { await saveAiConfig(activeModal, modalConditions); }
-                    catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
+                    try {
+                      await saveAiConfig(activeModal, modalConditions);
+                      setActiveModal(null);
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : 'AI configuration was not saved');
+                    }
                   }}
                   className="px-5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-sm font-bold rounded-lg shadow-sm transition-colors"
                 >
-                  💾 Save Config
+                  {savingConfig ? 'Saving...' : '💾 Save Config'}
                 </button>
-                <button disabled={!configLoaded || savingConfig || runningConfig} onClick={async () => {
-                  try { await saveAiFilter(activeModal, modalConditions); }
-                  catch (error) { toast.error(error instanceof Error ? error.message : 'AI configuration was not saved'); }
-                }} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
+                <button
+                  disabled={!configLoaded || savingConfig || runningConfig}
+                  onClick={async () => {
+                    try {
+                      await saveAiFilter(activeModal, modalConditions);
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : 'AI configuration was not saved');
+                    }
+                  }}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors"
+                >
                   {savingConfig ? 'Saving configuration...' : runningConfig ? 'Processing batch...' : '▶ Submit Config & Run'}
                 </button>
               </div>
@@ -1321,7 +1851,120 @@ export function LeadsManagementTab({
           </div>
         </div>
       )}
-    </div>
+
+      {/* WhatsApp Auto-Trigger Settings Modal */}
+      <WhatsAppAutoTriggerModal
+        isOpen={showWTSettingsModal}
+        onClose={() => setShowWTSettingsModal(false)}
+        workshops={workshops}
+        selectedLanguage={selectedDashboardLang || selectedLanguage}
+        selectedBatchId={activeBatchId}
+        onSaved={(batchId, newSettings) => {
+          if (batchId === activeBatchId) {
+            setWtSettings(newSettings);
+          }
+        }}
+      />
+      {/* Edit Lead (Phone / Batch) Modal */}
+      {editingLead && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex justify-between items-center border-b pb-3">
+              <div>
+                <h3 className="font-bold text-slate-800 text-base">Edit Participant Details</h3>
+                <p className="text-xs text-slate-500 font-medium">{editingLead.name}</p>
+              </div>
+              <button onClick={() => setEditingLead(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const phoneInput = (form.elements.namedItem('phone') as HTMLInputElement).value;
+                const countryInput = (form.elements.namedItem('country') as HTMLInputElement).value;
+                const batchSelect = (form.elements.namedItem('batchId') as HTMLSelectElement).value;
+                void saveLeadEdit(editingLead.id, phoneInput, countryInput, batchSelect);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Participant Country (Global Dialing Code Resolution)
+                </label>
+                <input
+                  type="text"
+                  name="country"
+                  defaultValue={editingLead.country || 'India'}
+                  placeholder="e.g. India, USA, UK, Canada, Australia, UAE, Singapore..."
+                  className="w-full p-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-xs font-bold text-slate-800 outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                  The system checks this country name to attach the right international code (USA: +1, UK: +44, Australia: +61, UAE: +971, India: +91, etc.).
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  WhatsApp Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="phone"
+                    defaultValue={editingLead.phone}
+                    required
+                    placeholder="e.g. +1 555-0199 or 9876543210"
+                    className="w-full p-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-sm font-mono font-bold text-slate-800 outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                  Automatically removes 00 or leading 0, and prefixes the participant country dialing code.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Assigned Batch
+                </label>
+                <select
+                  name="batchId"
+                  defaultValue={editingLead.currentBatchId || activeBatchId}
+                  className="w-full p-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-sm font-bold text-slate-700 outline-none"
+                >
+                  {filteredBatches.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                  Move or merge this lead to another batch so they trigger the correct batch message.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEditingLead(null)}
+                  className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingLeadEdit}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingLeadEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

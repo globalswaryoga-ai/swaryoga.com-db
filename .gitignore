@@ -58,6 +58,8 @@ production
 .vercel
 .env*.local
 !ANDROID_APP_STATUS.md
+*.db
+*.sqlite
 !ANDROID_APP_TESTING_GUIDE.md
 bunny.db
 scratch/

@@ -26,26 +26,33 @@ export async function readOfferState(scope: string): Promise<Record<string, unkn
 
 export async function writeOfferState(scope: string, patch: Record<string, unknown>, previous: Record<string, unknown>) {
   await initOfferSchema();
-  const transaction = await getBunnyDatabase().transaction('write');
-  try {
-    for (const key of Object.keys(patch)) {
-      const result = await transaction.execute({ sql: 'SELECT value_json FROM workshop_offer_state_sql WHERE scope=? AND state_key=?', args: [scope, key] });
-      const row = result.rows[0];
-      const expectedExists = Object.prototype.hasOwnProperty.call(previous, key);
-      if (!!row !== expectedExists || (row && !registrationStoredValuesEqual(JSON.parse(String(row.value_json)), previous[key]))) {
-        throw new Error('Offer settings changed in another tab. Reload to review the latest values before retrying.');
-      }
+  const keys = Object.keys(patch);
+  if (keys.length === 0) return patch;
+
+  const placeholders = keys.map(() => '?').join(',');
+  const result = await bunnyExecute({
+    sql: `SELECT state_key, value_json FROM workshop_offer_state_sql WHERE scope = ? AND state_key IN (${placeholders})`,
+    args: [scope, ...keys],
+  });
+  const currentMap = new Map<string, unknown>();
+  for (const row of result.rows) {
+    currentMap.set(String(row.state_key), row.value_json);
+  }
+
+  for (const key of keys) {
+    const rawVal = currentMap.get(key);
+    const expectedExists = Object.prototype.hasOwnProperty.call(previous, key);
+    if ((rawVal !== undefined) !== expectedExists || (rawVal !== undefined && !registrationStoredValuesEqual(JSON.parse(String(rawVal)), previous[key]))) {
+      throw new Error('Offer settings changed in another tab. Reload to review the latest values before retrying.');
     }
-    for (const [key, value] of Object.entries(patch)) {
-      await transaction.execute({
-        sql: 'INSERT INTO workshop_offer_state_sql(scope,state_key,value_json) VALUES (?,?,?) ON CONFLICT(scope,state_key) DO UPDATE SET value_json=excluded.value_json',
-        args: [scope, key, JSON.stringify(value)],
-      });
-    }
-    await transaction.commit();
-    return patch;
-  } catch (error) { await transaction.rollback(); throw error; }
-  finally { transaction.close(); }
+  }
+
+  const statements = Object.entries(patch).map(([key, value]) => ({
+    sql: 'INSERT INTO workshop_offer_state_sql(scope,state_key,value_json) VALUES (?,?,?) ON CONFLICT(scope,state_key) DO UPDATE SET value_json=excluded.value_json',
+    args: [scope, key, JSON.stringify(value)],
+  }));
+  await bunnyBatch(statements);
+  return patch;
 }
 
 export async function listOfferRecords(scope: string): Promise<Record<string, Record<string, unknown>>> {
@@ -115,8 +122,8 @@ export async function saveOfferDesign(scope: string, id: string, kind: string, d
         args: [scope, id, kind, JSON.stringify({ ...data, id, kind }), new Date().toISOString()],
       });
       await transaction.commit();
-    } catch (error) { await transaction.rollback(); throw error; }
-    finally { transaction.close(); }
+    } catch (error) { try { await transaction.rollback(); } catch (_) {} throw error; }
+    finally { try { transaction.close(); } catch (_) {} }
     return;
   }
   await bunnyExecute({
@@ -138,7 +145,7 @@ export async function finalizeOfferDocument(scope: string, id: string, kind: str
     await transaction.execute({ sql: 'UPDATE workshop_offer_records_sql SET data_json=json_patch(data_json,?),updated_at=? WHERE scope=? AND lead_id=?', args: [JSON.stringify(patch), now, scope, leadId] });
     await transaction.commit();
   } catch (error) {
-    await transaction.rollback();
+    try { await transaction.rollback(); } catch (_) {}
     throw error;
-  } finally { transaction.close(); }
+  } finally { try { transaction.close(); } catch (_) {} }
 }

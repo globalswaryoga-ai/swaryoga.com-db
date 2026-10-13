@@ -6,7 +6,13 @@ import { unstable_noStore as noStore } from 'next/cache';
 export { parseRegistrationValue } from '@/lib/registrationValues';
 
 export type RegistrationState = Record<string, unknown>;
-export class RegistrationSnapshotConflict extends Error {}
+export class RegistrationSnapshotConflict extends Error {
+  name = 'RegistrationSnapshotConflict';
+  constructor(message: string) {
+    super(message);
+    this.name = 'RegistrationSnapshotConflict';
+  }
+}
 const LANGUAGES = ['english', 'hindi', 'marathi', 'kannada'];
 
 export function registrationWorkshops(state: RegistrationState): Array<Record<string, any>> {
@@ -70,50 +76,56 @@ export async function writeRegistrationState(patch: RegistrationState, scope = '
 export async function saveRegistrationSnapshotIfUnchanged(patch: RegistrationState, previous: RegistrationState, scope = 'shared',
   allowBatchRemoval = false) {
   await ensureState(scope);
-  const transaction = await getBunnyDatabase().transaction('write');
-  try {
-    for (const [key, value] of Object.entries(patch)) {
-      const result = await transaction.execute({
-        sql: 'SELECT value_json FROM registration_state_sql WHERE scope = ? AND state_key = ?',
-        args: [scope, key],
-      });
-      const current = result.rows.length ? JSON.parse(String(result.rows[0].value_json)) : undefined;
-      if (!registrationStoredValuesEqual(current, previous[key]) && !registrationStoredValuesEqual(current, value)) {
-        throw new RegistrationSnapshotConflict(`Saved setting ${key} changed in another update. Reload before editing; your saved data has been preserved.`);
-      }
-      if (/^crm_(english|hindi|marathi|kannada)_workshops$|^crm_workshops$/.test(key)) {
-        const existing = parseRegistrationValue<Array<Record<string, unknown>>>(current, []);
-        const edited = parseRegistrationValue<Array<Record<string, unknown>>>(value, []);
-        if (!Array.isArray(existing) || !Array.isArray(edited)) throw new Error('Invalid workshop list');
-        const byId = new Map(existing.map(workshop => [workshop.id, workshop]));
-        const editedIds = new Set(edited.map(workshop => workshop.id));
-        if (!allowBatchRemoval && existing.some(workshop => !editedIds.has(workshop.id))) {
-          throw new RegistrationSnapshotConflict('Automatic saving cannot remove saved batches. Use the confirmed Delete or Merge control; your batches have been preserved.');
-        }
-        for (const workshop of edited) {
-          const savedWorkshop = byId.get(workshop.id);
-          if (!savedWorkshop) continue;
-          if (!registrationStoredValuesEqual(savedWorkshop.metadata, workshop.metadata) ||
-              !registrationStoredValuesEqual(savedWorkshop.formId, workshop.formId)) {
-            throw new RegistrationSnapshotConflict('A batch-list update cannot replace saved form or AI settings. Use the batch settings control; your saved configuration has been preserved.');
-          }
-        }
-      }
+  const keys = Object.keys(patch);
+  if (keys.length === 0) return patch;
+
+  // Fetch all existing state for target keys in a single query (avoids remote transaction timeout)
+  const placeholders = keys.map(() => '?').join(',');
+  const result = await bunnyExecute({
+    sql: `SELECT state_key, value_json FROM registration_state_sql WHERE scope = ? AND state_key IN (${placeholders})`,
+    args: [scope, ...keys],
+  });
+  const currentMap = new Map<string, unknown>();
+  for (const row of result.rows) {
+    try {
+      currentMap.set(String(row.state_key), JSON.parse(String(row.value_json)));
+    } catch (_) {
+      currentMap.set(String(row.state_key), row.value_json);
     }
-    for (const [key, value] of Object.entries(patch)) {
-      await transaction.execute({
-        sql: 'INSERT INTO registration_state_sql (scope, state_key, value_json) VALUES (?, ?, ?) ON CONFLICT(scope, state_key) DO UPDATE SET value_json = excluded.value_json',
-        args: [scope, key, JSON.stringify(value)],
-      });
-    }
-    await transaction.commit();
-    return patch;
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
-  } finally {
-    transaction.close();
   }
+
+  for (const [key, value] of Object.entries(patch)) {
+    const current = currentMap.get(key);
+    if (key in previous && previous[key] !== undefined && !registrationStoredValuesEqual(current, previous[key]) && !registrationStoredValuesEqual(current, value)) {
+      throw new RegistrationSnapshotConflict(`Saved setting ${key} changed in another update. Reload before editing; your saved data has been preserved.`);
+    }
+    if (/^crm_(english|hindi|marathi|kannada)_workshops$|^crm_workshops$/.test(key)) {
+      const existing = parseRegistrationValue<Array<Record<string, unknown>>>(current, []);
+      const edited = parseRegistrationValue<Array<Record<string, unknown>>>(value, []);
+      if (!Array.isArray(existing) || !Array.isArray(edited)) throw new Error('Invalid workshop list');
+      const byId = new Map(existing.map(workshop => [workshop.id, workshop]));
+      const editedIds = new Set(edited.map(workshop => workshop.id));
+      if (!allowBatchRemoval && existing.some(workshop => !editedIds.has(workshop.id))) {
+        throw new RegistrationSnapshotConflict('Automatic saving cannot remove saved batches. Use the confirmed Delete or Merge control; your batches have been preserved.');
+      }
+      for (const workshop of edited) {
+        const savedWorkshop = byId.get(workshop.id);
+        if (!savedWorkshop) continue;
+        if (!registrationStoredValuesEqual(savedWorkshop.metadata, workshop.metadata) ||
+            !registrationStoredValuesEqual(savedWorkshop.formId, workshop.formId)) {
+          throw new RegistrationSnapshotConflict('A batch-list update cannot replace saved form or AI settings. Use the batch settings control; your saved configuration has been preserved.');
+        }
+      }
+    }
+  }
+
+  // Atomically write all changes in a single batch
+  const statements = Object.entries(patch).map(([key, value]) => ({
+    sql: 'INSERT INTO registration_state_sql (scope, state_key, value_json) VALUES (?, ?, ?) ON CONFLICT(scope, state_key) DO UPDATE SET value_json = excluded.value_json',
+    args: [scope, key, JSON.stringify(value)],
+  }));
+  await bunnyBatch(statements);
+  return patch;
 }
 export async function mergeRegistrationState(patch: RegistrationState, scope = 'shared') {
   await ensureState(scope);
