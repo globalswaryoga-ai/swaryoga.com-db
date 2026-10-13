@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon, Zap } from 'lucide-react';
 import Mp4ToMp3Converter from './_components/Mp4ToMp3Converter';
+import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
 
 const LANGUAGE_OPTIONS = [
   { code: 'hi', name: 'Hindi' },
@@ -99,6 +100,9 @@ export default function RagAndVideoPage() {
 
   const [sourceMode, setSourceMode] = useState<'audio' | 'text' | 'url'>('audio');
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [isAutoCompressing, setIsAutoCompressing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [compressedInfo, setCompressedInfo] = useState<{ originalMB: number; newMB: number } | null>(null);
   const [sourceText, setSourceText] = useState('');
   const [referenceLink, setReferenceLink] = useState('');
   const [topicTitle, setTopicTitle] = useState('');
@@ -247,15 +251,52 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
     setSelectedLanguages((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
   };
 
+  const handleCompressCurrentAudio = async () => {
+    if (!audioFile) return;
+    setIsAutoCompressing(true);
+    setCompressProgress(0);
+    setCreateError('');
+    try {
+      const originalSize = audioFile.size / (1024 * 1024);
+      const compressed = await compressAudioForWhisper(audioFile, audioFile.name, (p) => setCompressProgress(p));
+      setAudioFile(compressed);
+      setCompressedInfo({ originalMB: originalSize, newMB: compressed.size / (1024 * 1024) });
+      setCreateError('');
+    } catch (err: any) {
+      console.error('Compression error:', err);
+      setCreateError(`Audio compression failed: ${err?.message || err}. Please try using the converter modal above.`);
+    } finally {
+      setIsAutoCompressing(false);
+    }
+  };
+
   const handleCreateJob = async () => {
     const hasSource = sourceMode === 'audio' ? Boolean(audioFile) : sourceMode === 'text' ? Boolean(sourceText.trim()) : Boolean(referenceLink.trim());
     if (!token || !hasSource || !topicTitle.trim() || !selectedLanguages.length) return;
 
+    let targetAudioFile = audioFile;
     if (sourceMode === 'audio' && audioFile) {
-      const maxAudioBytes = 24 * 1024 * 1024; // 24 MB limit for transcription payload
+      const maxAudioBytes = 24 * 1024 * 1024; // 24 MB limit for Whisper transcription payload
       if (audioFile.size > maxAudioBytes) {
-        setCreateError(`Audio file is ${(audioFile.size / (1024 * 1024)).toFixed(1)}MB. Whisper transcription limit is 24MB. Click "Open MP4 to MP3 Converter" above to compress it into a lightweight speech MP3, or switch to "Paste text".`);
-        return;
+        setCreating(true);
+        setIsAutoCompressing(true);
+        setCompressProgress(0);
+        setCreateError(`Audio file is ${(audioFile.size / (1024 * 1024)).toFixed(1)}MB. Auto-compressing to lightweight speech MP3 for Whisper...`);
+        try {
+          const originalSize = audioFile.size / (1024 * 1024);
+          const compressed = await compressAudioForWhisper(audioFile, audioFile.name, (p) => setCompressProgress(p));
+          setAudioFile(compressed);
+          targetAudioFile = compressed;
+          setCompressedInfo({ originalMB: originalSize, newMB: compressed.size / (1024 * 1024) });
+          setCreateError('');
+        } catch (compressionErr: any) {
+          setIsAutoCompressing(false);
+          setCreating(false);
+          setCreateError(`Audio compression failed: ${compressionErr?.message || compressionErr}. Please click "Open MP4 to MP3 Converter" above or paste text.`);
+          return;
+        } finally {
+          setIsAutoCompressing(false);
+        }
       }
     }
 
@@ -264,8 +305,8 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
     try {
       const formData = new FormData();
       formData.append('sourceMode', sourceMode);
-      if (sourceMode === 'audio' && audioFile) {
-        formData.append('audioFile', audioFile);
+      if (sourceMode === 'audio' && targetAudioFile) {
+        formData.append('audioFile', targetAudioFile);
       } else if (sourceMode === 'text') {
         formData.append('sourceText', sourceText.trim());
       }
@@ -588,7 +629,17 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
       </div>
 
       <div className="mb-8">
-        <Mp4ToMp3Converter />
+        <Mp4ToMp3Converter
+          onConverted={(file) => {
+            const prevSize = audioFile ? audioFile.size / (1024 * 1024) : 0;
+            setAudioFile(file);
+            setSourceMode('audio');
+            setCreateError('');
+            if (prevSize > 0) {
+              setCompressedInfo({ originalMB: prevSize, newMB: file.size / (1024 * 1024) });
+            }
+          }}
+        />
       </div>
 
       {showSettings && (
@@ -656,9 +707,62 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                 <input
                   type="file"
                   accept="audio/*,video/mp4,video/quicktime,video/webm"
-                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setAudioFile(f);
+                    setCompressedInfo(null);
+                    setCreateError('');
+                  }}
                   className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
                 />
+
+                {audioFile && audioFile.size > 24 * 1024 * 1024 && (
+                  <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                          <span>⚠️ File is {(audioFile.size / (1024 * 1024)).toFixed(1)}MB</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Whisper Limit: 24MB</span>
+                        </div>
+                        <p className="text-[11px] text-gray-300 mt-1 leading-relaxed">
+                          Click below to compress locally in your browser into a lightweight speech MP3 (16kHz mono, ~{((audioFile.size / (1024 * 1024)) * 0.22).toFixed(1)}MB) without losing audio quality.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isAutoCompressing}
+                        onClick={handleCompressCurrentAudio}
+                        className="px-3.5 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 whitespace-nowrap hover:scale-105"
+                      >
+                        {isAutoCompressing ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            {compressProgress > 0 ? `Compressing (${compressProgress}%)...` : 'Initializing...'}
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-3.5 h-3.5 fill-current" />
+                            ⚡ Auto-Compress (~12MB)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {isAutoCompressing && compressProgress > 0 && (
+                      <div className="w-full bg-gray-800 rounded-full h-1.5 mt-3 overflow-hidden">
+                        <div className="bg-emerald-500 h-1.5 transition-all duration-200" style={{ width: `${compressProgress}%` }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {compressedInfo && audioFile && audioFile.size <= 24 * 1024 * 1024 && (
+                  <div className="mb-3 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between text-xs text-emerald-400">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 className="w-4 h-4" /> Compressed: {compressedInfo.originalMB.toFixed(1)}MB ➔ {(audioFile.size / (1024 * 1024)).toFixed(1)}MB
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 font-semibold">Whisper Ready</span>
+                  </div>
+                )}
               </>
             ) : sourceMode === 'text' ? (
               <>
