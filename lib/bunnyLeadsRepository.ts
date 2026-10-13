@@ -11,12 +11,46 @@ function owned(lead: any, visibleUserIds: string[] | null, viewerUserId: string)
   return visibleUserIds.includes(String(lead.assignedToUserId || '')) || visibleUserIds.includes(String(lead.createdByUserId || ''));
 }
 
+let leadsCache: {
+  data: any[];
+  timestamp: number;
+} | null = null;
+let leadsInFlightPromise: Promise<any[]> | null = null;
+
+const LEADS_CACHE_TTL_MS = 20_000;
+
+export function invalidateBunnyLeadsCache() {
+  leadsCache = null;
+  leadsInFlightPromise = null;
+}
+
 export async function loadBunnyLeads() {
-  const result = await bunnyExecute('SELECT document_id, data_json, created_at, updated_at FROM leads_sql');
-  return result.rows.map((row: any) => {
-    const lead = parse(row.data_json) || {};
-    return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id), createdAt: leadDateIso(lead.createdAt) || leadDateIso(row.created_at) || lead.createdAt || row.created_at, updatedAt: leadDateIso(lead.updatedAt) || leadDateIso(row.updated_at) || lead.updatedAt || row.updated_at };
-  }).filter(lead => !lead.mergedIntoLeadId);
+  const now = Date.now();
+  if (leadsCache && (now - leadsCache.timestamp) < LEADS_CACHE_TTL_MS) {
+    return leadsCache.data;
+  }
+  if (leadsInFlightPromise) {
+    return leadsInFlightPromise;
+  }
+  leadsInFlightPromise = (async () => {
+    try {
+      const result = await bunnyExecute('SELECT document_id, data_json, created_at, updated_at FROM leads_sql');
+      const data = result.rows.map((row: any) => {
+        const lead = parse(row.data_json) || {};
+        return {
+          ...lead,
+          _id: String(lead._id?.$oid || lead._id || row.document_id),
+          createdAt: leadDateIso(lead.createdAt) || leadDateIso(row.created_at) || lead.createdAt || row.created_at,
+          updatedAt: leadDateIso(lead.updatedAt) || leadDateIso(row.updated_at) || lead.updatedAt || row.updated_at,
+        };
+      }).filter(lead => !lead.mergedIntoLeadId);
+      leadsCache = { data, timestamp: Date.now() };
+      return data;
+    } finally {
+      leadsInFlightPromise = null;
+    }
+  })();
+  return leadsInFlightPromise;
 }
 
 export async function listBunnyLeads(input: { visibleUserIds: string[] | null; viewerUserId: string; status?: string | null; workshop?: string | null; label?: string | null; source?: string | null; excludeSource?: string | null; q?: string | null; userId?: string | null; skip: number; limit: number; }) {
@@ -82,6 +116,7 @@ async function resolveBunnyLeadAlias(id: string, visited: Set<string>): Promise<
 }
 
 export async function saveBunnyLead(lead: any, documentId?: string) {
+  invalidateBunnyLeadsCache();
   const { persistBunnyContact } = await import('@/lib/bunnyContactIdentity');
   const requestedId = documentId || lead._id?.$oid || lead._id;
   const existing = requestedId ? await getBunnyLeadById(String(requestedId)) : null;
@@ -91,24 +126,10 @@ export async function saveBunnyLead(lead: any, documentId?: string) {
 
 export async function getBunnyLeadsByPhones(phones: string[], viewerUserId: string, superAdmin: boolean = false) {
   if (!phones.length) return [];
-  const inClause = phones.map(() => '?').join(',');
-  const result = await bunnyExecute({
-    sql: `SELECT data_json FROM leads_sql`,
-    args: []
+  const leads = await loadBunnyLeads();
+  const phoneSet = new Set(phones);
+  return leads.filter(lead => {
+    if (!phoneSet.has(lead.phoneNumber)) return false;
+    return superAdmin || lead.createdByUserId === viewerUserId || lead.assignedToUserId === viewerUserId;
   });
-  
-  const leads: RegistrationRecord[] = [];
-  for (const row of result.rows) {
-    const lead = parse(row.data_json);
-    if (!lead || lead.mergedIntoLeadId) continue;
-    
-    // Check if phone matches
-    if (phones.includes(lead.phoneNumber)) {
-      // Check ownership
-      if (superAdmin || lead.createdByUserId === viewerUserId || lead.assignedToUserId === viewerUserId) {
-        leads.push({ ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id) });
-      }
-    }
-  }
-  return leads;
 }

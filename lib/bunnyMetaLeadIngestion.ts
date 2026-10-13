@@ -51,6 +51,8 @@ export async function persistMetaFormLead(input: RegistrationRecord) {
     sql: 'UPDATE leads_sql SET data_json = json_patch(data_json, ?), updated_at = ? WHERE document_id = ?',
     args: [JSON.stringify(patch), now, String(existing._id)],
   });
+  const { invalidateBunnyLeadsCache } = await import('@/lib/bunnyLeadsRepository');
+  invalidateBunnyLeadsCache();
   const saved = await getBunnyLeadById(String(existing._id));
   if (!saved) throw new Error('Saved Meta lead is unavailable');
   return saved;

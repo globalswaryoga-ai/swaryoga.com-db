@@ -80,9 +80,38 @@ export function GoogleFormSyncStatusBanner({
       )}
 
       {status?.lastError && (
-        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 break-words">
-          Last import error: {status.lastError}
-        </p>
+        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-2 break-words">
+          <p>
+            <span className="font-bold">Last import error:</span> {status.lastError}
+          </p>
+          {(status.lastError.includes('invalid_grant') || status.lastError.includes('401') || status.lastError.includes('Reconnect Google')) && (
+            <div className="flex items-center gap-2 pt-1 border-t border-red-200">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const token = (typeof window !== 'undefined' ? (localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || '') : '');
+                    const origin = window.location.origin;
+                    const res = await fetch(`/api/admin/google-form-oauth?token=${encodeURIComponent(token)}&origin=${encodeURIComponent(origin)}`, {
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
+                    const data = await res.json();
+                    if (data.authUrl) window.location.href = data.authUrl;
+                    else alert(data.error || 'Failed to start Google login');
+                  } catch {
+                    alert('Failed to initiate Google Login');
+                  }
+                }}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 rounded-md text-xs shadow-sm transition-all flex items-center gap-1.5"
+              >
+                🔗 Reconnect Google Account Now
+              </button>
+              <span className="text-slate-500 text-[11px]">
+                (Google session expired. Authorize once to restore automatic imports)
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       {unmappedCount > 0 && (

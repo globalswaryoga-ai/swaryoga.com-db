@@ -19,7 +19,10 @@ export async function persistBunnyContact(input: RegistrationRecord, owner = 'sy
   contactWrites.set(client, current);
   await previous;
   try {
-    return await writeBunnyContact(client, input, owner, preserveState);
+    const res = await writeBunnyContact(client, input, owner, preserveState);
+    const { invalidateBunnyLeadsCache } = await import('@/lib/bunnyLeadsRepository');
+    invalidateBunnyLeadsCache();
+    return res;
   } finally {
     release();
     if (contactWrites.get(client) === current) contactWrites.delete(client);
@@ -129,9 +132,9 @@ async function writeBunnyContact(client: Client, input: RegistrationRecord, owne
     await tx.commit();
     return data;
   } catch (error) {
-    await tx.rollback();
+    try { await tx.rollback(); } catch (_) {}
     throw error;
   } finally {
-    tx.close();
+    try { tx.close(); } catch (_) {}
   }
 }

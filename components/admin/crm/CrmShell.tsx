@@ -65,7 +65,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   );
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [currentPlan, setCurrentPlan] = useState<string>('');
 
   const {
     status,
@@ -86,27 +85,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     const email = localStorage.getItem('crm_user_email') || '';
     setUserName(name);
     setUserEmail(email);
-  }, []);
-
-  // Get current plan from subscription API
-  useEffect(() => {
-    const fetchPlan = async () => {
-      try {
-        const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('crm_token') || localStorage.getItem('adminToken');
-        if (!token) return;
-
-        const res = await fetch('/api/admin/crm/subscription', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data?.subscription?.currentPlan) {
-          setCurrentPlan(data.subscription.currentPlan);
-        }
-      } catch (err) {
-        console.log('Plan fetch failed, defaulting to show header');
-      }
-    };
-    fetchPlan();
   }, []);
 
   // Auto-detect current section from pathname
@@ -212,34 +190,12 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
         {/* Page content - scrollable, guarded by compartment + plan */}
         <main className="flex-1 overflow-y-auto">
-          {/* Global loading skeleton while onboarding status is being resolved */}
-          {loading ? (
-            <div className="p-6 space-y-6 animate-pulse">
-              <div className="h-8 w-48 bg-gray-200 rounded-lg" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-gray-100 rounded-xl" />
-                      <div className="w-5 h-5 bg-gray-100 rounded" />
-                    </div>
-                    <div className="h-8 w-20 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 w-28 bg-gray-100 rounded" />
-                  </div>
-                ))}
-              </div>
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm h-64" />
-            </div>
-          ) : (
-          <div className="animate-fade-in">
           {currentModule ? (
             <PlanGate module={currentModule} variant="page">
               {children}
             </PlanGate>
           ) : (
             children
-          )}
-          </div>
           )}
         </main>
       </div>

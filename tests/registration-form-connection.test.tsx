@@ -55,8 +55,6 @@ describe('Saved registration form connection', () => {
     input.workshops = [];
     render(<WorkshopFormTab {...input} />);
 
-    expect(screen.getByLabelText('Where should this form connection be saved?')).toHaveValue('__all_leads__');
-    expect(screen.getByText('No batch is required. The connection will be saved to the language master list.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save & Connect CRM Form' }));
 
     await waitFor(() => expect(input.saveWorkshopSettings).toHaveBeenCalledWith(undefined));

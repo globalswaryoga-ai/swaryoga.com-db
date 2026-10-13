@@ -25,21 +25,35 @@ export async function GET(request: Request) {
         ${viewer.superAdmin ? '' : 'AND created_by_user_id = ?'} ORDER BY created_at DESC`,
       args: viewer.superAdmin ? [] : [viewer.userId],
     });
-    const data = await Promise.all(result.rows.map(async run => {
-      const snapshot = JSON.parse(String(run.data_json || '{}'));
-      const messages = await bunnyExecute({
-          sql: `SELECT m.*, l.data_json AS lead_json FROM broadcast_run_messages_sql m
-            LEFT JOIN leads_sql l ON l.document_id = m.lead_id WHERE m.run_id = ?`,
-          args: [String(run.document_id)],
+    const audienceIdArray = Array.from(audienceIds);
+    const audienceNameMap = new Map(audience.map(lead => [String(lead._id || lead.id), String(lead.name || 'Unknown')]));
+    const messagesByRun = new Map<string, any[]>();
+    if (audienceIdArray.length > 0) {
+      for (let i = 0; i < audienceIdArray.length; i += 200) {
+        const chunk = audienceIdArray.slice(i, i + 200);
+        const placeholders = chunk.map(() => '?').join(',');
+        const messagesResult = await bunnyExecute({
+          sql: `SELECT document_id, run_id, lead_id, phone_number, status, wa_message_id, failure_reason, sent_at, delivered_at, read_at
+                FROM broadcast_run_messages_sql WHERE lead_id IN (${placeholders})`,
+          args: chunk,
         });
-      const scopedMessages = messages.rows.filter(message => audienceIds.has(String(message.lead_id)));
+        for (const msg of messagesResult.rows) {
+          const runId = String(msg.run_id);
+          if (!messagesByRun.has(runId)) messagesByRun.set(runId, []);
+          messagesByRun.get(runId)!.push(msg);
+        }
+      }
+    }
+    const data = result.rows.map(run => {
+      const snapshot = JSON.parse(String(run.data_json || '{}'));
+      const scopedMessages = messagesByRun.get(String(run.document_id)) || [];
       const event = String(snapshot.target?.registrationEventKey || '');
       const linked = (workshopId && (snapshot.workshopId === workshopId || snapshot.target?.workshopId === workshopId ||
         event.startsWith(`${workshopId}:`))) || (snapshot.target?.leadIds || []).some((id: string) => audienceIds.has(String(id)));
       if (!scopedMessages.length && !linked) return null;
       const leads = scopedMessages.map(message => ({
         id: message.document_id, leadId: String(message.lead_id || ''),
-        leadName: JSON.parse(String(message.lead_json || '{}')).name || 'Unknown',
+        leadName: audienceNameMap.get(String(message.lead_id || '')) || 'Unknown',
         phone: message.phone_number, status: String(message.status),
         waMessageId: message.wa_message_id ? String(message.wa_message_id) : null,
         reason: String(message.failure_reason || ''),
@@ -56,7 +70,7 @@ export async function GET(request: Request) {
         evidence: leads.length ? 'message_rows' : 'legacy_header_only',
         leads,
       };
-    }));
+    });
     const runs = data.filter(run => run !== null);
     const messages = runs.flatMap(run => run.leads);
     const verifiedIds = new Set(messages.filter(message =>

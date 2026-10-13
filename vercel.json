@@ -185,7 +185,7 @@
     },
     {
       "path": "/api/cron/google-forms-sync",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/cron/meta-leads-sync",

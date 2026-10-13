@@ -2,7 +2,7 @@ import { registrationFetch as fetch, saveRegistrationState, saveRegistrationSnap
 import { createRegistrationAutosave, type RegistrationSaveStatus } from '@/lib/registrationAutosave';
 import { AutosaveStatus } from './_AutosaveStatus';
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2, Layers } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2, Layers, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
@@ -1435,6 +1435,19 @@ export function LeadsManagementTab({
                       >
                         <span className="text-base">🟢</span> {wtSettings.approved.template ? `Auto-WhatsApp (${wtSettings.approved.template})` : 'Auto-WhatsApp Trigger'}
                       </button>
+                      {Boolean(activeBatch?.whatsappGroupLink || activeBatch?.metadata?.whatsappGroupLink) && (
+                        <a
+                          href={activeBatch?.whatsappGroupLink || activeBatch?.metadata?.whatsappGroupLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+                          title={`WhatsApp Group: ${activeBatch?.whatsappGroupLink || activeBatch?.metadata?.whatsappGroupLink}`}
+                        >
+                          <Users size={15} className="text-emerald-600" />
+                          <span>WA Group</span>
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
                       {selectedLeads.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
                           <span className="text-xs font-bold text-indigo-800">{selectedLeads.length} selected</span>
@@ -1720,7 +1733,7 @@ export function LeadsManagementTab({
                                       </span>
                                       <button disabled={savingGate || !configLoaded} onClick={() => saveGate(lead.id, 'group_added')} className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded disabled:opacity-50">Group Added (Manual)</button>
                                       <button disabled={savingGate || !configLoaded} onClick={() => saveGate(lead.id, 'skip_group')} className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded disabled:opacity-50">Skip Group (Admin)</button>
-                                      <span className="text-xs text-slate-600">Group: {batchDecisions[lead.id]?.groupStatus === 'added_manually' ? 'Added manually' : batchDecisions[lead.id]?.groupStatus === 'skipped' ? 'Skipped by admin' : 'Pending admission'}</span>
+                                      <span className="text-xs text-slate-600">Group: {batchDecisions[lead.id]?.groupStatus === 'added_manually' ? 'Added manually' : batchDecisions[lead.id]?.groupStatus === 'auto_added' ? 'Auto-added (24h)' : batchDecisions[lead.id]?.groupStatus === 'skipped' ? 'Skipped by admin' : 'Pending admission'}</span>
                                     </>
                                   )}
                                   {batchDecisions[lead.id]?.isRejected && (

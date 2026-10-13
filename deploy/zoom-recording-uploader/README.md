@@ -7,7 +7,7 @@ The uploader must run on the bridge/worker server, not on Vercel, because it str
 The supplied `zoom-recording-uploader.cron` runs every three hours in IST.
 An exclusive `flock` prevents overlapping cron uploads on the same worker host.
 
-Each run looks back 30 days by default, follows all Zoom result pages, waits at least 10 minutes after the meeting ends, and retries recordings that Zoom still reports as processing. Both Speaker and Gallery must be ready. YouTube receives both views; Bunny Storage receives Speaker MP4 and MP3 audio. Historical Bunny Gallery links remain untouched.
+Each run looks back 30 days by default, follows all Zoom result pages, waits at least 10 minutes after the meeting ends, and retries recordings that Zoom still reports as processing. Both Speaker and Gallery must be ready. YouTube receives both views; Bunny Storage receives Speaker MP4 and MP3 audio. Historical Bunny Gallery links remain untouched. YouTube resumable uploads include the required byte-range header; a failed YouTube view makes the worker exit unsuccessfully so cron logs do not report a complete run.
 
 ## Install
 
@@ -32,3 +32,12 @@ Only mapped workshop meeting IDs are processed. YouTube quota/OAuth restrictions
 Mapping must identify exactly one cohort whose scheduled class dates include the recording date. Ambiguous mappings and a different Zoom UUID already occupying the same class date require manual reconciliation; the worker leaves those recordings untouched. Per-meeting failures do not stop later meetings from being attempted.
 
 The website's recording-link sync and delivery worker never delete Zoom recordings. Only the external uploader owns cleanup after the four required destinations are saved.
+
+To retry one missed meeting after installing the updated worker, run it on the worker host with the Zoom meeting ID and leave Zoom cleanup disabled for this recovery attempt:
+
+```sh
+cd /opt/swaryoga.com-db
+ZOOM_MEETING_ID=84573249078 YOUTUBE_ONLY=true DELETE_AFTER_UPLOAD=off /usr/bin/node scripts/zoom-recording-uploader.mjs
+```
+
+`YOUTUBE_ONLY=true` skips Bunny uploads and Zoom cleanup while persisting successful YouTube URLs to the workshop record. Confirm the output reports both `YT OK` views and `Workshop sync OK` before considering the recovery complete. If both the environment refresh token and saved YouTube account token return `invalid_grant`, reconnect YouTube under Admin → Social Media Setup before retrying.

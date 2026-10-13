@@ -13,5 +13,11 @@
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.extraPaths": ["./lib", "./app"],
     "python.analysis.inlayHints.variableTypes": false,
-    "python.analysis.inlayHints.functionReturnTypes": false
+    "python.analysis.inlayHints.functionReturnTypes": false,
+    "chat.tools.terminal.autoApprove": {
+        "/^node --check scripts/zoom-recording-uploader\\.mjs && node --check scripts/youtubeResumableUpload\\.mjs && git diff --check$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }

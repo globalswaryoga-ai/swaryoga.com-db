@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { bunnyExecute, bunnyBatch, getBunnyDatabase } from '@/lib/bunnyDatabase';
 import { persistMetaFormLead } from '@/lib/bunnyMetaLeadIngestion';
 import { processRegistrationApprovals } from '@/lib/registrationAutomation';
-import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { loadBunnyLeads, invalidateBunnyLeadsCache } from '@/lib/bunnyLeadsRepository';
 import { metaApprovalConfigurationError } from '@/lib/registrationMetaAutomation';
 import { parseRegistrationValue } from '@/lib/registrationValues';
 import { finalRunStatus } from '@/lib/bunnyMetaBroadcastProcessor';
@@ -110,10 +110,12 @@ describe('Future-only four-stage Meta automation', () => {
     await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
       '$.status','approved','$.metadata.ai9WEligible',json('true'),'$.metadata.approvedAt','2026-10-10T01:00:00Z',
       '$.metadata.approvalSource','manual','$.metadata.manualApprovedAt','2026-10-10T01:00:00Z') WHERE document_id = ?`, args: [lead._id] });
+    invalidateBunnyLeadsCache();
     await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
     expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(0);
     await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,
       '$.metadata.approvedAt','2026-10-12T01:00:00Z','$.metadata.manualApprovedAt','2026-10-12T01:00:00Z') WHERE document_id = ?`, args: [lead._id] });
+    invalidateBunnyLeadsCache();
     for (let replay = 0; replay < 3; replay++) {
       await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
     }
@@ -128,6 +130,7 @@ describe('Future-only four-stage Meta automation', () => {
     await client.execute('DELETE FROM broadcast_run_messages_sql');
     await client.execute({ sql: `UPDATE leads_sql SET data_json = json_set(data_json,'$.isBlocked',json('true'),
       '$.metadata.wtStatus',NULL,'$.metadata.wtQueuedRunId',NULL) WHERE document_id = ?`, args: [lead._id] });
+    invalidateBunnyLeadsCache();
     await processRegistrationApprovals(state, await loadBunnyLeads(), 'admincrm', true);
     expect((await client.execute('SELECT document_id FROM broadcast_runs_sql')).rows).toHaveLength(0);
   });

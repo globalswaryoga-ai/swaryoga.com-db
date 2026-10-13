@@ -9,6 +9,7 @@ import { WorkshopFormTab, MetaLeadsTab, LeadsManagementTab, WhatsAppMessengerTab
 import { RegistrationWorkflow } from '../_RegistrationWorkflow';
 import { AutosaveStatus } from '../_AutosaveStatus';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { getCleanDynamicColumns } from '@/lib/crmTableColumns';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -45,7 +46,13 @@ export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'meta_leads' | 'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'meta_leads' | 'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>(() => {
+    if (typeof window !== 'undefined') {
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      if (urlTab) return urlTab as any;
+    }
+    return 'my_data';
+  });
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -76,21 +83,34 @@ export default function NewRegistrationPage() {
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
   const getBaseLanguage = (langStr?: string): string => {
     if (!langStr) return 'english';
-    const lower = langStr.toLowerCase();
+    const lower = String(langStr).toLowerCase();
     if (lower.includes('hindi')) return 'hindi';
     if (lower.includes('marathi')) return 'marathi';
     if (lower.includes('kannada')) return 'kannada';
+    if (lower.includes('english')) return 'english';
+    return 'english';
+  };
+
+  const getBatchBaseLanguage = (w: any): string => {
+    if (!w) return '';
+    const combined = `${w.language || ''} ${w.name || ''} ${w.id || ''}`.toLowerCase();
+    if (combined.includes('hindi')) return 'hindi';
+    if (combined.includes('marathi')) return 'marathi';
+    if (combined.includes('kannada')) return 'kannada';
+    if (combined.includes('english')) return 'english';
+    if (w.language) return getBaseLanguage(w.language);
     return 'english';
   };
 
   const matchesLanguage = (w: any, targetLang: string) => {
     if (!w || !targetLang) return false;
+    const tBase = getBaseLanguage(targetLang);
+    const wBase = getBatchBaseLanguage(w);
     const wLang = String(w.language || w.name || '').toLowerCase();
-    const tLang = String(targetLang).toLowerCase();
     const isWOffer = wLang.includes('offer') || String(w.id || '').toLowerCase().includes('offer');
-    const isTOffer = tLang.includes('offer');
+    const isTOffer = String(targetLang).toLowerCase().includes('offer');
     if (isWOffer !== isTOffer) return false;
-    return getBaseLanguage(wLang) === getBaseLanguage(tLang);
+    return wBase === tBase;
   };
 
   const displayLeads = useMemo(() => {
@@ -183,54 +203,8 @@ export default function NewRegistrationPage() {
   const token = useAuth();
 
   const dynamicColumns = useMemo(() => {
-    const keyCounts = new Map<string, number>();
-    leadsData.forEach(lead => {
-      const answers = lead.dynamicAnswers || lead._rawRecord;
-      if (answers) {
-        Object.keys(answers).forEach(k => {
-          if (k !== 'Timestamp' && k !== 'Email Address') {
-            const val = answers[k];
-            if (val !== undefined && val !== null && String(val).trim() !== '') {
-              keyCounts.set(k, (keyCounts.get(k) || 0) + 1);
-            }
-          }
-        });
-      }
-    });
-    const allKeys = Array.from(keyCounts.keys());
-
-    const mapping = selectedWorkshop?.metadata?.googleFormMapping || {};
-    const standardCrmKeys = ['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender', 'NAME', 'EMAIL', 'MOBILE', 'CITY', 'COUNTRY', 'GENDER'];
-    const hiddenMappedValues = standardCrmKeys.map(key => mapping[key]).filter(Boolean);
-
-    // Always exclude keys that we already render as standard columns, regardless of mapping
-    const exactStandardKeys = ['NAME', 'WHATSAPP', 'MOBILE', 'PHONE', 'EMAIL'];
-    const filteredKeys = allKeys.filter(k => 
-      !hiddenMappedValues.includes(k) && 
-      !exactStandardKeys.includes(k.toUpperCase())
-    );
-
-    // Sort logic to prioritize MAPPED questions first
-    const mappingValues = Object.values(mapping);
-
-    const priority = (k: string) => {
-      // 1. Exact match with a mapped question
-      const mapIdx = mappingValues.findIndex(v => v === k);
-      if (mapIdx !== -1) return mapIdx;
-
-      // 2. Fallback to old keyword priority for unmapped but important questions
-      const lower = k.toLowerCase();
-      if (lower.includes('workshop date') || lower.includes('workshop month') || lower.includes('which workshop')) return 50;
-      if (lower.includes('14 day') || lower.includes('14-day') || lower.includes('ready to do')) return 51;
-      if (lower.includes('video')) return 52;
-      if (lower.includes('donation')) return 53;
-
-      return 100;
-    };
-
-    filteredKeys.sort((a, b) => priority(a) - priority(b));
-    return filteredKeys;
-  }, [leadsData, selectedWorkshop?.metadata?.googleFormMapping]);
+    return getCleanDynamicColumns(displayLeads.length > 0 ? displayLeads : leadsData, selectedWorkshop?.metadata?.googleFormMapping);
+  }, [displayLeads, leadsData, selectedWorkshop?.metadata?.googleFormMapping]);
 
   const filterOptions = useMemo(() => {
     const options = new Set<string>();
@@ -580,7 +554,7 @@ export default function NewRegistrationPage() {
         }
         return prevWorkshops;
       });
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 2 * 60 * 1000); // 2 minutes auto batch sync
 
     return () => clearInterval(interval);
   }, [isAiWorkerActive, leadsData, selectedWorkshop, selectedDashboardLang, fieldMapping, token]);
@@ -945,7 +919,7 @@ export default function NewRegistrationPage() {
       } finally {
         isFetching = false;
       }
-    }, 10 * 60 * 1000);
+    }, 2 * 60 * 1000); // Auto-sync every 2 minutes
 
     return () => clearInterval(interval);
   }, [isAi7Active, linkedFormId, token, formSource, isLoaded]);
@@ -966,7 +940,8 @@ export default function NewRegistrationPage() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setWorkshops(parsed);
+          const matched = parsed.filter((w: any) => matchesLanguage(w, selectedDashboardLang));
+          setWorkshops(matched.length > 0 ? matched : [defaultBatch]);
         } else {
           setWorkshops([defaultBatch]);
         }
@@ -1021,7 +996,10 @@ export default function NewRegistrationPage() {
                 try {
                   const savedWorkshops = data.crm_hindi_workshops || data.crm_workshops;
                   const parsed = typeof savedWorkshops === 'string' ? JSON.parse(savedWorkshops) : savedWorkshops;
-                  if (Array.isArray(parsed)) setWorkshops(parsed);
+                  if (Array.isArray(parsed)) {
+                    const matched = parsed.filter((w: any) => matchesLanguage(w, selectedDashboardLang));
+                    setWorkshops(matched.length > 0 ? matched : [defaultBatch]);
+                  }
                 } catch (_) {}
               }
               if (data.crm_hindi_ai_worker_active !== undefined) setIsAiWorkerActive(String(data.crm_hindi_ai_worker_active) === 'true');
@@ -1151,7 +1129,17 @@ export default function NewRegistrationPage() {
         setAndCollect('crm_hindi_registered_insights' + suffix, safeStringify(registeredAiInsights));
       }
 
-      void autosave.current.save(stateObj).catch(error => toast.error(error.message));
+      void autosave.current.save(stateObj).catch(async (error: any) => {
+        if (String(error?.message || '').includes('changed in another update')) {
+          try {
+            await autosave.current.retry();
+          } catch {
+            toast.error(error.message);
+          }
+        } else {
+          toast.error(error.message);
+        }
+      });
     }
   }, [sidebarPosition, sidebarWidth, isSidebarCollapsed, isMapDataCollapsed, isStatsCollapsed, workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 
@@ -1272,11 +1260,26 @@ export default function NewRegistrationPage() {
 
     if (!currentWorkshops.some(workshop => workshop?.id === targetWorkshop.id)) throw new Error('This selected batch is no longer in the saved list. Select an existing batch before saving its settings.');
     const saved = await saveRegistrationWorkshop('crm_hindi_workshops', updatedWorkshop, workshops.find(w => w?.id === targetWorkshop.id));
-    const newWorkshops = saved.workshops;
-    setWorkshops(newWorkshops);
+    const baseLang = getBaseLanguage(selectedDashboardLang);
+    const updatedWorkshopsList = saved.workshops.map((w: any) => {
+      if (w && getBaseLanguage(w.language || w.name) === baseLang && updatedWorkshop.formId) {
+        return {
+          ...w,
+          formId: updatedWorkshop.formId,
+          metadata: {
+            ...(w.metadata || {}),
+            formSource: currentFormSource,
+            googleFormMapping: updatedMetadata.googleFormMapping || w.metadata?.googleFormMapping || fieldMapping,
+            crmFields: updatedMetadata.crmFields || w.metadata?.crmFields || crmFields,
+          }
+        };
+      }
+      return w;
+    });
+    setWorkshops(updatedWorkshopsList);
     setSelectedWorkshop(saved.workshop);
     setLinkedFormId(updatedWorkshop.formId);
-    localStorage.setItem('crm_hindi_workshops', safeStringify(newWorkshops));
+    localStorage.setItem('crm_hindi_workshops', safeStringify(updatedWorkshopsList));
 
     if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
       try {
@@ -1433,8 +1436,8 @@ export default function NewRegistrationPage() {
     { id: 'meta_leads', label: 'Meta Leads', icon: Users },
     { id: 'all_leads', label: 'All Leads Data', icon: Users },
     { id: 'my_data', label: 'My Data', icon: Database },
-    { id: 'our_workshops', label: 'Our Workshops', icon: Target },
     { id: 'leads_management', label: 'Leads Management', icon: Users },
+    { id: 'our_workshops', label: 'Our Batches', icon: Target },
     { id: 'whatsapp_messenger', label: 'WhatsApp Messenger', icon: MessageSquare },
   ] as const;
 
@@ -1458,8 +1461,40 @@ export default function NewRegistrationPage() {
     };
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
+  const [batchDecisions, setBatchDecisions] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    try {
+      const targetBatchId = selectedWorkshop?.id ? String(selectedWorkshop.id) : ((workshops || []).find((w: any) => matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_'))?.id || '');
+      if (targetBatchId) {
+        fetch(`/api/admin/crm/new-registration/gates?batchId=${encodeURIComponent(String(targetBatchId))}`)
+          .then(async res => (res && res.ok ? res.json() : null))
+          .then(data => {
+            if (data?.decisions) setBatchDecisions(data.decisions);
+          })
+          .catch(() => {});
+      }
+    } catch {}
+  }, [selectedWorkshop?.id, selectedDashboardLang, workshops]);
+
+  const totalApprovedCount = useMemo(() => {
+    const fromDecisions = displayLeads.filter(l => {
+      const dec = batchDecisions[l.id] || {};
+      const status = dec.status || '';
+      return status.startsWith('approval') ||
+        status.startsWith('aprovel') ||
+        status === 'registered_leads' ||
+        Boolean(dec.isRegistered) ||
+        (dec.copies || []).some((c: string) => c.startsWith('approval') || c.startsWith('aprovel') || c === 'registered_leads') ||
+        (dec.history || []).some((h: string) => h.includes('approval') || h.includes('aprovel') || h === 'registered_leads');
+    }).length;
+
+    const fromSegments = segmentCounts?.approved || 0;
+    return Math.max(fromDecisions, fromSegments);
+  }, [displayLeads, batchDecisions, segmentCounts]);
+
   const canAccessTab = (tabId: string) => {
-    if (tabId === "meta_leads" || tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops") return true;
+    if (tabId === "meta_leads" || tabId === "all_leads" || tabId === "my_data" || tabId === "leads_management" || tabId === "our_workshops") return true;
     return !!selectedWorkshop;
   };
 
@@ -1933,7 +1968,7 @@ export default function NewRegistrationPage() {
                   {['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'].map((lang) => (
                     <button
                       key={lang}
-                      onClick={() => router.push(`/admin/crm/new-registration/${lang.split(' ')[0].toLowerCase()}`)}
+                      onClick={() => router.push(`/admin/crm/new-registration/${lang.split(' ')[0].toLowerCase()}?tab=my_data`)}
                       className={`w-full text-center px-2 py-2 rounded-xl text-xs font-bold transition-all ${
                         selectedDashboardLang === lang 
                           ? 'bg-blue-600 text-white border border-blue-600 shadow-sm' 
@@ -1961,7 +1996,10 @@ export default function NewRegistrationPage() {
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm" title="Total Approved Leads">
+                          ✓ {totalApprovedCount} Approved
+                        </span>
                         <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
                           {displayLeads.length} Leads
                         </span>
@@ -2010,6 +2048,22 @@ export default function NewRegistrationPage() {
                         >
                           <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {(() => {
+                              const batchApproved = (leadsData || []).filter(l => {
+                                if (registrationFormId(batch.formId) && registrationFormId(l.formId) !== registrationFormId(batch.formId)) return false;
+                                const dec = batchDecisions[l.id] || {};
+                                const s = dec.status || '';
+                                return s.startsWith('approval') || s.startsWith('aprovel') || s === 'registered_leads' || Boolean(dec.isRegistered);
+                              }).length;
+                              if (batchApproved > 0) {
+                                return (
+                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 text-[10px] font-bold" title="Approved in this batch">
+                                    ✓ {batchApproved}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                             <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{getDynamicBatchLeads(batch)}</span>
                             <button
                               onClick={(e) => {
@@ -2141,24 +2195,25 @@ export default function NewRegistrationPage() {
       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
 
         {/* Header for Tabs */}
-        <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
-              <FileText className="h-6 w-6" />
+        <header className="bg-white px-6 pt-2 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="bg-indigo-100 p-1.5 rounded-lg text-indigo-600">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <h1 title={selectedWorkshop?.name} className="truncate text-base font-bold text-slate-900 tracking-tight leading-tight">
+                  {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
+                </h1>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 title={selectedWorkshop?.name} className="truncate text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
-              </h1>
-              <p className="text-sm text-slate-500 font-medium">
-                {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
-              </p>
-            </div>
+            <AutosaveStatus status={saveStatus} error={saveError} retry={() => {
+              void autosave.current.retry().catch(error => toast.error(error.message));
+            }} />
           </div>
-          <AutosaveStatus status={saveStatus} error={saveError} retry={() => {
-            void autosave.current.retry().catch(error => toast.error(error.message));
-          }} />
-          <RegistrationWorkflow activeTab={activeTab} />
 
           {/* Top Navigation Tabs */}
           <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
@@ -2187,7 +2242,7 @@ export default function NewRegistrationPage() {
                     }
                     setActiveTab(tab.id as any);
                   }}
-                  className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                  className={`pb-2.5 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${isActive
                     ? 'border-blue-600 text-blue-700'
                     : canAccessTab(tab.id)
                       ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
@@ -2202,9 +2257,9 @@ export default function NewRegistrationPage() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
+        <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 bg-slate-50">
           {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "our_workshops" || activeTab === "my_batches") && (
-            <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
+            <div className="flex-1 min-w-0 overflow-y-auto space-y-3 animate-fade-in">
               {renderWorkshopForm()}
             </div>
           )}
@@ -2222,6 +2277,9 @@ export default function NewRegistrationPage() {
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
               leadsData={displayLeads}
+              dynamicColumns={dynamicColumns}
+              googleFormQuestionMap={googleFormQuestionMap}
+              fieldMapping={fieldMapping}
             />
           )}
           {activeTab === 'whatsapp_messenger' && (

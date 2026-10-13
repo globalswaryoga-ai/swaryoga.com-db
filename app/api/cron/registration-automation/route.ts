@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { readRegistrationState } from '@/lib/registrationState';
-import { processRegistrationApprovals } from '@/lib/registrationAutomation';
+import { processRegistrationApprovals, processFunnelApprovals } from '@/lib/registrationAutomation';
 import { processRegistrationSchedules } from '@/lib/registrationAutomation';
+import { processAutoAddGroups } from '@/lib/registrationAutoAddGroup';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { processDueBunnyMetaBroadcasts } from '@/lib/bunnyMetaBroadcastProcessor';
 import { listForms, listSubmissions } from '@/lib/bunny-forms-db';
@@ -39,6 +40,17 @@ export async function GET(request: Request) {
         state, leads: visibleLeads, forms, submissions: allSubmissions.filter(submission => shared || formIds.has(submission.formId)), scope,
       });
       funnels.push(funnelSummary);
+      // Automatically process funnel approvals to queue WhatsApp messages for approved leads
+      approvals.push(...await processFunnelApprovals(state, visibleLeads, owner, shared));
+      // Automatically process unjoined leads (>= 24 hours) into their batch's WhatsApp group
+      await processAutoAddGroups({
+        state,
+        leads: visibleLeads,
+        forms: allForms,
+        submissions: allSubmissions,
+        viewer: { userId: owner, superAdmin: shared },
+        force: false,
+      }).catch(err => console.warn('Cron auto-add groups warning:', err));
       schedules.push(await processRegistrationSchedules(await readRegistrationState(scope), visibleLeads, owner, shared));
     }
     const broadcasts = await processDueBunnyMetaBroadcasts({ runLimit: 20, perRunMessageLimit: 50 });

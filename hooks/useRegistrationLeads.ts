@@ -16,14 +16,45 @@ export function useRegistrationLeads({
   useEffect(() => {
     if (!ready || !token) return;
     const controller = new AbortController();
+    const cacheKey = `crm_leads_cache_${language || 'all'}_${formId || 'all'}`;
+
+    // Instant hydration from cache so table renders immediately with zero buffering
+    let hasCached = false;
+    try {
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLeads(parsed);
+            hasCached = true;
+          }
+        }
+      }
+    } catch {
+      // Ignore localStorage parse errors
+    }
+
     const load = async () => {
-      setLoading(true);
+      // Only show blocking loading state if no cached data was available
+      if (!hasCached) {
+        setLoading(true);
+      }
       try {
         const params = new URLSearchParams({ formId, language });
         const response = await registrationFetch(`/api/admin/crm/new-registration/leads?${params}`, { signal: controller.signal });
         const data = await response.json();
         if (!response.ok || !Array.isArray(data.data)) throw new Error(data.error || 'Failed to load saved form data');
-        if (!controller.signal.aborted) setLeads(data.data);
+        if (!controller.signal.aborted) {
+          setLeads(data.data);
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(cacheKey, JSON.stringify(data.data));
+            }
+          } catch {
+            // Ignore quota errors
+          }
+        }
       } catch (error) {
         if (!controller.signal.aborted) onError(error instanceof Error ? error.message : String(error));
       } finally {

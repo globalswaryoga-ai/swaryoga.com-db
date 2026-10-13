@@ -10,6 +10,7 @@ Last verified: June 29, 2026
 - `components/admin/crm/crmNavConfig.ts` defines the shared sidebar sections and section sub-navigation.
 - `components/admin/crm/CrmSidebar.tsx` filters sections by domain, tenant plan modules, and super-admin status.
 - `components/admin/crm/CrmShell.tsx` applies onboarding, compartment, trial, and plan gates around CRM pages.
+- CRM content renders without waiting for onboarding status; shared plan gates load plan and usage through the Bunny-backed subscription API.
 - `/admin/dashboard` redirects to `/admin/crm`; the canonical CRM entry is `/admin/crm`.
 
 Routes outside `app/admin/crm/`, including the website-admin pages linked from the Web Super Admin section, are outside this inventory.

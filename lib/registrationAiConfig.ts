@@ -60,10 +60,108 @@ export function registrationAiConfigKey(batchId: string, worker: string) {
   return `crm_ai_config_${batchId}_${worker}`;
 }
 
-export function readRegistrationAiDraft(state: RegistrationState, batchId: string, worker: string) {
-  const saved = parseRegistrationValue<{ draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(
-    state[registrationAiConfigKey(batchId, worker)], {});
-  return Array.isArray(saved.draft?.conditions) ? saved.draft : undefined;
+export function extractBaseLanguage(str?: string): string {
+  if (!str) return '';
+  const lower = String(str).toLowerCase();
+  if (lower.includes('hindi')) return 'hindi';
+  if (lower.includes('marathi')) return 'marathi';
+  if (lower.includes('kannada')) return 'kannada';
+  if (lower.includes('english')) return 'english';
+  return '';
+}
+
+export const CRM_TECHNICAL_FIELDS = new Set([
+  'id', '_id', 'leadid', 'leadnumber', 'title', 'phonenumber', 'phone', 'mobile', 'whatsapp', 'email', 'name',
+  'source', 'workshopname', 'workshopid', 'country', 'countrycode', 'region', 'state', 'city', 'address',
+  'languagecode', 'language', 'funnelstage', 'chatstatus', 'lastmessageat', 'googleformid', 'formid',
+  'formsource', 'lastinboundat', 'gender', 'paymentstatus', 'currency', 'formdata', 'responseid',
+  'submittedat', 'firsttouchedby', 'chatstatusclosedat', 'chatstatusclosedby', 'walastfailcode',
+  '_rawrecord', 'dynamicanswers', 'history', 'copies', 'status', 'createdat', 'updatedat',
+  'batchid', 'batchname', 'iscsv', 'labels', 'assignedtouserid', 'username', 'deliverystatus',
+  'deliverystatusat', 'lastnote', 'notes', 'tags', 'metadata', 'verified', 'registeredat',
+  'timestamp', 'emailaddress', 'lead', 'category', 'successcategory', 'action', 'type',
+  'assignedto', 'createdby', 'updatedby', 'firstmessage', 'lastmessage', 'customfields',
+  'stage', 'keyword', 'question', 'successcolor', 'failcolor', 'directmovecategory'
+]);
+
+export function isTechnicalCrmField(field: unknown): boolean {
+  if (!field || typeof field !== 'string') return true;
+  const clean = field.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return CRM_TECHNICAL_FIELDS.has(clean);
+}
+
+export function isQuestionMatchingLanguage(text: string, language: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 2) return false;
+
+  const base = extractBaseLanguage(language);
+
+  const hasKannada = /[\u0C80-\u0CFF]/.test(trimmed);
+  const hasDevanagari = /[\u0900-\u097F]/.test(trimmed);
+  const hasLatin = /[a-zA-Z]/.test(trimmed);
+
+  if (base === 'kannada') {
+    if (hasDevanagari) return false;
+    return hasKannada;
+  }
+
+  if (base === 'english') {
+    if (hasDevanagari || hasKannada) return false;
+    return hasLatin;
+  }
+
+  if (hasKannada) return false;
+
+  // For Hindi or Marathi:
+  // Reject pure English/Latin questions that have no Devanagari script
+  if (!hasDevanagari) {
+    return false;
+  }
+
+  // Devanagari is present:
+  // Marathi distinctive character ळ (\u0933)
+  const hasMarathiLa = /[\u0933]/.test(trimmed);
+
+  const marathiRegex = /(?:^|[^\p{L}\p{M}\p{N}])(तुम्ही|तुमचा|तुमची|तुमचे|तुमच्या|आहात|आहे|आहेत|नाही|नाहीत|करणार|ठेवणार|येणार|शिकणार|देण्यास|असाल|दिवसांचा|होय|कधी|शेवटी|वर्कशॉपच्या|क्लासच्या|वेळेस|वेळी)(?:[^\p{L}\p{M}\p{N}]|$)/u;
+  const marathiKaRegex = /\s+का\s*[?？\s]*$/;
+  const isMarathiPhrasing = hasMarathiLa || marathiRegex.test(trimmed) || marathiKaRegex.test(trimmed);
+
+  const hindiRegex = /(?:^|[^\p{L}\p{M}\p{N}])(आप|आपका|आपकी|आपके|अपने|आपने|क्या|करेंगे|करेंगी|सकते|सकती|होगा|होगी|होंगे|रहेंगे|रखेंगे|चाहते|हाँ|नहीं|हैं|था|थी|थे|अगर|कब|लिखें|दौरान)(?:[^\p{L}\p{M}\p{N}]|$)/u;
+  const isHindiPhrasing = hindiRegex.test(trimmed);
+
+  if (base === 'marathi') {
+    if (isHindiPhrasing && !isMarathiPhrasing) return false;
+    return true;
+  }
+
+  if (base === 'hindi') {
+    if (isMarathiPhrasing) return false;
+    return true;
+  }
+
+  return true;
+}
+
+
+export function readRegistrationAiDraft(state: RegistrationState, batchId: string, worker: string, targetLanguage?: string) {
+  const directKey = `crm_ai_config_${batchId}_${worker}`;
+  const directVal = state[directKey];
+  if (directVal !== undefined) {
+    const saved = parseRegistrationValue<{ draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(directVal, {});
+    if (Array.isArray(saved.draft?.conditions)) return saved.draft;
+  }
+  // Sibling / master fallback if specific batchId has no draft — strictly for the same language
+  const targetLang = extractBaseLanguage(targetLanguage) || extractBaseLanguage(batchId);
+  const suffix = `_${worker}`;
+  for (const [key, value] of Object.entries(state)) {
+    if (key.startsWith('crm_ai_config_') && key.endsWith(suffix) && key !== directKey) {
+      if (targetLang && !key.toLowerCase().includes(targetLang)) continue;
+      const saved = parseRegistrationValue<{ draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(value, {});
+      if (Array.isArray(saved.draft?.conditions) && saved.draft.conditions.length > 0) return saved.draft;
+    }
+  }
+  return undefined;
 }
 
 export function validateRegistrationConditions(conditions: RegistrationFilterCondition[]) {
@@ -88,13 +186,39 @@ export function readRegistrationAiConfig(state: RegistrationState, batchId: stri
   };
   const copyModes = { ...parseRegistrationValue<Record<string, boolean>>(state.crm_ai_copy_modes, {}) };
   const enabledWorkers: string[] = [];
+
+  // Pass 1: Sibling fallback across state scoped strictly to the target language
+  const targetLang = extractBaseLanguage(batchId) || extractBaseLanguage(metadata.language as string);
+  for (const [key, value] of Object.entries(state)) {
+    if (!key.startsWith('crm_ai_config_')) continue;
+    if (targetLang && !key.toLowerCase().includes(targetLang)) continue;
+    const match = key.match(/^crm_ai_config_.+?_(AI-4[A-P]?)$/);
+    if (!match) continue;
+    const worker = match[1];
+    const saved = parseRegistrationValue<{ conditions: RegistrationFilterCondition[]; copyMode: boolean; autoEnabled?: boolean; draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(value, { conditions: [], copyMode: true });
+    const effectiveConditions = (Array.isArray(saved.conditions) && saved.conditions.length > 0)
+      ? saved.conditions
+      : (Array.isArray(saved.draft?.conditions) && saved.draft.conditions.length > 0 ? saved.draft.conditions : undefined);
+    if (effectiveConditions && (!settings[worker] || settings[worker].length === 0)) {
+      settings[worker] = effectiveConditions;
+      if (saved.copyMode !== undefined) copyModes[worker] = saved.copyMode;
+    }
+  }
+
+  // Pass 2: Specific batchId overrides
   const prefix = `crm_ai_config_${batchId}_`;
   for (const [key, value] of Object.entries(state)) {
     if (!key.startsWith(prefix)) continue;
     const worker = key.slice(prefix.length);
-    const saved = parseRegistrationValue<{ conditions: RegistrationFilterCondition[]; copyMode: boolean; autoEnabled?: boolean }>(value, { conditions: [], copyMode: true });
+    const saved = parseRegistrationValue<{ conditions: RegistrationFilterCondition[]; copyMode: boolean; autoEnabled?: boolean; draft?: { conditions: RegistrationFilterCondition[]; copyMode: boolean } }>(value, { conditions: [], copyMode: true });
     if (!Array.isArray(saved.conditions)) throw new Error(`Saved ${worker} rules are invalid`);
-    settings[worker] = saved.conditions;
+    if (saved.conditions.length > 0) {
+      settings[worker] = saved.conditions;
+    } else if (Array.isArray(saved.draft?.conditions) && saved.draft.conditions.length > 0) {
+      settings[worker] = saved.draft.conditions;
+    } else {
+      settings[worker] = saved.conditions;
+    }
     copyModes[worker] = saved.copyMode;
     if (saved.autoEnabled === true) enabledWorkers.push(worker);
   }

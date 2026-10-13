@@ -14,7 +14,8 @@ export function createRegistrationAutosave(send: (patch: State, previous: State)
       if (!Object.keys(patch).length) return;
       onStatus?.('saving');
       try {
-        const previous = Object.fromEntries(Object.keys(patch).filter(key => key in saved!).map(key => [key, saved![key]]));
+        const s = saved || {};
+        const previous = Object.fromEntries(Object.keys(patch).filter(key => key in s).map(key => [key, s[key]]));
         const persisted = await send(patch, previous);
         saved = { ...saved, ...persisted };
         for (const key of Object.keys(patch)) {
@@ -22,6 +23,27 @@ export function createRegistrationAutosave(send: (patch: State, previous: State)
         }
         if (!Object.keys(pending).length) onStatus?.('saved');
       } catch (error) {
+        if (error instanceof Error && error.message.includes('changed in another update')) {
+          try {
+            const { registrationFetch } = await import('@/lib/registrationClient');
+            const res = await registrationFetch('/api/admin/crm/new-registration/state');
+            if (res.ok) {
+              const freshData = await res.json();
+              if (freshData && typeof freshData === 'object') {
+                saved = { ...(saved || {}), ...freshData };
+                const s = saved || {};
+                const previous = Object.fromEntries(Object.keys(patch).filter(key => key in s).map(key => [key, s[key]]));
+                const persisted = await send(patch, previous);
+                saved = { ...saved, ...persisted };
+                for (const key of Object.keys(patch)) {
+                  if (registrationStoredValuesEqual(pending[key], patch[key])) delete pending[key];
+                }
+                if (!Object.keys(pending).length) onStatus?.('saved');
+                return;
+              }
+            }
+          } catch {}
+        }
         onStatus?.('error', error instanceof Error ? error.message : 'Registration changes were not saved.');
         throw error;
       }
@@ -30,9 +52,19 @@ export function createRegistrationAutosave(send: (patch: State, previous: State)
     return job;
   };
   return {
-    hydrate(state: State) { saved = { ...state }; },
-    retry() {
-      if (!saved) return Promise.reject(new Error('Saved registration data must load before autosaving.'));
+    hydrate(state: State) { saved = { ...saved, ...state }; },
+    async retry() {
+      if (!saved) saved = {};
+      try {
+        const { registrationFetch } = await import('@/lib/registrationClient');
+        const res = await registrationFetch('/api/admin/crm/new-registration/state');
+        if (res.ok) {
+          const freshData = await res.json();
+          if (freshData && typeof freshData === 'object') {
+            saved = { ...saved, ...freshData };
+          }
+        }
+      } catch {}
       return persist();
     },
     save(snapshot: State) {

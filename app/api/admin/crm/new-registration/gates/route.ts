@@ -8,7 +8,7 @@ import { readRegistrationDecisions, registrationDecisionKey } from '@/lib/regist
 import { registrationGatePatch, type RegistrationGateAction } from '@/lib/registrationGates';
 
 export const dynamic = 'force-dynamic';
-const ACTIONS: RegistrationGateAction[] = ['meeting_done', 'skip_zoom', 'pending', 'reject', 'approve', 'group_added', 'skip_group'];
+const ACTIONS: RegistrationGateAction[] = ['meeting_done', 'skip_zoom', 'pending', 'reject', 'approve', 'group_added', 'skip_group', 'auto_added'];
 
 export async function GET(request: Request) {
   const viewer = registrationViewer(request);

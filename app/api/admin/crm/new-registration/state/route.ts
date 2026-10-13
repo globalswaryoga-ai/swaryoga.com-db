@@ -57,8 +57,11 @@ export async function POST(request: Request) {
         const saved = await saveRegistrationSnapshotIfUnchanged(body, payload.previous, scope, payload.allowBatchRemoval === true);
         return NextResponse.json({ success: true, saved });
       } catch (error) {
-        if (error instanceof RegistrationSnapshotConflict) return NextResponse.json({ error: error.message }, { status: 409 });
-        throw error;
+        if (error instanceof RegistrationSnapshotConflict || (error as any)?.name === 'RegistrationSnapshotConflict') {
+          return NextResponse.json({ error: (error as Error).message }, { status: 409 });
+        }
+        console.error('Autosave snapshot failed:', error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to save registration settings' }, { status: 500 });
       }
     }
     const settings = Object.fromEntries(Object.entries(body).filter(([key]) => !key.startsWith('crm_ai_decision_')));
@@ -67,6 +70,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to save registration state:', error);
-    return NextResponse.json({ error: 'Failed to save registration settings' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to save registration settings' }, { status: 500 });
   }
 }

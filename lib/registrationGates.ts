@@ -1,4 +1,4 @@
-export type RegistrationGateAction = 'meeting_done' | 'skip_zoom' | 'pending' | 'reject' | 'approve' | 'group_added' | 'skip_group';
+export type RegistrationGateAction = 'meeting_done' | 'skip_zoom' | 'pending' | 'reject' | 'approve' | 'group_added' | 'skip_group' | 'auto_added';
 export const REGISTRATION_GATE_FIELDS = ['zoomStatus', 'isRegistered', 'isRejected', 'groupStatus', 'zoomGateAudit', 'finalApprovalAudit', 'groupGateAudit'];
 
 export type RegistrationGateDecision = {
@@ -42,9 +42,10 @@ export function registrationGatePatch(
       if (!zoomGatePassed(decision)) throw new Error('Mark Meeting Done or explicitly Skip Zoom before final approval.');
       return { isRegistered: true, isRejected: false, finalApprovalAudit: audit };
     case 'group_added':
+    case 'auto_added':
     case 'skip_group':
       if (!decision.isRegistered) throw new Error('Final approval is required before resolving group admission.');
-      return { groupStatus: action === 'group_added' ? 'added_manually' : 'skipped', groupGateAudit: audit };
+      return { groupStatus: action === 'auto_added' ? 'auto_added' : action === 'group_added' ? 'added_manually' : 'skipped', groupGateAudit: audit };
     default:
       throw new Error('Invalid registration gate action.');
   }

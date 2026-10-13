@@ -238,6 +238,86 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
   return results;
 }
 
+/**
+ * Automates WhatsApp delivery for leads approved in the New Registration funnel (Approval-1..4 or Registered).
+ * Uses the batch's configured wtSettings.approved template and prevents duplicate sends.
+ */
+export async function processFunnelApprovals(state: RegistrationState, leads: RegistrationRecord[], owner: string, superAdmin: boolean, now = new Date()) {
+  const results: Array<{ workshopId: string; queued: number }> = [];
+  const { assembleRegistrationLeads, registrationBatchRows } = await import('@/lib/registrationLeads');
+  const { listForms, listSubmissions } = await import('@/lib/bunny-forms-db');
+  const [forms, submissions] = await Promise.all([listForms(), listSubmissions()]);
+  const rows = assembleRegistrationLeads(leads, submissions, forms);
+
+  for (const workshop of registrationWorkshops(state)) {
+    const settings = workshop.metadata?.wtSettings;
+    const stage = settings?.approved;
+    if (!stage?.template) continue;
+
+    const decisions = readRegistrationDecisions(state, String(workshop.id));
+    const batchRows = registrationBatchRows(rows, workshop);
+
+    for (const row of batchRows) {
+      const decision = decisions[row.id] || decisions[row.leadId] || {};
+      const status = String(decision.status || '').toLowerCase();
+      const copies: string[] = Array.isArray(decision.copies) ? decision.copies.map(c => String(c).toLowerCase()) : [];
+      const isApprovedInFunnel = status.startsWith('approval') || status === 'registered_leads' ||
+        copies.some(c => c.startsWith('approval') || c === 'registered_leads') ||
+        decision.isRegistered === true;
+
+      if (!isApprovedInFunnel || decision.isRejected) continue;
+
+      const lead = leads.find(l => String(l._id) === String(row.leadId || row.id));
+      if (!lead || lead.isBlocked) continue;
+
+      const phone = normalizePhone(row.phoneNumber || row.mobile || lead.phoneNumber || lead.mobile);
+      if (phone.length < 10) continue;
+
+      if (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed') continue;
+
+      const delay = Number(stage.delay ?? 0);
+      let template: any;
+      try {
+        template = await resolveRegistrationTemplate(stage.template, owner, superAdmin);
+      } catch {
+        continue;
+      }
+
+      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id]) continue;
+
+      const previous = await findPreviousTemplateSend(phone, template);
+      if (previous) {
+        await markLeadAutomation(lead, {
+          wtStatus: 'skipped',
+          wtSkipReason: `Already messaged with ${template.templateName} (${previous})`,
+          wtLastTemplates: { [template.templateName]: now.toISOString() },
+        }, now);
+        continue;
+      }
+
+      const result = await queueRegistrationTemplate({
+        leads: [{ ...lead, phoneNumber: phone, name: row.name || lead.name }],
+        template,
+        owner,
+        eventKey: `${workshop.id}:${lead._id}:funnel-approved`,
+        dueAt: new Date(now.getTime() + delay * 60000),
+      });
+
+      if (result.queued) {
+        await markLeadAutomation(lead, {
+          wtStatus: 'queued',
+          wtQueuedRunId: result.runId,
+          wtQueuedAt: now.toISOString(),
+          wtApprovalSource: 'funnel',
+          wtLastTemplates: { [template.templateName]: now.toISOString() },
+        }, now);
+      }
+      results.push({ workshopId: String(workshop.id), queued: result.queued });
+    }
+  }
+  return results;
+}
+
 export function registrationTriggerDue(trigger: RegistrationRecord, now: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: trigger.timeZone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',

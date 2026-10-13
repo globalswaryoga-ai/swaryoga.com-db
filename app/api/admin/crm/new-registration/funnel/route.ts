@@ -35,7 +35,18 @@ export async function POST(request: Request) {
       };
     }
     const decisions = readRegistrationDecisions(updatedState, body.batchId);
-    return NextResponse.json({ success: !result.errors.length, ...summary, decisions }, { status: result.errors.length ? 422 : 200 });
+
+    // Automatically trigger WhatsApp automation for leads approved in this funnel run
+    let queuedApprovals = 0;
+    try {
+      const { processFunnelApprovals } = await import('@/lib/registrationAutomation');
+      const approvalResults = await processFunnelApprovals(updatedState, allLeads.filter(lead => registrationLeadOwned(lead, viewer)), viewer.userId, viewer.superAdmin);
+      queuedApprovals = approvalResults.reduce((sum, item) => sum + (item.queued || 0), 0);
+    } catch (e) {
+      console.warn('Funnel approval WhatsApp trigger note:', e);
+    }
+
+    return NextResponse.json({ success: !result.errors.length, ...summary, decisions, queuedApprovals }, { status: result.errors.length ? 422 : 200 });
   } catch (error) {
     console.error('Registration funnel processing failed:', error);
     return NextResponse.json({ error: 'AI funnel processing failed; retry after checking saved configuration.' }, { status: 500 });

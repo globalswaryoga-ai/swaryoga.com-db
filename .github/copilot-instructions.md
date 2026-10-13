@@ -171,12 +171,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Workshop YouTube Recording Upload Repair (Session: October 13, 2026) — Commit `pending`
+
+- Fixed the external Zoom uploader's YouTube resumable `PUT` to include the required `Content-Range: bytes 0-(size-1)/size`; the missing header could prevent Zoom class recordings from being accepted by YouTube.
+- YouTube view failures now set a non-zero worker exit status so the three-hour cron does not present an incomplete YouTube upload as a successful run.
+- Added focused upload-protocol tests and a targeted `YOUTUBE_ONLY` recovery mode that writes YouTube links without Bunny uploads or Zoom cleanup. The live retry found the target Zoom meeting, but the configured/saved refresh token returned `invalid_grant`; the worker environment's Google client secret separately returned `invalid_client`. No account/config/database writes or YouTube upload occurred. The worker tries a distinct saved credential after a configured-token failure; reconnect and worker-secret alignment are required before retry.
+
 ### QR Group Scheduler Hybrid-Mode Buffering Fix (Session: October 12, 2026) — Commit `c039a691`
 
 - QR group schedule create/list/edit/pause/resume and cron schedule reads now use Bunny SQL regardless of `USE_BUNNY_DATABASE_ONLY`; hybrid configuration can no longer route the schedule collection through unconnected Mongoose.
 - The QR scheduler processor also uses Bunny SQL for message dedup reservations, persisted send caps/gaps, account restrictions and outbound chat/message history, preserving its safeguards when MongoDB is unavailable.
 - Schedule statistics now aggregate the Bunny dedup table after checking schedule ownership; the obsolete Mongo-backed processor endpoint returns 410 and directs callers to the configured Bunny v2 worker.
 - Removed the unused Mongo schedule-gap helper. Validation: 11 focused tests across six suites pass, changed-file diagnostics and `git diff --check` are clean, and the production build generates all 473 pages. Build output still shows the unrelated `sadhana_schedules.findOne()` timeout.
+
+### CRM Shared Loading Performance (Session: October 12, 2026) — Commit `pending`
+
+- Removed the shared shell's global wait on onboarding status and its unused extra subscription request; individual CRM page files were not changed.
+- Super Admin skips the unnecessary onboarding-status request. Shared plan gates now load through the Bunny-backed subscription API instead of the Mongo-backed plan endpoint.
+- Subscription responses include resolved tenant limits and compartment storage usage; lead/team counts run concurrently.
+- Validation: changed-file diagnostics and `git diff --check` pass; `npm run build` completes and generates all 473 pages. The build still logs the known unrelated `sadhana_schedules.findOne()` buffering timeout.
 
 ### QR Group Schedule Creation Bunny SQL Repair (Session: October 12, 2026) — Commit `892e2ec1`
 

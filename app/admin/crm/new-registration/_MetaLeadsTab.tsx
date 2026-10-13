@@ -366,7 +366,7 @@ export function MetaLeadsTab({
     }, [selectedWorkshop?.id, formId, refreshMetaCounter]);
     useEffect(() => {
         if (!showTriggerReportPopup) return;
-        const interval = setInterval(() => { if (!triggerActionRef.current) void loadTriggerReport(); }, 15000);
+        const interval = setInterval(() => { if (!triggerActionRef.current) void loadTriggerReport(); }, 30000);
         return () => clearInterval(interval);
     }, [showTriggerReportPopup, selectedWorkshop?.id, formId]);
 
@@ -521,7 +521,7 @@ export function MetaLeadsTab({
 
     // Server cron handles automatic classification and delayed messages even when this page is closed.
     useEffect(() => {
-        const interval = setInterval(() => { if (!document.hidden) internalRefresh(); }, 30000);
+        const interval = setInterval(() => { if (!document.hidden) internalRefresh(); }, 60000);
         return () => clearInterval(interval);
     }, []);
 
@@ -1684,19 +1684,6 @@ export function MetaLeadsTab({
 
                         <div className="p-6 bg-slate-50 flex-1 overflow-y-auto max-h-[60vh]">
                             {aiConfigMessage && <p role="status" className="mb-4 rounded-lg border bg-white p-3 text-sm font-semibold">{aiConfigMessage}</p>}
-                            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center justify-between shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                        <Save className="text-yellow-700" size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-yellow-900 text-sm flex items-center gap-2">
-                                            Data Preservation & Routing <span className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-full">MOVE ONLY</span>
-                                        </h4>
-                                        <p className="text-yellow-800 text-xs mt-0.5">Leads will be assigned to stages based on these rules.</p>
-                                    </div>
-                                </div>
-                            </div>
 
                             {activeConfig.filters?.map((filter: any, index: number) => (
                                 <div key={index} className="bg-white border border-slate-200 rounded-xl p-5 mb-4 shadow-sm relative">
@@ -1814,10 +1801,15 @@ export function MetaLeadsTab({
                             </button>
                             <button 
                                 disabled={savingAIConfig}
-                                onClick={() => saveMetaAIConfig(activeConfigKey, activeConfig, true)}
+                                onClick={() => {
+                                    const timer = setTimeout(() => {
+                                        setShowAI9Popup(false);
+                                    }, 2000);
+                                    saveMetaAIConfig(activeConfigKey, activeConfig, true).catch(() => clearTimeout(timer));
+                                }}
                                 className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-all shadow-sm flex items-center gap-2"
                             >
-                                <Save size={16} /> Save Configuration
+                                <Save size={16} /> {savingAIConfig ? 'Saving...' : 'Save Configuration'}
                             </button>
                         </div>
                     </div>

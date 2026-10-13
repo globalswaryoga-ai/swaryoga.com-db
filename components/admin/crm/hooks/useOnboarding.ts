@@ -99,6 +99,17 @@ export function useOnboarding(): UseOnboardingReturn {
 
   const fetchStatus = useCallback(async () => {
     try {
+      if (checkIsSuperAdmin()) {
+        setStatus({
+          ...DEFAULT_STATUS,
+          setupPaid: true,
+          isFirstLogin: false,
+          isSuperAdmin: true,
+          needsOnboarding: false,
+        });
+        return;
+      }
+
       const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       if (!token) {
         setLoading(false);

@@ -5,6 +5,7 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
 import { registrationAudienceForBatch, registrationRecipients, type RegistrationAudienceRow } from '@/lib/registrationAudience';
+import { matchesLanguage } from './_LeadsManagementTab';
 
 export function AITriggersPanel({ 
   workshops, 
@@ -246,8 +247,7 @@ export function AITriggersPanel({
   const filteredWorkshops = React.useMemo(() => {
     if (!workshops) return [];
     return workshops.filter(w => 
-      (!w.language || w.language.toLowerCase() === selectedLanguage.toLowerCase()) &&
-      w.id
+      w && w.id && matchesLanguage(w, selectedLanguage)
     );
   }, [workshops, selectedLanguage]);
 

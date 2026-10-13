@@ -35,6 +35,7 @@ import { createClient } from '@libsql/client';
 import dotenv from 'dotenv';
 import sessionUtils from '../lib/workshopSessionUtils.js';
 import { recordingComplete, finalizeRecording, withRecordingMp3 } from './zoomRecordingArtifacts.mjs';
+import { ytUpload } from './youtubeResumableUpload.mjs';
 
 // Load worker/base settings first, then let the local production connection
 // config override stale YouTube client values. A refresh token must be
@@ -52,6 +53,7 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 const LOOKBACK = Number(process.env.RECORDING_LOOKBACK_DAYS || 30);
 const MIN_AGE_MINUTES = Number(process.env.RECORDING_MIN_AGE_MINUTES || 10);
 const TARGET_MEETING_ID = String(process.env.ZOOM_MEETING_ID || '').trim();
+const YOUTUBE_ONLY = process.env.YOUTUBE_ONLY === 'true';
 
 function decrypt(enc) {
   const k = process.env.ENCRYPTION_KEY || 'default-32-character-encryption-key';
@@ -85,55 +87,38 @@ async function ytAccessToken(refresh) {
 // token first, then refresh it. An environment refresh token takes priority
 // when explicitly configured for the worker server.
 async function getYouTubeAccessToken(account) {
-  if (process.env.YOUTUBE_REFRESH_TOKEN) {
-    return ytAccessToken(process.env.YOUTUBE_REFRESH_TOKEN);
-  }
-
+  const configuredRefreshToken = process.env.YOUTUBE_REFRESH_TOKEN || '';
   const storedAccessToken = account?.accessToken ? decrypt(account.accessToken) : '';
   const expiry = account?.tokenExpiresAt ? new Date(account.tokenExpiresAt).getTime() : 0;
+  const storedRefreshToken = account?.refreshToken ? decrypt(account.refreshToken) : '';
+  let configuredTokenError;
+
+  if (configuredRefreshToken) {
+    try {
+      return await ytAccessToken(configuredRefreshToken);
+    } catch (error) {
+      configuredTokenError = error;
+      log('Configured YOUTUBE_REFRESH_TOKEN was rejected; trying the connected YouTube account token.');
+    }
+  }
+
   if (storedAccessToken && Number.isFinite(expiry) && expiry > Date.now() + 60_000) {
     return storedAccessToken;
   }
 
-  const storedRefreshToken = account?.refreshToken ? decrypt(account.refreshToken) : '';
-  if (!storedRefreshToken) throw new Error('No YouTube refresh token configured');
-  return ytAccessToken(storedRefreshToken);
-}
-
-async function ytUpload(access, srcUrl, size, title, desc) {
-  let lastError = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4' },
-      body: JSON.stringify({ snippet: { title: title.slice(0, 99), description: desc, categoryId: '22' }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false } }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!init.ok) {
-      lastError = `yt init ${init.status} ${await init.text()}`;
-    } else {
-      const loc = init.headers.get('location');
-      if (!loc) lastError = 'no upload url';
-      else {
-        const src = await fetch(srcUrl, { signal: AbortSignal.timeout(30 * 60 * 1000) });
-        if (!src.ok) throw new Error('zoom dl ' + src.status);
-        const put = await fetch(loc, { method: 'PUT', headers: { 'Content-Length': String(size), 'Content-Type': 'video/mp4' }, body: src.body, duplex: 'half', signal: AbortSignal.timeout(30 * 60 * 1000) });
-        const responseText = await put.text();
-        let j = {};
-        try { j = responseText ? JSON.parse(responseText) : {}; } catch { j = {}; }
-        if (put.ok && j.id) return j.id;
-        lastError = `yt put ${put.status} ${responseText || JSON.stringify(j)}`;
+  if (storedRefreshToken && storedRefreshToken !== configuredRefreshToken) {
+    try {
+      return await ytAccessToken(storedRefreshToken);
+    } catch (error) {
+      if (configuredTokenError) {
+        throw new Error(`Configured YouTube refresh token failed: ${configuredTokenError.message}; connected account refresh token failed: ${error.message}`);
       }
+      throw error;
     }
-    if (attempt < 3 && /\b(429|500|502|503|504)\b/.test(lastError)) {
-      const delayMs = attempt * 15000;
-      log(`  YouTube transient upload error; retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/3)`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      continue;
-    }
-    break;
   }
-  throw new Error(lastError || 'YouTube upload failed');
+
+  if (configuredTokenError) throw configuredTokenError;
+  throw new Error('No YouTube refresh token configured');
 }
 
 // Find a playlist owned by this channel with an exact title match, or create
@@ -680,44 +665,49 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         } catch (e) {
           log(`  YouTube community FAIL ${view}:`, e.message);
         }
-      } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
+      } catch (e) {
+        process.exitCode = 1;
+        log(`  YT FAIL ${view}:`, e.message);
+      }
     }
 
-    // Historical Gallery URLs remain stored; new Bunny uploads are Speaker only.
-    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker']]) {
-      if (!f || result.bunny[key]) continue;
-      try {
-        const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')} ${m.topic} (${key}).mp4`);
-        result.bunny[key] = bunnyPath;
-        await persist();
-        log(`  Bunny Storage OK ${view}:`, bunnyPath);
-        const ytId = result.youtube[key];
-        const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
-        await autoAddToConfiguredCommunity(
-          bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
-          bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
-        );
-      } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
-    }
-    if (!result.bunny.audio) {
-      try {
-        const audioSource = (m.recording_files || []).find(f => f.file_type === 'M4A' && isReady(f)) || speaker;
-        const audioPath = await withRecordingMp3(dl(audioSource), async (file, size) => {
-          const zone = process.env.BUNNY_ZOOM_STORAGE_ZONE || 'swaryogadb';
-          const key = process.env.BUNNY_ZOOM_STORAGE_KEY;
-          if (!key) throw new Error('BUNNY_ZOOM_STORAGE_KEY is required');
-          const dest = `zoom-videos/${dateLabel}-${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')}-audio.mp3`;
-          const upload = await fetch(`https://storage.bunnycdn.com/${zone}/${encodeURI(dest)}`, {
-            method: 'PUT', headers: { AccessKey: key, 'Content-Type': 'audio/mpeg', 'Content-Length': String(size) },
-            body: fs.createReadStream(file), duplex: 'half', signal: AbortSignal.timeout(30 * 60 * 1000),
+    if (!YOUTUBE_ONLY) {
+      // Historical Gallery URLs remain stored; new Bunny uploads are Speaker only.
+      for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker']]) {
+        if (!f || result.bunny[key]) continue;
+        try {
+          const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')} ${m.topic} (${key}).mp4`);
+          result.bunny[key] = bunnyPath;
+          await persist();
+          log(`  Bunny Storage OK ${view}:`, bunnyPath);
+          const ytId = result.youtube[key];
+          const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+          await autoAddToConfiguredCommunity(
+            bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
+            bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+          );
+        } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
+      }
+      if (!result.bunny.audio) {
+        try {
+          const audioSource = (m.recording_files || []).find(f => f.file_type === 'M4A' && isReady(f)) || speaker;
+          const audioPath = await withRecordingMp3(dl(audioSource), async (file, size) => {
+            const zone = process.env.BUNNY_ZOOM_STORAGE_ZONE || 'swaryogadb';
+            const key = process.env.BUNNY_ZOOM_STORAGE_KEY;
+            if (!key) throw new Error('BUNNY_ZOOM_STORAGE_KEY is required');
+            const dest = `zoom-videos/${dateLabel}-${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')}-audio.mp3`;
+            const upload = await fetch(`https://storage.bunnycdn.com/${zone}/${encodeURI(dest)}`, {
+              method: 'PUT', headers: { AccessKey: key, 'Content-Type': 'audio/mpeg', 'Content-Length': String(size) },
+              body: fs.createReadStream(file), duplex: 'half', signal: AbortSignal.timeout(30 * 60 * 1000),
+            });
+            if (!upload.ok) throw new Error(`Bunny MP3 upload failed (${upload.status})`);
+            return dest;
           });
-          if (!upload.ok) throw new Error(`Bunny MP3 upload failed (${upload.status})`);
-          return dest;
-        });
-        result.bunny.audio = audioPath;
-        await persist();
-        log('  Bunny MP3 OK');
-      } catch (error) { log('  Bunny MP3 FAIL:', error.message); }
+          result.bunny.audio = audioPath;
+          await persist();
+          log('  Bunny MP3 OK');
+        } catch (error) { log('  Bunny MP3 FAIL:', error.message); }
+      }
     }
 
     // Add newly uploaded videos to the workshop's YouTube playlist (unlisted)
@@ -747,7 +737,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
       await persist();
     }
 
-    if (recordingComplete(result)) {
+    if (!YOUTUBE_ONLY && recordingComplete(result)) {
       await finalizeRecording(result, persist, async () => {
         if (!m.fromZoomTrash && (process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
           await trashRecording(m.uuid, zt);

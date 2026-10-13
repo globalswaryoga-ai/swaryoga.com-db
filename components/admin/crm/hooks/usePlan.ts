@@ -127,58 +127,37 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await fetch('/api/crm-site/plan', {
+      const res = await fetch('/api/crm-site/subscription', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) {
-        // Fallback to setup-status for backward compat
-        const fallbackRes = await fetch('/api/crm-site/setup-status', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (fallbackRes.ok) {
-          const data = await fallbackRes.json();
-          const plan = (data.planId || 'free') as PlanTier;
-          setState({
-            plan,
-            planName: PLAN_NAMES[plan] || 'Free',
-            display: getPlanDisplay(plan),
-            limits: getPlanLimits(plan),
-            isTrialActive: false,
-            trialDaysRemaining: 0,
-            trialStartDate: null,
-            usage: {
-              leads: data.leadsCount || 0,
-              users: data.teamMembersCount || 0,
-              storageMB: data.storageUsedMB || 0,
-              chatbotFlows: 0,
-            },
-            isSuperAdmin: data.isSuperAdmin || false,
-            upgradePlan: getUpgradePlan(plan),
-            loading: false,
-            error: null,
-          });
-          return;
-        }
-        throw new Error('Failed to fetch plan');
-      }
+      if (!res.ok) throw new Error('Failed to fetch plan');
 
-      const data = await res.json();
+      const response = await res.json();
+      const data = response?.subscription;
+      if (!data) throw new Error('Subscription response is missing plan details');
+
       const plan = (data.plan || 'free') as PlanTier;
 
       setState({
         plan,
-        planName: PLAN_NAMES[plan] || 'Free',
+        planName: data.planName || PLAN_NAMES[plan] || 'Free',
         display: getPlanDisplay(plan),
-        // Prefer DB-edited limits from the API (Plan Editor values); fall back to static.
-        limits: data.limits ? { ...getPlanLimits(plan), ...data.limits } : getPlanLimits(plan),
+        limits: data.limits
+          ? { ...getPlanLimits(plan), ...data.limits }
+          : {
+              ...getPlanLimits(plan),
+              maxLeads: data.leadsQuota ?? getPlanLimits(plan).maxLeads,
+              maxUsers: data.usersQuota ?? getPlanLimits(plan).maxUsers,
+              storageQuotaMB: data.storageQuotaMB ?? getPlanLimits(plan).storageQuotaMB,
+            },
         isTrialActive: data.isTrialActive || false,
         trialDaysRemaining: data.trialDaysRemaining || 0,
-        trialStartDate: data.trialStartDate || null,
+        trialStartDate: data.trialStartDate || data.subscriptionStartDate || null,
         usage: {
-          leads: data.usage?.leads || 0,
-          users: data.usage?.users || 0,
-          storageMB: data.usage?.storageMB || 0,
+          leads: data.leadsUsed || 0,
+          users: data.usersCount || 0,
+          storageMB: data.storageUsedMB || 0,
           chatbotFlows: data.usage?.chatbotFlows || 0,
         },
         isSuperAdmin: data.isSuperAdmin || false,
