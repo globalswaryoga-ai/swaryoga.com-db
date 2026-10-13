@@ -41,8 +41,15 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
 
+  const maxAudioBytes = 24 * 1024 * 1024;
+  if (audio.buffer.length > maxAudioBytes) {
+    throw new Error(
+      `Audio file is ${(audio.buffer.length / (1024 * 1024)).toFixed(1)}MB, exceeding the 24MB Whisper limit. Please compress to 48kbps mono MP3 using the converter.`
+    );
+  }
+
   const form = new FormData();
-  form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType }), 'audio');
+  form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
   form.append('model', 'whisper-1');
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -51,9 +58,22 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
     body: form as any,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(`Whisper error: ${data?.error?.message || res.statusText}`);
-  if (!data.text) throw new Error('Whisper returned no text');
+  const rawText = await res.text();
+  let data: any = null;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    if (res.status === 413 || rawText.includes('Request Entity') || rawText.includes('Too Large')) {
+      throw new Error(`Audio file exceeds Whisper API size limit (25MB). Please compress the audio to 48kbps mono MP3.`);
+    }
+    throw new Error(`Whisper API error (${res.status}): ${rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150)}`);
+  }
+
+  if (!res.ok) {
+    const errorMsg = data?.error?.message || res.statusText || rawText.slice(0, 150);
+    throw new Error(`Whisper error: ${errorMsg}`);
+  }
+  if (!data?.text) throw new Error('Whisper returned no text');
   return data.text;
 }
 

@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (audioFile && audioFile.size > 24 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: `Audio file is ${(audioFile.size / (1024 * 1024)).toFixed(1)}MB. Transcription limit is 24MB. Please use the MP4 to MP3 Converter to compress to a lightweight speech MP3, or paste text.` },
+        { status: 400 }
+      );
+    }
+
     let job = await createAiVideoJob({
       sourceYoutubeUrl: sourceYoutubeUrl || undefined,
       sourceFileName: audioFile ? audioFile.name : undefined,

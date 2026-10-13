@@ -99,8 +99,8 @@ export default function Mp4ToMp3Converter() {
     setIsLoading(true);
     try {
       const safeName = 'input.mp4';
-      await ffmpeg.writeFile(safeName, await fetchFile(file));
-      await ffmpeg.exec(['-i', safeName, '-vn', '-ar', '44100', '-ac', '2', '-b:a', '128k', 'output.mp3']);
+      // Optimized for speech & OpenAI Whisper (16kHz mono 48kbps keeps full-hour workshops under 25MB)
+      await ffmpeg.exec(['-i', safeName, '-vn', '-ar', '16000', '-ac', '1', '-b:a', '48k', 'output.mp3']);
 
       const data = await ffmpeg.readFile('output.mp3');
       const blob = new Blob([data], { type: 'audio/mpeg' });

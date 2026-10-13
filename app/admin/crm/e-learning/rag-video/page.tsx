@@ -147,22 +147,46 @@ export default function RagAndVideoPage() {
     setAvatarSettings(loadAvatarSettings());
   }, []);
 
+async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?: string }> {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    return { ok: res.ok, data, error: data?.error || (!res.ok ? `Request failed with status ${res.status}` : undefined) };
+  } catch {
+    const cleanSnippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+    return {
+      ok: false,
+      data: null,
+      error: cleanSnippet ? `${cleanSnippet}` : `Request failed with status ${res.status}`,
+    };
+  }
+}
+
   const fetchJobs = useCallback(async () => {
     if (!token) return;
-    const res = await fetch('/api/admin/e-learning/ai-video/jobs', { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    if (data.success) setJobs(data.data);
+    try {
+      const res = await fetch('/api/admin/e-learning/ai-video/jobs', { headers: { Authorization: `Bearer ${token}` } });
+      const parsed = await safeJson(res);
+      if (parsed.ok && parsed.data?.success) {
+        setJobs(parsed.data.data || []);
+      } else if (!parsed.ok && parsed.error) {
+        console.warn('Jobs fetch notice:', parsed.error);
+      }
+    } catch (e: any) {
+      console.warn('Network error fetching jobs:', e?.message);
+    }
   }, [token]);
 
   const fetchCourses = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/admin/recorded-courses', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.success) setCourses(data.courses || data.data || []);
+      const parsed = await safeJson(res);
+      if (parsed.ok && parsed.data?.success) {
+        setCourses(parsed.data.courses || parsed.data.data || []);
+      }
     } catch (e) {
-      console.warn('Could not fetch courses (MongoDB deprecated)');
+      console.warn('Could not fetch courses');
     }
   }, [token]);
 
@@ -173,20 +197,31 @@ export default function RagAndVideoPage() {
 
   const fetchSections = useCallback(async (courseId: string) => {
     if (!token || !courseId || sectionsByCourse[courseId]) return;
-    const res = await fetch(`/api/admin/recorded-courses/sections?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    if (data.success) setSectionsByCourse((prev) => ({ ...prev, [courseId]: data.sections || [] }));
+    try {
+      const res = await fetch(`/api/admin/recorded-courses/sections?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const parsed = await safeJson(res);
+      if (parsed.ok && parsed.data?.success) {
+        setSectionsByCourse((prev) => ({ ...prev, [courseId]: parsed.data.sections || [] }));
+      }
+    } catch (e: any) {
+      console.warn('Could not fetch sections:', e?.message);
+    }
   }, [token, sectionsByCourse]);
 
   const refreshSelectedJob = useCallback(async (jobId: string) => {
     if (!token) return;
-    const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    if (data.success) {
-      setSelectedJob(data.data);
-      setCorrectedDraft(data.data.correctedTranscript || '');
+    try {
+      const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const parsed = await safeJson(res);
+      if (parsed.ok && parsed.data?.success) {
+        setSelectedJob(parsed.data.data);
+        setCorrectedDraft(parsed.data.data?.correctedTranscript || '');
+        return parsed.data.data as AiVideoJob;
+      }
+    } catch (e: any) {
+      console.warn('Could not refresh job:', e?.message);
     }
-    return data.data as AiVideoJob | undefined;
+    return undefined;
   }, [token]);
 
   // Poll while any render is in progress on the open job.
@@ -215,6 +250,15 @@ export default function RagAndVideoPage() {
   const handleCreateJob = async () => {
     const hasSource = sourceMode === 'audio' ? Boolean(audioFile) : sourceMode === 'text' ? Boolean(sourceText.trim()) : Boolean(referenceLink.trim());
     if (!token || !hasSource || !topicTitle.trim() || !selectedLanguages.length) return;
+
+    if (sourceMode === 'audio' && audioFile) {
+      const maxAudioBytes = 24 * 1024 * 1024; // 24 MB limit for transcription payload
+      if (audioFile.size > maxAudioBytes) {
+        setCreateError(`Audio file is ${(audioFile.size / (1024 * 1024)).toFixed(1)}MB. Whisper transcription limit is 24MB. Click "Open MP4 to MP3 Converter" above to compress it into a lightweight speech MP3, or switch to "Paste text".`);
+        return;
+      }
+    }
+
     setCreating(true);
     setCreateError('');
     try {
@@ -237,10 +281,12 @@ export default function RagAndVideoPage() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create job');
-      setSelectedJob(data.data);
-      setCorrectedDraft(data.data.correctedTranscript || '');
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.success) {
+        throw new Error(parsed.error || parsed.data?.error || `Failed to create job (${res.status})`);
+      }
+      setSelectedJob(parsed.data.data);
+      setCorrectedDraft(parsed.data.data.correctedTranscript || '');
       setAudioFile(null);
       setSourceText('');
       setReferenceLink('');
@@ -303,11 +349,11 @@ export default function RagAndVideoPage() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.url) throw new Error(parsed.error || parsed.data?.error || 'Upload failed');
       const script = selectedJob?.scripts.find((s) => s.language === language);
       if (!script) return;
-      const marker = mode === 'slide' ? `[SLIDE: ${data.url}]` : `[VIDEO: ${data.url}]`;
+      const marker = mode === 'slide' ? `[SLIDE: ${parsed.data.url}]` : `[VIDEO: ${parsed.data.url}]`;
       updateScript(language, { text: `${script.text}\n\n${marker}\n` });
     } catch (err: any) {
       setCreateError(err.message || 'Failed to upload slide/video');
@@ -318,13 +364,17 @@ export default function RagAndVideoPage() {
 
   const handleSaveCorrection = async () => {
     if (!token || !selectedJob) return;
-    const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${selectedJob._id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ correctedTranscript: correctedDraft }),
-    });
-    const data = await res.json();
-    if (data.data) setSelectedJob(data.data);
+    try {
+      const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${selectedJob._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ correctedTranscript: correctedDraft }),
+      });
+      const parsed = await safeJson(res);
+      if (parsed.ok && parsed.data?.data) setSelectedJob(parsed.data.data);
+    } catch (e: any) {
+      console.warn('Could not save transcript correction:', e?.message);
+    }
   };
 
   const handleCondense = async () => {
@@ -337,9 +387,9 @@ export default function RagAndVideoPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to condense');
-      setSelectedJob(data.data);
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.data) throw new Error(parsed.error || parsed.data?.error || 'Failed to condense');
+      setSelectedJob(parsed.data.data);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to condense');
     } finally {
@@ -358,9 +408,9 @@ export default function RagAndVideoPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ language }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to generate chapter');
-      setSelectedJob(data.data);
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.data) throw new Error(parsed.error || parsed.data?.error || 'Failed to generate chapter');
+      setSelectedJob(parsed.data.data);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to generate chapter');
     } finally {
@@ -379,8 +429,8 @@ export default function RagAndVideoPage() {
         body: JSON.stringify({ workshopName: compileWorkshop.trim(), language: compileLanguage }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to compile e-book');
+        const parsed = await safeJson(res);
+        throw new Error(parsed.error || parsed.data?.error || 'Failed to compile e-book');
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -413,13 +463,13 @@ export default function RagAndVideoPage() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(editDraft),
     });
-    const data = await res.json();
-    if (res.ok) {
-      if (selectedJob?._id === editingJobId) setSelectedJob(data.data);
+    const parsed = await safeJson(res);
+    if (parsed.ok && parsed.data?.data) {
+      if (selectedJob?._id === editingJobId) setSelectedJob(parsed.data.data);
       setEditingJobId('');
       fetchJobs();
     } else {
-      setCreateError(data.error || 'Failed to save changes');
+      setCreateError(parsed.error || parsed.data?.error || 'Failed to save changes');
     }
   };
 
@@ -433,8 +483,8 @@ export default function RagAndVideoPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to delete job');
+        const parsed = await safeJson(res);
+        throw new Error(parsed.error || parsed.data?.error || 'Failed to delete job');
       }
       if (selectedJob?._id === jobId) setSelectedJob(null);
       fetchJobs();
@@ -458,9 +508,10 @@ export default function RagAndVideoPage() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ avatarByLanguage: avatarSettings }),
     });
-    const data = await res.json();
-    if (data.data) setSelectedJob(data.data);
-    if (data.errors?.length) setCreateError(data.errors.join('; '));
+    const parsed = await safeJson(res);
+    if (parsed.data?.data) setSelectedJob(parsed.data.data);
+    if (parsed.data?.errors?.length) setCreateError(parsed.data.errors.join('; '));
+    else if (!parsed.ok) setCreateError(parsed.error || 'Render request failed');
     fetchJobs();
   };
 
@@ -475,8 +526,8 @@ export default function RagAndVideoPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ language, courseId: choice.courseId, sectionId: choice.sectionId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to attach');
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.success) throw new Error(parsed.error || parsed.data?.error || 'Failed to attach');
       await refreshSelectedJob(selectedJob._id);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to attach video to course');
