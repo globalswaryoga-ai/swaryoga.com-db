@@ -1297,24 +1297,24 @@ export function LeadsManagementTab({
                   <div className="text-[11px] text-slate-500 mt-0.5 font-medium">All batch leads</div>
                 </button>
 
-                {/* 2. Approved Card */}
+                {/* 2. Approved-4 Card */}
                 <button
                   type="button"
-                  onClick={() => setActiveTab('approval_1')}
+                  onClick={() => setActiveTab('approval_4')}
                   className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
-                    activeTab.startsWith('approval') || activeTab === 'registered_leads'
+                    activeTab === 'approval_4' || activeTab.startsWith('approval') || activeTab === 'registered_leads'
                       ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-400'
                       : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow'
                   }`}
                 >
                   <div className="flex items-center justify-between text-slate-500 mb-1">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Approved</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Approved-4</span>
                     <CheckCircle size={16} className="text-emerald-600" />
                   </div>
                   <div className="text-2xl font-black text-emerald-700">
-                    {(tabCounts['approval_1'] || 0) + (tabCounts['approval_2'] || 0) + (tabCounts['approval_3'] || 0) + (tabCounts['approval_4'] || 0) + (tabCounts['registered_leads'] || 0)}
+                    {tabCounts['approval_4'] || 0}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Approval 1-4 & Reg</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Approval-4 leads</div>
                 </button>
 
                 {/* 3. Triggered Card */}
@@ -1337,24 +1337,24 @@ export function LeadsManagementTab({
                   <div className="text-[11px] text-slate-500 mt-0.5 font-medium">WhatsApp Triggered</div>
                 </button>
 
-                {/* 4. Pending Card */}
+                {/* 4. Pending-4 Card */}
                 <button
                   type="button"
-                  onClick={() => setActiveTab('pending_leads_1')}
+                  onClick={() => setActiveTab('pending_leads_4')}
                   className={`text-left p-3.5 rounded-2xl border-2 transition-all shadow-sm flex flex-col justify-between ${
-                    activeTab.startsWith('pending')
+                    activeTab === 'pending_leads_4' || activeTab.startsWith('pending')
                       ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-400'
                       : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow'
                   }`}
                 >
                   <div className="flex items-center justify-between text-slate-500 mb-1">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">Pending</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">Pending-4</span>
                     <Clock size={16} className="text-amber-600" />
                   </div>
                   <div className="text-2xl font-black text-amber-700">
-                    {(tabCounts['pending_leads_1'] || 0) + (tabCounts['pending_leads_2'] || 0) + (tabCounts['pending_leads_3'] || 0) + (tabCounts['pending_leads_4'] || 0)}
+                    {tabCounts['pending_leads_4'] || 0}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Pending 1-4 review</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">Pending-4 review</div>
                 </button>
 
                 {/* 5. Rejected Card */}
