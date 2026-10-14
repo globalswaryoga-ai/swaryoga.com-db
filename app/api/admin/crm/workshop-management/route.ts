@@ -74,7 +74,8 @@ export async function PATCH(request: NextRequest) {
       updates.googleFormLink = googleFormLink || null;
     }
     if (body.zoomMeetingId !== undefined) {
-      updates.zoomMeetingId = body.zoomMeetingId ? String(body.zoomMeetingId).trim() : null;
+      const cleaned = body.zoomMeetingId ? String(body.zoomMeetingId).replace(/\D+/g, '') : '';
+      updates.zoomMeetingId = cleaned || null;
     }
     if (body.zoomJoinUrl !== undefined) {
       const value = String(body.zoomJoinUrl || '').trim();
@@ -145,8 +146,8 @@ export async function PATCH(request: NextRequest) {
 
     // Sync Zoom community mapping (for zoom-recording-uploader.mjs and community integration)
     const zoomId = body.zoomMeetingId !== undefined 
-      ? (body.zoomMeetingId ? String(body.zoomMeetingId).trim() : '')
-      : (cohort?.zoomMeetingId || '');
+      ? (body.zoomMeetingId ? String(body.zoomMeetingId).replace(/\D+/g, '') : '')
+      : (cohort?.zoomMeetingId ? String(cohort.zoomMeetingId).replace(/\D+/g, '') : '');
 
     if (zoomId) {
       const existingMappings = await listBunnyZoomMappings();

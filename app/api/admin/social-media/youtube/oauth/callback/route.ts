@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = request.nextUrl.searchParams;
+    const providerError = params.get('error');
+    const code = params.get('code');
     if (providerError) return redirectError(providerError);
     if (!code) return redirectError('missing_code');
 

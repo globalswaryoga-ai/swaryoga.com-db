@@ -57,7 +57,7 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
   }
 
   const zoomMeetingIdRaw = cohort.zoomMeetingId ? String(cohort.zoomMeetingId).trim() : '';
-  const zoomMeetingId = zoomMeetingIdRaw.replace(/\s+/g, '');
+  const zoomMeetingId = zoomMeetingIdRaw.replace(/\D+/g, '');
   if (!zoomMeetingId) {
     return {
       success: false,
@@ -73,7 +73,8 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
   const startDate = cohort.startDate ? String(cohort.startDate).slice(0, 10) : '2026-08-01';
   // Zoom 'to' parameter is exclusive in UTC, so query through tomorrow
   const today = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  const fromDate = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const fromDate = startDate && startDate > thirtyDaysAgo ? startDate : thirtyDaysAgo;
 
   const meetingInstances: ZoomMeetingRecord[] = [];
 
