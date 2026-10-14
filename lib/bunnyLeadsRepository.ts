@@ -80,21 +80,54 @@ export async function getBunnyLeadMetadata(input: { visibleUserIds: string[] | n
 export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: string | null) {
   const phone = registrationPhone(phoneNumber);
   if (!phone) throw new Error('Phone number is required for contact lookup');
-  const leads = (await loadBunnyLeads()).filter(lead => registrationPhone(lead.phoneNumber) === phone ||
-    (lead.contactPhones || []).includes(phone));
-  
-  if (tenantUserId) {
-    return leads.find(l => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
+  if (leadsCache) {
+    const leads = leadsCache.data.filter(lead => registrationPhone(lead.phoneNumber) === phone ||
+      (lead.contactPhones || []).includes(phone));
+    if (tenantUserId) {
+      return leads.find(l => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
+    }
+    return leads[0] || null;
   }
-  
+  const digits = phone.replace(/\D/g, '');
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  const result = await bunnyExecute({
+    sql: "SELECT document_id, data_json, created_at, updated_at FROM leads_sql WHERE json_extract(data_json, '$.phoneNumber') LIKE ? OR data_json LIKE ? LIMIT 5",
+    args: [`%${last10}`, `%"${phone}"%`]
+  });
+  const leads = result.rows.map((row: any) => {
+    const lead = parse(row.data_json) || {};
+    return {
+      ...lead,
+      _id: String(lead._id?.$oid || lead._id || row.document_id),
+      createdAt: leadDateIso(lead.createdAt) || leadDateIso(row.created_at) || lead.createdAt || row.created_at,
+      updatedAt: leadDateIso(lead.updatedAt) || leadDateIso(row.updated_at) || lead.updatedAt || row.updated_at,
+    };
+  }).filter((lead: any) => !lead.mergedIntoLeadId && (registrationPhone(lead.phoneNumber) === phone || (lead.contactPhones || []).includes(phone)));
+  if (tenantUserId) {
+    return leads.find((l: any) => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
+  }
   return leads[0] || null;
 }
 
 export async function getBunnyLeadByEmail(email: string) {
   if (!email) return null;
   const normalised = email.trim().toLowerCase();
-  return (await loadBunnyLeads()).find(lead => String(lead.email || '').trim().toLowerCase() === normalised ||
-    (lead.contactEmails || []).includes(normalised)) || null;
+  if (leadsCache) {
+    return leadsCache.data.find(lead => String(lead.email || '').trim().toLowerCase() === normalised ||
+      (lead.contactEmails || []).includes(normalised)) || null;
+  }
+  const result = await bunnyExecute({
+    sql: "SELECT document_id, data_json, created_at, updated_at FROM leads_sql WHERE LOWER(json_extract(data_json, '$.email')) = ? OR LOWER(data_json) LIKE ? LIMIT 1",
+    args: [normalised, `%"email":"${normalised}"%`]
+  });
+  if (!result.rows[0]) return null;
+  const lead = parse(result.rows[0].data_json) || {};
+  return {
+    ...lead,
+    _id: String(lead._id?.$oid || lead._id || result.rows[0].document_id),
+    createdAt: leadDateIso(lead.createdAt) || leadDateIso(result.rows[0].created_at) || lead.createdAt || result.rows[0].created_at,
+    updatedAt: leadDateIso(lead.updatedAt) || leadDateIso(result.rows[0].updated_at) || lead.updatedAt || result.rows[0].updated_at,
+  };
 }
 
 export async function getBunnyLeadById(id: string) {

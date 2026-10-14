@@ -13,10 +13,9 @@ export async function POST(request: NextRequest) {
   if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
 
   try {
-    // The manual button is a fast health check. Full historical reconciliation
-    // is handled by the three-hour cron; limiting this request prevents a
-    // serverless gateway timeout when a cohort spans many sessions.
-    const syncDate = classDate || new Date().toISOString().slice(0, 10);
+    // If classDate is specified, sync only that date.
+    // If omitted, sync all completed sessions for this cohort from startDate to today.
+    const syncDate = classDate ? String(classDate).trim() : undefined;
     const result = await syncWorkshopZoomAttendance(String(cohortId), syncDate);
     return NextResponse.json({ success: true, result });
   } catch (error) {

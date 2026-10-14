@@ -1,5 +1,5 @@
 import { getFullMeetingAnalytics, type SessionParticipant } from './zoom-analytics';
-import { getCohort, listCohorts, listStudents, upsertAttendance, updateCohort } from './workshopBunnyRepository';
+import { getCohort, listCohorts, listStudents, upsertAttendanceBatch, updateCohort } from './workshopBunnyRepository';
 import { workshopSessionCalendar, attendanceDuration } from './workshopSessionUtils';
 
 type SyncResult = {
@@ -36,21 +36,34 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   if (!cohort) throw new Error('Workshop not found');
   if (!cohort.zoomMeetingId) throw new Error('This workshop does not have a Zoom meeting ID');
 
-  // Strip spaces — Zoom Meeting IDs are often stored/entered as "851 5544 6286"
-  // but Zoom API only accepts "85155446286" (no spaces).
-  const zoomMeetingId = String(cohort.zoomMeetingId).replace(/\s+/g, '');
+  // Strip non-digits — Zoom Meeting IDs are often stored/entered as "851 5544 6286" or with prefixes
+  const zoomMeetingId = String(cohort.zoomMeetingId).replace(/\D+/g, '');
+  if (!zoomMeetingId) throw new Error('Invalid Zoom meeting ID configured for this workshop');
 
   const students: any[] = await listStudents(cohortId, true);
   // We no longer abort if students is empty, because we auto-enroll attendees from Zoom.
 
-  const from = dayKey(new Date(new Date(classDate || cohort.startDate).getTime() - 86400000));
-  const to = classDate || dayKey(new Date());
+  const from = classDate
+    ? dayKey(new Date(new Date(classDate).getTime() - 86400000))
+    : dayKey(new Date(new Date(cohort.startDate).getTime() - 86400000));
+  const to = classDate || dayKey(new Date(Date.now() + 86400000));
   let analytics: Awaited<ReturnType<typeof getFullMeetingAnalytics>>;
   try {
     analytics = await getFullMeetingAnalytics(zoomMeetingId, from, to);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith(`No sessions found for meeting ${zoomMeetingId} in the selected date range`)) {
-      return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'Zoom has not published a completed report in this date range yet.' };
+      return {
+        cohortId,
+        cohortName: cohort.name,
+        sessions: 0,
+        matched: 0,
+        unmatched: 0,
+        updated: 0,
+        skipped: true,
+        message: classDate
+          ? `Zoom has not published a completed meeting report for ${classDate} yet.`
+          : 'Zoom has not published any completed meeting reports for this workshop yet.',
+      };
     }
     throw error;
   }
@@ -59,7 +72,18 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   const sessionDates = new Set(workshopSessionCalendar(dayKey(cohort.startDate), cohort.holidayDates || []).filter(row => !row.holiday).map(row => row.classDate));
   const sessions = [...new Map(analytics.sessions.filter((session) => sessionDates.has(session.date) && (!classDate || session.date === classDate)).map(session => [session.uuid, session])).values()];
   if (!sessions.length) {
-    return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'Zoom has not published a completed meeting report for this date yet.' };
+    return {
+      cohortId,
+      cohortName: cohort.name,
+      sessions: 0,
+      matched: 0,
+      unmatched: 0,
+      updated: 0,
+      skipped: true,
+      message: classDate
+        ? `Zoom has not published a completed meeting report for ${classDate} yet. Meeting reports are published ~15-30 minutes after class ends.`
+        : 'No completed Zoom meeting reports have been published for this workshop yet. (Reports are published ~15-30 minutes after each class ends).',
+    };
   }
 
   const byEmail = new Map(students.filter((s) => normalise(s.email)).map((s) => [normalise(s.email), s]));
@@ -180,16 +204,42 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
       }
     }
 
+    const recordsToUpsert: any[] = [];
     for (const attendee of attendees.values()) {
       attendee.duration = attendanceDuration(attendee.participants);
-      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: classDateKey, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / totalClassDuration * 100)), source: 'zoom', metadata: { zoomParticipants: attendee.participants, zoomSessionIds: dailySessions.map(session => session.uuid) } });
+      recordsToUpsert.push({
+        cohortId,
+        studentId: attendee.student._id,
+        classDate: classDateKey,
+        joined: attendee.duration > 0,
+        joinedAt: attendee.joinedAt,
+        leftAt: attendee.leftAt,
+        durationSeconds: attendee.duration,
+        attendancePercent: Math.min(100, Math.round(attendee.duration / totalClassDuration * 100)),
+        source: 'zoom',
+        metadata: { zoomParticipants: attendee.participants, zoomSessionIds: dailySessions.map(session => session.uuid) }
+      });
       matched++;
       updated++;
+    }
+    if (recordsToUpsert.length > 0) {
+      await upsertAttendanceBatch(recordsToUpsert);
     }
   }
 
   await updateCohort(cohortId, { zoomAttendanceLastSyncAt: new Date().toISOString() });
-  return { cohortId: String(cohort._id), cohortName: cohort.name, sessions: sessionsByDate.size, matched, unmatched, updated, skipped: false, message: analytics._errors?.join('; ') };
+  const distinctDates = [...sessionsByDate.keys()].sort();
+  const summaryMsg = `Synced ${sessionsByDate.size} session(s) on ${distinctDates.join(', ')}: ${updated} attendance record(s) updated.`;
+  return {
+    cohortId: String(cohort._id),
+    cohortName: cohort.name,
+    sessions: sessionsByDate.size,
+    matched,
+    unmatched,
+    updated,
+    skipped: false,
+    message: analytics._errors?.length ? `${summaryMsg} Warnings: ${analytics._errors.join('; ')}` : summaryMsg,
+  };
 }
 
 export async function syncDueWorkshopZoomAttendance() {

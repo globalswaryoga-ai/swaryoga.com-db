@@ -1133,7 +1133,7 @@ export default function WorkshopManagementPage() {
       const result = data.result || {};
       alert(result.skipped
         ? (result.message || 'Zoom has not published attendance yet. It can take up to two hours after the class ends.')
-        : `Zoom attendance updated: ${result.updated || 0} student records. ${result.unmatched || 0} Zoom participant(s) were not matched to enrolled students.`);
+        : (result.message || `Zoom attendance updated: ${result.updated || 0} student records. ${result.unmatched || 0} Zoom participant(s) were not matched to enrolled students.`));
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not sync Zoom attendance');
     } finally {

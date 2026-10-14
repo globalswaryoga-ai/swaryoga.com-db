@@ -287,6 +287,35 @@ export async function upsertAttendance(input: Record<string, any>, attendanceId 
   return attendance(rows.rows[0]);
 }
 
+export async function upsertAttendanceBatch(items: Array<Record<string, any>>) {
+  if (!items.length) return;
+  await initWorkshopBunnySchema();
+  const timestamp = now();
+  const statements = items.map((input) => {
+    const date = String(input.classDate).slice(0, 10);
+    const actualId = input.id || id();
+    return {
+      sql: `INSERT INTO workshop_attendance_sql (id,cohort_id,student_id,class_date,joined_at,left_at,joined,duration_seconds,attendance_percent,source,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(cohort_id,student_id,class_date) DO UPDATE SET joined_at=excluded.joined_at,left_at=excluded.left_at,joined=excluded.joined,duration_seconds=excluded.duration_seconds,attendance_percent=excluded.attendance_percent,source=excluded.source,metadata_json=excluded.metadata_json,updated_at=excluded.updated_at`,
+      args: [
+        actualId,
+        input.cohortId,
+        input.studentId,
+        date,
+        input.joinedAt || null,
+        input.leftAt || null,
+        input.joined ? 1 : 0,
+        Number(input.durationSeconds || 0),
+        Number(input.attendancePercent || 0),
+        input.source || 'zoom',
+        json(input.metadata, {}),
+        timestamp,
+        timestamp,
+      ]
+    };
+  });
+  await bunnyBatch(statements);
+}
+
 export async function listRecordings(cohortId: string) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: 'SELECT * FROM workshop_recordings_sql WHERE cohort_id = ? ORDER BY class_date DESC', args: [cohortId] }); return r.rows.map(recording).filter(Boolean); }
 export async function upsertRecording(input: Record<string, any>, recordingId = id()) {
   await initWorkshopBunnySchema();
