@@ -53,9 +53,15 @@ export async function GET(request: NextRequest) {
         errors.push(error instanceof Error ? error.message : 'Google Forms account unavailable.');
       }
     }
-    return NextResponse.json({ error: errors.join('; '), needsAuth: true }, { status: 403 });
+    return NextResponse.json({ error: errors.join('; '), needsAuth: true }, {
+      status: 403,
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    });
   } catch (error) {
     console.error('[Google Forms List] Failed:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Google Forms list unavailable.' }, { status: 503 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Google Forms list unavailable.' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    });
   }
 }

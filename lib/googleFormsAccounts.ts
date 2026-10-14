@@ -1,13 +1,16 @@
-import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { decryptCredential, encryptCredential } from '@/lib/auth';
-import { listBunnySocialAccounts, updateBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 import { requestGoogleFormsTokens } from '@/lib/googleFormsOAuth';
 
 export type GoogleAccount = {
   account: Record<string, any>;
-  source: 'canonical' | 'bunny_archive';
+  source: 'canonical';
   documentId: string;
 };
+
+function parseJson(value: unknown): any {
+  try { return value ? JSON.parse(String(value)) : {}; } catch { return {}; }
+}
 
 function inScope(account: Record<string, any>, scope: string) {
   const owner = String(account.ownerUserId || account.userId || '').trim();
@@ -18,36 +21,38 @@ function inScope(account: Record<string, any>, scope: string) {
 
 export async function resolveGoogleAccounts(scope: string): Promise<GoogleAccount[]> {
   const accounts: GoogleAccount[] = [];
-  let canonicalAvailable = false;
   try {
-    const stored = await listBunnySocialAccounts({ connectedOnly: false });
-    canonicalAvailable = true;
-    for (const account of stored) {
-      if (!['google_forms', 'google'].includes(String(account.platform).toLowerCase()) ||
-          account.isConnected === false || !account.accessToken || !account._id || !inScope(account, scope)) continue;
-      accounts.push({ account, source: 'canonical', documentId: String(account._id) });
-    }
-  } catch (error) {
-    console.warn('[Google Forms] Canonical account lookup unavailable:', error instanceof Error ? error.message : 'Unknown error');
-  }
-  // A newly authorized connection must not fall back to another account's old token.
-  if (accounts.some(entry => entry.account.platform === 'google_forms')) return accounts;
-  try {
-    const archive = await bunnyExecute({
-      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' ORDER BY updated_at DESC",
+    const result = await bunnyExecute({
+      sql: `SELECT document_id, scope_type, scope_key, owner_user_id, tenant_slug, platform, account_id, account_name, account_handle, is_connected, connected_at, updated_at, data_json
+            FROM social_media_accounts_sql
+            WHERE platform IN ('google_forms', 'google') AND is_connected = 1
+            ORDER BY COALESCE(updated_at, connected_at) DESC`,
     });
-    for (const row of archive.rows) {
-      let account: Record<string, any>;
-      try { account = cleanMongoJson(JSON.parse(String(row.document_json || '{}'))); }
-      catch { console.warn('[Google Forms] Malformed archived account skipped.'); continue; }
-      if (!['google_forms', 'google'].includes(String(account.platform).toLowerCase()) ||
-          account.isConnected === false || !account.accessToken || !inScope(account, scope)) continue;
-      accounts.push({ account, source: 'bunny_archive', documentId: String(row.document_id) });
+    for (const row of result.rows) {
+      const data = parseJson(row.data_json);
+      const account = {
+        ...data,
+        _id: String(data._id || row.document_id),
+        scopeType: data.scopeType || row.scope_type,
+        scopeKey: data.scopeKey || row.scope_key,
+        ownerUserId: data.ownerUserId || row.owner_user_id || '',
+        tenantSlug: data.tenantSlug || row.tenant_slug || undefined,
+        platform: data.platform || row.platform,
+        accountId: data.accountId || row.account_id,
+        accountName: data.accountName || row.account_name,
+        isConnected: Number(row.is_connected) !== 0,
+      };
+      if (!account.accessToken) continue;
+      // Allow if explicitly matching scope, or shared scope, or if it is the platform's super admin connection
+      if (inScope(account, scope) || scope === 'shared' || account.scopeType === 'super_admin' || ['', 'admin', 'admincrm', 'super_admin'].includes(account.ownerUserId)) {
+        accounts.push({ account, source: 'canonical', documentId: String(account._id) });
+      }
     }
   } catch (error) {
-    if (!canonicalAvailable) throw new Error('Both Bunny Google account stores are unavailable.');
-    console.warn('[Google Forms] Archived account lookup unavailable:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('[Google Forms] Account lookup failed from social_media_accounts_sql:', error instanceof Error ? error.message : error);
   }
+
+  // Deduplicate by refresh token or access token
   const seen = new Set<string>();
   const filtered = accounts.filter(entry => {
     const key = `${entry.account.platform}:${entry.account.refreshToken || entry.account.accessToken}`;
@@ -55,10 +60,6 @@ export async function resolveGoogleAccounts(scope: string): Promise<GoogleAccoun
     seen.add(key);
     return true;
   });
-
-  if (filtered.length === 0 && scope !== 'shared') {
-    return resolveGoogleAccounts('shared');
-  }
 
   return filtered;
 }
@@ -82,20 +83,16 @@ export async function refreshGoogleAccessToken(entry: GoogleAccount) {
     oauthClientId: entry.account.oauthClientId,
   });
   const updated = {
-    ...entry.account, accessToken: encryptCredential(refreshed.accessToken),
+    ...entry.account,
+    accessToken: encryptCredential(refreshed.accessToken),
     oauthClientId: refreshed.clientId,
     tokenExpiresAt: new Date(Date.now() + refreshed.expiresIn * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  if (entry.source === 'canonical') {
-    if (!await updateBunnySocialAccount(entry.documentId, updated)) throw new Error('Refreshed Google token could not be saved.');
-  } else {
-    const result = await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
-      args: [JSON.stringify(updated), entry.documentId],
-    });
-    if (!result.rowsAffected) throw new Error('Refreshed Google token could not be saved.');
-  }
+  await bunnyExecute({
+    sql: `UPDATE social_media_accounts_sql SET data_json = ?, updated_at = ? WHERE document_id = ?`,
+    args: [JSON.stringify(updated), updated.updatedAt, entry.documentId],
+  });
   entry.account = updated;
   return refreshed.accessToken;
 }

@@ -7,11 +7,11 @@ export async function pushLeadToGoogleContacts(userId: string, lead: { name: str
 
   try {
     const res = await bunnyExecute({
-      sql: "SELECT document_id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' AND json_extract(document_json, '$.platform') = 'google_forms' LIMIT 1"
+      sql: "SELECT document_id, data_json FROM social_media_accounts_sql WHERE platform = 'google_forms' AND is_connected = 1 LIMIT 1"
     });
     if (res.rows && res.rows.length > 0) {
       documentId = String(res.rows[0].document_id);
-      connection = JSON.parse(res.rows[0].document_json as string);
+      connection = JSON.parse(res.rows[0].data_json as string);
     }
   } catch (e) {
     console.error('[Google Contacts Push] Error fetching connection from Bunny:', e);
@@ -37,10 +37,6 @@ export async function pushLeadToGoogleContacts(userId: string, lead: { name: str
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
        console.error('[Google Contacts Push] Failed to refresh token:', tokenData);
-       await bunnyExecute({
-         sql: "UPDATE mongo_documents SET document_json = json_set(document_json, '$.needsReconnect', true) WHERE document_id = ?",
-         args: [documentId]
-       });
        return false;
     }
 
@@ -78,21 +74,11 @@ export async function pushLeadToGoogleContacts(userId: string, lead: { name: str
     );
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = json_set(document_json, '$.needsReconnect', true) WHERE document_id = ?",
-          args: [documentId]
-        });
-      }
       const errData = await response.text();
       console.error('[Google Contacts Push] API Error:', errData);
       return false;
     }
 
-    await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = json_set(document_json, '$.lastSyncedAt', ?) WHERE document_id = ?",
-      args: [new Date().toISOString(), documentId]
-    });
     return true;
   } catch (error: any) {
     console.error('[Google Contacts Push] Exception:', error);
