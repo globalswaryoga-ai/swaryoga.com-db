@@ -46,12 +46,106 @@ export function WhatsAppAutoTriggerModal({
   const [savingWTSettings, setSavingWTSettings] = useState(false);
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
 
-  // View state: 'overview' (shows all batches with quick add/edit/delete) or 'edit' (configure active batch)
-  const [viewMode, setViewMode] = useState<'overview' | 'edit'>('overview');
+  // View state: 'overview' | 'edit' | 'report'
+  const [viewMode, setViewMode] = useState<'overview' | 'edit' | 'report'>('overview');
+  const [connectedPhone, setConnectedPhone] = useState('919075358557');
+  const [reportLeads, setReportLeads] = useState<any[]>([]);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reAddingLeadId, setReAddingLeadId] = useState<string | null>(null);
+  const [reAddingAll, setReAddingAll] = useState(false);
+  const [reportSearch, setReportSearch] = useState('');
+  const [reportBatchFilter, setReportBatchFilter] = useState('');
+
+  const fetchTriggerReport = useCallback(async () => {
+    setLoadingReport(true);
+    try {
+      const token = getStoredToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch('/api/admin/crm/new-registration/auto-add-group', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.connectedPhone) setConnectedPhone(data.connectedPhone);
+        if (Array.isArray(data.leads)) setReportLeads(data.leads);
+      }
+    } catch (e) {
+      console.warn('Failed to load trigger report:', e);
+    } finally {
+      setLoadingReport(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchTriggerReport();
+    }
+  }, [isOpen, fetchTriggerReport]);
+
+  const handleReAddLead = async (lead: any) => {
+    setReAddingLeadId(lead.id);
+    try {
+      const token = getStoredToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/admin/crm/new-registration/auto-add-group', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ batchId: lead.batchId || activeBatchId, leadId: lead.id, force: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Re-added ${lead.name} to WhatsApp Group successfully!`);
+        setReportLeads(prev => prev.map(l => l.id === lead.id ? { ...l, groupStatus: 'auto_added', autoAddedAt: new Date().toISOString() } : l));
+      } else {
+        toast.error(data.error || 'Failed to re-add participant');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error triggering group add');
+    } finally {
+      setReAddingLeadId(null);
+    }
+  };
+
+  const handleReAddAll = async () => {
+    setReAddingAll(true);
+    try {
+      const token = getStoredToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/admin/crm/new-registration/auto-add-group', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ batchId: reportBatchFilter || activeBatchId, force: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Auto-add trigger executed! Added ${data.totalAdded || 0} leads.`);
+        await fetchTriggerReport();
+      } else {
+        toast.error(data.error || 'Failed to execute auto-add');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error triggering auto-add');
+    } finally {
+      setReAddingAll(false);
+    }
+  };
 
   const filteredBatches = React.useMemo(() => {
     return (workshops || []).filter(w => w && w.id && matchesLanguage(w, selectedLanguage) && !String(w.id).startsWith('master_'));
   }, [workshops, selectedLanguage]);
+
+  const filteredReportLeads = React.useMemo(() => {
+    return reportLeads.filter(lead => {
+      if (reportBatchFilter && lead.batchId !== reportBatchFilter) return false;
+      if (reportSearch) {
+        const q = reportSearch.toLowerCase().trim();
+        const matchesName = String(lead.name || '').toLowerCase().includes(q);
+        const matchesPhone = String(lead.phone || '').includes(q);
+        if (!matchesName && !matchesPhone) return false;
+      }
+      return true;
+    });
+  }, [reportLeads, reportBatchFilter, reportSearch]);
 
   const activeBatch = React.useMemo(() => {
     return filteredBatches.find(w => w.id === activeBatchId) || filteredBatches[0] || null;
@@ -263,7 +357,7 @@ export function WhatsAppAutoTriggerModal({
   return (
     <>
       <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
           {/* Header */}
           <div className="p-5 sm:p-6 bg-gradient-to-r from-[#25D366]/15 via-emerald-50 to-[#25D366]/10 border-b border-[#25D366]/20 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3 min-w-0">
@@ -276,6 +370,10 @@ export function WhatsAppAutoTriggerModal({
                   <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                     {configuredCount} / {filteredBatches.length} Batches Active
                   </span>
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-950 border border-emerald-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>QR: +{connectedPhone.replace(/^\+/, '')}</span>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 font-medium truncate">
                   Attached Approved Templates · {canonicalLanguage(selectedLanguage)} Workshops ({filteredBatches.length} Batches)
@@ -304,8 +402,8 @@ export function WhatsAppAutoTriggerModal({
           </div>
 
           {/* Mode Switcher Banner */}
-          <div className="bg-slate-50 px-5 sm:px-6 py-2.5 border-b border-slate-200 flex items-center justify-between text-xs font-bold shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="bg-slate-50 px-5 sm:px-6 py-2.5 border-b border-slate-200 flex items-center justify-between text-xs font-bold shrink-0 flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setViewMode('overview')}
@@ -330,34 +428,62 @@ export function WhatsAppAutoTriggerModal({
                 <span>Configure Trigger</span>
                 {activeBatch && <span className="opacity-80 text-[11px] font-normal truncate max-w-[120px]">({activeBatch.name})</span>}
               </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('report')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  viewMode === 'report'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>📊 Trigger Report & Re-Add</span>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {reportLeads.length}
+                </span>
+              </button>
             </div>
 
-            {viewMode === 'overview' && (
-              <button
-                type="button"
-                onClick={() => {
-                  const unconfigured = filteredBatches.find(b => !b?.metadata?.wtSettings?.approved?.template);
-                  if (unconfigured) {
-                    setActiveBatchId(unconfigured.id);
-                  }
-                  setViewMode('edit');
-                }}
-                className="px-3 py-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
-                title="Add / Configure Trigger for Another Batch"
+            <div className="flex items-center gap-2">
+              <a
+                href="/admin/crm/qr/group-scheduler"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-all"
+                title="Open Group Schedule in New Window"
               >
-                <Plus size={14} /> Add Batch Trigger
-              </button>
-            )}
+                <Clock size={12} className="text-emerald-600" />
+                <span>Group Schedule</span>
+                <ExternalLink size={10} />
+              </a>
 
-            {viewMode === 'edit' && (
-              <button
-                type="button"
-                onClick={() => setViewMode('overview')}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 py-1 px-2 rounded hover:bg-slate-200"
-              >
-                <ArrowLeft size={13} /> Back to All Batches
-              </button>
-            )}
+              {viewMode === 'overview' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const unconfigured = filteredBatches.find(b => !b?.metadata?.wtSettings?.approved?.template);
+                    if (unconfigured) {
+                      setActiveBatchId(unconfigured.id);
+                    }
+                    setViewMode('edit');
+                  }}
+                  className="px-3 py-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all"
+                  title="Add / Configure Trigger for Another Batch"
+                >
+                  <Plus size={14} /> Add Batch Trigger
+                </button>
+              )}
+
+              {viewMode !== 'overview' && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('overview')}
+                  className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 py-1 px-2 rounded hover:bg-slate-200"
+                >
+                  <ArrowLeft size={13} /> Back
+                </button>
+              )}
+            </div>
           </div>
 
           {/* OVERVIEW MODE: List of 6-12 Batches with Add, Edit, Delete */}
@@ -780,6 +906,165 @@ export function WhatsAppAutoTriggerModal({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* REPORT MODE: Auto-Trigger Status & Re-Add */}
+          {viewMode === 'report' && (
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              {/* Report Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center gap-2 flex-wrap flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search participant by name or phone..."
+                    value={reportSearch}
+                    onChange={(e) => setReportSearch(e.target.value)}
+                    className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 w-full sm:w-60 shadow-xs"
+                  />
+                  <select
+                    value={reportBatchFilter}
+                    onChange={(e) => setReportBatchFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 shadow-xs font-semibold text-slate-700"
+                  >
+                    <option value="">All Batches ({filteredBatches.length})</option>
+                    {filteredBatches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={fetchTriggerReport}
+                    disabled={loadingReport}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all"
+                    title="Refresh Report Data"
+                  >
+                    <RefreshCw size={12} className={loadingReport ? 'animate-spin' : ''} />
+                    <span>Refresh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReAddAll}
+                    disabled={reAddingAll}
+                    className="px-3.5 py-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                    title="Re-Add all approved eligible participants to their WhatsApp Group"
+                  >
+                    <Zap size={13} className={reAddingAll ? 'animate-spin' : ''} />
+                    <span>{reAddingAll ? 'Re-Adding...' : '⚡ Re-Add All Eligible'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Connected QR Banner */}
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="font-bold text-emerald-950">Active Connected WhatsApp QR:</span>
+                  <span className="font-black text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-300">
+                    +{connectedPhone.replace(/^\+/, '')}
+                  </span>
+                </div>
+                <a
+                  href="/admin/crm/qr/group-scheduler"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-black text-emerald-700 hover:text-emerald-900 underline flex items-center gap-1"
+                >
+                  <Clock size={12} /> Open Group Schedule <ExternalLink size={11} />
+                </a>
+              </div>
+
+              {/* Report Table */}
+              {loadingReport ? (
+                <div className="p-12 text-center text-slate-400">
+                  <RefreshCw className="animate-spin h-6 w-6 mx-auto mb-2 text-emerald-600" />
+                  <p className="text-xs font-bold">Loading trigger report...</p>
+                </div>
+              ) : filteredReportLeads.length === 0 ? (
+                <div className="p-10 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                  <Bot className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+                  <p className="text-sm font-bold text-slate-600">No approved leads registered for auto-trigger yet.</p>
+                  <p className="text-xs text-slate-400 mt-1">Approve leads or run AI Screen in Leads Management to populate auto-trigger reports.</p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-black border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Participant</th>
+                          <th className="py-2.5 px-3">Phone</th>
+                          <th className="py-2.5 px-3">Batch Name</th>
+                          <th className="py-2.5 px-3">Trigger Template</th>
+                          <th className="py-2.5 px-3">Group Status</th>
+                          <th className="py-2.5 px-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredReportLeads.map((lead, idx) => {
+                          const isAutoAdded = lead.groupStatus === 'auto_added' || lead.groupStatus === 'joined';
+                          const isReAdding = reAddingLeadId === lead.id;
+
+                          return (
+                            <tr key={lead.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-2.5 px-3 font-bold text-slate-800">
+                                <div>{lead.name}</div>
+                                {lead.autoAddedAt && (
+                                  <div className="text-[10px] text-slate-400 font-normal">
+                                    Added: {new Date(lead.autoAddedAt).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-600">
+                                {lead.phone}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                  {lead.batchName}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700">
+                                {lead.template ? (
+                                  <span className="text-emerald-800 font-bold text-[11px]">
+                                    ✓ {lead.template}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[11px]">Default</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                {isAutoAdded ? (
+                                  <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-black">
+                                    <CheckCircle size={10} /> Auto-Added
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                    <Clock size={10} /> Pending Add
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleReAddLead(lead)}
+                                  disabled={isReAdding}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-bold transition-all shadow-2xs hover:shadow-xs disabled:opacity-50"
+                                  title="Re-add this participant to the batch's WhatsApp group"
+                                >
+                                  <RefreshCw size={11} className={isReAdding ? 'animate-spin' : ''} />
+                                  <span>{isReAdding ? 'Adding...' : 'Re-Add'}</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

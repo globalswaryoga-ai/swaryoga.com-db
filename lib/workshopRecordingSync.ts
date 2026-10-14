@@ -168,15 +168,6 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
 
   // D. Trash recovery has been removed based on user request (do not fetch deleted videos)
 
-  if (meetingInstances.length === 0) {
-    return {
-      success: true,
-      count: 0,
-      syncedDates: [],
-      message: `No cloud recordings found in Zoom for Meeting ID ${zoomMeetingId}. Debug: ${debugLogs.join(' | ')}`,
-    };
-  }
-
   // 3. Load existing recordings for this cohort to merge
   const existingRecordings = await listRecordings(cohortId);
   const existingByDate = new Map<string, any>();
@@ -227,18 +218,71 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
     }
   }
 
+  // Load uploaded meetings from social_media_accounts_sql to automatically populate YouTube & Bunny URLs
+  const uploadedMap = new Map<string, any>();
+  try {
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const sm = await bunnyExecute("SELECT data_json FROM social_media_accounts_sql WHERE platform = 'youtube' AND is_connected = 1 LIMIT 1");
+    if (sm.rows[0]) {
+      const parsed = JSON.parse(String((sm.rows[0] as any).data_json || '{}'));
+      const list = parsed.metadata?.uploadedMeetings || parsed.uploadedMeetings || [];
+      for (const item of list) {
+        if (item.uuid) uploadedMap.set(String(item.uuid), item);
+        const itemMeetingDigits = String(item.zoomMeetingId || '').replace(/\D+/g, '');
+        if (itemMeetingDigits && item.startTime) {
+          const d = new Intl.DateTimeFormat('en-CA', { timeZone: cohort.timezone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.startTime));
+          uploadedMap.set(`${itemMeetingDigits}:${d}`, item);
+          // If this uploaded meeting matches this cohort's meeting ID, ensure it is included in dateToFiles
+          if (itemMeetingDigits === zoomMeetingId && !dateToFiles.has(d)) {
+            dateToFiles.set(d, { uuid: String(item.uuid || '') });
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // Also include any dates from existing recordings that might need uploaded URLs linked
+  for (const [d, rec] of existingByDate.entries()) {
+    if (!dateToFiles.has(d)) {
+      dateToFiles.set(d, {
+        uuid: rec.zoomMeetingUuid || '',
+        speakerPlayUrl: rec.metadata?.zoomSpeakerUrl || undefined,
+        galleryPlayUrl: rec.metadata?.zoomGalleryUrl || undefined,
+        shareUrl: rec.metadata?.zoomShareUrl || undefined,
+        password: rec.metadata?.zoomPassword || undefined,
+      });
+    }
+  }
+
+  if (dateToFiles.size === 0) {
+    return {
+      success: true,
+      count: 0,
+      syncedDates: [],
+      message: `No cloud recordings or uploaded videos found for Meeting ID ${zoomMeetingId}. Debug: ${debugLogs.join(' | ')}`,
+    };
+  }
+
+  const bunnyCdn = (p?: string) => p ? (p.startsWith('http') ? p : 'https://swaryogacrm.b-cdn.net/' + p.replace(/^\/+/, '')) : null;
+
   const scheduledDays = new Map(workshopSessionCalendar(startDate, cohort.holidayDates || []).filter(day => !day.holiday).map(day => [day.classDate, day.dayNumber]));
-  const sortedDates = [...dateToFiles.keys()].filter(date => scheduledDays.has(date)).sort();
+  // Keep all recording dates, not just strict 14-day calendar
+  const sortedDates = [...dateToFiles.keys()].sort();
   const syncedDates: string[] = [];
 
   for (let idx = 0; idx < sortedDates.length; idx++) {
     const dateStr = sortedDates[idx];
     const data = dateToFiles.get(dateStr)!;
     const existing = existingByDate.get(dateStr);
+    const uploaded = uploadedMap.get(data.uuid) || uploadedMap.get(`${zoomMeetingId}:${dateStr}`);
 
     // Calculate dayNumber:
-    // If cohort has startDate, count elapsed calendar days + 1, or fallback to chronological idx + 1
-    const dayNumber = cohort.metadata?.dateDayMap?.[dateStr] || scheduledDays.get(dateStr);
+    // 1. Explicit date-day mapping
+    // 2. Scheduled calendar day
+    // 3. Existing day number
+    // 4. Fallback based on elapsed calendar days from startDate or chronological idx + 1
+    const elapsedDays = Math.max(1, Math.floor((new Date(dateStr).getTime() - new Date(startDate).getTime()) / 86400000) + 1);
+    const dayNumber = cohort.metadata?.dateDayMap?.[dateStr] || scheduledDays.get(dateStr) || existing?.dayNumber || elapsedDays || (idx + 1);
 
     const metadata = {
       ...(existing?.metadata || {}),
@@ -246,8 +290,16 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
       zoomGalleryUrl: data.galleryPlayUrl || existing?.metadata?.zoomGalleryUrl || null,
       zoomShareUrl: data.shareUrl || existing?.metadata?.zoomShareUrl || null,
       zoomPassword: data.password || existing?.metadata?.zoomPassword || null,
+      bunnyAudioUrl: existing?.metadata?.bunnyAudioUrl || (uploaded?.bunny?.audio ? bunnyCdn(uploaded.bunny.audio) : null),
       lastZoomSyncAt: new Date().toISOString(),
     };
+
+    const ytSpeakerUrl = existing?.youtubeSpeakerUrl || uploaded?.youtubeUrls?.speaker || (uploaded?.youtube?.speaker ? `https://youtu.be/${uploaded.youtube.speaker}` : null);
+    const ytGalleryUrl = existing?.youtubeGalleryUrl || uploaded?.youtubeUrls?.gallery || (uploaded?.youtube?.gallery ? `https://youtu.be/${uploaded.youtube.gallery}` : null);
+    const ytSpeakerId = existing?.youtubeSpeakerId || uploaded?.youtube?.speaker || null;
+    const ytGalleryId = existing?.youtubeGalleryId || uploaded?.youtube?.gallery || null;
+    const bunnySpeakerUrl = existing?.bunnySpeakerUrl || (uploaded?.bunny?.speaker ? bunnyCdn(uploaded.bunny.speaker) : null);
+    const bunnyGalleryUrl = existing?.bunnyGalleryUrl || (uploaded?.bunny?.gallery ? bunnyCdn(uploaded.bunny.gallery) : null);
 
     const updatePayload = {
       id: existing?._id,
@@ -256,19 +308,18 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
       dayNumber,
       zoomMeetingId,
       zoomMeetingUuid: data.uuid,
-      youtubeSpeakerId: existing?.youtubeSpeakerId || null,
-      youtubeGalleryId: existing?.youtubeGalleryId || null,
-      youtubeSpeakerUrl: existing?.youtubeSpeakerUrl || null,
-      youtubeGalleryUrl: existing?.youtubeGalleryUrl || null,
-      bunnySpeakerUrl: existing?.bunnySpeakerUrl || null,
-      bunnyGalleryUrl: existing?.bunnyGalleryUrl || null,
+      youtubeSpeakerId: ytSpeakerId,
+      youtubeGalleryId: ytGalleryId,
+      youtubeSpeakerUrl: ytSpeakerUrl,
+      youtubeGalleryUrl: ytGalleryUrl,
+      bunnySpeakerUrl: bunnySpeakerUrl,
+      bunnyGalleryUrl: bunnyGalleryUrl,
       deliveredStudentIds: existing?.deliveredStudentIds || [],
       metadata,
     };
 
     await upsertRecording(updatePayload);
     syncedDates.push(dateStr);
-
   }
 
   return {

@@ -21,7 +21,16 @@ export async function GET(request: Request) {
       url.searchParams.get('formId') || '',
       url.searchParams.get('language') || '',
     );
-    return NextResponse.json({ success: true, data: rows, count: rows.length }, { headers: { 'Cache-Control': 'private, no-store' } });
+    const questionMap: Record<string, string> = {};
+    rows.forEach(r => {
+      const answers = { ...(r.dynamicAnswers || {}), ...(r._rawRecord || {}), ...(r.answers || {}) };
+      Object.keys(answers).forEach(k => {
+        if (k && !k.startsWith('_') && k.length > 1) {
+          questionMap[k] = k;
+        }
+      });
+    });
+    return NextResponse.json({ success: true, data: rows, count: rows.length, questionMap }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('Failed to load saved registration leads:', error);
     return NextResponse.json({ error: 'Saved form data is unavailable. Please retry; no records were removed.' }, { status: 503 });

@@ -124,16 +124,16 @@ export default function NewRegistrationPage() {
       });
     }
 
-    if (selectedWorkshop.formFilterKeyword && formSource === 'google') {
-      const keywords = String(selectedWorkshop.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
+    const filterKw = selectedWorkshop.formFilterKeyword || selectedWorkshop.metadata?.formFilterKeyword;
+    if (filterKw) {
+      const keywords = String(filterKw).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
       const ai7MappedQuestion = selectedWorkshop.metadata?.googleFormMapping?.['AI-7'] || selectedWorkshop.metadata?.googleFormMapping?.['ai7'];
       return (leadsData || []).filter((lead: any) => {
-        if (!lead._rawRecord) return false;
-        if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-          return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
-        } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
+        const raw = { ...(lead.answers || {}), ...(lead.dynamicAnswers || {}), ...(lead._rawRecord || {}) };
+        if (ai7MappedQuestion && raw[ai7MappedQuestion]) {
+          return keywords.some((k: string) => isLeadMatchingKeyword(raw[ai7MappedQuestion], k));
         }
+        return keywords.some((k: string) => Object.values(raw).some(val => isLeadMatchingKeyword(val as string, k)));
       });
     }
 
@@ -1243,20 +1243,21 @@ export default function NewRegistrationPage() {
 
     const currentFormSource = overrideWorkshop?.metadata?.formSource || formSource;
 
-    const updatedMetadata = overrideWorkshop?.id ? { ...targetWorkshop.metadata } : {
+    const updatedMetadata = {
       ...targetWorkshop.metadata,
       ...(overrideWorkshop?.metadata || {}),
       formSource: currentFormSource,
-      googleFormMapping: fieldMapping,
-      crmFields: crmFields,
-      formFilterKeyword: targetWorkshop?.formFilterKeyword || '',
-      mainFilter: leadsFilter,
-      subFilter: leadsSubFilter
+      googleFormMapping: overrideWorkshop?.metadata?.googleFormMapping || fieldMapping || targetWorkshop.metadata?.googleFormMapping,
+      crmFields: overrideWorkshop?.metadata?.crmFields || crmFields || targetWorkshop.metadata?.crmFields,
+      formFilterKeyword: overrideWorkshop?.metadata?.formFilterKeyword ?? targetWorkshop?.formFilterKeyword ?? targetWorkshop?.metadata?.formFilterKeyword ?? '',
+      mainFilter: overrideWorkshop?.metadata?.mainFilter ?? leadsFilter ?? targetWorkshop?.metadata?.mainFilter ?? '',
+      subFilter: overrideWorkshop?.metadata?.subFilter ?? leadsSubFilter ?? targetWorkshop?.metadata?.subFilter ?? '',
     };
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: overrideWorkshop?.id ? targetWorkshop.formId : (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
+      ...(overrideWorkshop || {}),
+      formId: overrideWorkshop?.formId || targetWorkshop.formId || (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
       metadata: updatedMetadata
     };
 
@@ -2263,7 +2264,7 @@ export default function NewRegistrationPage() {
               workshops={workshops}
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
-              leadsData={displayLeads}
+              leadsData={leadsData}
               dynamicColumns={dynamicColumns}
               googleFormQuestionMap={googleFormQuestionMap}
               fieldMapping={fieldMapping}

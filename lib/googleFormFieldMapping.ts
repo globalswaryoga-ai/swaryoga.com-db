@@ -17,10 +17,10 @@ const FIELD_KEYWORDS: Record<string, string[]> = {
   name: ['full name', 'your name', 'name', 'first name', 'naam', 'pura naam', 'poora naam', 'नाम', 'नाव'],
   email: ['email address', 'email', 'e-mail', 'mail', 'ईमेल'],
   mobile: ['whatsapp number', 'mobile number', 'phone number', 'whatsapp', 'mobile', 'phone', 'contact number', 'contact', 'नंबर', 'नम्बर'],
-  city: ['city', 'town', 'location', 'शहर'],
+  city: ['city', 'town', 'location', 'शहर', 'adress', 'address'],
   country: ['country', 'nation', 'देश'],
-  gender: ['gender', 'sex', 'लिंग'],
-  ai7: ['workshop date', 'workshop month', 'which workshop', 'batch name', 'batch', 'ai-7', 'ai7'],
+  gender: ['gender', 'sex', 'लिंग', 'i am'],
+  ai7: ['workshop date', 'workshop month', 'which workshop', 'batch name', 'batch', 'ai-7', 'ai7', 'join 14 days', 'join 14 days live workshop'],
 };
 
 function canonicalFieldKey(id: string): string {

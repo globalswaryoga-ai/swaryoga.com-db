@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { workshopSessionCalendar } from '@/lib/workshopSessionUtils';
 
 export type BunnyWorkshopCohort = Record<string, any> & { _id: string };
 export type BunnyWorkshopStudent = Record<string, any> & { _id: string };
@@ -324,23 +325,39 @@ export async function upsertRecording(input: Record<string, any>, recordingId = 
   const existing = r.rows[0] as any;
   const actualId = existing?.id ? String(existing.id) : (input.id || recordingId);
   
+  // Calculate dayNumber if not provided
+  let dayNum = input.dayNumber !== undefined ? input.dayNumber : (existing?.day_number || null);
+  if (dayNum === null || dayNum === undefined) {
+    try {
+      const c = await getCohort(input.cohortId);
+      if (c?.startDate) {
+        const cal = workshopSessionCalendar(String(c.startDate).slice(0, 10), c.holidayDates || []);
+        dayNum = cal.find(d => d.classDate === date && !d.holiday)?.dayNumber || Math.max(1, Math.floor((new Date(date).getTime() - new Date(c.startDate).getTime()) / 86400000) + 1);
+      }
+    } catch {}
+  }
+
+  // Merge metadata so fields like subject, bunnyAudioUrl, zoom play URLs are not lost
+  const existingMeta = parse(existing?.metadata_json, {});
+  const mergedMeta = input.metadata !== undefined ? { ...existingMeta, ...(input.metadata || {}) } : existingMeta;
+
   await bunnyExecute({
     sql: `INSERT INTO workshop_recordings_sql (id,cohort_id,class_date,day_number,zoom_meeting_id,zoom_meeting_uuid,youtube_speaker_id,youtube_gallery_id,youtube_speaker_url,youtube_gallery_url,bunny_speaker_url,bunny_gallery_url,delivered_student_ids_json,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET day_number=excluded.day_number,zoom_meeting_id=excluded.zoom_meeting_id,zoom_meeting_uuid=excluded.zoom_meeting_uuid,youtube_speaker_id=excluded.youtube_speaker_id,youtube_gallery_id=excluded.youtube_gallery_id,youtube_speaker_url=excluded.youtube_speaker_url,youtube_gallery_url=excluded.youtube_gallery_url,bunny_speaker_url=excluded.bunny_speaker_url,bunny_gallery_url=excluded.bunny_gallery_url,delivered_student_ids_json=excluded.delivered_student_ids_json,metadata_json=excluded.metadata_json,updated_at=excluded.updated_at`,
     args: [
       actualId,
       input.cohortId,
       date,
-      input.dayNumber !== undefined ? input.dayNumber : (existing?.day_number || null),
+      dayNum,
       input.zoomMeetingId !== undefined ? input.zoomMeetingId : (existing?.zoom_meeting_id || null),
       input.zoomMeetingUuid !== undefined ? input.zoomMeetingUuid : (existing?.zoom_meeting_uuid || null),
-      input.youtubeSpeakerId !== undefined ? input.youtubeSpeakerId : (existing?.youtube_speaker_id || null),
-      input.youtubeGalleryId !== undefined ? input.youtubeGalleryId : (existing?.youtube_gallery_id || null),
-      input.youtubeSpeakerUrl !== undefined ? input.youtubeSpeakerUrl : (existing?.youtube_speaker_url || null),
-      input.youtubeGalleryUrl !== undefined ? input.youtubeGalleryUrl : (existing?.youtube_gallery_url || null),
-      input.bunnySpeakerUrl !== undefined ? input.bunnySpeakerUrl : (existing?.bunny_speaker_url || null),
-      input.bunnyGalleryUrl !== undefined ? input.bunnyGalleryUrl : (existing?.bunny_gallery_url || null),
+      input.youtubeSpeakerId ? input.youtubeSpeakerId : (existing?.youtube_speaker_id || null),
+      input.youtubeGalleryId ? input.youtubeGalleryId : (existing?.youtube_gallery_id || null),
+      input.youtubeSpeakerUrl ? input.youtubeSpeakerUrl : (existing?.youtube_speaker_url || null),
+      input.youtubeGalleryUrl ? input.youtubeGalleryUrl : (existing?.youtube_gallery_url || null),
+      input.bunnySpeakerUrl ? input.bunnySpeakerUrl : (existing?.bunny_speaker_url || null),
+      input.bunnyGalleryUrl ? input.bunnyGalleryUrl : (existing?.bunny_gallery_url || null),
       input.deliveredStudentIds !== undefined ? json(input.deliveredStudentIds, []) : (existing?.delivered_student_ids_json || '[]'),
-      input.metadata !== undefined ? json(input.metadata, {}) : (existing?.metadata_json || '{}'),
+      json(mergedMeta, {}),
       now(),
       now()
     ]

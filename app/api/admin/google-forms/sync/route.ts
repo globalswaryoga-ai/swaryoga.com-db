@@ -251,16 +251,17 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
         existingLeads[matchingIndex] = savedLead;
         lead.leadId = String(savedLead._id || savedLead.id || '') || null;
       } else {
-        if (phone.length < 10) continue;
+        const contactPhone = phone && phone.length >= 10 ? phone : (lead.email ? '' : `9199990${String(lead.responseId).replace(/\D/g, '').slice(-5) || '12345'}`);
+        const identityKey = contactPhone ? `google_contact_${accountUserId}_${contactPhone}` : `google_contact_${accountUserId}_email_${lead.email}`;
         const newLead = await saveBunnyLead({
-          name: lead.name || 'Unknown User',
-          phoneNumber: phone,
+          name: lead.name || 'Google Form Participant',
+          phoneNumber: contactPhone || phone,
           email: lead.email,
           city: lead.city,
           country: lead.country,
           source: 'google_forms',
           workshopName: formTitle,
-          status: 'new',
+          status: 'new_lead',
           labels: ['Google Form Lead', formTitle].filter(Boolean),
           createdByUserId: accountUserId,
           assignedToUserId: accountUserId,
@@ -271,7 +272,7 @@ async function syncGoogleForm(request: NextRequest, scope: string) {
             googleFormId: formId,
             lastGoogleFormSubmission: submissionMetadata,
           },
-        }, `google_contact_${accountUserId}_${phone}`);
+        }, identityKey);
         existingLeads.push(newLead);
         lead.leadId = String(newLead._id || newLead.id || '') || null;
       }

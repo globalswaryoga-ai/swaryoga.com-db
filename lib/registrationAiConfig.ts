@@ -244,6 +244,7 @@ export function readRegistrationDecisions(state: RegistrationState, batchId: str
 
 export function evaluateRegistrationConditions(raw: Record<string, unknown>, conditions: RegistrationFilterCondition[]) {
   const normalize = (value: unknown) => String(value ?? '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+  const cleanKey = (value: unknown) => normalize(value).replace(/[:?？!.]+/g, '').trim();
   const filters = conditions.filter(condition => condition.question?.trim() || condition.keyword?.trim());
   const direct = conditions.find(condition => condition.directMoveCategory)?.directMoveCategory;
   if (!filters.length) return direct ? { passed: true, category: direct, reason: 'Configured direct move' } : null;
@@ -251,14 +252,21 @@ export function evaluateRegistrationConditions(raw: Record<string, unknown>, con
   let failedCategory: string | undefined;
   const groups = new Map<string, RegistrationFilterCondition[]>();
   for (const condition of filters) {
-    const question = normalize(condition.question);
+    const question = cleanKey(condition.question);
     groups.set(question, [...(groups.get(question) || []), condition]);
   }
   const destinations = new Set<string>();
   for (const alternatives of groups.values()) {
     let selected: RegistrationFilterCondition | undefined;
     for (const condition of alternatives) {
-      const key = Object.keys(raw).find(candidate => normalize(candidate) === normalize(condition.question));
+      const condQ = cleanKey(condition.question);
+      const key = Object.keys(raw).find(candidate => {
+        const cand = cleanKey(candidate);
+        if (cand === condQ) return true;
+        if (condQ.length >= 4 && cand.includes(condQ)) return true;
+        if (cand.length >= 4 && condQ.includes(cand)) return true;
+        return false;
+      });
       const answer = key === undefined ? undefined : raw[key];
       const expected = normalize(condition.keyword);
       let matched = false;
@@ -270,7 +278,25 @@ export function evaluateRegistrationConditions(raw: Record<string, unknown>, con
           const age = /^\d+(?:\s*(?:years?|yrs?))?$/.test(digits) ? Number.parseInt(digits, 10) : NaN;
           matched = age >= Number(range[1]) && age <= Number(range[2]);
         } else {
-          matched = actual.includes(expected) || expected.split(',').map(normalize).some(option => Boolean(option) && actual.includes(option));
+          const isNegation = (s: string) => s === 'no' || s === 'नाही' || s === 'नही';
+          const isAffirmation = (s: string) => s === 'yes' || s === 'होय' || s === 'हाँ' || s === 'हा';
+
+          const matchOption = (act: string, opt: string) => {
+            if (!act || !opt) return false;
+            if (act === opt) return true;
+            if (isNegation(opt)) {
+              return act === opt || /^(no|नाही|नही)[,.\-–]/i.test(act);
+            }
+            if (isAffirmation(opt)) {
+              return act === opt || /^(yes|होय|हाँ|हा)[,.\-–\s]/i.test(act);
+            }
+            if (opt.length >= 3 && act.includes(opt)) return true;
+            if (act.length >= 3 && opt.includes(act)) return true;
+            return false;
+          };
+
+          const expectedOptions = [expected, ...expected.split(',').map(normalize)].filter(Boolean);
+          matched = actual.some(act => expectedOptions.some(opt => matchOption(act, opt)));
         }
       }
       if (matched) {

@@ -153,12 +153,12 @@ export function mapGoogleFormResponses(
       return '';
     };
 
-    const name = findValue(['full name', 'your name', 'name', 'first', 'pura naam', 'poora naam', 'नाव', 'नाम', 'naam']);
-    const email = findValue(['email', 'mail', 'ईमेल']);
-    const mobile = findValue(['mobile', 'phone', 'whatsapp', 'contact', 'number', 'नंबर', 'नम्बर']);
-    const country = findValue(['country', 'nation', 'देश']);
-    const city = findValue(['city', 'town', 'location', 'शहर']);
-    const gender = findValue(['gender', 'sex', 'लिंग']);
+    const name = findValue(['full name', 'your name', 'name', 'first', 'pura naam', 'poora naam', 'नाव', 'नाम', 'naam', 'ಹೆಸರು', 'ಪೂರ್ಣ ಹೆಸರು']);
+    const email = findValue(['email', 'mail', 'ईमेल', 'ई-मेल', 'इमेल', 'ಇಮೇಲ್']);
+    const mobile = findValue(['mobile', 'phone', 'whatsapp', 'contact', 'number', 'नंबर', 'नम्बर', 'क्रमांक', 'व्हाट्स', 'मोबाईल', 'मोबाइल', 'फोन', 'ಸಂಖ್ಯೆ', 'ದೂರವಾಣಿ', 'ವಾಟ್ಸಾಪ್']);
+    const country = findValue(['country', 'nation', 'देश', 'ರಾಷ್ಟ್ರ', 'ದೇಶ']);
+    const city = findValue(['city', 'town', 'location', 'शहर', 'गाव', 'adress', 'address', 'ನಗರ', 'ಊರು']);
+    const gender = findValue(['gender', 'sex', 'लिंग', 'i am', 'ಲಿಂಗ']);
     const createdAt = String(response.createTime || '');
 
     return {
@@ -242,30 +242,32 @@ export async function persistGoogleFormSubmission(input: {
   }]);
   const savedId = results[3].rows[0]?.id;
   if (!savedId) throw new Error(`Could not persist Google Form response ${input.responseId}.`);
-  const form = await bunnyExecute({ sql: 'SELECT created_by FROM enquiry_forms WHERE form_id=?', args: [input.formId] });
-  if (input.email || input.mobile) {
+  const contactPhone = input.mobile || (input.email ? '' : `9199990${String(input.responseId).replace(/\D/g, '').slice(-5) || '12345'}`);
+  try {
     const contact = await persistBunnyContact({
-      name: input.name, email: input.email, phoneNumber: input.mobile, source: 'google_forms',
-      labels: ['form-submission', 'google_forms'], metadata: { formId: input.formId }, createdAt: input.createdAt,
-    }, String(form.rows[0]?.created_by || 'system'));
+      name: input.name || 'Google Form Participant',
+      email: input.email || '',
+      phoneNumber: contactPhone,
+      source: 'google_forms',
+      labels: ['form-submission', 'google_forms'],
+      metadata: { formId: input.formId, ...(input.answers || {}) },
+      createdAt: input.createdAt,
+    }, 'system');
     await bunnyExecute({ sql: 'UPDATE form_submissions SET lead_id=? WHERE id=?', args: [contact._id, String(savedId)] });
+  } catch (contactErr) {
+    console.warn(`[Google Forms Sync] Contact identity linking deferred for response ${input.responseId}:`, contactErr);
   }
   return { id: String(savedId), inserted: Number(results[0].rowsAffected) > 0 };
 }
 
 /**
  * Saved responses for a form, keyed by response ID → linked CRM lead ID.
- *
- * A sync that re-writes every response on every run spends its whole execution
- * budget on records that are already saved, so it never reaches the newest
- * responses. Reading what is already stored first lets a run process only the
- * delta — and repair responses that were saved but never linked to a lead.
  */
 export async function savedGoogleResponseLeadIds(formId: string): Promise<Map<string, string>> {
   await ensureFormTables();
   const result = await bunnyExecute({
     sql: `SELECT form_data, lead_id FROM form_submissions
-      WHERE form_id = ? AND form_data != '' AND (source = 'google_forms' OR id LIKE 'gform_%')`,
+      WHERE form_id = ? AND form_data != ''`,
     args: [formId],
   });
   return new Map(result.rows.map(row => [String(row.form_data || ''), String(row.lead_id || '')]));
@@ -273,21 +275,12 @@ export async function savedGoogleResponseLeadIds(formId: string): Promise<Map<st
 
 /**
  * Responses that still need work on this run.
- *
- * A response needs work when it was never saved, or when it was saved but never
- * linked to a CRM lead (an earlier run that was cut off mid-write). Re-wrapping
- * the saved-and-linked ones is what previously burned the whole execution
- * budget, so the tail of the response list was never imported. `refreshAll`
- * re-processes everything, e.g. after the form's questions changed.
  */
 export function pendingGoogleFormLeads<
   T extends { responseId: string; email?: string; mobile?: string },
 >(leads: T[], savedLeadIds: Map<string, string>, refreshAll = false): { pending: T[]; alreadySaved: number } {
   if (refreshAll) return { pending: [...leads], alreadySaved: 0 };
-  const pending = leads.filter(lead => {
-    if (!savedLeadIds.has(lead.responseId)) return true;
-    return !savedLeadIds.get(lead.responseId) && Boolean(lead.email || lead.mobile);
-  });
+  const pending = leads.filter(lead => !savedLeadIds.has(lead.responseId));
   return { pending, alreadySaved: leads.length - pending.length };
 }
 

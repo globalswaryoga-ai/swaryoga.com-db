@@ -443,7 +443,9 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   try {
     const cohortId = String(cohort.id);
     const calendar = sessionUtils.workshopSessionCalendar(String(cohort.start_date), JSON.parse(String(cohort.holiday_dates_json || '[]')));
-    const dayNumber = calendar.find(row => row.classDate === dateLabel && !row.holiday)?.dayNumber || null;
+    const calDay = calendar.find(row => row.classDate === dateLabel && !row.holiday)?.dayNumber;
+    const elapsedDays = Math.max(1, Math.floor((new Date(dateLabel).getTime() - new Date(cohort.start_date).getTime()) / 86400000) + 1);
+    const dayNumber = calDay || elapsedDays;
 
     const ytSpeakerId = ytResults?.speaker || null;
     const ytSpeakerUrl = ytUrls?.speaker || (ytSpeakerId ? `https://youtu.be/${ytSpeakerId}` : null);
@@ -580,12 +582,17 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         sql: 'SELECT id, timezone, start_date, holiday_dates_json, zoom_meeting_id FROM workshop_cohorts_sql',
       });
       const matchedCohorts = mapped.rows.filter((cohort) => String(cohort.zoom_meeting_id || '').replace(/\D+/g, '') === meetingDigits);
-      const candidates = matchedCohorts.filter((cohort) => {
-        const date = new Intl.DateTimeFormat('en-CA', { timeZone: String(cohort.timezone || 'Asia/Kolkata'), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(m.start_time));
-        return sessionUtils.workshopSessionCalendar(String(cohort.start_date), JSON.parse(String(cohort.holiday_dates_json || '[]'))).some((day) => !day.holiday && day.classDate === date);
-      });
-      if (candidates.length !== 1) { log(`→ ${m.topic}: expected one scheduled workshop mapping, found ${candidates.length}; leaving Zoom recording untouched`); continue; }
-    const cohort = candidates[0];
+      let cohort = null;
+      if (matchedCohorts.length === 1) {
+        cohort = matchedCohorts[0];
+      } else if (matchedCohorts.length > 1) {
+        const candidates = matchedCohorts.filter((cohort) => {
+          const date = new Intl.DateTimeFormat('en-CA', { timeZone: String(cohort.timezone || 'Asia/Kolkata'), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(m.start_time));
+          return sessionUtils.workshopSessionCalendar(String(cohort.start_date), JSON.parse(String(cohort.holiday_dates_json || '[]'))).some((day) => !day.holiday && day.classDate === date);
+        });
+        cohort = candidates.length === 1 ? candidates[0] : matchedCohorts[0];
+      }
+      if (!cohort) { log(`→ ${m.topic}: expected one scheduled workshop mapping, found 0; leaving Zoom recording untouched`); continue; }
     const ageMinutes = (Date.now() - new Date(m.start_time).getTime()) / 60000 - Number(m.duration || 0);
     if (Number.isFinite(ageMinutes) && ageMinutes < MIN_AGE_MINUTES) {
       log(`→ ${m.topic}: waiting ${Math.ceil(MIN_AGE_MINUTES - ageMinutes)} more minute(s) for Zoom processing`);

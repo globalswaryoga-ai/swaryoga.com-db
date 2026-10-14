@@ -12,6 +12,7 @@ export interface AutoAddGroupOptions {
   submissions: any[];
   viewer: { userId: string; superAdmin: boolean };
   batchId?: string;
+  leadId?: string;
   force?: boolean;
 }
 
@@ -22,6 +23,7 @@ export async function processAutoAddGroups({
   submissions,
   viewer,
   batchId,
+  leadId,
   force = false,
 }: AutoAddGroupOptions) {
   const scope = viewer.superAdmin ? 'shared' : viewer.userId;
@@ -63,6 +65,10 @@ export async function processAutoAddGroups({
     const eligibleToGroupAdd: Array<{ row: (typeof batchRows)[number]; phone: string }> = [];
 
     for (const row of batchRows) {
+      if (leadId && String(row.id) !== String(leadId) && String(row.leadId) !== String(leadId)) {
+        continue;
+      }
+
       const decision = decisions[row.id] || {};
       const isApproved = decision.isRegistered === true ||
         String(decision.status || '').toLowerCase().startsWith('approval') ||
@@ -70,8 +76,8 @@ export async function processAutoAddGroups({
 
       if (!isApproved || decision.isRejected) continue;
 
-      // Skip if already joined or explicitly resolved
-      if (['joined', 'added_manually', 'auto_added', 'skipped'].includes(String(decision.groupStatus || ''))) {
+      // Skip if already joined or explicitly resolved, UNLESS a specific lead was targeted for re-add
+      if (!leadId && ['joined', 'added_manually', 'auto_added', 'skipped'].includes(String(decision.groupStatus || ''))) {
         continue;
       }
 
@@ -83,7 +89,7 @@ export async function processAutoAddGroups({
       const approvalTimestamp = auditTime ? new Date(auditTime).getTime() : 0;
       const hoursPassed = approvalTimestamp ? (now - approvalTimestamp) / (60 * 60 * 1000) : 0;
 
-      if (!force && hoursPassed < 24) {
+      if (!leadId && !force && hoursPassed < 24) {
         continue; // Not yet 24 hours
       }
 

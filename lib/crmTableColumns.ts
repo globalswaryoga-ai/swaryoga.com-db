@@ -65,15 +65,21 @@ export function isStandardCrmField(key: string, customMapping?: Record<string, s
 export function isInformationalNotice(key: string): boolean {
   if (!key) return true;
   const text = String(key).trim();
-
-  // Multi-line long instructional text blocks
-  if (text.includes('\n') && text.length > 40) return true;
-  if (text.length > 120 && !text.includes('?')) return true;
+  const lower = text.toLowerCase();
 
   // Known Google Form static headers/notices
   if (text.startsWith('धन्यवाद') || text.startsWith('कृपया वर्कशॉप')) return true;
   if (text.startsWith('The Swar Yoga knowledge')) return true;
   if (text.startsWith('Thank you') || text.startsWith('Please note')) return true;
+
+  // If it's a question or asks for batch / workshop / slot / join, it's NOT an informational notice
+  if (/batch|workshop|session|slot|join|\?/i.test(lower)) {
+    return false;
+  }
+
+  // Multi-line long instructional text blocks
+  if (text.includes('\n') && text.length > 40) return true;
+  if (text.length > 120 && !text.includes('?')) return true;
 
   return false;
 }
@@ -313,6 +319,10 @@ export function getLeadCity(lead: any): string {
     raw['City Name'],
     raw['City'],
     raw['city'],
+    raw['Adress (City, state and country only)'],
+    raw['Address (City, state and country only)'],
+    raw['Adress'],
+    raw['Address'],
     raw['शहर'],
     raw['Town'],
     raw['गाव'],
@@ -325,6 +335,15 @@ export function getLeadCity(lead: any): string {
       if (s && s !== '-' && !s.includes('@')) return s;
     }
   }
+
+  // Fallback: check any key matching city or adress/address
+  for (const [k, v] of Object.entries(raw)) {
+    if (/(city|शहर|गाव|town|adress|address)/i.test(k) && v !== undefined && v !== null) {
+      const s = String(v).trim();
+      if (s && s !== '-' && !s.includes('@')) return s;
+    }
+  }
+
   return lead.city && !lead.city.includes('@') ? lead.city : '-';
 }
 

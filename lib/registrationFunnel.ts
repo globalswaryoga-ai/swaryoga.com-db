@@ -43,7 +43,12 @@ export async function processRegistrationFunnel({
         assignments[type] === status || (worker === type && previous.processedBy === type));
       if (!candidate) continue;
       const [type, conditions] = candidate;
-      const evaluated = evaluateRegistrationConditions(row._rawRecord || {}, conditions);
+      const rowAnswers = {
+        ...(row.answers || {}),
+        ...(row.dynamicAnswers || {}),
+        ...(row._rawRecord || {}),
+      };
+      const evaluated = evaluateRegistrationConditions(rowAnswers, conditions);
       if (!evaluated) continue;
       if (evaluated.passed && !evaluated.category) {
         errors.push(`Batch ${workshop.id}, ${type}: select an approval destination; saved rules have no routing output`);

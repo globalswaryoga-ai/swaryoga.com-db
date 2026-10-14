@@ -2264,7 +2264,7 @@ export default function NewRegistrationPage() {
               workshops={workshops}
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
-              leadsData={displayLeads}
+              leadsData={leadsData}
               dynamicColumns={dynamicColumns}
               googleFormQuestionMap={googleFormQuestionMap}
               fieldMapping={fieldMapping}

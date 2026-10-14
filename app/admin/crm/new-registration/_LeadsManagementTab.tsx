@@ -323,11 +323,14 @@ export function LeadsManagementTab({
   const activeBatchName = activeBatch?.name || '';
 
 
-  const activeBatchLeads = React.useMemo(() =>
-    leadsData && leadsData.length > 0
-      ? leadsData
-      : (activeBatch ? registrationBatchRows(leadsData || [], activeBatch) : []),
-    [activeBatch, leadsData]);
+  const activeBatchLeads = React.useMemo(() => {
+    if (!activeBatch) return leadsData || [];
+    const batchRows = registrationBatchRows(leadsData || [], activeBatch);
+    if (activeBatch.formFilterKeyword || activeBatch.metadata?.formFilterKeyword) {
+      return batchRows;
+    }
+    return batchRows.length > 0 ? batchRows : (leadsData || []);
+  }, [activeBatch, leadsData]);
 
   const dynamicColumns = React.useMemo(() => {
     if (propDynamicColumns && propDynamicColumns.length > 0) return propDynamicColumns;
@@ -1290,11 +1293,13 @@ export function LeadsManagementTab({
                   }`}
                 >
                   <div className="flex items-center justify-between text-slate-500 mb-1">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-700">Total</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-700">Total Leads</span>
                     <FileText size={16} className="text-blue-600" />
                   </div>
                   <div className="text-2xl font-black text-slate-900">{activeBatchLeads.length}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium">All batch leads</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 font-medium truncate" title={activeBatch ? activeBatchName : 'All Leads'}>
+                    {activeBatch ? `${activeBatchName}` : `All Leads (${leadsData?.length || 0})`}
+                  </div>
                 </button>
 
                 {/* 2. Approved-4 Card */}

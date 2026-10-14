@@ -499,8 +499,8 @@ function rowToSubmission(row: Record<string, any>) {
     amount:        Number(row.amount ?? 0),
     currency:      row.currency ?? 'INR',
     formData:      row.form_data ?? '',
-    source:        row.source ?? '',
-    responseId:    row.source === 'google_forms' || String(row.id).startsWith('gform_') ? row.form_data || '' : '',
+    source:        row.source || (row.form_data ? 'google_forms' : 'crm_form'),
+    responseId:    row.form_data || (row.source === 'google_forms' || String(row.id).startsWith('gform_') ? row.form_data || '' : ''),
     rawAnswers:    safeJson(row.raw_answers, {}),
     submittedAt:   row.created_at,
   };
