@@ -39,6 +39,7 @@ function SignUpInner() {
     password: '',
     confirmPassword: '',
     agreeToTerms: false,
+    website_url: '', // Honeypot field for bot protection
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -46,6 +47,7 @@ function SignUpInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [useCustomState, setUseCustomState] = useState(false);
   const [customState, setCustomState] = useState('');
@@ -568,11 +570,13 @@ function SignUpInner() {
     if (!validateForm()) { setSubmitStatus('error'); return; }
     setIsSubmitting(true);
     setSubmitStatus(null);
+    setPendingApproval(false);
     try {
       const requestPayload = {
         name: formData.name.trim(), email: formData.email.trim(), phone: formData.phone.trim(),
         countryCode: formData.countryCode || '+91', country: formData.country.trim(), state: formData.state.trim(),
         gender: formData.gender.trim(), age: formData.age.toString(), profession: formData.profession.trim(), password: formData.password,
+        website_url: formData.website_url || '',
       };
       const response = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestPayload) });
       const raw = await response.json().catch(() => ({}));
@@ -584,6 +588,14 @@ function SignUpInner() {
         setSubmitStatus('error');
         throw new Error(errorMessage);
       }
+
+      // Check if registration requires admin verification
+      if ((responsePayload as any)?.status === 'pending' || (responsePayload as any)?.requiresApproval) {
+        setPendingApproval(true);
+        setSubmitStatus('success');
+        return;
+      }
+
       setSubmitStatus('success');
       const storedUser = {
         id: (responsePayload as any)?.user?.id || '',
@@ -636,10 +648,30 @@ function SignUpInner() {
               )}
             </div>
 
-            {submitStatus === 'success' && (
+            {submitStatus === 'success' && !pendingApproval && (
               <div className="mb-6 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3 text-xs sm:text-sm">
                 <span className="text-green-600 text-lg sm:text-xl">✓</span>
                 <span className="text-green-800 font-medium">Account created successfully! Redirecting...</span>
+              </div>
+            )}
+
+            {submitStatus === 'success' && pendingApproval && (
+              <div className="mb-6 p-4 sm:p-5 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-xs sm:text-sm text-amber-900 shadow-sm">
+                <div className="flex items-center space-x-2 font-bold text-amber-800 text-base">
+                  <span>⏱</span>
+                  <span>Registration Pending Review</span>
+                </div>
+                <p>
+                  Thank you for signing up! Your registration has been submitted and is currently pending review by our administration team.
+                </p>
+                <p className="text-amber-700 font-medium">
+                  You will be able to log in to your account as soon as your details are verified.
+                </p>
+                <div className="pt-2">
+                  <Link href="/" className="inline-block px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold">
+                    Return to Homepage →
+                  </Link>
+                </div>
               </div>
             )}
 
@@ -651,6 +683,18 @@ function SignUpInner() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              {/* Hidden honeypot field for automated bot protection */}
+              <div style={{ display: 'none', position: 'absolute', left: '-9999px', opacity: 0 }} aria-hidden="true">
+                <input
+                  type="text"
+                  name="website_url"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={formData.website_url}
+                  onChange={handleInputChange}
+                />
+              </div>
+
               <div className="space-y-4 sm:space-y-6">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Personal Information</h2>
 

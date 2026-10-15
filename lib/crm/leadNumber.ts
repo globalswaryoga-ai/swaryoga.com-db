@@ -1,6 +1,6 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 
-export async function allocateNextLeadNumber(userId: string) {
+export async function allocateNextLeadNumber(userId: string = 'system') {
   // Try to find the max lead number for this user
   const result = await bunnyExecute({
     sql: 'SELECT data_json FROM leads_sql WHERE owner_user_id = ?',

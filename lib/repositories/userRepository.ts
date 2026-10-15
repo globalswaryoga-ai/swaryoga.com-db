@@ -22,6 +22,12 @@ export type UserEntity = {
   managedUserIds: string[];
   permissions: string[];
   permissionsV2?: any;
+  country?: string;
+  state?: string;
+  gender?: string;
+  age?: number;
+  profession?: string;
+  approvalReason?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -47,6 +53,12 @@ function mapRowToUser(row: any): UserEntity {
     managedUserIds: row.managedUserIds ? JSON.parse(String(row.managedUserIds)) : [],
     permissions: row.permissions ? JSON.parse(String(row.permissions)) : [],
     permissionsV2: row.permissionsV2 ? JSON.parse(String(row.permissionsV2)) : undefined,
+    country: row.country ? String(row.country) : undefined,
+    state: row.state ? String(row.state) : undefined,
+    gender: row.gender ? String(row.gender) : undefined,
+    age: row.age != null && !isNaN(Number(row.age)) ? Number(row.age) : undefined,
+    profession: row.profession ? String(row.profession) : undefined,
+    approvalReason: row.approvalReason ? String(row.approvalReason) : undefined,
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
   };
@@ -104,9 +116,9 @@ export async function upsertUser(user: Partial<UserEntity> & { email: string }):
         id, userId, email, phone, password, name, role, isAdmin, 
         provider, providerId, emailVerified, emailVerificationToken, emailVerificationExpires,
         resetPasswordToken, resetPasswordExpires, status, managedUserIds, 
-        permissions, permissionsV2, createdAt, updatedAt
+        permissions, permissionsV2, country, state, gender, age, profession, approvalReason, createdAt, updatedAt
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
       ON CONFLICT(email) DO UPDATE SET
         userId=excluded.userId,
@@ -126,6 +138,12 @@ export async function upsertUser(user: Partial<UserEntity> & { email: string }):
         managedUserIds=excluded.managedUserIds,
         permissions=excluded.permissions,
         permissionsV2=excluded.permissionsV2,
+        country=excluded.country,
+        state=excluded.state,
+        gender=excluded.gender,
+        age=excluded.age,
+        profession=excluded.profession,
+        approvalReason=excluded.approvalReason,
         updatedAt=excluded.updatedAt
     `,
     args: [
@@ -148,6 +166,12 @@ export async function upsertUser(user: Partial<UserEntity> & { email: string }):
       JSON.stringify(user.managedUserIds || []),
       JSON.stringify(user.permissions || []),
       user.permissionsV2 ? JSON.stringify(user.permissionsV2) : null,
+      user.country || null,
+      user.state || null,
+      user.gender || null,
+      user.age != null ? String(user.age) : null,
+      user.profession || null,
+      user.approvalReason || null,
       user.createdAt || now,
       now
     ]

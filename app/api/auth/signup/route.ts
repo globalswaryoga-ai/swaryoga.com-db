@@ -21,6 +21,8 @@ import { notifySignupConfirmation } from '@/lib/notifications';
 export const dynamic = 'force-dynamic';
 
 
+import { evaluateSignupQuality } from '@/lib/signupValidation';
+
 // Rate limiting: 5 signup attempts per 10 minutes per IP
 const SIGNUP_RATE_LIMIT = {
   windowMs: 10 * 60 * 1000, // 10 minutes
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { name, email, phone, countryCode, country, state, gender, age, profession, password } = body;
+    const honeypot = body.website_url || body.honeypot || body.address_confirm || '';
 
     // Validate required fields
     const required = ['name', 'email', 'phone', 'country', 'state', 'gender', 'age', 'profession', 'password'];
@@ -90,6 +93,19 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Age must be between 13 and 150');
     }
 
+    // Evaluate signup quality: detect bot signatures, gibberish names, disposable emails
+    const quality = evaluateSignupQuality({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      country: String(country || '').trim(),
+      state: String(state || '').trim(),
+      gender: String(gender || '').trim(),
+      age: ageNumber,
+      profession: String(profession || '').trim(),
+      honeypot,
+    });
+
     // Hash password
     let hashedPassword;
     try {
@@ -109,6 +125,13 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         role: 'user',
         isAdmin: false,
+        country: String(country || '').trim(),
+        state: String(state || '').trim(),
+        gender: String(gender || '').trim(),
+        age: ageNumber,
+        profession: String(profession || '').trim(),
+        status: quality.status, // 'active' if proper details, 'pending' if suspicious/dummy
+        approvalReason: quality.reasons.length ? quality.reasons.join('; ') : 'Auto-approved',
       });
 
   // If we can map the user to a CRM leadNumber, return it in the signup response.
@@ -253,11 +276,44 @@ export async function POST(request: NextRequest) {
         logError('signup/createCrmLead', crmLeadError);
       }
 
-      // Generate token
+      // Handle Pending (Held for Admin Review) vs Active (Auto-Approved)
+      if (quality.status === 'pending') {
+        // DO NOT send welcome email to suspicious/dummy emails to prevent bounces.
+        // Notify admin about the held signup so they can review and approve in /admin/signup-data.
+        const { sendNotificationEmail } = await import('@/lib/notifications');
+        const adminEmail = process.env.NOTIFICATION_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'mohankalburgi@gmail.com';
+        sendNotificationEmail(
+          adminEmail,
+          `⚠️ New Signup Held for Review (Pending Approval): ${user.name}`,
+          `<p>A new signup was received with suspicious/incomplete details and held in <strong>Pending</strong> status:</p>
+           <ul>
+             <li><strong>Name:</strong> ${user.name}</li>
+             <li><strong>Email:</strong> ${user.email}</li>
+             <li><strong>Phone:</strong> ${user.phone}</li>
+             <li><strong>Country / State:</strong> ${country} / ${state}</li>
+             <li><strong>Detection Reason:</strong> ${quality.reasons.join(', ')}</li>
+           </ul>
+           <p><a href="https://swaryoga.com/admin/signup-data" style="display:inline-block;padding:8px 16px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;">Open Signup Data in Admin →</a></p>`
+        ).catch(() => {});
+
+        return apiSuccess({
+          message: 'Your registration has been submitted and is pending review by admin. You will be notified once approved.',
+          status: 'pending',
+          requiresApproval: true,
+          user: {
+            id: user.id,
+            leadNumber: leadNumber || undefined,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            status: 'pending',
+          },
+        }, 201);
+      }
+
+      // Generate token for auto-approved users
       let token;
       try {
-        // See app/api/auth/login/route.ts for why this must match the
-        // client's 1-year session persistence (lib/sessionManager.ts).
         token = generateToken({
           userId: user.id,
           email: user.email,
@@ -267,7 +323,7 @@ export async function POST(request: NextRequest) {
         return apiError('SERVER_ERROR', 'Token generation failed');
       }
 
-      // Fire-and-forget: Send signup confirmation email
+      // Fire-and-forget: Send signup confirmation email for auto-approved real users
       notifySignupConfirmation(
         { name: user.name, email: user.email, phone: user.phone },
         { leadNumber: leadNumber || undefined },
@@ -276,6 +332,7 @@ export async function POST(request: NextRequest) {
       return apiSuccess({
         message: 'User registered successfully',
         token,
+        status: 'active',
         ...(leadNameDuplicateWarning ? { warning: leadNameDuplicateWarning } : {}),
         user: {
           id: user.id,
@@ -288,6 +345,7 @@ export async function POST(request: NextRequest) {
           gender: gender,
           age: ageNumber,
           profession: profession,
+          status: 'active',
         },
       }, 201);
     } catch (createError: any) {

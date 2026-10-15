@@ -1,27 +1,22 @@
 /**
- * @fileoverview Admin endpoint to reset a regular (signup) user's password
- * @description Allows admin/superadmin to reset any non-admin user's password.
- * This is the primary mechanism for handling "forgot password" requests 
- * reported via WhatsApp or other channels.
+ * @fileoverview Admin endpoint to reset a regular (signup) user's password using Bunny Database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Types } from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import bcrypt from 'bcryptjs';
 import { notifyPasswordReset } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
-
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Auth check — admin required
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -32,9 +27,6 @@ export async function PUT(
     }
 
     const { id } = params;
-
-    console.log('[Reset Password] Received ID:', id, 'Type:', typeof id);
-
     const body = await request.json().catch(() => null);
     if (!body || !body.password) {
       return NextResponse.json({ error: 'New password is required' }, { status: 400 });
@@ -48,98 +40,43 @@ export async function PUT(
       );
     }
 
-    await connectDB();
+    // Find user in Bunny DB
+    const res = await bunnyExecute({
+      sql: 'SELECT id, email, name, phone FROM users WHERE id = ? OR email = ? LIMIT 1',
+      args: [id, id]
+    });
 
-    let user: any = null;
-
-    // Try 1: Find by ObjectId
-    if (Types.ObjectId.isValid(id)) {
-      console.log('[Reset Password] Attempt 1: Searching by ObjectId');
-      try {
-        user = await User.findById(new Types.ObjectId(id));
-        if (user) {
-          console.log('[Reset Password] ✓ Found by ObjectId:', (user as any).email);
-        }
-      } catch (err) {
-        console.log('[Reset Password] ObjectId lookup failed:', err);
-      }
-    }
-
-    // Try 2: Find by email
-    if (!user) {
-      console.log('[Reset Password] Attempt 2: Searching by email');
-      user = await User.findOne({ email: id });
-      if (user) {
-        console.log('[Reset Password] ✓ Found by email:', (user as any).email);
-      }
-    }
-
-    // Try 3: Find by _id as string
-    if (!user) {
-      console.log('[Reset Password] Attempt 3: Searching by _id string');
-      user = await User.findOne({ _id: id });
-      if (user) {
-        console.log('[Reset Password] ✓ Found by _id string:', (user as any).email);
-      }
-    }
-
-    if (!user) {
-      console.log('[Reset Password] ✗ User not found. ID tried:', id);
+    if (res.rows.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Hash the new password
-    console.log('[Reset Password] Hashing new password...');
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-    console.log('[Reset Password] Password hashed successfully');
+    const user = res.rows[0];
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const now = new Date().toISOString();
 
-    // Update password using the found user's _id
-    console.log('[Reset Password] Updating user password. User ID:', user._id);
-    const updateResult = await User.findByIdAndUpdate(
-      user._id,
-      { $set: { password: hashedPassword } },
-      { new: true }
-    );
+    await bunnyExecute({
+      sql: 'UPDATE users SET password = ?, updatedAt = ? WHERE id = ?',
+      args: [hashedPassword, now, String(user.id)]
+    });
 
-    if (!updateResult) {
-      console.error('[Reset Password] ✗ Password update failed - no result returned');
-      return NextResponse.json(
-        { error: 'Failed to update password' },
-        { status: 500 }
-      );
-    }
-
-    console.log(
-      `[Admin Reset Password] ✓ Password reset successful for user "${user.email}" by admin "${decoded.userId || decoded.email}"`
-    );
-
-    // Send new password to user via email (fire-and-forget)
     let emailSent = false;
-    if (user.email) {
-      try {
-        console.log('[Reset Password] Sending email notification to:', user.email);
-        const result = await notifyPasswordReset(
-          { name: user.name || '', email: user.email, phone: user.phone },
-          { newPassword, resetBy: decoded.userId || decoded.email || 'admin' },
-        );
-        emailSent = result.email.success;
-        console.log('[Reset Password] Email sent:', emailSent);
-      } catch (emailErr) {
-        console.error('[Admin Reset Password] Email notification failed:', emailErr);
-      }
+    try {
+      const emailResult = await notifyPasswordReset(
+        { name: String(user.name || ''), email: String(user.email || ''), phone: String(user.phone || '') },
+        { newPassword }
+      );
+      emailSent = emailResult.email;
+    } catch (e) {
+      console.warn('[Reset Password] Failed to send notification email:', e);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Password reset successfully for ${user.email || user.name || id}`,
+      message: 'Password reset successfully',
       emailSent,
     });
-  } catch (error: any) {
-    console.error('[Admin Reset Password] Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to reset password' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('[Reset Password] Error:', error);
+    return NextResponse.json({ error: 'Failed to reset password' }, { status: 500 });
   }
 }
