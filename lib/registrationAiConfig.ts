@@ -86,14 +86,21 @@ export const CRM_TECHNICAL_FIELDS = new Set([
 
 export function isTechnicalCrmField(field: unknown): boolean {
   if (!field || typeof field !== 'string') return true;
-  const clean = field.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const trimmed = field.trim();
+  if (/^[0-9a-f]{8,32}$/i.test(trimmed)) return true;
+  const clean = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
   return CRM_TECHNICAL_FIELDS.has(clean);
 }
 
-export function isQuestionMatchingLanguage(text: string, language: string): boolean {
+export function isQuestionMatchingLanguage(
+  text: string,
+  language: string,
+  options?: { allowEnglish?: boolean }
+): boolean {
   if (!text || typeof text !== 'string') return false;
   const trimmed = text.trim();
   if (trimmed.length < 2) return false;
+  if (/^[0-9a-f]{8,32}$/i.test(trimmed)) return false;
 
   const base = extractBaseLanguage(language);
 
@@ -103,7 +110,7 @@ export function isQuestionMatchingLanguage(text: string, language: string): bool
 
   if (base === 'kannada') {
     if (hasDevanagari) return false;
-    return hasKannada;
+    return hasKannada || Boolean(options?.allowEnglish && hasLatin);
   }
 
   if (base === 'english') {
@@ -113,13 +120,7 @@ export function isQuestionMatchingLanguage(text: string, language: string): bool
 
   if (hasKannada) return false;
 
-  // For Hindi or Marathi:
-  // Reject pure English/Latin questions that have no Devanagari script
-  if (!hasDevanagari) {
-    return false;
-  }
-
-  // Devanagari is present:
+  // Devanagari is present or Latin in bilingual forms:
   // Marathi distinctive character ळ (\u0933)
   const hasMarathiLa = /[\u0933]/.test(trimmed);
 
@@ -132,11 +133,17 @@ export function isQuestionMatchingLanguage(text: string, language: string): bool
 
   if (base === 'marathi') {
     if (isHindiPhrasing && !isMarathiPhrasing) return false;
+    if (!hasDevanagari) {
+      return Boolean(options?.allowEnglish && hasLatin);
+    }
     return true;
   }
 
   if (base === 'hindi') {
     if (isMarathiPhrasing) return false;
+    if (!hasDevanagari) {
+      return Boolean(options?.allowEnglish && hasLatin);
+    }
     return true;
   }
 

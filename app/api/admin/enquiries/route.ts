@@ -214,6 +214,9 @@ export async function POST(request: NextRequest) {
     let cashfreeOrderId: string | undefined = undefined;
     
     try {
+      const isLinkedIn = String(body.utm_source || body.source || '').toLowerCase().includes('linkedin');
+      const leadSource = isLinkedIn ? 'linkedin' : (body.source || 'enquiry_form');
+
       submissionId = await createSubmission({
         formId: body.workshopId,
         name: body.name,
@@ -222,6 +225,7 @@ export async function POST(request: NextRequest) {
         gender: body.gender,
         city: body.country || body.city || '', // Map country to city column for backwards compat
         dynamicAnswers: body.dynamicAnswers || {},
+        source: leadSource,
         paymentStatus: 'pending',
         amount: body.amount || 0,
         currency: body.currency || 'INR',
@@ -234,7 +238,7 @@ export async function POST(request: NextRequest) {
         name: body.name,
         phone: body.mobile,
         email: body.email || '',
-        source: 'enquiry_form',
+        source: leadSource,
       });
       
       // Cashfree integration

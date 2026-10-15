@@ -26,7 +26,11 @@ export async function resolveQrTenantBridge(userId: string, storedSessionKey?: s
     userId: ownerId,
     ownerUserId: String(settings?.userId || ownerId),
     url: String(settings?.qrBridgeUrl || fallback.url).replace(/\/+$/, ''),
-    secret: String(settings?.qrBridgeSecret || fallback.secret),
+    secret: String(
+      (settings?.qrBridgeSecret && settings.qrBridgeSecret !== 'swar-bridge-secret-2024')
+        ? settings.qrBridgeSecret
+        : fallback.secret
+    ),
     sessionKey,
     tenantId: sessionKey,
     connectedPhone: String(settings?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, ''),

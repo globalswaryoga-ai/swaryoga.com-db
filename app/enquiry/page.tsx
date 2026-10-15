@@ -228,6 +228,9 @@ function EnquiryForm() {
     const finalGender = isGoogleForm ? getAns(['gender', 'sex']) : gender;
     const finalCity = isGoogleForm ? getAns(['city', 'town', 'location']) : '';
 
+    const utmSource = searchParams.get('utm_source') || '';
+    const accountId = searchParams.get('account_id') || '';
+
     try {
       const res = await fetch('/api/admin/enquiries', {
         method: 'POST',
@@ -241,7 +244,14 @@ function EnquiryForm() {
           city: finalCity,
           workshopId: formDetails.formId,
           workshopName: formDetails.workshopName,
-          dynamicAnswers,
+          dynamicAnswers: {
+            ...dynamicAnswers,
+            ...(utmSource ? { utm_source: utmSource } : {}),
+            ...(accountId ? { ad_account_id: accountId } : {}),
+          },
+          source: utmSource.toLowerCase().includes('linkedin') ? 'linkedin' : 'enquiry_form',
+          utm_source: utmSource,
+          account_id: accountId,
           amount: totalAmount,
           currency,
         }),

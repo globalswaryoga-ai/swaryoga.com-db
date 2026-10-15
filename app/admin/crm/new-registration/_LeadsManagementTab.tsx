@@ -428,11 +428,12 @@ export function LeadsManagementTab({
 
     // For questions from arbitrary sources (leads, workshop metadata) we enforce
     // the script-based language filter to avoid mixing scripts across language tabs.
+    // In bilingual forms (Hindi/Marathi), English questions belonging to that batch are allowed.
     const addQuestionIfValid = (title: unknown) => {
       if (typeof title !== 'string') return;
       const t = title.trim();
       if (!t || isTechnicalCrmField(t)) return;
-      if (isQuestionMatchingLanguage(t, selectedLanguage)) {
+      if (isQuestionMatchingLanguage(t, selectedLanguage, { allowEnglish: true })) {
         questions.add(t);
       }
     };
@@ -461,7 +462,7 @@ export function LeadsManagementTab({
       }
     }
 
-    // 3. From leadsData (_rawRecord, dynamicAnswers, and formData answers) strictly for leads matching this language
+    // 3. From leadsData (_rawRecord, dynamicAnswers, answers, and formData) strictly for leads matching this language
     (leadsData || []).forEach(lead => {
       if (!lead || !matchesLanguage(lead, selectedLanguage)) return;
       if (lead._rawRecord && typeof lead._rawRecord === 'object') {
@@ -469,6 +470,9 @@ export function LeadsManagementTab({
       }
       if (lead.dynamicAnswers && typeof lead.dynamicAnswers === 'object') {
         Object.keys(lead.dynamicAnswers).forEach(k => addQuestionIfValid(k));
+      }
+      if (lead.answers && typeof lead.answers === 'object') {
+        Object.keys(lead.answers).forEach(k => addQuestionIfValid(k));
       }
       if (lead.formData && typeof lead.formData === 'object' && !Array.isArray(lead.formData)) {
         Object.keys(lead.formData).forEach(k => addQuestionIfValid(k));
