@@ -179,6 +179,12 @@ export default function QRGroupSchedulerPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
+  // ── Send Now State ──
+  const [sendNowConfirm, setSendNowConfirm] = useState<Schedule | null>(null);
+  const [sendNowLoading, setSendNowLoading] = useState(false);
+  const [sendNowResult, setSendNowResult] = useState<{ success: boolean; message: string } | null>(null);
+
+
   // ── Form state ──
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [messageText, setMessageText] = useState('');
@@ -503,6 +509,36 @@ export default function QRGroupSchedulerPage() {
     }
   }
 
+  async function executeSendNow(s: Schedule) {
+    setSendNowLoading(true);
+    setSendNowResult(null);
+    try {
+      const res = await crmFetch(`/api/admin/crm/qr-broadcast-schedule/${s._id}/send-now`, {
+        method: 'POST',
+      });
+      if (res?.success) {
+        setSendNowResult({
+          success: true,
+          message: res.message || `Broadcast sent successfully!`,
+        });
+        await loadSchedules();
+      } else {
+        setSendNowResult({
+          success: false,
+          message: res?.error || 'Failed to send broadcast',
+        });
+      }
+    } catch (err: any) {
+      setSendNowResult({
+        success: false,
+        message: err?.message || 'Network error while triggering broadcast',
+      });
+    } finally {
+      setSendNowLoading(false);
+    }
+  }
+
+
   function remainingDaysCount(s: Schedule): number {
     if (!Array.isArray(s.customScheduleDates)) return 0;
     const todayStr = todayDateStr();
@@ -739,13 +775,27 @@ export default function QRGroupSchedulerPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
                 <Clock className="w-4 h-4" /> Send Time (IST)
               </label>
-              <input
-                type="time"
-                value={sendTime}
-                onChange={e => setSendTime(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="time"
+                  value={sendTime}
+                  onChange={e => setSendTime(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
+                />
+                {sendTime && (
+                  <span className="text-xs font-semibold px-2.5 py-1.5 bg-purple-100 text-purple-700 rounded-lg flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {(() => {
+                      const [h, m] = sendTime.split(':').map(Number);
+                      const isPm = h >= 12;
+                      const h12 = h % 12 || 12;
+                      return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${isPm ? 'PM' : 'AM'} IST`;
+                    })()}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-400 mt-1">Message is sent automatically at this time each selected day (±a few minutes). Any time of day (24 hours) is allowed.</p>
+
               <p className="text-xs text-gray-400 mt-1">If another group schedule already sends within 15 minutes of this time on the same day, this schedule's time is auto-shifted to keep a 15-minute gap.</p>
             </div>
 
@@ -897,7 +947,20 @@ export default function QRGroupSchedulerPage() {
                       {s.lastError && (
                         <div className="mb-2 text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{s.lastError}</div>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Send Now Button */}
+                        <button
+                          onClick={() => {
+                            setSendNowConfirm(s);
+                            setSendNowResult(null);
+                          }}
+                          disabled={!!actionLoading || sendNowLoading}
+                          className="px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded font-medium flex items-center gap-1 shadow-xs transition disabled:opacity-50"
+                          title="Send message to all selected groups immediately"
+                        >
+                          <Send className="w-3 h-3" /> Send Now
+                        </button>
+
                         {s.status === 'paused' ? (
                           <button
                             onClick={() => runAction(s._id, 'resume')}
@@ -942,6 +1005,115 @@ export default function QRGroupSchedulerPage() {
           </div>
         </div>
       </div>
+
+      {/* Send Now Confirmation Modal */}
+      {sendNowConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Send Broadcast Now</h3>
+                  <p className="text-xs text-gray-500">Dispatch message immediately via connected QR WhatsApp</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setSendNowConfirm(null); setSendNowResult(null); }}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {sendNowResult ? (
+              <div
+                className={`p-4 rounded-xl text-xs font-medium space-y-2 ${
+                  sendNowResult.success
+                    ? 'bg-green-50 text-green-800 border border-green-200'
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  {sendNowResult.success ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  )}
+                  <span>{sendNowResult.message}</span>
+                </div>
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => { setSendNowConfirm(null); setSendNowResult(null); }}
+                    className="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-semibold hover:bg-gray-900 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3 text-xs text-gray-600">
+                  <div className="bg-gray-50 rounded-xl p-3 border space-y-1.5">
+                    <div className="flex justify-between font-semibold text-gray-900">
+                      <span>Schedule:</span>
+                      <span>{sendNowConfirm.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Target Groups:</span>
+                      <span className="font-semibold text-purple-700">
+                        {(sendNowConfirm.groupIds?.length || sendNowConfirm.recipientChatIds?.length || 0)} groups
+                      </span>
+                    </div>
+                    <div className="text-gray-500 pt-1 text-[11px] leading-relaxed">
+                      {(sendNowConfirm.groupIds || sendNowConfirm.recipientChatIds || [])
+                        .map(id => groupNameById.get(id) || id)
+                        .join(', ')}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-gray-700 block mb-1">Message Preview:</label>
+                    <div className="p-3 bg-gray-50 rounded-xl border text-gray-800 whitespace-pre-wrap max-h-36 overflow-y-auto font-mono text-[11px]">
+                      {sendNowConfirm.messageText}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <button
+                    onClick={() => setSendNowConfirm(null)}
+                    disabled={sendNowLoading}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => executeSendNow(sendNowConfirm)}
+                    disabled={sendNowLoading}
+                    className="px-5 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition disabled:opacity-50 flex items-center gap-2 shadow-xs"
+                  >
+                    {sendNowLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending to WhatsApp groups...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Broadcast Now</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

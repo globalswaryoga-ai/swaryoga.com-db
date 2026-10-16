@@ -364,18 +364,21 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: 'skipped', reason: 'pacing_wait', pending: pending.length, nextSendInS: waitS };
     }
 
-    // Eligible this tick — send exactly ONE message (1 per ~15 min gap = ~4/hr).
-    const perTickMax = 1;
-    // Random gap (ms) until the NEXT message after this one — drives the
-    // irregular, human-looking spacing. Persisted on the schedule below.
-    const nextGapMs = 780000 + Math.floor(Math.random() * 240000); // 13–17 min, mean 15 min
+    // ── HUMAN RANDOM-GAP PACING ──
+    // For WhatsApp groups (@g.us), broadcast all groups in the schedule with a safe
+    // 3–6 second gap. For cold direct contacts, target ~15 min irregular human pacing.
+    const isAllGroups = pending.every((id) => id.endsWith('@g.us'));
+    const perTickMax = isAllGroups ? Math.min(10, pending.length) : 1;
+    const nextGapMs = isAllGroups ? 15000 : 780000 + Math.floor(Math.random() * 240000); // 13–17 min for contacts
 
-    // Shuffle pending (100% human randomization) and take just this tick's slice.
-    const recipients = shuffleArray([...pending]).slice(0, perTickMax);
+    // Shuffle pending and take this tick's slice
+    const recipients = isAllGroups ? pending.slice(0, perTickMax) : shuffleArray([...pending]).slice(0, perTickMax);
 
-    // Small jitter between the 1-2 messages in a single tick so they aren't
-    // byte-for-byte simultaneous.
-    const tickJitterMs = () => 2000 + Math.floor(Math.random() * 10000); // 2–12s
+    // Safe jitter between messages
+    const tickJitterMs = () => isAllGroups
+      ? 3000 + Math.floor(Math.random() * 3000) // 3-6s between groups
+      : 2000 + Math.floor(Math.random() * 10000); // 2-12s
+
 
     // Check WhatsApp compliance (informational)
     const compliance = getWhatsAppComplianceStatus(allRecipients.length, 1);
@@ -724,20 +727,24 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret — Vercel Cron sends "Authorization: Bearer {CRON_SECRET}"
-    // so we must strip the "Bearer " prefix before comparing
     const rawAuth = req.headers.get('authorization') || '';
-    const cronSecret =
+    const token =
       rawAuth.replace(/^Bearer\s+/i, '').trim() ||
       req.nextUrl.searchParams.get('secret') ||
       '';
     const expectedSecret = process.env.CRON_SECRET || '';
 
-    // Allow: matching cron secret, OR if CRON_SECRET not set (dev/local)
-    if (expectedSecret && cronSecret !== expectedSecret) {
-      console.warn('[QR Broadcast V2] Unauthorized cron call. Got:', cronSecret?.substring(0, 8) + '...');
+    // Check if called by authenticated admin
+    const { verifyToken } = await import('@/lib/auth');
+    const decoded = token ? verifyToken(token) : null;
+    const isAdmin = Boolean(decoded?.isAdmin || decoded?.userId);
+
+    // Allow: matching cron secret, OR authenticated admin, OR if CRON_SECRET not set (dev/local)
+    if (expectedSecret && token !== expectedSecret && !isAdmin) {
+      console.warn('[QR Broadcast V2] Unauthorized cron call. Got:', token?.substring(0, 8) + '...');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
 
     const { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } = await import('@/lib/whatsappBridgeConfig');
     const bridgeUrl = getWhatsAppBridgeUrl();
@@ -789,3 +796,8 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export async function POST(req: NextRequest) {
+  return GET(req);
+}
+
