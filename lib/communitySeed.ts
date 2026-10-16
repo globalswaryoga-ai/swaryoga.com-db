@@ -1,4 +1,4 @@
-import { connectDB, Community } from '@/lib/db';
+import { initCommunitySchema } from '@/lib/bunnyCommunityRepository';
 
 // Community IDs used across the app (URLs, membership checks).
 // Names are human-friendly labels stored in the Community collection.
@@ -28,16 +28,5 @@ export const DEFAULT_COMMUNITIES = [
 export const DEFAULT_COMMUNITY_NAMES = DEFAULT_COMMUNITIES.map((c) => c.name);
 
 export async function ensureDefaultCommunities(): Promise<void> {
-  await connectDB();
-
-  await Promise.all(
-    DEFAULT_COMMUNITIES.map(async ({ id, name }) => {
-      await Community.updateOne(
-        // Prefer id-based lookup, but keep compatibility with old name-only communities.
-        { $or: [{ id }, { name }] },
-        { $setOnInsert: { id, name, members: [], createdAt: new Date() } },
-        { upsert: true }
-      );
-    })
-  );
+  await initCommunitySchema();
 }

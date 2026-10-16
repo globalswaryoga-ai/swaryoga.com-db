@@ -221,6 +221,94 @@ export default function AdminWorkshopSchedulesPage() {
     const [renameValue, setRenameValue] = useState('');
     const [savingRename, setSavingRename] = useState(false);
 
+    // Workshop Checkbox & Delete state
+    const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+    const [deletingWorkshop, setDeletingWorkshop] = useState(false);
+    const [hiddenSlugs, setHiddenSlugs] = useState<string[]>(() => {
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('swar_hidden_workshops');
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    });
+
+    const deleteWorkshop = async (slug: string, name: string) => {
+      if (!confirm(`Are you sure you want to delete workshop "${name}"? This action will remove it.`)) {
+        return;
+      }
+      try {
+        setDeletingWorkshop(true);
+        const token = adminToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || '') : '');
+        
+        await fetch(`/api/admin/workshop-catalog?slug=${encodeURIComponent(slug)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+
+        const updated = Array.from(new Set([...hiddenSlugs, slug]));
+        setHiddenSlugs(updated);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('swar_hidden_workshops', JSON.stringify(updated));
+          } catch {}
+        }
+
+        setSelectedSlugs((prev) => prev.filter((s) => s !== slug));
+        if (selectedWorkshopSlug === slug) {
+          setSelectedWorkshopSlug(null);
+        }
+        setSuccess(`Workshop "${name}" deleted successfully.`);
+        if (token) {
+          loadDbWorkshops(token);
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Failed to delete workshop');
+      } finally {
+        setDeletingWorkshop(false);
+      }
+    };
+
+    const deleteSelectedWorkshops = async () => {
+      if (selectedSlugs.length === 0) return;
+      if (!confirm(`Are you sure you want to delete ${selectedSlugs.length} selected workshop(s)?`)) {
+        return;
+      }
+      try {
+        setDeletingWorkshop(true);
+        const token = adminToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || '') : '');
+        
+        await fetch(`/api/admin/workshop-catalog?slugs=${encodeURIComponent(selectedSlugs.join(','))}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+
+        const updated = Array.from(new Set([...hiddenSlugs, ...selectedSlugs]));
+        setHiddenSlugs(updated);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('swar_hidden_workshops', JSON.stringify(updated));
+          } catch {}
+        }
+
+        if (selectedWorkshopSlug && selectedSlugs.includes(selectedWorkshopSlug)) {
+          setSelectedWorkshopSlug(null);
+        }
+        setSuccess(`${selectedSlugs.length} workshop(s) deleted successfully.`);
+        setSelectedSlugs([]);
+        if (token) {
+          loadDbWorkshops(token);
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Failed to delete workshops');
+      } finally {
+        setDeletingWorkshop(false);
+      }
+    };
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<EditForm>(emptyEditForm());
     const [savingId, setSavingId] = useState<string | null>(null);
@@ -349,13 +437,14 @@ export default function AdminWorkshopSchedulesPage() {
     const rows = useMemo(() => {
       const list = grouped[selectedCategory] || [];
       return list
+        .filter((w) => !hiddenSlugs.includes(w.slug))
         .filter((w) => {
           const langs = (w as any)?.language;
           if (!Array.isArray(langs) || langs.length === 0) return true;
           return langs.includes(selectedLanguage);
         })
         .slice();
-    }, [grouped, selectedCategory, selectedLanguage]);
+    }, [grouped, selectedCategory, selectedLanguage, hiddenSlugs]);
 
     const selectedWorkshop = useMemo(() => {
       if (!selectedWorkshopSlug) return null;
@@ -975,13 +1064,27 @@ export default function AdminWorkshopSchedulesPage() {
                     </div>
                   </div>
 
-                  <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div>
                         <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">{getCategoryHeading(selectedCategory)}</h2>
                         <p className="text-sm text-swar-text-secondary">Pick a workshop to edit/publish dates.</p>
                       </div>
-                      <div className="text-sm text-swar-text-secondary">Total schedules: {allSchedules.length}</div>
+                      <div className="flex items-center gap-3">
+                        {selectedSlugs.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={deleteSelectedWorkshops}
+                            disabled={deletingWorkshop}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs sm:text-sm font-bold text-white hover:bg-red-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete Selected ({selectedSlugs.length})
+                          </button>
+                        )}
+                        <div className="text-sm text-swar-text-secondary">Total schedules: {allSchedules.length}</div>
+                      </div>
                     </div>
 
                     {/* Mobile/tablet workshops list */}
@@ -989,6 +1092,7 @@ export default function AdminWorkshopSchedulesPage() {
                       {rows.map((w) => {
                         const schedule = pickEarliestScheduleForCard(w.slug);
                         const active = selectedWorkshopSlug === w.slug;
+                        const isChecked = selectedSlugs.includes(w.slug);
 
                         const feeText = schedule
                           ? `₹${Number(schedule.price || 0).toLocaleString('en-IN')} ${String(schedule.currency || 'INR').toUpperCase()}`
@@ -1002,30 +1106,59 @@ export default function AdminWorkshopSchedulesPage() {
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
-                                  <button
-                                    type="button"
-                                    onClick={() => openRename(w as any)}
-                                    className="text-swar-text-secondary hover:text-swar-primary"
-                                    title="Rename workshop"
-                                  >
-                                    ✏️
-                                  </button>
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSlugs((prev) =>
+                                      e.target.checked ? [...prev, w.slug] : prev.filter((s) => s !== w.slug)
+                                    );
+                                  }}
+                                  className="mt-1 h-4 w-4 rounded border-gray-300 text-swar-primary focus:ring-swar-primary cursor-pointer"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
+                                    <button
+                                      type="button"
+                                      onClick={() => openRename(w as any)}
+                                      className="text-swar-text-secondary hover:text-swar-primary"
+                                      title="Rename workshop"
+                                    >
+                                      ✏️
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
+                                  <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
                                 </div>
-                                <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
-                                <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedWorkshopSlug(w.slug)}
-                                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                                  active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
-                                }`}
-                              >
-                                {active ? 'Selected' : 'Select'}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedWorkshopSlug(w.slug)}
+                                  className={`shrink-0 rounded-lg px-3 py-2 text-sm font-extrabold transition-colors ${
+                                    active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                                  }`}
+                                >
+                                  {active ? 'Selected' : 'Select'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteWorkshop(w.slug, w.name);
+                                  }}
+                                  disabled={deletingWorkshop}
+                                  className="rounded-lg px-2.5 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 transition-colors border border-red-200"
+                                  title="Delete workshop"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1037,6 +1170,21 @@ export default function AdminWorkshopSchedulesPage() {
                       <table className="min-w-full text-sm">
                         <thead className="bg-swar-bg">
                           <tr>
+                            <th className="px-4 py-3 text-left w-10">
+                              <input
+                                type="checkbox"
+                                checked={rows.length > 0 && selectedSlugs.length === rows.length}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedSlugs(rows.map((w) => w.slug));
+                                  } else {
+                                    setSelectedSlugs([]);
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-swar-primary focus:ring-swar-primary cursor-pointer"
+                                title="Select all workshops"
+                              />
+                            </th>
                             <th className="px-4 py-3 text-left font-bold text-swar-text">Workshop</th>
                             <th className="px-4 py-3 text-left font-bold text-swar-text">Duration</th>
                             <th className="px-4 py-3 text-left font-bold text-swar-text">Fees (Published)</th>
@@ -1047,11 +1195,25 @@ export default function AdminWorkshopSchedulesPage() {
                           {rows.map((w) => {
                             const schedule = pickEarliestScheduleForCard(w.slug);
                             const active = selectedWorkshopSlug === w.slug;
+                            const isChecked = selectedSlugs.includes(w.slug);
                             const feeText = schedule
                               ? `₹${Number(schedule.price || 0).toLocaleString('en-IN')} ${String(schedule.currency || 'INR').toUpperCase()}`
                               : 'TBD';
                             return (
-                              <tr key={w.slug} className={active ? 'bg-primary-50' : 'bg-white'}>
+                              <tr key={w.slug} className={active ? 'bg-primary-50' : isChecked ? 'bg-red-50/40' : 'bg-white'}>
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedSlugs((prev) =>
+                                        e.target.checked ? [...prev, w.slug] : prev.filter((s) => s !== w.slug)
+                                      );
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-swar-primary focus:ring-swar-primary cursor-pointer"
+                                  />
+                                </td>
                                 <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">
                                   <span className="inline-flex items-center gap-2">
                                     {w.name}
@@ -1068,17 +1230,34 @@ export default function AdminWorkshopSchedulesPage() {
                                 <td className="px-4 py-3 text-swar-text whitespace-nowrap">{w.duration}</td>
                                 <td className="px-4 py-3 text-swar-text whitespace-nowrap">{feeText}</td>
                                 <td className="px-4 py-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedWorkshopSlug(w.slug)}
-                                    className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                      active
-                                        ? 'bg-swar-primary text-white'
-                                        : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
-                                    }`}
-                                  >
-                                    {active ? 'Selected' : 'Select'}
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedWorkshopSlug(w.slug)}
+                                      className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                                        active
+                                          ? 'bg-swar-primary text-white'
+                                          : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                                      }`}
+                                    >
+                                      {active ? 'Selected' : 'Select'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteWorkshop(w.slug, w.name);
+                                      }}
+                                      disabled={deletingWorkshop}
+                                      className="rounded-lg px-2.5 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 transition-colors flex items-center gap-1 border border-red-200"
+                                      title="Delete workshop"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                      Delete
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );

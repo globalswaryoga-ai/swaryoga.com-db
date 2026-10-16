@@ -1,36 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
-import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
+import {
+  initCommunitySchema,
+  listModerationItems,
+  countModerationPending,
+  createModerationItem,
+} from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-
-// Transformation Schema
-const TransformationSchema = new mongoose.Schema({
-  userId: { type: String },
-  userName: { type: String, required: true },
-  userPhone: { type: String },
-  userEmail: { type: String },
-  title: { type: String, required: true },
-  story: { type: String, required: true },
-  beforePhoto: { type: String },
-  afterPhoto: { type: String },
-  duration: { type: String }, // e.g., "3 months", "1 year"
-  healthCondition: { type: String }, // What they improved
-  yogaPractice: { type: String }, // What practices helped
-  communityId: { type: String, default: 'global' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
-  featured: { type: Boolean, default: false },
-  approvedBy: { type: String },
-  approvedAt: { type: Date },
-  viewCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-}, { collection: 'community_transformations' });
-
-function getTransformation() {
-  return mongoose.models.Transformation || mongoose.model('Transformation', TransformationSchema);
-}
 
 /**
  * GET /api/community/transformations
@@ -38,68 +15,36 @@ function getTransformation() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const bunnyUrl = new URL(request.url);
-    const requestedStatus = bunnyUrl.searchParams.get('status') || 'approved';
-    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
-    const bunnyItems = await listBunnyModerationItems('community_transformations', requestedStatus, bunnyLimit);
-    const bunnyPendingCount = await countBunnyModerationPending('community_transformations');
-    if (requestedStatus === 'pending' || requestedStatus === 'approved' || requestedStatus === 'all') return NextResponse.json({ success: true, transformations: bunnyItems, pendingCount: bunnyPendingCount, stats: { totalCount: bunnyItems.length, withPhotos: bunnyItems.filter((item: any) => item.beforePhoto && item.afterPhoto).length } });
-    await connectDB();
-    const Transformation = getTransformation();
-    
+    await initCommunitySchema();
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'approved';
-    const communityId = url.searchParams.get('communityId');
-    const search = url.searchParams.get('search');
     const limit = parseInt(url.searchParams.get('limit') || '50');
-    
-    const query: any = {};
-    
-    // Public only sees approved
-    if (status === 'approved') {
-      query.status = 'approved';
-    } else if (status === 'all' || status === 'pending') {
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader) {
-        query.status = 'approved';
-      } else {
-        if (status === 'pending') query.status = 'pending';
-      }
-    }
-    
-    if (communityId) query.communityId = communityId;
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { story: { $regex: search, $options: 'i' } },
-        { healthCondition: { $regex: search, $options: 'i' } },
-      ];
-    }
-    
-    const transformations = await Transformation.find(query)
-      .sort({ featured: -1, approvedAt: -1, createdAt: -1 })
-      .limit(limit)
-      .lean();
-    
-    // Get stats
-    const stats = await Transformation.aggregate([
-      { $match: { status: 'approved' } },
-      {
-        $group: {
-          _id: null,
-          totalCount: { $sum: 1 },
-          withPhotos: { $sum: { $cond: [{ $and: ['$beforePhoto', '$afterPhoto'] }, 1, 0] } },
-        },
-      },
-    ]);
-    
-    // Get pending count for admin
-    const pendingCount = await Transformation.countDocuments({ status: 'pending' });
-    
+
+    const transformations = await listModerationItems('transformation', status, limit);
+    const pendingCount = await countModerationPending('transformation');
+
+    // Stats
+    const statsRes = await bunnyExecute({
+      sql: `SELECT COUNT(*) as totalCount FROM community_moderation_sql 
+            WHERE type = 'transformation' AND status = 'approved'`,
+    });
+
+    const totalCount = Number(statsRes.rows[0]?.totalCount || 0);
+
     return NextResponse.json({
       success: true,
-      transformations,
-      stats: stats[0] || { totalCount: 0, withPhotos: 0 },
+      transformations: transformations.map((t) => ({
+        ...t,
+        title: t.rawDoc?.title || t.content?.slice(0, 40) || 'Transformation Story',
+        story: t.content,
+        beforePhoto: t.rawDoc?.beforePhoto || t.photoUrl,
+        afterPhoto: t.rawDoc?.afterPhoto || null,
+        duration: t.rawDoc?.duration || '',
+        healthCondition: t.rawDoc?.healthCondition || '',
+        yogaPractice: t.rawDoc?.yogaPractice || '',
+      })),
+      stats: { totalCount, withPhotos: 0 },
       pendingCount,
     });
   } catch (error) {
@@ -117,13 +62,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    await initCommunitySchema();
+
     const body = await request.json();
-    
     const { 
       userName, title, story, beforePhoto, afterPhoto, 
       duration, healthCondition, yogaPractice, communityId, userPhone, userEmail 
     } = body;
-    
+
     if (!userName?.trim()) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
@@ -133,27 +79,18 @@ export async function POST(request: NextRequest) {
     if (!story?.trim()) {
       return NextResponse.json({ success: false, error: 'Please share your transformation story' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Transformation = getTransformation();
-    
-    const newTransformation = await Transformation.create({
+
+    const newTransformation = await createModerationItem({
+      type: 'transformation',
       userName: userName.trim(),
       userPhone,
       userEmail,
-      title: title.trim(),
-      story: story.trim(),
-      beforePhoto,
-      afterPhoto,
-      duration,
-      healthCondition,
-      yogaPractice,
+      content: story.trim(),
+      photoUrl: beforePhoto || afterPhoto || null,
       communityId: communityId || 'global',
       status: 'pending',
     });
-    
-    console.log('[Transformations] New story:', newTransformation._id, 'by', userName);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Your transformation story has been submitted! We\'ll review and publish it soon.',
@@ -181,51 +118,53 @@ export async function PATCH(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
     const { transformationId, action, featured } = body;
-    
+
     if (!transformationId) {
       return NextResponse.json({ success: false, error: 'Transformation ID required' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Transformation = getTransformation();
-    
-    const update: any = {};
-    
-    if (action === 'approve') {
-      update.status = 'approved';
-      update.approvedBy = decoded.userId;
-      update.approvedAt = new Date();
-    } else if (action === 'reject') {
-      update.status = 'rejected';
-    }
-    
-    if (typeof featured === 'boolean') {
-      update.featured = featured;
-    }
-    
-    const updated = await Transformation.findByIdAndUpdate(
-      transformationId,
-      { $set: update },
-      { new: true }
-    );
-    
+
+    await initCommunitySchema();
+
+    let newStatus = 'approved';
+    if (action === 'reject') newStatus = 'rejected';
+
+    await bunnyExecute({
+      sql: `UPDATE community_moderation_sql 
+            SET status = ?, 
+                featured = COALESCE(?, featured),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+      args: [newStatus, typeof featured === 'boolean' ? (featured ? 1 : 0) : null, transformationId],
+    });
+
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM community_moderation_sql WHERE id = ? LIMIT 1',
+      args: [transformationId],
+    });
+    const updated = res.rows[0];
+
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Transformation not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       message: action === 'approve' ? 'Transformation approved!' : 'Transformation updated',
-      transformation: updated,
+      transformation: {
+        _id: updated.id,
+        id: updated.id,
+        status: updated.status,
+        featured: Boolean(updated.featured),
+      },
     });
   } catch (error) {
     console.error('[Transformations] PATCH error:', error);

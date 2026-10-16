@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB, Community } from '@/lib/db';
-import mongoose from 'mongoose';
+import { getCommunity } from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export function getUserIdFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization') || '';
@@ -18,28 +18,29 @@ export async function requireCommunityMembership(request: NextRequest, community
     throw err;
   }
 
-  await connectDB();
+  // Allow engagement in the 'global' community for any authenticated user
+  if (communityId === 'global') {
+    return userId;
+  }
 
-  // Support both legacy Mongo ObjectId community ids and newer stable string ids (slugs).
-  const query = mongoose.Types.ObjectId.isValid(communityId)
-    ? ({ _id: communityId } as any)
-    : ({ id: communityId } as any);
-
-  const community = await Community.findOne(query).select({ id: 1, members: 1 }).lean();
+  const community = await getCommunity(communityId);
   if (!community) {
     const err = new Error('Community not found');
     (err as any).status = 404;
     throw err;
   }
 
-  const members = Array.isArray((community as any).members) ? ((community as any).members as string[]) : [];
-  
-  // Allow engagement in the 'global' community for any authenticated user
-  if (communityId === 'global' || (community as any).id === 'global') {
+  if (community.id === 'global' || community.slug === 'global') {
     return userId;
   }
 
-  if (!members.includes(userId)) {
+  // Check if member in community_members_sql
+  const res = await bunnyExecute({
+    sql: 'SELECT 1 FROM community_members_sql WHERE (community_id = ? OR community_id = ?) AND user_id = ? AND status = \'active\' LIMIT 1',
+    args: [community.id, community.slug, userId],
+  });
+
+  if (res.rows.length === 0) {
     const err = new Error('Forbidden');
     (err as any).status = 403;
     throw err;

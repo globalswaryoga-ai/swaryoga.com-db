@@ -5,6 +5,7 @@ import {
   listWorkshopCatalog,
   getWorkshopCatalogItem,
   saveWorkshopCatalogItem,
+  deleteWorkshopCatalogItem,
 } from '@/lib/bunnyWorkshopScheduleRepository';
 
 export const dynamic = 'force-dynamic';
@@ -80,3 +81,35 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ success: true, workshop });
 }
+
+/**
+ * DELETE /api/admin/workshop-catalog?slug=... (or ?slugs=a,b,c) — delete workshop(s)
+ */
+export async function DELETE(req: NextRequest) {
+  const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const slug = searchParams.get('slug');
+  const slugsParam = searchParams.get('slugs');
+
+  const slugsToDelete = slugsParam
+    ? slugsParam.split(',').map((s) => s.trim()).filter(Boolean)
+    : (slug ? [slug.trim()] : []);
+
+  if (slugsToDelete.length === 0) {
+    return NextResponse.json({ error: 'slug or slugs parameter is required' }, { status: 400 });
+  }
+
+  for (const s of slugsToDelete) {
+    await deleteWorkshopCatalogItem(s);
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: `${slugsToDelete.length} workshop(s) deleted successfully`,
+  });
+}
+

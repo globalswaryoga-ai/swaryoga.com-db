@@ -1,32 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
-import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
+import {
+  initCommunitySchema,
+  listModerationItems,
+  countModerationPending,
+  createModerationItem,
+  updateModerationItem,
+} from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-
-// Experience Schema
-const ExperienceSchema = new mongoose.Schema({
-  userId: { type: String },
-  userName: { type: String, required: true },
-  userPhone: { type: String },
-  userEmail: { type: String },
-  userPhoto: { type: String },
-  content: { type: String, required: true },
-  rating: { type: Number, min: 1, max: 5, required: true },
-  photoUrl: { type: String },
-  communityId: { type: String, default: 'global' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
-  featured: { type: Boolean, default: false },
-  approvedBy: { type: String },
-  approvedAt: { type: Date },
-  createdAt: { type: Date, default: Date.now },
-}, { collection: 'community_experiences' });
-
-function getExperience() {
-  return mongoose.models.Experience || mongoose.model('Experience', ExperienceSchema);
-}
 
 /**
  * GET /api/community/experiences
@@ -34,64 +16,45 @@ function getExperience() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const bunnyUrl = new URL(request.url);
-    const requestedStatus = bunnyUrl.searchParams.get('status') || 'approved';
-    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
-    const bunnyItems = await listBunnyModerationItems('community_experiences', requestedStatus, bunnyLimit);
-    const pendingCount = await countBunnyModerationPending('community_experiences');
-    if (requestedStatus === 'pending') return NextResponse.json({ success: true, experiences: bunnyItems, pendingCount, stats: { avgRating: 0, totalCount: bunnyItems.length } });
-    if (requestedStatus === 'approved' || requestedStatus === 'all') return NextResponse.json({ success: true, experiences: bunnyItems, pendingCount, stats: { avgRating: bunnyItems.length ? bunnyItems.reduce((sum: number, item: any) => sum + Number(item.rating || 0), 0) / bunnyItems.length : 0, totalCount: bunnyItems.length } });
-    await connectDB();
-    const Experience = getExperience();
-    
+    await initCommunitySchema();
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'approved';
-    const communityId = url.searchParams.get('communityId');
-    const featured = url.searchParams.get('featured');
     const limit = parseInt(url.searchParams.get('limit') || '50');
-    
-    const query: any = {};
-    
-    // Public only sees approved
-    if (status === 'approved') {
-      query.status = 'approved';
-    } else if (status === 'all') {
-      // Admin sees all - need auth check
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader) {
-        query.status = 'approved'; // Fallback to approved only
-      }
-    } else {
-      query.status = status;
-    }
-    
-    if (communityId) query.communityId = communityId;
-    if (featured === 'true') query.featured = true;
-    
-    const experiences = await Experience.find(query)
-      .sort({ featured: -1, createdAt: -1 })
-      .limit(limit)
-      .lean();
-    
-    // Calculate stats with full breakdown
-    const stats = await Experience.aggregate([
-      { $match: { status: 'approved' } },
-      { $group: {
-        _id: null,
-        avgRating: { $avg: '$rating' },
-        totalCount: { $sum: 1 },
-        fiveStars: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
-        fourStars: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
-        threeStars: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
-        twoStars: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
-        oneStars: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
-      }}
-    ]);
-    
+
+    const experiences = await listModerationItems('experience', status, limit);
+    const pendingCount = await countModerationPending('experience');
+
+    // Calculate rating stats
+    const statsRes = await bunnyExecute({
+      sql: `SELECT 
+              COUNT(*) as totalCount,
+              AVG(rating) as avgRating,
+              SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as fiveStars,
+              SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as fourStars,
+              SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as threeStars,
+              SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as twoStars,
+              SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as oneStars
+            FROM community_moderation_sql 
+            WHERE type = 'experience' AND status = 'approved'`,
+    });
+
+    const s = statsRes.rows[0] || {};
+    const stats = {
+      avgRating: Number(s.avgRating || 5),
+      totalCount: Number(s.totalCount || 0),
+      fiveStars: Number(s.fiveStars || 0),
+      fourStars: Number(s.fourStars || 0),
+      threeStars: Number(s.threeStars || 0),
+      twoStars: Number(s.twoStars || 0),
+      oneStars: Number(s.oneStars || 0),
+    };
+
     return NextResponse.json({
       success: true,
       experiences,
-      stats: stats[0] || { avgRating: 5, totalCount: 0, fiveStars: 0, fourStars: 0, threeStars: 0, twoStars: 0, oneStars: 0 },
+      pendingCount,
+      stats,
     });
   } catch (error) {
     console.error('[Experiences] GET error:', error);
@@ -108,10 +71,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    await initCommunitySchema();
+
     const body = await request.json();
-    
     const { userName, content, rating, photoUrl, communityId, userPhone, userEmail } = body;
-    
+
     if (!userName?.trim()) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
@@ -121,11 +85,9 @@ export async function POST(request: NextRequest) {
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json({ success: false, error: 'Rating must be 1-5 stars' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Experience = getExperience();
-    
-    const experience = await Experience.create({
+
+    const experience = await createModerationItem({
+      type: 'experience',
       userName: userName.trim(),
       userPhone,
       userEmail,
@@ -133,11 +95,9 @@ export async function POST(request: NextRequest) {
       rating: Math.round(rating),
       photoUrl,
       communityId: communityId || 'global',
-      status: 'pending', // All submissions start as pending
+      status: 'pending',
     });
-    
-    console.log('[Experiences] New submission:', experience._id, 'by', userName);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Thank you! Your experience has been submitted for review.',
@@ -165,47 +125,36 @@ export async function PATCH(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
     const { experienceId, action, featured } = body;
-    
+
     if (!experienceId) {
       return NextResponse.json({ success: false, error: 'Experience ID required' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Experience = getExperience();
-    
-    const update: any = {};
-    
+
+    const updates: { status?: string; featured?: boolean } = {};
     if (action === 'approve') {
-      update.status = 'approved';
-      update.approvedBy = decoded.userId;
-      update.approvedAt = new Date();
+      updates.status = 'approved';
     } else if (action === 'reject') {
-      update.status = 'rejected';
+      updates.status = 'rejected';
     }
-    
+
     if (typeof featured === 'boolean') {
-      update.featured = featured;
+      updates.featured = featured;
     }
-    
-    const updated = await Experience.findByIdAndUpdate(
-      experienceId,
-      { $set: update },
-      { new: true }
-    );
-    
+
+    const updated = await updateModerationItem(experienceId, updates);
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Experience not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       message: action === 'approve' ? 'Experience approved!' : 'Experience updated',

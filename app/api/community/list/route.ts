@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { getUserIdFromRequest } from '@/lib/communityAuth';
-import { Community } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
@@ -16,18 +15,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const communities = await Community.find({ members: userId })
-      .select({ name: 1, createdAt: 1 })
-      .sort({ createdAt: 1 })
-      .lean();
+    const res = await bunnyExecute({
+      sql: `SELECT DISTINCT c.id, c.slug, c.name, c.created_at
+            FROM communities_sql c
+            LEFT JOIN community_members_sql m ON (m.community_id = c.id OR m.community_id = c.slug)
+            WHERE c.id = 'global' OR c.slug = 'global' OR m.user_id = ?
+            ORDER BY c.created_at ASC`,
+      args: [userId],
+    });
 
     return NextResponse.json(
       {
         success: true,
-        data: communities.map((c: any) => ({
-          id: c._id?.toString(),
-          name: c.name,
-          createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
+        data: res.rows.map((c: any) => ({
+          id: String(c.id || c.slug),
+          slug: String(c.slug || c.id),
+          name: String(c.name),
+          createdAt: c.created_at ? new Date(c.created_at).toISOString() : '',
         })),
       },
       { status: 200, headers: { 'Cache-Control': 's-maxage=120, stale-while-revalidate=300' } }

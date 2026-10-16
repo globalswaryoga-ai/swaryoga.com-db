@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { requireCommunityMembership } from '@/lib/communityAuth';
-import { CommunityPost } from '@/lib/db';
+import { getCommunityPost, likeCommunityPost } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
-
-const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,35 +16,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
 
-    if (!isObjectIdLike(postId)) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-    }
-
-    const post = await CommunityPost.findById(postId).select({ communityId: 1, likes: 1 }).lean();
+    const post = await getCommunityPost(postId);
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const communityId = String((post as any).communityId || '');
+    const communityId = String(post.communityId || '');
     const userId = await requireCommunityMembership(request, communityId);
 
-    const likes = Array.isArray((post as any).likes) ? ((post as any).likes as string[]) : [];
-    const hasLiked = likes.includes(userId);
-
-    const updated = await CommunityPost.findByIdAndUpdate(
-      postId,
-      hasLiked ? { $pull: { likes: userId } } : { $addToSet: { likes: userId } },
-      { new: true, select: { likes: 1 } }
-    ).lean();
-
-    const newLikes = Array.isArray((updated as any)?.likes) ? ((updated as any).likes as string[]) : [];
+    const result = await likeCommunityPost(postId, userId);
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          likesCount: newLikes.length,
-          likedByMe: newLikes.includes(userId),
+          likesCount: result.likesCount,
+          likedByMe: result.likedByMe,
         },
       },
       { status: 200 }

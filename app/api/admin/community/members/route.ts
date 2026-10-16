@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // No limit by default (0 = unlimited)
     const limit = limitParam ? parseInt(limitParam) : 0;
 
-    let bunnyMembers = { members: [], total: 0 };
+    let bunnyMembers: { members: any[]; total: number } = { members: [], total: 0 };
     try {
       bunnyMembers = await listBunnyCommunityMembers({ communityId: communityId || undefined, status, skip, limit });
     } catch (e) {

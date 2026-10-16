@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { requireCommunityMembership } from '@/lib/communityAuth';
-import { CommunityPost } from '@/lib/db';
+import { listCommunityPosts } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
@@ -19,24 +18,17 @@ export async function GET(request: NextRequest) {
 
     const userId = await requireCommunityMembership(request, communityId);
 
-    // Find posts where:
-    // 1. communityId matches directly, OR
-    // 2. The requested community is in metadata.targetCommunityIds
-    const posts = await CommunityPost.find({
-      $or: [
-        { communityId },
-        { 'metadata.targetCommunityIds': communityId }
-      ]
-    })
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean();
+    const { posts } = await listCommunityPosts({
+      communityId,
+      limit: 200,
+    });
 
     return NextResponse.json(
       {
         success: true,
-        data: posts.map((p: any) => ({
-          id: p._id?.toString(),
+        data: posts.map((p) => ({
+          id: p.id,
+          _id: p.id,
           communityId: p.communityId,
           userId: p.userId,
           content: p.content,

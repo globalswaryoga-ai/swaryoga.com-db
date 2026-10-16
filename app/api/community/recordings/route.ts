@@ -1,143 +1,104 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCommunitySchema } from '@/lib/bunnyCommunityRepository';
 import { getProtectedUrl } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
 
-
 /**
  * GET /api/community/recordings
  * Public API to fetch community recordings
- * Returns public recordings and member-only recordings (with access flag)
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
-    const { getCommunityVideo, getCommunity } = await import('@/lib/db');
-    const CommunityVideo = getCommunityVideo();
-    const Community = getCommunity();
+    await initCommunitySchema();
 
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId');
 
-    // Get all communities with recordings
-    const communities = await Community.find({
-      isArchived: { $ne: true },
-    }).select('_id name type').lean();
+    const commRes = await bunnyExecute(
+      'SELECT id, slug, name, type FROM communities_sql WHERE is_archived = 0 ORDER BY name ASC'
+    );
+    const communities = commRes.rows;
 
-    // Get videos, optionally filtered by communityId
-    const query: any = {};
+    let sql = 'SELECT * FROM community_videos_sql';
+    const args: any[] = [];
     if (communityId) {
-      query.communityId = communityId;
+      sql += ' WHERE community_id = ?';
+      args.push(communityId);
     }
-    const videos = await CommunityVideo.find(query)
-      .sort({ recordedAt: -1, createdAt: -1 })
-      .limit(100)
-      .lean();
+    sql += ' ORDER BY created_at DESC LIMIT 100';
 
-    // Map community names to videos
+    const vidRes = await bunnyExecute({ sql, args });
+    const videos = vidRes.rows;
+
     const communityMap = new Map(
-      communities.map((c: any) => [c._id.toString(), c.name])
+      communities.map((c: any) => [String(c.id || c.slug), String(c.name)])
     );
 
-    // Generate signed URLs for S3 videos
     const recordings = await Promise.all(
       videos.map(async (v: any) => {
+        let raw: any = {};
+        try {
+          raw = JSON.parse(String(v.raw_doc_json || '{}'));
+        } catch {
+          raw = {};
+        }
+
         let videoUrl: string | null = null;
-
-        // For Bunny Stream videos — extract libraryId+videoId for embed player
         let bunnyEmbedLibraryId: string | null = null;
-        let bunnyEmbedVideoId: string | null = null;
+        let bunnyEmbedVideoId: string | null = v.bunny_video_id || null;
 
-        if (v.videoSource === 'bunny-stream') {
-          // Priority 1: explicitly stored IDs from confirm/presigned upload
-          if (v.bunnyLibraryId && v.bunnyVideoId) {
-            bunnyEmbedLibraryId = v.bunnyLibraryId;
-            bunnyEmbedVideoId = v.bunnyVideoId;
-            videoUrl = `https://vz-${v.bunnyLibraryId}.b-cdn.net/${v.bunnyVideoId}/playlist.m3u8`;
+        if (raw.videoSource === 'bunny-stream' || raw.bunnyVideoId) {
+          bunnyEmbedLibraryId = raw.bunnyLibraryId || process.env.BUNNY_STREAM_LIBRARY_ID || null;
+          bunnyEmbedVideoId = raw.bunnyVideoId || v.bunny_video_id;
+          if (bunnyEmbedLibraryId && bunnyEmbedVideoId) {
+            videoUrl = `https://vz-${bunnyEmbedLibraryId}.b-cdn.net/${bunnyEmbedVideoId}/playlist.m3u8`;
           }
-          // Priority 2: extract from s3Url CDN URL
-          else {
-            const srcUrl = v.s3Url || v.s3Key || '';
-            const libMatch = srcUrl.match(/vz-([^.]+)\.b-cdn\.net/);
-            const vidMatch = srcUrl.match(/\/([a-f0-9-]{36})/);
-            if (libMatch && vidMatch) {
-              bunnyEmbedLibraryId = libMatch[1];
-              bunnyEmbedVideoId = vidMatch[1];
-              videoUrl = `https://vz-${libMatch[1]}.b-cdn.net/${vidMatch[1]}/playlist.m3u8`;
-            }
-            // Priority 3: UUID-only s3Key — use env library ID
-            else if (v.s3Key && /^[a-f0-9-]{36}$/.test(v.s3Key)) {
-              const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
-              if (libraryId) {
-                bunnyEmbedLibraryId = libraryId;
-                bunnyEmbedVideoId = v.s3Key;
-                videoUrl = `https://vz-${libraryId}.b-cdn.net/${v.s3Key}/playlist.m3u8`;
-              }
-            }
-          }
-        }
-        // For YouTube recordings, use embed proxy
-        else if (v.videoSource === 'youtube' && v.youtubeVideoId) {
-          videoUrl = `/api/community/videos/embed?v=${v._id}`;
-        }
-        // Direct Bunny Storage CDN MP4 (e.g. Zoom recordings) — publicly playable as-is
-        else if (v.videoSource === 'bunny' && v.s3Url) {
-          videoUrl = v.s3Url;
-        }
-        // Generate signed URL for S3 videos
-        else if (v.s3Key && !v.s3Key.includes('b-cdn.net')) {
+        } else if (raw.videoSource === 'youtube' && raw.youtubeVideoId) {
+          videoUrl = `/api/community/videos/embed?v=${v.id}`;
+        } else if (v.s3_key && !v.s3_key.includes('b-cdn.net') && !v.s3_key.startsWith('youtube:')) {
           try {
-            videoUrl = await getProtectedUrl(v.s3Key, 'community', 3600);
+            videoUrl = await getProtectedUrl(v.s3_key, 'community', 3600);
           } catch (err) {
-            console.error(`[Recordings] Failed to sign URL for ${v._id}:`, err);
-            if (v.s3Url) videoUrl = v.s3Url;
+            console.error(`[Recordings] Failed to sign URL for ${v.id}:`, err);
           }
         }
 
-        // Use custom thumbnail if it's a public URL (not a Bunny CDN URL)
-        // Only fall back to proxy for Bunny CDN thumbnails (which are token-protected)
-        let thumbnailUrl = v.thumbnailUrl || null;
-        // Only proxy Bunny Stream CDN thumbnails (vz-*.b-cdn.net) — they're token-protected
-        // Storage Zone CDN URLs (swaryogacrm.b-cdn.net) and custom URLs are public — use as-is
-        const isBunnyStreamThumb = thumbnailUrl && /vz-[^.]+\.b-cdn\.net/.test(thumbnailUrl);
-        if ((!thumbnailUrl || isBunnyStreamThumb) && bunnyEmbedLibraryId && bunnyEmbedVideoId) {
-          thumbnailUrl = `/api/community/thumbnail?lib=${bunnyEmbedLibraryId}&vid=${bunnyEmbedVideoId}`;
+        let thumbnailUrl = v.thumbnail_url || raw.thumbnailUrl || null;
+        if (!thumbnailUrl && raw.youtubeVideoId) {
+          thumbnailUrl = `https://img.youtube.com/vi/${raw.youtubeVideoId}/maxresdefault.jpg`;
         }
 
         return {
-          _id: v._id.toString(),
+          _id: String(v.id),
+          id: String(v.id),
           title: v.title || 'Untitled Recording',
-          description: v.description,
+          description: v.description || '',
           thumbnailUrl,
           videoUrl,
-          videoSource: v.videoSource || 'aws',
-          youtubeVideoId: v.youtubeVideoId,
-          youtubeUrl: v.youtubeUrl || (v.youtubeVideoId ? `https://youtu.be/${v.youtubeVideoId}` : undefined),
+          videoSource: raw.videoSource || 'aws',
+          youtubeVideoId: raw.youtubeVideoId,
+          youtubeUrl: raw.youtubeUrl || (raw.youtubeVideoId ? `https://youtu.be/${raw.youtubeVideoId}` : undefined),
           bunnyLibraryId: bunnyEmbedLibraryId,
           bunnyVideoId: bunnyEmbedVideoId,
-          duration: v.duration,
-          recordingType: v.recordingType,
-          zoomMeetingId: v.zoomMeetingId,
-          recordedAt: v.recordedAt,
-          createdAt: v.createdAt,
-          communityId: v.communityId?.toString(),
-          communityName: v.communityId ? communityMap.get(v.communityId.toString()) : 'General',
-          isPublic: v.isCommon || false,
-          views: v.views || 0,
-          likes: Array.isArray(v.likes) ? v.likes : [],
-          comments: Array.isArray(v.comments) ? v.comments : [],
+          duration: Number(v.duration || 0),
+          createdAt: v.created_at,
+          communityId: String(v.community_id),
+          communityName: communityMap.get(String(v.community_id)) || 'General',
+          isPublic: Boolean(v.is_shareable),
+          views: Number(raw.views || 0),
+          likes: Array.isArray(raw.likes) ? raw.likes : [],
+          comments: Array.isArray(raw.comments) ? raw.comments : [],
         };
       })
     );
 
-    // Get recording counts per community
     const communitiesWithCounts = communities.map((c: any) => ({
-      _id: c._id.toString(),
-      name: c.name,
-      type: c.type,
-      recordingCount: videos.filter((v: any) => v.communityId?.toString() === c._id.toString()).length,
+      _id: String(c.id || c.slug),
+      name: String(c.name),
+      type: String(c.type || 'global'),
+      recordingCount: videos.filter((v: any) => String(v.community_id) === String(c.id || c.slug)).length,
     }));
 
     return NextResponse.json({

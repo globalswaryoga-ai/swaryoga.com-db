@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminAuthorized } from '@/lib/adminAuth';
-import { connectDB, User } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
-
-const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,19 +18,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'q is required' }, { status: 400 });
     }
 
-    await connectDB();
-
     let user: any = null;
 
     if (q.includes('@')) {
-      user = await User.findOne({ email: q.toLowerCase() })
-        .select({ _id: 1, email: 1, name: 1, profileId: 1 })
-        .lean();
-    } else if (isObjectIdLike(q)) {
-      user = await User.findById(q).select({ _id: 1, email: 1, name: 1, profileId: 1 }).lean();
+      const res = await bunnyExecute({
+        sql: 'SELECT id, email, name, phone FROM users WHERE lower(email) = ? LIMIT 1',
+        args: [q.toLowerCase()],
+      });
+      user = res.rows[0];
     } else {
-      // Not requested, but helpful: support profileId lookup without exposing public membership.
-      user = await User.findOne({ profileId: q }).select({ _id: 1, email: 1, name: 1, profileId: 1 }).lean();
+      const res = await bunnyExecute({
+        sql: 'SELECT id, email, name, phone FROM users WHERE id = ? OR phone = ? OR lower(name) = ? LIMIT 1',
+        args: [q, q, q.toLowerCase()],
+      });
+      user = res.rows[0];
+    }
+
+    // Fallback 1: check crm_leads_sql
+    if (!user) {
+      const leadRes = await bunnyExecute({
+        sql: 'SELECT id, email, name, mobile as phone FROM crm_leads_sql WHERE lower(email) = ? OR mobile = ? OR id = ? LIMIT 1',
+        args: [q.toLowerCase(), q, q],
+      });
+      user = leadRes.rows[0];
+    }
+
+    // Fallback 2: check community_members_sql
+    if (!user) {
+      const memberRes = await bunnyExecute({
+        sql: 'SELECT user_id as id, email, name, mobile as phone FROM community_members_sql WHERE lower(email) = ? OR mobile = ? OR user_id = ? OR id = ? LIMIT 1',
+        args: [q.toLowerCase(), q, q, q],
+      });
+      user = memberRes.rows[0];
     }
 
     if (!user) {
@@ -44,10 +60,11 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         data: {
-          userId: user._id?.toString(),
-          email: user.email,
-          name: user.name,
-          profileId: user.profileId,
+          userId: String(user.id || ''),
+          email: user.email || '',
+          name: user.name || '',
+          profileId: String(user.id || ''),
+          phone: user.phone || '',
         },
       },
       { status: 200 }

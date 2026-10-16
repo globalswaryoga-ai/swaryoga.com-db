@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -27,46 +26,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    // Verify JWT
     const decoded = await verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Authentication expired' }, { status: 401 });
     }
 
-    await connectDB();
+    const { getCommunityVideo } = await import('@/lib/bunnyCommunityRepository');
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
 
-    const { getCommunityVideo, CommunityMember } = await import('@/lib/db');
-    const CommunityVideo = getCommunityVideo();
-
-    const video = await CommunityVideo.findById(videoDbId);
-    if (!video || !video.youtubeVideoId) {
+    const video = await getCommunityVideo(videoDbId);
+    const raw = video?.rawDoc || {};
+    const youtubeVideoId = raw.youtubeVideoId || (video?.s3Key?.startsWith('youtube:') ? video.s3Key.slice('youtube:'.length) : null);
+    if (!video || !youtubeVideoId) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
     // Membership check (skip for admins)
     const d = decoded as any;
     const trustedTemp = d.tempToken === true && d.communityId && d.communityId === video.communityId;
-    if (!d.isAdmin && !trustedTemp) {
-      const orConds: any[] = [
-        { userId: decoded.userId },
-        { mobile: decoded.userId },
-      ];
-      if (d.email) {
-        orConds.push({ email: d.email });
-        orConds.push({ userId: d.email });
-      }
-      const membership = await CommunityMember.findOne({
-        communityId: video.communityId,
-        $or: orConds,
-        status: 'active',
+    if (!d.isAdmin && !trustedTemp && video.communityId !== 'global') {
+      const orConds = [String(decoded.userId)];
+      if (d.email) orConds.push(String(d.email));
+      const placeholders = orConds.map(() => '?').join(',');
+      const memRes = await bunnyExecute({
+        sql: `SELECT 1 FROM community_members_sql 
+              WHERE community_id = ? AND (user_id IN (${placeholders}) OR email IN (${placeholders}) OR mobile IN (${placeholders}))
+              AND status = 'active' LIMIT 1`,
+        args: [video.communityId, ...orConds, ...orConds, ...orConds],
       });
-      if (!membership) {
+      if (memRes.rows.length === 0) {
         return NextResponse.json({ error: 'Membership required' }, { status: 403 });
       }
     }
 
     // ── Resolve CDN URL (with cache) ──
-    const cacheKey = video.youtubeVideoId;
+    const cacheKey = youtubeVideoId;
     let videoUrl: string;
     let mimeType: string;
 
@@ -78,7 +72,7 @@ export async function GET(request: NextRequest) {
       const ytdl = (await import('@distube/ytdl-core')).default;
       const { getYouTubeAgent } = await import('@/lib/youtube-auth');
       const agent = await getYouTubeAgent();
-      const watchUrl = `https://www.youtube.com/watch?v=${video.youtubeVideoId}`;
+      const watchUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
       const info = agent
         ? await ytdl.getInfo(watchUrl, { agent })
         : await ytdl.getInfo(watchUrl);
@@ -128,7 +122,10 @@ export async function GET(request: NextRequest) {
 
     // Increment view count (only on initial non-range request)
     if (!rangeHeader) {
-      await CommunityVideo.findByIdAndUpdate(videoDbId, { $inc: { views: 1 } });
+      await bunnyExecute({
+        sql: "UPDATE community_videos_sql SET raw_doc_json = json_set(raw_doc_json, '$.views', COALESCE(json_extract(raw_doc_json, '$.views'), 0) + 1) WHERE id = ?",
+        args: [videoDbId],
+      }).catch(() => {});
     }
 
     return new NextResponse(videoResponse.body, {

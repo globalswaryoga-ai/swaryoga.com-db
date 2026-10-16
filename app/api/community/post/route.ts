@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { requireCommunityMembership } from '@/lib/communityAuth';
-import { CommunityPost } from '@/lib/db';
+import { getCommunityPost } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
-
-const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,39 +17,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
 
-    if (!isObjectIdLike(postId)) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-    }
-
-    const post = await CommunityPost.findById(postId).lean();
+    const post = await getCommunityPost(postId);
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const communityId = String((post as any).communityId || '');
+    const communityId = String(post.communityId || '');
     const userId = await requireCommunityMembership(request, communityId);
 
-    const likes = Array.isArray((post as any).likes) ? ((post as any).likes as string[]) : [];
+    const likes = Array.isArray(post.likes) ? post.likes : [];
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          id: (post as any)._id?.toString(),
+          id: post.id,
+          _id: post.id,
           communityId,
-          userId: (post as any).userId,
-          content: (post as any).content,
-          images: Array.isArray((post as any).images) ? (post as any).images : [],
+          userId: post.userId,
+          content: post.content,
+          images: Array.isArray(post.images) ? post.images : [],
           likesCount: likes.length,
           likedByMe: likes.includes(userId),
-          comments: Array.isArray((post as any).comments)
-            ? (post as any).comments.map((c: any) => ({
+          comments: Array.isArray(post.comments)
+            ? post.comments.map((c: any) => ({
                 userId: c.userId,
                 text: c.text,
                 createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
               }))
             : [],
-          createdAt: (post as any).createdAt ? new Date((post as any).createdAt).toISOString() : '',
+          createdAt: post.createdAt ? new Date(post.createdAt).toISOString() : '',
         },
       },
       { status: 200 }

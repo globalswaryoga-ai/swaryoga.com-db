@@ -1,34 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, getCommunity, getCommunityVideo } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
+import {
+  initCommunitySchema,
+  getCommunity,
+  saveCommunityVideo,
+} from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/community/[id]/add-recording
- * Admin adds a YouTube private video to a community.
- *
- * [id] may be the community ObjectId (sent by the admin UI) or the slug
- * (e.g. 'global'). The video is stored in CommunityVideo with the SLUG as
- * communityId — that is the convention used by communityvideos /
- * communitymembers and by the member-facing /api/community/recordings list
- * and /api/community/videos/embed player.
- *
- * The admin workflow:
- * 1. Upload to YouTube as PRIVATE (from swarsakshi9@gmail.com account)
- * 2. In YouTube Studio, Share → invite swarsakshi9@gmail.com as viewer
- * 3. Copy the video URL
- * 4. Paste here
- *
- * YouTube enforces: only invited emails can watch. No download, forward, or share.
- * Admin earns YouTube ad revenue. No CDN fees.
- *
- * Body: {
- *   title, description?, youtubeVideoId, videoUrl,
- *   youtubeEmail?  (defaults to swarsakshi9@gmail.com — must be verified),
- * }
- */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -61,44 +41,10 @@ export async function POST(
       );
     }
 
-    await connectDB();
+    await initCommunitySchema();
 
-    // CHECK EMAIL VERIFICATION
-    const youtubeEmailVerificationSchema = new mongoose.Schema({
-      email: { type: String, required: true, unique: true },
-      isVerified: { type: Boolean, default: false },
-    });
-
-    const YoutubeEmailVerification =
-      mongoose.models.YoutubeEmailVerification ||
-      mongoose.model('YoutubeEmailVerification', youtubeEmailVerificationSchema);
-
-    const emailRecord = await YoutubeEmailVerification.findOne({
-      email: String(youtubeEmail).toLowerCase(),
-    });
-
-    if (!emailRecord?.isVerified) {
-      return NextResponse.json(
-        {
-          error: `❌ Email not verified: ${youtubeEmail}`,
-          message: 'Please verify the YouTube email before adding videos',
-          action: 'verify-email',
-          verifyUrl: '/admin/community/verify-youtube-email',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Resolve community by ObjectId (what the admin UI sends) or slug
-    const Community = getCommunity();
-    let community: any = null;
-    if (mongoose.Types.ObjectId.isValid(params.id)) {
-      community = await Community.findById(params.id).lean();
-    }
-    if (!community) {
-      community = await Community.findOne({ id: params.id }).lean();
-    }
-
+    // Resolve community by id or slug
+    const community = await getCommunity(params.id);
     if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
@@ -106,40 +52,41 @@ export async function POST(
       );
     }
 
-    // communityvideos/communitymembers use the slug, not the ObjectId
-    const communitySlug: string = community.id || String(community._id);
+    const communitySlug = community.slug || community.id;
 
-    const CommunityVideo = getCommunityVideo();
+    // Check duplicate
+    const existingRes = await bunnyExecute({
+      sql: `SELECT * FROM community_videos_sql 
+            WHERE community_id = ? AND json_extract(raw_doc_json, '$.youtubeVideoId') = ? 
+            LIMIT 1`,
+      args: [communitySlug, youtubeVideoId],
+    });
 
-    // Don't create duplicates if the admin retries the same video
-    const existing: any = await CommunityVideo.findOne({
-      communityId: communitySlug,
-      youtubeVideoId,
-    }).lean();
-
-    if (existing) {
+    if (existingRes.rows.length > 0) {
       return NextResponse.json({
         success: true,
-        data: existing,
+        data: existingRes.rows[0],
         message: `ℹ️ This video is already added to ${community.name}.`,
       });
     }
 
-    const video = await CommunityVideo.create({
+    const thumb = thumbnailUrl || `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`;
+    const video = await saveCommunityVideo({
       communityId: communitySlug,
       title,
       description: description || '',
-      videoSource: 'youtube',
-      youtubeVideoId,
-      youtubeUnlisted: false,
-      thumbnailUrl: thumbnailUrl || `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
-      uploadedBy: decoded.userId || 'admin',
+      s3Key: `youtube:${youtubeVideoId}`,
+      thumbnailUrl: thumb,
+      uploadedBy: String(decoded.userId || 'admin'),
       isShareable: false,
-      isCommon: true,
-      source: 'youtube_recording',
-      recordingType: 'other',
-      tags: ['recording'],
-      createdAt: new Date(),
+    });
+
+    // Update rawDoc with youtubeVideoId and videoSource
+    await bunnyExecute({
+      sql: `UPDATE community_videos_sql 
+            SET raw_doc_json = json_set(raw_doc_json, '$.youtubeVideoId', ?, '$.videoSource', 'youtube') 
+            WHERE id = ?`,
+      args: [youtubeVideoId, video.id],
     });
 
     return NextResponse.json({

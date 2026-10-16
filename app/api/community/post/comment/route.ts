@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { requireCommunityMembership } from '@/lib/communityAuth';
-import { CommunityPost } from '@/lib/db';
+import { getCommunityPost, addCommunityComment } from '@/lib/bunnyCommunityRepository';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
-
-const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,10 +19,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
 
-    if (!isObjectIdLike(postId)) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-    }
-
     if (!text) {
       return NextResponse.json({ error: 'text is required' }, { status: 400 });
     }
@@ -34,30 +27,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'text is too long' }, { status: 400 });
     }
 
-    const post = await CommunityPost.findById(postId).select({ communityId: 1 }).lean();
+    const post = await getCommunityPost(postId);
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const communityId = String((post as any).communityId || '');
+    const communityId = String(post.communityId || '');
     const userId = await requireCommunityMembership(request, communityId);
 
     // Enforce per-member chat policy.
     const policy = await getMyCommunityChatPolicy({ request, communityId });
     enforceCommunityChatPolicy({ policy, messageType: 'text', hasLink: contentHasLink(text) });
 
-    await CommunityPost.updateOne(
-      { _id: postId },
-      {
-        $push: {
-          comments: {
-            userId,
-            text,
-            createdAt: new Date(),
-          },
-        },
-      }
-    );
+    await addCommunityComment(postId, {
+      userId,
+      text,
+    });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

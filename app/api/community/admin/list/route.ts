@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { isAdminAuthorized } from '@/lib/adminAuth';
-import { Community } from '@/lib/db';
+import { listCommunities } from '@/lib/bunnyCommunityRepository';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
@@ -17,36 +16,25 @@ export async function GET(request: NextRequest) {
 
     await ensureDefaultCommunities();
 
-    // Tenant isolation (SaaS): super admin sees ALL communities (existing data
-    // preserved). Every other tenant sees only the communities they own plus the
-    // shared/default ones (no owner) — never another tenant's owned community.
-    // This matches getAccessibleCommunityIds() semantics used elsewhere.
     const decoded = verifyToken(request.headers.get('authorization')?.replace('Bearer ', '') || '');
     const viewerId = getViewerUserId(decoded);
-    const filter = isSuperAdmin(decoded)
-      ? {}
-      : {
-          $or: [
-            { createdByUserId: viewerId },
-            { createdByUserId: { $exists: false } },
-            { createdByUserId: null },
-            { createdByUserId: '' },
-          ],
-        };
+    const superAdmin = isSuperAdmin(decoded);
 
-    const communities = await Community.find(filter)
-      .select({ name: 1, members: 1, createdAt: 1 })
-      .sort({ createdAt: 1 })
-      .lean();
+    const communities = await listCommunities({
+      isSuperAdmin: superAdmin,
+      viewerId,
+    });
 
     return NextResponse.json(
       {
         success: true,
-        data: communities.map((c: any) => ({
-          id: c._id?.toString(),
+        data: communities.map((c) => ({
+          id: c.id,
+          _id: c.id,
           name: c.name,
-          members: Array.isArray(c.members) ? c.members : [],
-          membersCount: Array.isArray(c.members) ? c.members.length : 0,
+          slug: c.slug,
+          members: [],
+          membersCount: c.membersCount || 0,
           createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
         })),
       },

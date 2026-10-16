@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMember } from '@/lib/db';
 import jwt from 'jsonwebtoken';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCommunitySchema } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/community/auth/token
  * Generate a temporary token for community video access
- * Body: { communityId, userId, userEmail, userName? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,36 +21,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
+    await initCommunitySchema();
 
-    // Verify user is an approved community member
-    const membership = await CommunityMember.findOne({
-      communityId,
-      $or: [
-        { userId },
-        { mobile: userId },
-        { email: userEmail }
-      ],
-      status: 'active',
+    // Verify user is an active community member
+    const conds: string[] = [];
+    const args: any[] = [communityId];
+    if (userId) {
+      conds.push('user_id = ? OR mobile = ?');
+      args.push(userId, userId);
+    }
+    if (userEmail) {
+      conds.push('LOWER(email) = ?');
+      args.push(userEmail.toLowerCase().trim());
+    }
+
+    const res = await bunnyExecute({
+      sql: `SELECT * FROM community_members_sql 
+            WHERE community_id = ? AND (${conds.join(' OR ')}) AND status = 'active' LIMIT 1`,
+      args,
     });
+    const membership = res.rows[0];
 
-    if (!membership) {
+    // If global community, permit even if not found in table
+    if (!membership && communityId !== 'global') {
       return NextResponse.json(
         { error: 'Not an approved community member' },
         { status: 403 }
       );
     }
 
-    // Generate temporary JWT (1 hour expiry for video access)
     const secret = process.env.JWT_SECRET || 'your-secret-key';
     const token = jwt.sign(
       {
-        userId: userId || membership.userId || userEmail,
-        email: userEmail,
-        name: userName || membership.name,
+        userId: userId || membership?.user_id || userEmail,
+        email: userEmail || membership?.email,
+        name: userName || membership?.name || 'Community Member',
         communityId,
         isAdmin: false,
-        tempToken: true, // Mark as temporary
+        tempToken: true,
       },
       secret,
       { expiresIn: '1h' }

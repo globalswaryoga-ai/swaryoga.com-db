@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { connectDB, CommunityMember } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { getUserIdFromRequest } from '@/lib/communityAuth';
 
 export type CommunityMessageType = 'text' | 'link' | 'image' | 'video' | 'document';
@@ -33,12 +33,21 @@ export async function getMyCommunityChatPolicy(params: {
     throw err;
   }
 
-  await connectDB();
-  const member = await CommunityMember.findOne({ userId, communityId: params.communityId }).lean();
-  if (!member) return DEFAULT_POLICY;
+  const res = await bunnyExecute({
+    sql: 'SELECT raw_doc_json FROM community_members_sql WHERE user_id = ? AND community_id = ? LIMIT 1',
+    args: [userId, params.communityId],
+  });
+  if (!res.rows[0]) return DEFAULT_POLICY;
 
-  const enabled = (member as any).chatEnabled !== false;
-  const p = ((member as any).chatPermissions || {}) as Partial<CommunityChatPolicy>;
+  let member: any = {};
+  try {
+    member = JSON.parse(String(res.rows[0].raw_doc_json || '{}'));
+  } catch {
+    member = {};
+  }
+
+  const enabled = member.chatEnabled !== false;
+  const p = (member.chatPermissions || {}) as Partial<CommunityChatPolicy>;
 
   // If chat is disabled, force canSend = false.
   const merged: CommunityChatPolicy = {

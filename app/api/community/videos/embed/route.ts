@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getYouTubeAgent } from '@/lib/youtube-auth';
 
@@ -30,39 +29,42 @@ export async function GET(request: NextRequest) {
       return htmlRes(errorPage('Session expired. Please refresh.'), 401);
     }
 
-    await connectDB();
-    const { getCommunityVideo, CommunityMember } = await import('@/lib/db');
-    const CommunityVideo = getCommunityVideo();
-    const video = await CommunityVideo.findById(videoDbId);
+    const { getCommunityVideo } = await import('@/lib/bunnyCommunityRepository');
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
 
-    if (!video || !video.youtubeVideoId) {
+    const video = await getCommunityVideo(videoDbId);
+    const raw = video?.rawDoc || {};
+    const youtubeVideoId = raw.youtubeVideoId || (video?.s3Key?.startsWith('youtube:') ? video.s3Key.slice('youtube:'.length) : null);
+
+    if (!video || !youtubeVideoId) {
       return htmlRes(errorPage('Video not found'), 404);
     }
 
     const d = decoded as any;
-    // A community tempToken already had its membership verified when minted,
-    // and is scoped to a communityId — trust it for that same community.
     const trustedTemp = d.tempToken === true && d.communityId && d.communityId === video.communityId;
 
-    if (!d.isAdmin && !trustedTemp) {
-      // Match the SAME way the token route does (by userId, mobile, OR email)
-      const orConds: any[] = [
-        { userId: decoded.userId },
-        { mobile: decoded.userId },
-      ];
-      if (d.email) {
-        orConds.push({ email: d.email });
-        orConds.push({ userId: d.email });
-      }
-      const membership = await CommunityMember.findOne({
-        communityId: video.communityId,
-        $or: orConds,
-        status: 'active',
+    if (!d.isAdmin && !trustedTemp && video.communityId !== 'global') {
+      const orConds = [String(decoded.userId)];
+      if (d.email) orConds.push(String(d.email));
+      const placeholders = orConds.map(() => '?').join(',');
+      const memRes = await bunnyExecute({
+        sql: `SELECT 1 FROM community_members_sql 
+              WHERE community_id = ? AND (user_id IN (${placeholders}) OR email IN (${placeholders}) OR mobile IN (${placeholders}))
+              AND status = 'active' LIMIT 1`,
+        args: [video.communityId, ...orConds, ...orConds, ...orConds],
       });
-      if (!membership) return htmlRes(errorPage('Access denied'), 403);
+      if (memRes.rows.length === 0) return htmlRes(errorPage('Access denied'), 403);
     }
 
-    await CommunityVideo.findByIdAndUpdate(videoDbId, { $inc: { views: 1 } });
+    // Increment views
+    try {
+      const views = (Number(raw.views) || 0) + 1;
+      raw.views = views;
+      await bunnyExecute({
+        sql: 'UPDATE community_videos_sql SET raw_doc_json = ? WHERE id = ?',
+        args: [JSON.stringify(raw), videoDbId],
+      });
+    } catch {}
 
     // --- Watermark text from user identity ---
     const uid = (decoded.userId || d.odId || '').toString();
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const ytdl = (await import('@distube/ytdl-core')).default;
-      const watchUrl = `https://www.youtube.com/watch?v=${video.youtubeVideoId}`;
+      const watchUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
       let info;
 
       // Use the invited account's session cookies (swarsakshi9@gmail.com) so
@@ -162,7 +164,7 @@ export async function GET(request: NextRequest) {
 
     // Fallback: YouTube iframe embed (if ytdl-core failed on server)
     // Note: This will also fail for private videos
-    const ytEmbed = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?autoplay=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&playsinline=1&controls=1`;
+    const ytEmbed = `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&playsinline=1&controls=1`;
     return htmlRes(iframeFallbackHtml(ytEmbed, wm), 200);
   } catch (error: any) {
     console.error('Video embed error:', error);

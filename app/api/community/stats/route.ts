@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMember } from '@/lib/db';
+import { getCommunityStats } from '@/lib/bunnyCommunityRepository';
 import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    const communityIds = COMMUNITY_DESIGNS.map((d) => d.id);
+    const stats = await getCommunityStats();
 
-    const communityIds = COMMUNITY_DESIGNS.map(d => d.id);
-
-    // Single aggregation instead of N separate countDocuments calls
-    const rows = await CommunityMember.aggregate([
-      { $match: { communityId: { $in: communityIds }, status: 'active' } },
-      { $group: { _id: '$communityId', count: { $sum: 1 } } },
-    ]);
-
-    const data: Record<string, number> = Object.fromEntries(communityIds.map(id => [id, 0]));
-    rows.forEach((r: any) => { data[r._id] = r.count; });
+    const data: Record<string, number> = Object.fromEntries(communityIds.map((id) => [id, 0]));
+    for (const [cId, count] of Object.entries(stats)) {
+      data[cId] = count;
+    }
 
     return NextResponse.json(
       { success: true, data },

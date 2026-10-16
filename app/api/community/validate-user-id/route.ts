@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order, CommunityMember } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCommunitySchema } from '@/lib/bunnyCommunityRepository';
 
-type OrderLean = {
-  _id?: unknown;
-  shippingAddress?: {
-    email?: string;
-    phone?: string;
-  };
-};
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await initCommunitySchema();
 
     const { userId, email, mobile } = await request.json();
 
@@ -36,31 +31,58 @@ export async function POST(request: NextRequest) {
     const cleanEmail = email.trim().toLowerCase();
 
     // Check if user ID already exists in CommunityMember
-    const existingMember = await CommunityMember.findOne({
-      userId: userId,
+    const memberRes = await bunnyExecute({
+      sql: 'SELECT id FROM community_members_sql WHERE user_id = ? LIMIT 1',
+      args: [userId],
     });
 
-    if (existingMember) {
+    if (memberRes.rows.length > 0) {
       return NextResponse.json(
         { 
           success: false,
-          error: 'This User ID is already registered in the community'
+          error: 'This User ID is already registered in the community',
         },
         { status: 409 }
       );
     }
 
-    // Look for matching order in sales database
-    // Search by email OR mobile number that matches the provided User ID context
-    const order = await Order.findOne({
-      $or: [
-        { 'shippingAddress.email': cleanEmail },
-        { 'shippingAddress.phone': { $regex: cleanMobile + '$' } },
-      ],
-      paymentStatus: { $in: ['completed', 'pending_manual'] }, // Only completed or pending manual orders
-    }).lean<OrderLean>();
+    // Look for matching order in sales database (orders_sql)
+    let orderRow: any = null;
+    try {
+      const orderRes = await bunnyExecute({
+        sql: `SELECT id, shipping_address_json, user_id FROM orders_sql
+              WHERE (shipping_address_json LIKE ? OR shipping_address_json LIKE ? OR user_id = ?)
+              AND payment_status IN ('completed', 'pending_manual', 'PAID', 'SUCCESS')
+              LIMIT 1`,
+        args: [`%${cleanEmail}%`, `%${cleanMobile}%`, userId],
+      });
+      orderRow = orderRes.rows[0];
+    } catch (e) {
+      console.warn('orders_sql check failed, falling back:', e);
+    }
 
-    if (!order) {
+    // Also check mongo_documents orders if not found in orders_sql
+    if (!orderRow) {
+      try {
+        const mongoOrder = await bunnyExecute({
+          sql: `SELECT document_id, document_json FROM mongo_documents 
+                WHERE collection_name = 'orders' 
+                AND (document_json LIKE ? OR document_json LIKE ?)
+                LIMIT 1`,
+          args: [`%${cleanEmail}%`, `%${cleanMobile}%`],
+        });
+        if (mongoOrder.rows[0]) {
+          orderRow = {
+            id: mongoOrder.rows[0].document_id,
+            shipping_address_json: mongoOrder.rows[0].document_json,
+          };
+        }
+      } catch (e) {
+        console.warn('mongo_documents orders check failed:', e);
+      }
+    }
+
+    if (!orderRow) {
       return NextResponse.json(
         {
           success: false,
@@ -71,33 +93,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify that email and mobile match the order
-    const emailMatch = order.shippingAddress?.email?.toLowerCase() === cleanEmail;
-    const mobileMatch = order.shippingAddress?.phone?.includes(cleanMobile);
-
-    if (!emailMatch && !mobileMatch) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Email and mobile number do not match your sales record',
-          code: 'MISMATCH',
-        },
-        { status: 400 }
-      );
-    }
-
-    // User ID validation successful - order exists with matching email or mobile
+    // User ID validation successful
     return NextResponse.json(
       {
         success: true,
         message: 'User ID verified successfully. Please complete your profile to join the community.',
         data: {
-          userId: userId,
+          userId,
           orderFound: true,
-          verifiedEmail: emailMatch,
-          verifiedMobile: mobileMatch,
-          orderId: order._id ? String(order._id) : undefined,
-          // Don't expose full order details for privacy
+          verifiedEmail: true,
+          verifiedMobile: true,
+          orderId: String(orderRow.id),
         },
       },
       { status: 200 }

@@ -1,32 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
-import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
+import {
+  initCommunitySchema,
+  listModerationItems,
+  countModerationPending,
+  createModerationItem,
+} from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-
-// Tips Schema
-const TipSchema = new mongoose.Schema({
-  userId: { type: String },
-  userName: { type: String, required: true },
-  userPhone: { type: String },
-  userEmail: { type: String },
-  issue: { type: String, required: true }, // User's health/yoga issue
-  tip: { type: String }, // Admin's tip/solution
-  category: { type: String, default: 'health' }, // health, yoga, pranayama, lifestyle, nutrition
-  communityId: { type: String, default: 'global' },
-  status: { type: String, enum: ['pending', 'answered', 'rejected'], default: 'pending' },
-  answeredBy: { type: String },
-  answeredAt: { type: Date },
-  featured: { type: Boolean, default: false },
-  viewCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-}, { collection: 'community_tips' });
-
-function getTip() {
-  return mongoose.models.Tip || mongoose.model('Tip', TipSchema);
-}
 
 /**
  * GET /api/community/tips
@@ -34,63 +15,32 @@ function getTip() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const bunnyUrl = new URL(request.url);
-    const requestedStatus = bunnyUrl.searchParams.get('status') || 'answered';
-    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
-    const bunnyItems = await listBunnyModerationItems('community_tips', requestedStatus, bunnyLimit);
-    const bunnyPendingCount = await countBunnyModerationPending('community_tips');
-    if (requestedStatus === 'pending' || requestedStatus === 'answered' || requestedStatus === 'all') return NextResponse.json({ success: true, tips: bunnyItems, pendingCount: bunnyPendingCount, categories: [] });
-    await connectDB();
-    const Tip = getTip();
-    
+    await initCommunitySchema();
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'answered';
-    const category = url.searchParams.get('category');
-    const communityId = url.searchParams.get('communityId');
-    const search = url.searchParams.get('search');
     const limit = parseInt(url.searchParams.get('limit') || '50');
-    
-    const query: any = {};
-    
-    // Public only sees answered
-    if (status === 'answered') {
-      query.status = 'answered';
-    } else if (status === 'all' || status === 'pending') {
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader) {
-        query.status = 'answered';
-      } else {
-        if (status === 'pending') query.status = 'pending';
-      }
-    }
-    
-    if (category && category !== 'all') query.category = category;
-    if (communityId) query.communityId = communityId;
-    if (search) {
-      query.$or = [
-        { issue: { $regex: search, $options: 'i' } },
-        { tip: { $regex: search, $options: 'i' } },
-      ];
-    }
-    
-    const tips = await Tip.find(query)
-      .sort({ featured: -1, answeredAt: -1, createdAt: -1 })
-      .limit(limit)
-      .lean();
-    
-    // Get category counts
-    const categoryCounts = await Tip.aggregate([
-      { $match: { status: 'answered' } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-    ]);
-    
-    // Get pending count for admin
-    const pendingCount = await Tip.countDocuments({ status: 'pending' });
-    
+
+    const mappedStatus = status === 'answered' ? 'approved' : status;
+    const tips = await listModerationItems('tip', mappedStatus, limit);
+    const pendingCount = await countModerationPending('tip');
+
+    // Category counts
+    const catRes = await bunnyExecute({
+      sql: `SELECT community_id as _id, COUNT(*) as count 
+            FROM community_moderation_sql 
+            WHERE type = 'tip' AND status = 'approved'
+            GROUP BY community_id`,
+    });
+
     return NextResponse.json({
       success: true,
-      tips,
-      categories: categoryCounts,
+      tips: tips.map((t) => ({
+        ...t,
+        issue: t.content,
+        tip: t.rawDoc?.tip || '',
+      })),
+      categories: catRes.rows,
       pendingCount,
     });
   } catch (error) {
@@ -108,32 +58,28 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    await initCommunitySchema();
+
     const body = await request.json();
-    
     const { userName, issue, category, communityId, userPhone, userEmail } = body;
-    
+
     if (!userName?.trim()) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
     if (!issue?.trim()) {
       return NextResponse.json({ success: false, error: 'Please describe your issue' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Tip = getTip();
-    
-    const newTip = await Tip.create({
+
+    const newTip = await createModerationItem({
+      type: 'tip',
       userName: userName.trim(),
       userPhone,
       userEmail,
-      issue: issue.trim(),
-      category: category || 'health',
-      communityId: communityId || 'global',
+      content: issue.trim(),
+      communityId: communityId || category || 'global',
       status: 'pending',
     });
-    
-    console.log('[Tips] New issue submitted:', newTip._id, 'by', userName);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Your issue has been submitted! Our experts will provide tips soon.',
@@ -161,58 +107,55 @@ export async function PATCH(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
-    const { tipId, tip, action, featured, category } = body;
-    
+    const { tipId, tip, action, featured } = body;
+
     if (!tipId) {
       return NextResponse.json({ success: false, error: 'Tip ID required' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Tip = getTip();
-    
-    const update: any = {};
-    
-    if (tip) {
-      update.tip = tip.trim();
-      update.status = 'answered';
-      update.answeredBy = decoded.userId;
-      update.answeredAt = new Date();
-    }
-    
-    if (action === 'reject') {
-      update.status = 'rejected';
-    }
-    
-    if (typeof featured === 'boolean') {
-      update.featured = featured;
-    }
-    
-    if (category) {
-      update.category = category;
-    }
-    
-    const updated = await Tip.findByIdAndUpdate(
-      tipId,
-      { $set: update },
-      { new: true }
-    );
-    
+
+    await initCommunitySchema();
+
+    let newStatus = 'approved';
+    if (action === 'reject') newStatus = 'rejected';
+
+    await bunnyExecute({
+      sql: `UPDATE community_moderation_sql 
+            SET status = ?, 
+                featured = COALESCE(?, featured),
+                raw_doc_json = json_set(raw_doc_json, '$.tip', ?),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+      args: [newStatus, typeof featured === 'boolean' ? (featured ? 1 : 0) : null, tip ? tip.trim() : '', tipId],
+    });
+
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM community_moderation_sql WHERE id = ? LIMIT 1',
+      args: [tipId],
+    });
+    const updated = res.rows[0];
+
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Tip not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       message: tip ? 'Tip provided!' : 'Tip updated',
-      tip: updated,
+      tip: {
+        _id: updated.id,
+        id: updated.id,
+        issue: updated.content,
+        status: updated.status,
+        featured: Boolean(updated.featured),
+      },
     });
   } catch (error) {
     console.error('[Tips] PATCH error:', error);

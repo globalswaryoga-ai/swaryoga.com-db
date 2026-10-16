@@ -1,32 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
-import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
+import {
+  initCommunitySchema,
+  listModerationItems,
+  countModerationPending,
+  createModerationItem,
+} from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-
-// Question Schema
-const QuestionSchema = new mongoose.Schema({
-  userId: { type: String },
-  userName: { type: String, required: true },
-  userPhone: { type: String },
-  userEmail: { type: String },
-  question: { type: String, required: true },
-  answer: { type: String },
-  category: { type: String, default: 'swar-yoga-workshop' }, // swar-yoga-workshop, swar-yoga-health, weight-loss, amrut-aahar, pre-pregnancy, married-life, yogasana, business-wealth, youth, children
-  communityId: { type: String, default: 'global' },
-  status: { type: String, enum: ['pending', 'answered', 'rejected'], default: 'pending' },
-  answeredBy: { type: String },
-  answeredAt: { type: Date },
-  featured: { type: Boolean, default: false },
-  viewCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-}, { collection: 'community_questions' });
-
-function getQuestion() {
-  return mongoose.models.Question || mongoose.model('Question', QuestionSchema);
-}
 
 /**
  * GET /api/community/questions
@@ -34,63 +15,33 @@ function getQuestion() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const bunnyUrl = new URL(request.url);
-    const requestedStatus = bunnyUrl.searchParams.get('status') || 'answered';
-    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
-    const bunnyItems = await listBunnyModerationItems('community_questions', requestedStatus, bunnyLimit);
-    const bunnyPendingCount = await countBunnyModerationPending('community_questions');
-    if (requestedStatus === 'pending' || requestedStatus === 'answered' || requestedStatus === 'all') return NextResponse.json({ success: true, questions: bunnyItems, pendingCount: bunnyPendingCount, categories: [] });
-    await connectDB();
-    const Question = getQuestion();
-    
+    await initCommunitySchema();
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || 'answered';
-    const category = url.searchParams.get('category');
-    const communityId = url.searchParams.get('communityId');
-    const search = url.searchParams.get('search');
     const limit = parseInt(url.searchParams.get('limit') || '50');
-    
-    const query: any = {};
-    
-    // Public only sees answered
-    if (status === 'answered') {
-      query.status = 'answered';
-    } else if (status === 'all' || status === 'pending') {
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader) {
-        query.status = 'answered';
-      } else {
-        if (status === 'pending') query.status = 'pending';
-      }
-    }
-    
-    if (category && category !== 'all') query.category = category;
-    if (communityId) query.communityId = communityId;
-    if (search) {
-      query.$or = [
-        { question: { $regex: search, $options: 'i' } },
-        { answer: { $regex: search, $options: 'i' } },
-      ];
-    }
-    
-    const questions = await Question.find(query)
-      .sort({ featured: -1, answeredAt: -1, createdAt: -1 })
-      .limit(limit)
-      .lean();
-    
-    // Get category counts
-    const categoryCounts = await Question.aggregate([
-      { $match: { status: 'answered' } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-    ]);
-    
-    // Get pending count for admin
-    const pendingCount = await Question.countDocuments({ status: 'pending' });
-    
+
+    // In community_moderation_sql, 'approved' or 'answered' represent live questions
+    const mappedStatus = status === 'answered' ? 'approved' : status;
+    const questions = await listModerationItems('question', mappedStatus, limit);
+    const pendingCount = await countModerationPending('question');
+
+    // Category counts
+    const catRes = await bunnyExecute({
+      sql: `SELECT community_id as _id, COUNT(*) as count 
+            FROM community_moderation_sql 
+            WHERE type = 'question' AND status = 'approved'
+            GROUP BY community_id`,
+    });
+
     return NextResponse.json({
       success: true,
-      questions,
-      categories: categoryCounts,
+      questions: questions.map((q) => ({
+        ...q,
+        question: q.content,
+        answer: q.rawDoc?.answer || '',
+      })),
+      categories: catRes.rows,
       pendingCount,
     });
   } catch (error) {
@@ -108,32 +59,28 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    await initCommunitySchema();
+
     const body = await request.json();
-    
     const { userName, question, category, communityId, userPhone, userEmail } = body;
-    
+
     if (!userName?.trim()) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
     if (!question?.trim()) {
       return NextResponse.json({ success: false, error: 'Question is required' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Question = getQuestion();
-    
-    const newQuestion = await Question.create({
+
+    const newQuestion = await createModerationItem({
+      type: 'question',
       userName: userName.trim(),
       userPhone,
       userEmail,
-      question: question.trim(),
-      category: category || 'general',
-      communityId: communityId || 'global',
+      content: question.trim(),
+      communityId: communityId || category || 'global',
       status: 'pending',
     });
-    
-    console.log('[Questions] New question:', newQuestion._id, 'by', userName);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Your question has been submitted! We\'ll answer it soon.',
@@ -161,58 +108,55 @@ export async function PATCH(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { verifyToken } = await import('@/lib/auth');
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
-    const { questionId, answer, action, featured, category } = body;
-    
+    const { questionId, answer, action, featured } = body;
+
     if (!questionId) {
       return NextResponse.json({ success: false, error: 'Question ID required' }, { status: 400 });
     }
-    
-    await connectDB();
-    const Question = getQuestion();
-    
-    const update: any = {};
-    
-    if (answer) {
-      update.answer = answer.trim();
-      update.status = 'answered';
-      update.answeredBy = decoded.userId;
-      update.answeredAt = new Date();
-    }
-    
-    if (action === 'reject') {
-      update.status = 'rejected';
-    }
-    
-    if (typeof featured === 'boolean') {
-      update.featured = featured;
-    }
-    
-    if (category) {
-      update.category = category;
-    }
-    
-    const updated = await Question.findByIdAndUpdate(
-      questionId,
-      { $set: update },
-      { new: true }
-    );
-    
+
+    await initCommunitySchema();
+
+    let newStatus = 'approved';
+    if (action === 'reject') newStatus = 'rejected';
+
+    await bunnyExecute({
+      sql: `UPDATE community_moderation_sql 
+            SET status = ?, 
+                featured = COALESCE(?, featured),
+                raw_doc_json = json_set(raw_doc_json, '$.answer', ?),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`,
+      args: [newStatus, typeof featured === 'boolean' ? (featured ? 1 : 0) : null, answer ? answer.trim() : '', questionId],
+    });
+
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM community_moderation_sql WHERE id = ? LIMIT 1',
+      args: [questionId],
+    });
+    const updated = res.rows[0];
+
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Question not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       message: answer ? 'Question answered!' : 'Question updated',
-      question: updated,
+      question: {
+        _id: updated.id,
+        id: updated.id,
+        question: updated.content,
+        status: updated.status,
+        featured: Boolean(updated.featured),
+      },
     });
   } catch (error) {
     console.error('[Questions] PATCH error:', error);

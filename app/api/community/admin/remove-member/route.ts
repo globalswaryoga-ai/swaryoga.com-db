@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { isAdminAuthorized } from '@/lib/adminAuth';
-import { Community } from '@/lib/db';
-import mongoose from 'mongoose';
+import { removeCommunityMember, getCommunity } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
-
 export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
@@ -24,27 +22,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'communityId and userId are required' }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(communityId)) {
-      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
-    }
-
-    const updated = await Community.findByIdAndUpdate(
-      communityId,
-      { $pull: { members: userId } },
-      { new: true, select: { members: 1, name: 1 } }
-    ).lean();
-
-    if (!updated) {
-      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
-    }
+    await removeCommunityMember(communityId, userId);
+    const community = await getCommunity(communityId);
 
     return NextResponse.json(
       {
         success: true,
         data: {
           communityId,
-          name: (updated as any).name,
-          membersCount: Array.isArray((updated as any).members) ? (updated as any).members.length : 0,
+          name: community?.name || communityId,
+          membersCount: community?.membersCount || 0,
         },
       },
       { status: 200 }

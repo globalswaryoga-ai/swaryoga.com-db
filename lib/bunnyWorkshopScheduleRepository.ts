@@ -613,6 +613,14 @@ export async function saveWorkshopCatalogItem(data: {
   return item;
 }
 
+export async function deleteWorkshopCatalogItem(slug: string): Promise<void> {
+  await initWorkshopScheduleSchema();
+  await bunnyExecute({
+    sql: 'DELETE FROM workshop_catalog_sql WHERE slug = ?',
+    args: [slug.trim()],
+  });
+}
+
 // Seat Inventory Availability
 export async function getWorkshopAvailabilityMap(
   requests: Array<{ workshopSlug: string; scheduleId: string; seatsTotal?: number }>

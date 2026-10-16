@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMember } from '@/lib/db';
+import { saveCommunityMember, initCommunitySchema } from '@/lib/bunnyCommunityRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { generateToken } from '@/lib/auth';
 import { notifyCommunityJoin } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
-
-function escapeRegexLiteral(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await initCommunitySchema();
 
-    const { name, email, mobile, countryCode, country, communityId, communityName, viaInviteLink } = await request.json();
+    const { name, email, mobile, countryCode, country, communityId, communityName } = await request.json();
 
     // Validate inputs
     if (!name || !mobile || !communityId || !communityName) {
@@ -43,232 +38,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // NEW: Get or Create Lead ID from CRM system
+    // Get or Create Lead ID from CRM system
     let leadUserId: string;
     try {
-      leadUserId = await getOrCreateLeadIdForPhone(
-        cleanMobile, 
-        name, 
-        email, 
-        'website', 
-        ['community']
-      );
+      leadUserId = await getOrCreateLeadIdForPhone(cleanMobile, name);
     } catch (err: any) {
       return NextResponse.json({ error: err.message || 'Lead allocation failed' }, { status: 500 });
     }
 
-    // Optional warning: same name already exists in CRM (helps prevent accidental duplicates)
-    // NOTE: This is a public endpoint, so we must NOT return other people's phone/email.
-    let warning: any = null;
-    try {
-      const Lead = getLead();
-      const cleanName = String(name || '').trim();
-      if (cleanName) {
-        const safe = escapeRegexLiteral(cleanName);
-        const total = await Lead.countDocuments({ name: { $regex: `^\\s*${safe}\\s*$`, $options: 'i' } });
-        if (total > 1) {
-          warning = {
-            code: 'NAME_DUPLICATE',
-            message: 'Same name already exists. Please confirm mobile/email is correct before proceeding.',
-            count: total,
-          };
-        }
-      }
-    } catch (e) {
-      // Non-fatal warning only
-      console.warn('Name-duplicate warning lookup failed:', e);
-    }
-
-    // Check if already a member by userId
-    const existingByUserId = await CommunityMember.findOne({
+    const member = await saveCommunityMember({
       userId: leadUserId,
-      communityId
-    });
-
-    if (existingByUserId) {
-      // Already in THIS community — update info silently & return success
-      existingByUserId.name = name.trim();
-      existingByUserId.email = email ? email.trim().toLowerCase() : existingByUserId.email;
-      existingByUserId.countryCode = countryCode || '+91';
-      existingByUserId.country = country || existingByUserId.country || '';
-      existingByUserId.status = 'active';
-      await existingByUserId.save();
-
-      const token = generateToken({
-        userId: existingByUserId.userId,
-        email: existingByUserId.email || undefined,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: existingByUserId.approved
-            ? `✅ Welcome back to ${communityName}!`
-            : '👋 Welcome back! Your membership is pending admin approval.',
-          ...(warning ? { warning } : {}),
-          data: {
-            memberId: existingByUserId._id,
-            userId: existingByUserId.userId,
-            name: existingByUserId.name,
-            communityId: existingByUserId.communityId,
-            communityName: existingByUserId.communityName,
-            joinedAt: existingByUserId.joinedAt,
-            approved: existingByUserId.approved,
-            status: existingByUserId.status,
-            token,
-          },
-          isUpdate: true,
-        },
-        { status: 200 }
-      );
-    }
-
-    // Check if already a member by mobile number
-    // If they already joined with same mobile, update their info instead of blocking
-    const existingMember = await CommunityMember.findOne({
-      mobile: cleanMobile,
       communityId,
-    });
-
-    if (existingMember) {
-      // Update existing member's info (allow them to "rejoin" after logout)
-      existingMember.name = name.trim();
-      existingMember.email = email ? email.trim().toLowerCase() : existingMember.email;
-      existingMember.countryCode = countryCode || '+91';
-      existingMember.country = country || existingMember.country || '';
-      existingMember.status = 'active';
-      // Keep their previous approval status
-      
-      await existingMember.save();
-
-      const message = '👋 Welcome back! Messaging will be enabled after admin approval if not already done.';
-
-      // Generate JWT token for the community user
-      const token = generateToken({ 
-        userId: existingMember.userId,
-        email: existingMember.email || undefined,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: message,
-          ...(warning ? { warning } : {}),
-          data: {
-            memberId: existingMember._id,
-            userId: existingMember.userId,
-            name: existingMember.name,
-            communityId: existingMember.communityId,
-            communityName: existingMember.communityName,
-            joinedAt: existingMember.joinedAt,
-            approved: existingMember.approved,
-            status: existingMember.status,
-            token, // JWT token for like/comment
-          },
-          isUpdate: true,
-        },
-        { status: 200 }
-      );
-    }
-
-    // Only Global community members are auto-approved.
-    // All other communities (including invite-link joins) require admin approval.
-    const newMember = new CommunityMember({
       name: name.trim(),
-      email: email ? email.trim().toLowerCase() : null,
       mobile: cleanMobile,
+      email: email ? email.trim().toLowerCase() : undefined,
       countryCode: countryCode || '+91',
       country: country || '',
-      userId: leadUserId,
-      communityId,
-      communityName,
       status: 'active',
-      approved: communityId === 'global', // Only Global is auto-approved; all others need admin approval
-      joinedAt: new Date(),
+      role: 'member',
     });
 
-    await newMember.save();
-
-    // AUTO-JOIN GLOBAL COMMUNITY
-    // If they joined a specific group, also add them to 'global' if not already there
+    // Auto-join global community if different
     if (communityId !== 'global') {
       try {
-        const globalExists = await CommunityMember.findOne({
-          mobile: cleanMobile,
+        await saveCommunityMember({
+          userId: leadUserId,
           communityId: 'global',
+          name: name.trim(),
+          mobile: cleanMobile,
+          email: email ? email.trim().toLowerCase() : undefined,
+          countryCode: countryCode || '+91',
+          country: country || '',
+          status: 'active',
+          role: 'member',
         });
-
-        if (!globalExists) {
-          await CommunityMember.create({
-            name: name.trim(),
-            email: email ? email.trim().toLowerCase() : null,
-            mobile: cleanMobile,
-            countryCode: countryCode || '+91',
-            userId: leadUserId,
-            communityId: 'global',
-            communityName: 'Global Community',
-            status: 'active',
-            approved: true,
-            joinedAt: new Date(),
-          });
-          console.log(`✅ Auto-joined ${name} to Global Community`);
-        }
       } catch (e) {
-        console.error('❌ Auto-join Global failed:', e);
+        console.error('Auto-join Global failed:', e);
       }
     }
 
     const message = communityId === 'global'
       ? `✅ Welcome! You have successfully joined ${communityName || 'the community'}.`
-      : '👋 Registration successful! Your request is pending admin approval. You will be notified once approved.';
+      : `👋 Welcome! You have successfully joined ${communityName}.`;
 
-    // Fire-and-forget: Send community join confirmation email
     if (email) {
       notifyCommunityJoin(
         { name: name.trim(), email: email.trim().toLowerCase(), phone: cleanMobile },
-        { communityName, approved: communityId === 'global', leadNumber: leadUserId },
-      ).catch(err => console.error('[CommunityJoin] Notification error:', err));
+        { communityName, approved: true, leadNumber: leadUserId },
+      ).catch((err) => console.error('[CommunityJoin] Notification error:', err));
     }
 
-    // Generate JWT token for the community user
-    const token = generateToken({ 
-      userId: newMember.userId,
-      email: newMember.email || undefined,
+    const token = generateToken({
+      userId: member.userId || leadUserId,
+      email: member.email || undefined,
     });
 
     return NextResponse.json(
       {
         success: true,
         message,
-        ...(warning ? { warning } : {}),
         data: {
-          memberId: newMember._id,
-          userId: newMember.userId,
-          name: newMember.name,
-          communityName: newMember.communityName,
-          joinedAt: newMember.joinedAt,
-          approved: newMember.approved,
-          token, // JWT token for like/comment
+          memberId: member.id,
+          userId: member.userId || leadUserId,
+          name: member.name,
+          communityId: member.communityId,
+          communityName,
+          joinedAt: member.joinedAt,
+          approved: member.approved,
+          status: member.status,
+          token,
         },
       },
-      { status: 201 }
+      { status: 200 }
     );
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('❌ Community join error:', errorMsg);
-
-    // Handle duplicate key error — treat as "already joined", not an error
-    if (errorMsg.includes('E11000')) {
-      return NextResponse.json(
-        {
-          success: true,
-          message: '👋 You are already registered in this community!',
-          isUpdate: true,
-        },
-        { status: 200 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Failed to join community' },
       { status: 500 }
@@ -279,7 +124,7 @@ export async function POST(request: NextRequest) {
 // Get community members count
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initCommunitySchema();
 
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId');
@@ -291,10 +136,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const memberCount = await CommunityMember.countDocuments({
-      communityId,
-      status: 'active',
+    const res = await bunnyExecute({
+      sql: 'SELECT COUNT(*) as cnt FROM community_members_sql WHERE community_id = ? AND status = \'active\'',
+      args: [communityId],
     });
+
+    const memberCount = Number(res.rows[0]?.cnt || 0);
 
     return NextResponse.json(
       {

@@ -1,68 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCommunitySchema, createModerationItem } from '@/lib/bunnyCommunityRepository';
 
-// Define submission schema
-const communitySubmissionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  userEmail: { type: String, required: true },
-  userName: { type: String, required: true },
-  category: { 
-    type: String, 
-    enum: ['experiences', 'tips', 'transformations', 'questions'],
-    required: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['pending', 'approved', 'rejected', 'posted'],
-    default: 'pending' 
-  },
-  // Common fields
-  participantName: { type: String, required: true },
-  workshopName: { type: String },
-  batchName: { type: String },
-  imageUrl: { type: String },
-  // Category-specific fields
-  experienceDetails: { type: String },
-  problemHeading: { type: String },
-  problemDescription: { type: String },
-  tipsDetails: { type: String },
-  beforeStory: { type: String },
-  afterStory: { type: String },
-  question: { type: String },
-  answer: { type: String }, // Admin can provide answer when posting
-  // Meta
-  adminNotes: { type: String },
-  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  reviewedAt: { type: Date },
-  postedAt: { type: Date },
-  communityPostId: { type: mongoose.Schema.Types.ObjectId },
-}, { timestamps: true });
-
-function getCommunitySubmissionModel() {
-  // Use CRM database
-  const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-  return crmDb.models.CommunitySubmission || crmDb.model('CommunitySubmission', communitySubmissionSchema);
-}
+export const dynamic = 'force-dynamic';
 
 // POST - Create a new submission
 export async function POST(req: NextRequest) {
   try {
-    await connectDB();
-    
+    await initCommunitySchema();
+
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return apiError('UNAUTHORIZED');
     }
-    
+
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) {
       return apiError('AUTHENTICATION_FAILED', 'Invalid token');
     }
-    
+
     const body = await req.json();
     const {
       category,
@@ -78,58 +37,50 @@ export async function POST(req: NextRequest) {
       afterStory,
       question,
     } = body;
-    
+
     // Validation
     if (!category || !['experiences', 'tips', 'transformations', 'questions'].includes(category)) {
       return apiError('VALIDATION_ERROR', 'Invalid category');
     }
-    
+
     if (!participantName?.trim()) {
       return apiError('VALIDATION_ERROR', 'Participant name is required');
     }
-    
-    // Category-specific validation
-    if (category === 'experiences' && !experienceDetails?.trim()) {
-      return apiError('VALIDATION_ERROR', 'Experience details are required');
+
+    let type = 'experience';
+    let content = '';
+    if (category === 'experiences') {
+      type = 'experience';
+      content = experienceDetails?.trim() || '';
+    } else if (category === 'tips') {
+      type = 'tip';
+      content = (problemHeading || '') + '\n\n' + (problemDescription || tipsDetails || '');
+    } else if (category === 'transformations') {
+      type = 'transformation';
+      content = (beforeStory || '') + '\n\n' + (afterStory || '');
+    } else if (category === 'questions') {
+      type = 'question';
+      content = question?.trim() || '';
     }
-    if (category === 'tips' && (!problemHeading?.trim() || !tipsDetails?.trim())) {
-      return apiError('VALIDATION_ERROR', 'Problem heading and tips details are required');
+
+    if (!content.trim()) {
+      return apiError('VALIDATION_ERROR', 'Content is required');
     }
-    if (category === 'transformations' && (!beforeStory?.trim() || !afterStory?.trim())) {
-      return apiError('VALIDATION_ERROR', 'Before and after stories are required');
-    }
-    if (category === 'questions' && !question?.trim()) {
-      return apiError('VALIDATION_ERROR', 'Question is required');
-    }
-    
-    const CommunitySubmission = getCommunitySubmissionModel();
-    
-    const submission = new CommunitySubmission({
-      userId: decoded.userId,
+
+    const item = await createModerationItem({
+      type,
+      userId: String(decoded.userId),
+      userName: participantName.trim(),
       userEmail: decoded.email || '',
-      userName: (decoded as any).name || participantName,
-      category,
+      content: content.trim(),
+      photoUrl: imageUrl?.trim() || null,
       status: 'pending',
-      participantName: participantName.trim(),
-      workshopName: workshopName?.trim() || '',
-      batchName: batchName?.trim() || '',
-      imageUrl: imageUrl?.trim() || '',
-      experienceDetails: experienceDetails?.trim() || '',
-      problemHeading: problemHeading?.trim() || '',
-      problemDescription: problemDescription?.trim() || '',
-      tipsDetails: tipsDetails?.trim() || '',
-      beforeStory: beforeStory?.trim() || '',
-      afterStory: afterStory?.trim() || '',
-      question: question?.trim() || '',
     });
-    
-    await submission.save();
-    
+
     return apiSuccess({ 
       message: 'Submission received successfully',
-      submissionId: submission._id,
+      submissionId: item.id,
     });
-    
   } catch (error) {
     console.error('Community submission error:', error);
     return apiError('SERVER_ERROR', 'Failed to submit');
@@ -139,28 +90,35 @@ export async function POST(req: NextRequest) {
 // GET - Get user's submissions (for their own history)
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-    
+    await initCommunitySchema();
+
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return apiError('UNAUTHORIZED');
     }
-    
+
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) {
       return apiError('AUTHENTICATION_FAILED', 'Invalid token');
     }
-    
-    const CommunitySubmission = getCommunitySubmissionModel();
-    
-    const submissions = await CommunitySubmission.find({ userId: decoded.userId })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
-    
+
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM community_moderation_sql WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+      args: [String(decoded.userId)],
+    });
+
+    const submissions = res.rows.map((r: any) => ({
+      _id: r.id,
+      id: r.id,
+      category: r.type === 'experience' ? 'experiences' : r.type === 'tip' ? 'tips' : r.type === 'transformation' ? 'transformations' : 'questions',
+      participantName: r.user_name,
+      status: r.status,
+      content: r.content,
+      createdAt: r.created_at,
+    }));
+
     return apiSuccess({ submissions });
-    
   } catch (error) {
     console.error('Get submissions error:', error);
     return apiError('SERVER_ERROR', 'Failed to fetch submissions');
