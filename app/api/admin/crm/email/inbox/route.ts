@@ -33,10 +33,11 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    if (!isImapConfigured()) {
+    const configured = await isImapConfigured();
+    if (!configured) {
       return apiSuccess({
         configured: false,
-        message: 'IMAP not configured. Set GMAIL_IMAP_USER and GMAIL_IMAP_PASS in environment variables.',
+        message: 'IMAP not configured. Set GMAIL_IMAP_USER and GMAIL_IMAP_PASS in environment variables or connect your email in Settings.',
         setupSteps: [
           'Add GMAIL_IMAP_HOST=imap.hostinger.com (or your provider) to .env.local',
           'Add GMAIL_IMAP_PORT=993 to .env.local',
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess({
       configured: true,
-      account: getImapUser(),
+      account: await getImapUser(),
       ...result,
       page,
       limit,
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
     if (error.message?.includes('AUTHENTICATIONFAILED') || error.message?.includes('Invalid credentials')) {
       return apiSuccess({
         configured: false,
-        message: 'Gmail authentication failed. Check your App Password.',
+        message: 'Email authentication failed. Check your email password.',
         error: 'AUTHENTICATION_FAILED',
       });
     }
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    if (!isImapConfigured()) {
+    if (!(await isImapConfigured())) {
       return apiError('BAD_REQUEST', 400, 'IMAP not configured');
     }
 

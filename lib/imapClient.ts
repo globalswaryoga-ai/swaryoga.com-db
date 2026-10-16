@@ -15,11 +15,9 @@ import { simpleParser, ParsedMail } from 'mailparser';
 function isSpamOrPromo(subject: string, fromAddress: string, bodyText: string): boolean {
   const s = subject.toLowerCase();
   const f = fromAddress.toLowerCase();
-  const b = bodyText.toLowerCase();
   
   if (s.includes('undelivered mail') || s.includes('returned to sender') || s.includes('delivery status notification')) return true;
-  if (f.includes('mailer-daemon') || f.includes('postmaster') || f.includes('no-reply') || f.includes('noreply')) return true;
-  if (b.includes('unsubscribe') && (s.includes('newsletter') || s.includes('offer') || s.includes('promo'))) return true;
+  if (f.includes('mailer-daemon') || f.includes('postmaster')) return true;
   
   return false;
 }
@@ -48,29 +46,79 @@ export interface InboxConfig {
   secure: boolean;
 }
 
-function getImapConfig(): InboxConfig {
+export async function getImapConfig(): Promise<InboxConfig> {
+  // 1. Direct IMAP environment variables
+  if (process.env.GMAIL_IMAP_USER && process.env.GMAIL_IMAP_PASS) {
+    return {
+      host: process.env.GMAIL_IMAP_HOST || 'imap.hostinger.com',
+      port: parseInt(process.env.GMAIL_IMAP_PORT || '993'),
+      user: process.env.GMAIL_IMAP_USER,
+      pass: process.env.GMAIL_IMAP_PASS,
+      secure: true,
+    };
+  }
+
+  // 2. Fall back to active verified email settings from database
+  try {
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const res = await bunnyExecute(
+      `SELECT * FROM email_settings_sql WHERE (is_active = 1 OR is_default = 1 OR is_verified = 1) AND smtp_pass IS NOT NULL AND smtp_pass != '' ORDER BY is_default DESC, is_verified DESC LIMIT 1`
+    );
+    if (res.rows.length > 0) {
+      const row: any = res.rows[0];
+      const smtpHost = String(row.smtp_host || 'smtp.hostinger.com').trim();
+      let imapHost = smtpHost.replace(/^smtp\./i, 'imap.');
+      if (imapHost === smtpHost && !imapHost.includes('imap')) {
+        imapHost = `imap.${smtpHost}`;
+      }
+      return {
+        host: process.env.GMAIL_IMAP_HOST || imapHost || 'imap.hostinger.com',
+        port: parseInt(process.env.GMAIL_IMAP_PORT || '993'),
+        user: String(row.smtp_user || row.sender_email || '').trim(),
+        pass: String(row.smtp_pass || '').trim(),
+        secure: true,
+      };
+    }
+  } catch (err) {
+    console.warn('[imap] Failed to load email settings from DB:', err);
+  }
+
+  // 3. Fall back to SMTP environment variables
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const smtpHost = String(process.env.SMTP_HOST || 'smtp.hostinger.com').trim();
+    let imapHost = smtpHost.replace(/^smtp\./i, 'imap.');
+    return {
+      host: process.env.GMAIL_IMAP_HOST || imapHost || 'imap.hostinger.com',
+      port: parseInt(process.env.GMAIL_IMAP_PORT || '993'),
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+      secure: true,
+    };
+  }
+
   return {
-    host: process.env.GMAIL_IMAP_HOST || 'imap.gmail.com',
+    host: process.env.GMAIL_IMAP_HOST || 'imap.hostinger.com',
     port: parseInt(process.env.GMAIL_IMAP_PORT || '993'),
-    user: process.env.GMAIL_IMAP_USER || '',
-    pass: process.env.GMAIL_IMAP_PASS || '',
+    user: '',
+    pass: '',
     secure: true,
   };
 }
 
-export function isImapConfigured(): boolean {
-  const config = getImapConfig();
+export async function isImapConfigured(): Promise<boolean> {
+  const config = await getImapConfig();
   return !!(config.user && config.pass);
 }
 
-export function getImapUser(): string {
-  return getImapConfig().user;
+export async function getImapUser(): Promise<string> {
+  const config = await getImapConfig();
+  return config.user;
 }
 
 async function createClient(): Promise<ImapFlow> {
-  const config = getImapConfig();
+  const config = await getImapConfig();
   if (!config.user || !config.pass) {
-    throw new Error('Gmail IMAP not configured. Set GMAIL_IMAP_USER and GMAIL_IMAP_PASS.');
+    throw new Error('IMAP inbox not configured. Please configure your email in Email Settings or environment variables.');
   }
 
   const client = new ImapFlow({
