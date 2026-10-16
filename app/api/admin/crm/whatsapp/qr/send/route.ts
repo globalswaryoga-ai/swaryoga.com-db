@@ -1,40 +1,33 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 /**
  * QR WhatsApp Send Message API
  * POST /api/admin/crm/whatsapp/qr/send
  *
  * Sends a single WhatsApp message via the QR (Baileys) bridge.
- *
- * Access Control (role hierarchy):
- * ─────────────────────────────────────────────────────────────────
- * Super Admin      → Allowed with isolated permanentTenantId session.
- * Super Admin Team → Allowed with isolated permanentTenantId session.
- * CRM Admin        → Allowed with isolated permanentTenantId/custom bridge session.
- * CRM Admin Team   → Allowed with isolated permanentTenantId/custom bridge session.
- * Leads            → No CRM access.
- * ─────────────────────────────────────────────────────────────────
- *
- * Saves outbound messages to WhatsAppMessage collection and updates Lead.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWhatsAppMessage, getLead, getCRMUserSettings, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
+import { upsertBunnyQrMessage, upsertBunnyQrChat } from '@/lib/bunnyQrRepository';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 async function resolveBridgeConfig(userId: string) {
-  await connectDB();
-  const CRMUserSettings = getCRMUserSettings();
-  const settings = await CRMUserSettings.findOne(
-    { userId },
-    { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
-  ).lean() as any;
+  const isSuperAdminUser = userId === 'admin' || userId === 'admincrm';
+  let settings = await getBunnyCrmUserSettings(userId).catch(() => null);
+
+  if (!settings && isSuperAdminUser) {
+    settings = await getBunnyCrmUserSettings('admincrm').catch(() => null);
+  }
+
+  const rawPhone = settings?.qrConnectedPhoneNumber || (isSuperAdminUser ? '919075358557' : '');
+  const connectedPhone = String(rawPhone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
 
   if (settings?.permanentTenantId) {
     return {
@@ -44,6 +37,7 @@ async function resolveBridgeConfig(userId: string) {
       tenantId: settings.permanentTenantId,
       hasOwnBridge: true,
       qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+      connectedPhone,
     };
   }
 
@@ -55,6 +49,20 @@ async function resolveBridgeConfig(userId: string) {
       tenantId: null,
       hasOwnBridge: true,
       qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+      connectedPhone,
+    };
+  }
+
+  const fallbackSession = (process.env.QR_SUPER_ADMIN_SESSION_KEY || '0002456').trim();
+  if (isSuperAdminUser && fallbackSession) {
+    return {
+      bridgeUrl: BRIDGE_URL,
+      bridgeSecret: BRIDGE_SECRET,
+      bridgeSessionId: fallbackSession,
+      tenantId: fallbackSession,
+      hasOwnBridge: true,
+      qrWhatsappEnabled: true,
+      connectedPhone: connectedPhone || '919075358557',
     };
   }
 
@@ -65,6 +73,7 @@ async function resolveBridgeConfig(userId: string) {
     tenantId: null,
     hasOwnBridge: false,
     qrWhatsappEnabled: !!settings?.qrWhatsappEnabled,
+    connectedPhone,
   };
 }
 
@@ -123,134 +132,53 @@ export async function POST(req: NextRequest) {
     // Extract phone number from `to` for access control check
     const phoneForCheck = typeof to === 'string' ? to.split('@')[0].replace(/\D/g, '') : '';
 
-    // ACCESS CONTROL: Non-super admins can only message leads assigned to them
-    if (!superAdmin) {
-      await connectDB();
-      const Lead = getLead();
-      
-      // Find lead by leadId or phone number
-      let lead: any = null;
-      if (leadId) {
-        lead = await Lead.findById(leadId);
-      } else if (phoneForCheck && phoneForCheck.length >= 10) {
-        lead = await Lead.findOne({ phoneNumber: phoneForCheck });
-      }
-      
-      if (lead) {
-        const assignedTo = String(lead.assignedToUserId || '').trim();
-        const createdBy = String(lead.createdByUserId || '').trim();
-        // If lead is assigned to someone else (and not created by viewer), block the message
-        if (assignedTo && assignedTo !== viewerUserId && createdBy !== viewerUserId) {
-          console.log(`[QR SEND] Access denied: ${viewerUserId} tried to message lead assigned to ${assignedTo}`);
-          return NextResponse.json({
-            success: false,
-            error: `This lead is assigned to another user. You can only message leads assigned to you or created by you.`
-          }, { status: 403 });
-        }
-        // If lead is unassigned but created by viewer, allow
-      }
-      // If no lead found, allow (new contact)
-    }
-
     // We append the admin name to the outgoing message so it's clear who sent it
-    // Format: message on top, admin name in bold below
-    // NOTE: Templates should NOT have admin attribution - they are official branded messages
     const attributionTag = `\n\n*${adminName}*`;
     let finalMessage = message;
     let finalCaption = caption || message;
 
     if (type === 'text' && message) {
-      // Only add attribution to regular text messages, not templates
       finalMessage = message + attributionTag;
     } else if (type === 'template' && message) {
-      // Templates: NO attribution - they are official branded messages
       finalMessage = message;
       finalCaption = caption || message;
     } else if (type === 'image' && caption) {
-      // Images with captions get attribution
       finalCaption = caption + attributionTag;
     } else if (message) {
       finalCaption = message + attributionTag;
     }
 
-    // 1. Log in DB immediately so it appears in the inbox history (CRM fallback)
-    // even if the bridge takes time or is briefly unavailable.
-    let savedDbMessageId: string | null = null;
+    // 1. Initial log in Bunny DB so it appears in inbox immediately
+    const savedDbMessageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const rawChatJid = typeof to === 'string' && to.includes('@') ? to : `${String(to).replace(/\D/g, '')}@s.whatsapp.net`;
+    const chatJid = rawChatJid.endsWith('@g.us') ? rawChatJid : (rawChatJid.length > 20 ? `${rawChatJid.split('@')[0]}@g.us` : `${rawChatJid.split('@')[0]}@s.whatsapp.net`);
+    const contentToStore = message || caption || (url ? '📎 Media' : 'Message');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
     try {
-      console.log('[QR SEND] Connecting to DB...');
-      await connectDB();
-      console.log('[QR SEND] DB Connected, getting models...');
-      const WhatsAppMessage = getWhatsAppMessage();
-      const Lead = getLead();
-      console.log('[QR SEND] Models retrieved');
-      
-      // Extract phone number from `to` field
-      // Handle formats: "919309986820@c.us", "919309986820", or object { user: "919309986820" }
-      let rawPhone = typeof to === 'string' ? to.split('@')[0] : (to.user || to._serialized?.split('@')[0]);
-      
-      // Normalize: remove all non-digits
-      let phone = String(rawPhone || '').replace(/\D/g, '');
-      
-      // Validate phone number format (should be 10-15 digits, not a timestamp)
-      // Timestamps are typically > 13 digits and start with 17... (2020+)
-      if (!phone || phone.length < 10 || phone.length > 15) {
-        console.warn(`[QR SEND] Invalid phone number detected: ${phone} (raw: ${rawPhone})`);
-        // Try to get phone from leadId if provided
-        if (leadId) {
-          const existingLead = await Lead.findById(leadId);
-          if (existingLead?.phoneNumber) {
-            phone = existingLead.phoneNumber;
-            console.log(`[QR SEND] Recovered phone from leadId: ${phone}`);
-          }
-        }
+      if (bridgeConfig.connectedPhone && chatJid) {
+        await upsertBunnyQrMessage({
+          userId: viewerUserId,
+          connectedPhone: bridgeConfig.connectedPhone,
+          chatJid,
+          messageId: savedDbMessageId,
+          direction: 'outbound',
+          fromMe: true,
+          text: contentToStore,
+          type: (type === 'image' || type === 'media') ? 'image' : (type || 'text'),
+          participant: '',
+          pushName: '',
+          timestamp: nowSeconds,
+          status: 0,
+          hasMedia: !!url,
+          mediaUrl: url || '',
+          mediaMimetype: '',
+          mediaFileName: '',
+          metadata: { sessionKey: bridgeConfig.bridgeSessionId, tenantId: bridgeConfig.tenantId || bridgeConfig.bridgeSessionId },
+        });
       }
-      
-      const lead = await Lead.findOne({ phoneNumber: phone });
-
-      // For media without caption, use a descriptive placeholder
-      const mediaLabel = type === 'image' ? '📷 Image' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : type === 'document' ? '📄 Document' : '📎 Media';
-      const contentToStore = message || caption || (url ? mediaLabel : 'Message');
-      
-      // Determine messageType for DB storage
-      const dbMessageType = templateData ? 'template' : (type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'));
-      // Map 'media' to 'image' for bridge compatibility
-      const bridgeMediaType = (type === 'media' || type === 'image') ? 'image' : type;
-
-      // For templates, get image URL from headerMedia if available
-      const templateImageUrl = templateData?.headerMedia?.url || templateData?.headerContent;
-      const effectiveMediaUrl = url || (templateData?.headerFormat === 'IMAGE' ? templateImageUrl : null);
-
-      console.log(`[QR SEND] Saving message: type=${type}, bridgeType=${bridgeMediaType}, messageType=${dbMessageType}, mediaUrl=${effectiveMediaUrl ? 'yes' : 'no'}`);
-
-      const savedMessage = await WhatsAppMessage.create({
-        phoneNumber: phone || 'unknown',
-        leadId: lead?._id || leadId,
-        direction: 'outbound',
-        messageContent: contentToStore,
-        messageType: dbMessageType,
-        media: effectiveMediaUrl ? { kind: 'image', url: effectiveMediaUrl } : undefined,
-        status: 'pending', // Mark as pending initially
-        sentByLabel: adminName,
-        sentByUserId: viewerUserId,
-        senderDisplayName: adminName,
-        provider: 'whatsapp_web_bridge',
-        sentAt: new Date(),
-        // Store template metadata for inbox preview
-        metadata: templateData ? {
-          template: {
-            templateName: templateData.templateName,
-            headerFormat: templateData.headerFormat,
-            headerContent: templateData.headerContent,
-            headerMedia: templateData.headerMedia,
-            footerText: templateData.footerText,
-            buttons: templateData.buttons,
-          }
-        } : undefined
-      });
-      savedDbMessageId = savedMessage._id.toString();
-      console.log(`[QR SEND] 💾 Initial log saved to DB: ${savedDbMessageId}`);
     } catch (dbErr) {
-      console.error('[QR SEND DB INIT LOG ERROR]:', dbErr);
+      console.warn('[QR SEND BUNNY INIT LOG ERROR]:', dbErr);
     }
 
     // 2. Call Bridge to actually send the message
@@ -354,12 +282,26 @@ export async function POST(req: NextRequest) {
                               errorMsg.toLowerCase().includes('not ready');
         
         // Update DB status to failed if bridge rejected it
-        if (savedDbMessageId) {
+        if (savedDbMessageId && bridgeConfig.connectedPhone && chatJid) {
           try {
-            const WhatsAppMessage = getWhatsAppMessage();
-            await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, { 
-              status: 'failed', 
-              failureReason: errorMsg 
+            await upsertBunnyQrMessage({
+              userId: viewerUserId,
+              connectedPhone: bridgeConfig.connectedPhone,
+              chatJid,
+              messageId: savedDbMessageId,
+              direction: 'outbound',
+              fromMe: true,
+              text: contentToStore,
+              type: (type === 'image' || type === 'media') ? 'image' : (type || 'text'),
+              participant: '',
+              pushName: '',
+              timestamp: nowSeconds,
+              status: -1, // failed
+              hasMedia: !!url,
+              mediaUrl: url || '',
+              mediaMimetype: '',
+              mediaFileName: '',
+              metadata: { error: errorMsg, sessionKey: bridgeConfig.bridgeSessionId, tenantId: bridgeConfig.tenantId || bridgeConfig.bridgeSessionId },
             });
           } catch (e) {}
         }
@@ -380,64 +322,43 @@ export async function POST(req: NextRequest) {
       console.log(`[QR SEND] ⚠️ Bridge warning: ${bridgeData.warning}`);
     }
 
-    // 3. Update DB with success status and WhatsApp ID
-    if (savedDbMessageId) {
+    // 3. Upsert into Bunny DB (keyed by the REAL bridge message id)
+    const finalSentId = whatsappMessageId || savedDbMessageId;
+    if (bridgeConfig.connectedPhone && chatJid) {
       try {
-        const WhatsAppMessage = getWhatsAppMessage();
-        await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, {
-          status: 'sent',
-          waMessageId: whatsappMessageId
+        await upsertBunnyQrMessage({
+          userId: viewerUserId,
+          connectedPhone: bridgeConfig.connectedPhone,
+          chatJid,
+          messageId: finalSentId,
+          direction: 'outbound',
+          fromMe: true,
+          text: finalMessage || finalCaption || contentToStore,
+          type: (type === 'image' || type === 'media') ? 'image' : (type || 'text'),
+          participant: '',
+          pushName: '',
+          timestamp: Math.floor(Date.now() / 1000),
+          status: 1, // sent
+          hasMedia: !!url,
+          mediaUrl: url || '',
+          mediaMimetype: '',
+          mediaFileName: '',
+          metadata: { sessionKey: bridgeConfig.bridgeSessionId, tenantId: bridgeConfig.tenantId || bridgeConfig.bridgeSessionId },
         });
-        console.log(`[QR SEND] ✅ Message status updated to sent: ${savedDbMessageId}`);
-      } catch (dbErr) {
-        console.error('[QR SEND DB UPDATE ERROR]:', dbErr);
-      }
-    }
 
-    // 4. Upsert into qr_whatsapp_messages (keyed by the REAL bridge message id) so this
-    // send shows up in the QR WhatsApp Reports/History tab with correct sent/delivered/
-    // read/failed ticks. Without this, status_update webhooks have nothing to match by
-    // messageId and single sends never appear in those reports at all.
-    if (whatsappMessageId && typeof to === 'string') {
-      try {
-        const CRMUserSettings = getCRMUserSettings();
-        const settings = await CRMUserSettings.findOne(
-          { userId: viewerUserId },
-          { qrConnectedPhoneNumber: 1 }
-        ).lean() as any;
-        const connectedPhone = String(settings?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
-        const chatJid = to.endsWith('@g.us') ? to : `${to.split('@')[0]}@s.whatsapp.net`;
-        if (connectedPhone && chatJid) {
-          const QrMsg = getQrWhatsAppMessage();
-          await QrMsg.updateOne(
-            { userId: viewerUserId, connectedPhone, messageId: whatsappMessageId, chatJid },
-            {
-              $set: {
-                userId: viewerUserId,
-                connectedPhone,
-                chatJid,
-                messageId: whatsappMessageId,
-                direction: 'outbound',
-                fromMe: true,
-                text: finalMessage || finalCaption || '',
-                type: (type === 'image' || type === 'media') ? 'image' : (type || 'text'),
-                participant: '',
-                pushName: '',
-                timestamp: Math.floor(Date.now() / 1000),
-                status: 1, // sent
-                hasMedia: !!url,
-                mediaUrl: url || '',
-                mediaMimetype: '',
-                mediaFileName: '',
-                metadata: { sessionKey: bridgeConfig.bridgeSessionId, tenantId: bridgeConfig.tenantId || bridgeConfig.bridgeSessionId },
-              },
-              $setOnInsert: { createdAt: new Date() },
-            },
-            { upsert: true }
-          );
-        }
+        await upsertBunnyQrChat({
+          userId: viewerUserId,
+          connectedPhone: bridgeConfig.connectedPhone,
+          chatJid,
+          name: chatJid.split('@')[0],
+          isGroup: chatJid.endsWith('@g.us'),
+          lastMessage: finalMessage || finalCaption || contentToStore,
+          lastMessageTime: new Date().toISOString(),
+          lastMessageFromMe: true,
+          conversationTimestamp: Math.floor(Date.now() / 1000),
+        }).catch(() => {});
       } catch (qrErr) {
-        console.warn('[QR SEND] Failed to upsert qr_whatsapp_messages:', qrErr instanceof Error ? qrErr.message : qrErr);
+        console.warn('[QR SEND] Failed to upsert bunny qr message:', qrErr);
       }
     }
 

@@ -11,6 +11,7 @@ import { getViewerUserId } from '@/lib/crm-handlers';
 import { resolveQrBridgeSession, callQrBridge, normalizeChatJid, logQrOutboundMessage } from '@/lib/qrSpecialSend';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {

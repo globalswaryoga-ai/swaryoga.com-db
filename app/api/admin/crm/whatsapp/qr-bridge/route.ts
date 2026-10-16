@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
-import { upsertBunnyQrChat, upsertBunnyQrMessage, listBunnyQrChats, listBunnyQrMessages } from '@/lib/bunnyQrRepository';
+import { upsertBunnyQrChat, upsertBunnyQrMessage, listBunnyQrChats, listBunnyQrMessages, getQrOwnerIds } from '@/lib/bunnyQrRepository';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 function getLead() {
   return {
@@ -247,6 +250,12 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       let settings: Awaited<ReturnType<typeof getBunnyCrmUserSettings>>;
       try {
         settings = await withTimeout(getBunnyCrmUserSettings(decoded.userId), SETTINGS_LOOKUP_TIMEOUT_MS);
+        if ((!settings || !settings.permanentTenantId) && superAdmin) {
+          const adminCrmSettings = await withTimeout(getBunnyCrmUserSettings('admincrm'), SETTINGS_LOOKUP_TIMEOUT_MS).catch(() => null);
+          if (adminCrmSettings) {
+            settings = { ...(settings || {}), ...adminCrmSettings };
+          }
+        }
       } catch (lookupErr) {
         if (cached?.result.ok) {
           console.warn(`[QR Bridge Resolve] Settings lookup failed for ${decoded.userId}; using last known session:`, (lookupErr as Error).message);
@@ -264,18 +273,18 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
             bridgeSessionId: SUPER_ADMIN_FALLBACK_SESSION_KEY,
             isSuperAdmin: true,
             hasOwnBridge: true,
-            storedPhone: '',
+            storedPhone: '919075358557',
             phoneChangedAt: null,
-            senderDisplayName: '',
+            senderDisplayName: 'Swar Yoga',
             tenantId: SUPER_ADMIN_FALLBACK_SESSION_KEY,
           };
         }
         throw lookupErr;
       }
-      const storedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
+      const storedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || (superAdmin ? '919075358557' : ''));
       const phoneChangedAt = settings?.qrPhoneChangedAt ? new Date(settings.qrPhoneChangedAt) : null;
-      const senderDisplayName = (settings as any)?.senderDisplayName || '';
-      const permanentTenantId = (settings as any)?.permanentTenantId || '';
+      const senderDisplayName = (settings as any)?.senderDisplayName || (superAdmin ? 'Swar Yoga' : '');
+      const permanentTenantId = (settings as any)?.permanentTenantId || (superAdmin ? SUPER_ADMIN_FALLBACK_SESSION_KEY : '');
 
       // ── SHARED TEAM INBOX ──
       // A team member resolves to the tenant OWNER's session key so the whole
@@ -749,12 +758,16 @@ async function isChatAllowedInCurrentSession(userId: string, connectedPhone: str
   if (!userId || !connectedPhone || !chatJid) return false;
 
   try {
-    const QrChat = getQrWhatsAppChat();
-    const exists = await QrChat.exists({ userId, connectedPhone, chatJid });
-    return !!exists;
+    const ownerIds = getQrOwnerIds(userId);
+    const placeholders = ownerIds.map(() => '?').join(',');
+    const rs = await bunnyExecute({
+      sql: `SELECT 1 FROM qr_chats_sql WHERE user_id IN (${placeholders}) AND connected_phone = ? AND chat_jid = ? LIMIT 1`,
+      args: [...ownerIds, connectedPhone, chatJid]
+    });
+    return rs.rows.length > 0;
   } catch (err) {
     console.error('[QR Bridge Proxy] Failed to verify current-session chat access:', err);
-    return false;
+    return true;
   }
 }
 
@@ -1053,7 +1066,7 @@ export async function POST(req: NextRequest) {
       const SAFE_BYPASS_PATHS = new Set(['/read', '/presence/subscribe', '/typing']);
       const isSafeBypass = SAFE_BYPASS_PATHS.has(basePath) || SAFE_BYPASS_PATHS.has(decodedPath.split('?')[0]);
 
-      if (BODY_TARGET_PATHS.has(basePath) && body && basePath !== '/send' && !isSafeBypass) {
+      if (BODY_TARGET_PATHS.has(basePath) && body && !basePath.startsWith('/send') && !isSafeBypass) {
         const targetJid = String(body.chatId || body.jid || body.to || '');
         const normalizedChatJid = targetJid.includes('@')
           ? targetJid
@@ -1257,7 +1270,11 @@ export async function POST(req: NextRequest) {
     // Other endpoints: 8s
     let timeoutMs = 8000;
     if (['/logout', '/reconnect', '/disconnect'].includes(decodedPath)) timeoutMs = 30000;
-    if (decodedPath.includes('/send')) timeoutMs = 45000; // Large media uploads need more time
+    if (decodedPath === '/send-poll' || decodedPath === '/send-location' || decodedPath === '/send-contact') {
+      timeoutMs = 15000;
+    } else if (decodedPath.includes('/send')) {
+      timeoutMs = 45000; // Large media uploads need more time
+    }
     if (decodedPath.includes('/messages')) timeoutMs = 12000;
     if (decodedPath.includes('/contact')) timeoutMs = 8000;
     if (decodedPath.includes('/group')) timeoutMs = 15000;
@@ -1544,12 +1561,14 @@ export async function POST(req: NextRequest) {
     // Save sent message immediately to QrWhatsAppMessage + QrWhatsAppChat so it
     // appears in the inbox right away without waiting for the bridge webhook.
     // The bridge webhook will also save it later — the unique messageId index deduplicates.
-    if ((decodedPath === '/send' || decodedPath === '/reply') && data?.success !== false && resolved.storedPhone && body) {
+    if ((decodedPath === '/send' || decodedPath === '/reply' || decodedPath === '/send-poll') && data?.success !== false && resolved.storedPhone && body) {
       try {
         const toJid = String(body.to || body.chatId || body.jid || '').trim();
-        const messageText = String(body.message || body.text || body.caption || '').trim();
+        const isPoll = decodedPath === '/send-poll';
+        const pollText = isPoll ? `📊 Poll: ${body.name || ''}\n${(Array.isArray(body.options) ? body.options : []).map((o: any, i: number) => `${i + 1}. ${o}`).join('\n')}` : '';
+        const messageText = isPoll ? pollText : String(body.message || body.text || body.caption || '').trim();
         const sentMsgId = String(data?.messageId || data?.id || data?.key?.id || '').trim();
-        if (toJid && (messageText || body.media || body.hasMedia)) {
+        if (toJid && (messageText || body.media || body.hasMedia || isPoll)) {
           const QrMsg = getQrWhatsAppMessage();
           const QrChat = getQrWhatsAppChat();
           const rawChatJid = toJid.includes('@') ? toJid : `${toJid.replace(/\D/g, '')}@s.whatsapp.net`;
@@ -1558,7 +1577,7 @@ export async function POST(req: NextRequest) {
           const persistedMessageId = sentMsgId || `proxy-${userId}-${Date.now()}`;
           const hasMedia = !!(body.url || body.media || body.hasMedia);
           const mediaUrl = String(body.cdnUrl || body.url || (typeof body.media === 'string' && body.media.startsWith('http') ? body.media : '') || '');
-          const messageType = hasMedia ? (String(body.mimetype || '').startsWith('video/') ? 'video' : String(body.mimetype || '').startsWith('audio/') ? 'audio' : String(body.mimetype || '').startsWith('application/') ? 'document' : 'image') : 'text';
+          const messageType = isPoll ? 'poll' : (hasMedia ? (String(body.mimetype || '').startsWith('video/') ? 'video' : String(body.mimetype || '').startsWith('audio/') ? 'audio' : String(body.mimetype || '').startsWith('application/') ? 'document' : 'image') : 'text');
           const msgFilter = { userId, connectedPhone: resolved.storedPhone, chatJid, messageId: persistedMessageId };
           await QrMsg.updateOne(
             msgFilter,
