@@ -2,7 +2,7 @@
 import { registrationFetch as fetch, saveRegistrationState, saveRegistrationSnapshot } from '@/lib/registrationClient';
 
 import React from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download, RotateCcw, Check, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight, Sparkles, Download, RotateCcw, Check, CheckCircle, Trash2 } from 'lucide-react';
 import { useGoogleFormSync } from '@/hooks/useGoogleFormSync';
 import { completeGoogleFormMapping, unmappedCrmFields } from '@/lib/googleFormFieldMapping';
 import { GoogleFormSyncStatusBanner } from './_GoogleFormSyncStatus';
@@ -90,6 +90,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
   const [batchStageFilter, setBatchStageFilter] = React.useState<string>('');
   const [batchDecisions, setBatchDecisions] = React.useState<Record<string, any>>({});
   const [showWTSettingsModal, setShowWTSettingsModal] = React.useState(false);
+  const [isDeletingDuplicates, setIsDeletingDuplicates] = React.useState(false);
 
   const activeWtTemplate = React.useMemo(() => {
     if (selectedWorkshop?.metadata?.wtSettings?.approved?.template) {
@@ -261,6 +262,53 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Google Forms import failed.');
+    }
+  };
+
+  const handleDeleteDuplicates = async () => {
+    if (!confirm('Are you sure you want to delete all duplicate rows? This will remove duplicate submissions and keep the primary entry.')) return;
+    setIsDeletingDuplicates(true);
+    try {
+      const activeFormId = googleFormId || selectedWorkshop?.formId || linkedFormId || '';
+      const res = await fetch('/api/admin/crm/new-registration/dedup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ formId: activeFormId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove duplicates');
+
+      const deletedSet = new Set(data.deletedIds || []);
+      const seenKeys = new Set();
+      setLeadsData((prev: any[]) => (prev || []).filter((l: any) => {
+        if (!l) return false;
+        if (deletedSet.has(l.id) || deletedSet.has(l._id)) return false;
+        const p = String(l.phoneNumber || l.mobile || l.phone || l.whatsapp || l.WhatsApp || '').replace(/\D/g, '');
+        const pKey = p.length >= 10 ? p.slice(-10) : '';
+        const eKey = String(l.email || '').trim().toLowerCase();
+        const key = pKey ? `p:${pKey}` : (eKey ? `e:${eKey}` : null);
+        if (key) {
+          if (seenKeys.has(key)) return false;
+          seenKeys.add(key);
+        }
+        return true;
+      }));
+
+      if (setRefreshLeadsCounter) {
+        setRefreshLeadsCounter((c: number) => c + 1);
+      }
+      if (data.deletedCount > 0) {
+        toast.success(`Removed ${data.deletedCount} duplicate row(s) successfully!`);
+      } else {
+        toast.info('No duplicate rows found.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete duplicates');
+    } finally {
+      setIsDeletingDuplicates(false);
     }
   };
   const [mergeTargetId, setMergeTargetId] = React.useState('');
@@ -1010,6 +1058,15 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     >
                       🤖 AI-2
                     </button>
+                    <button
+                      onClick={handleDeleteDuplicates}
+                      disabled={isDeletingDuplicates}
+                      className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+                      title="Remove all duplicate rows across this form"
+                    >
+                      <Trash2 size={13} className={isDeletingDuplicates ? 'animate-spin' : ''} />
+                      {isDeletingDuplicates ? 'Deleting…' : 'Delete Duplicates'}
+                    </button>
 
                     <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
@@ -1123,6 +1180,16 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         {p.isAi1Processing ? '⏳ Generating...' : 'Create Batches'}
                       </button>
                     </div>
+
+                    <button
+                      onClick={handleDeleteDuplicates}
+                      disabled={isDeletingDuplicates}
+                      className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+                      title="Remove all duplicate rows across this form"
+                    >
+                      <Trash2 size={13} className={isDeletingDuplicates ? 'animate-spin' : ''} />
+                      {isDeletingDuplicates ? 'Deleting…' : 'Delete Duplicates'}
+                    </button>
                   </>
                 )}
 

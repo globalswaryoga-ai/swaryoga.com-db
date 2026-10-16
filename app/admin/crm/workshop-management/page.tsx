@@ -121,6 +121,7 @@ export default function WorkshopManagementPage() {
   const [quickBroadcastSubject, setQuickBroadcastSubject] = useState('');
   const [quickBroadcastSending, setQuickBroadcastSending] = useState(false);
   const [analyticsSearch, setAnalyticsSearch] = useState('');
+  const [studentsSearch, setStudentsSearch] = useState('');
   
   // Import State
   const [importingStudents, setImportingStudents] = useState(false);
@@ -903,9 +904,34 @@ export default function WorkshopManagementPage() {
     if (!selected) throw new Error('Select a workshop before generating a report');
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: selected?.timezone || 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const query = analyticsSearch.trim().toLowerCase();
-    const filtered = students.filter(student => !query || [student.name, student.email, student.phone, student.whatsappNumber].some(value => value?.toLowerCase().includes(query)));
+    const queryDigits = query.replace(/\D/g, '');
+    const filtered = students.filter(student => {
+      if (!query) return true;
+      const name = (student.name || '').toLowerCase();
+      const email = (student.email || '').toLowerCase();
+      const phone = (student.phone || '').toLowerCase();
+      const wa = (student.whatsappNumber || '').toLowerCase();
+      const leadNum = (student.leadNumber ? String(student.leadNumber) : '').toLowerCase();
+
+      // Text match on name, email, phone, WhatsApp number, or lead ID
+      if (name.includes(query) || email.includes(query) || phone.includes(query) || wa.includes(query) || leadNum.includes(query)) {
+        return true;
+      }
+
+      // Digit-only match for phone/mobile numbers (allows searching without country code or with spaces/dashes)
+      if (queryDigits.length >= 3) {
+        const phoneDigits = (student.phone || '').replace(/\D/g, '');
+        const waDigits = (student.whatsappNumber || '').replace(/\D/g, '');
+        if (phoneDigits.includes(queryDigits) || waDigits.includes(queryDigits)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
     return buildWorkshopAttendanceReport(selected.startDate, [...cohortHolidaySet], filtered, attendance, today);
   };
+
 
   const downloadAttendanceExcel = async () => {
     if (!selected) return;
@@ -1682,10 +1708,11 @@ export default function WorkshopManagementPage() {
                           await load(selected._id);
                           setLoading(false);
                         }}
-                        className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-amber-100"
+                        className="inline-flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-rose-100"
+                        title="Remove all duplicate rows and merge records"
                       >
-                        <Users size={16} />
-                        Dedup Students
+                        <Trash2 size={16} />
+                        Delete Duplicates
                       </button>
 
                       {selectedStudentIds.length > 0 && (
@@ -1705,6 +1732,39 @@ export default function WorkshopManagementPage() {
                         </>
                       )}
                     </div>
+
+                    {/* Search bar */}
+                    {students.length > 0 && (
+                      <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-2xl shadow-sm border border-slate-200">
+                        <div className="flex-1 relative">
+                          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={studentsSearch}
+                            onChange={e => setStudentsSearch(e.target.value)}
+                            placeholder="Search by name, mobile number or email…"
+                            className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
+                          />
+                          {studentsSearch && (
+                            <button onClick={() => setStudentsSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                        {studentsSearch ? (
+                          <span className="text-xs text-slate-500 whitespace-nowrap">
+                            {students.filter(s => {
+                              const q = studentsSearch.trim().toLowerCase();
+                              const qd = q.replace(/\D/g, '');
+                              return (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q) || (s.phone || '').toLowerCase().includes(q) || (s.whatsappNumber || '').toLowerCase().includes(q) ||
+                                (qd.length >= 3 && ((s.phone || '').replace(/\D/g, '').includes(qd) || (s.whatsappNumber || '').replace(/\D/g, '').includes(qd)));
+                            }).length} of {students.length} students
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 whitespace-nowrap">{students.length} students</span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1735,7 +1795,13 @@ export default function WorkshopManagementPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {students.map((s, idx) => { 
+                              {students.filter(s => {
+                                const q = studentsSearch.trim().toLowerCase();
+                                if (!q) return true;
+                                const qd = q.replace(/\D/g, '');
+                                return (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q) || (s.phone || '').toLowerCase().includes(q) || (s.whatsappNumber || '').toLowerCase().includes(q) ||
+                                  (qd.length >= 3 && ((s.phone || '').replace(/\D/g, '').includes(qd) || (s.whatsappNumber || '').replace(/\D/g, '').includes(qd)));
+                              }).map((s, idx) => { 
                                 const rows = attendance.filter((a) => String(a.studentId) === s._id && !cohortHolidaySet.has(toDateKey(a.classDate) || a.classDate)); 
                                 const joinedCount = rows.filter((a) => a.joined).length;
                                 const mins = Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60);
@@ -2379,6 +2445,31 @@ export default function WorkshopManagementPage() {
                           ))}
                           <span className="text-xs text-slate-500">Not graded: {gradeDistribution.Pending || 0}</span>
                         </div>
+                        {/* Search bar — no-print */}
+                        <div className="no-print px-6 py-3 border-b border-slate-100 flex items-center gap-3">
+                          <div className="flex-1 relative">
+                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={analyticsSearch}
+                              onChange={e => setAnalyticsSearch(e.target.value)}
+                              placeholder="Search by name, mobile number or email…"
+                              className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
+                            />
+                            {analyticsSearch && (
+                              <button onClick={() => setAnalyticsSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                <X size={13} />
+                              </button>
+                            )}
+                          </div>
+                          {analyticsSearch ? (
+                            <span className="text-xs text-slate-500 whitespace-nowrap">
+                              {report.rows.length} of {students.length} students
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 whitespace-nowrap">{students.length} students</span>
+                          )}
+                        </div>
                         <div className="overflow-x-auto print:overflow-visible">
                           <table className="w-full text-left text-sm text-slate-600">
                             <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
@@ -2421,12 +2512,14 @@ export default function WorkshopManagementPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {visibleStudents.map((s, idx) => (
+                              {report.rows.map((row, idx) => {
+                                const s = row.student;
+                                return (
                                 <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-4 text-slate-400 font-semibold text-xs">{idx + 1}</td>
                                   <td className="report-student sticky left-0 bg-white px-6 py-4 whitespace-nowrap">
                                     <p className="font-bold text-slate-800">{s.name}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">{report.rows[idx].attended}/{report.rows[idx].confirmed} confirmed · {report.rows[idx].totalMinutes} min · {report.rows[idx].percent === null ? 'Not graded' : `${report.rows[idx].percent}% (${report.rows[idx].grade})`}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">{row.attended}/{row.confirmed} confirmed · {row.totalMinutes} min · {row.percent === null ? 'Not graded' : `${row.percent}% (${row.grade})`}</p>
                                   </td>
                                   <td className="px-4 py-4 whitespace-nowrap">
                                     <p className="text-xs text-slate-600 font-medium">{s.whatsappNumber || s.phone || <span className="text-slate-300">—</span>}</p>
@@ -2439,7 +2532,7 @@ export default function WorkshopManagementPage() {
                                     const recording = recordings.find(r => r.classDate === date);
                                     const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || recording?.metadata?.zoomSpeakerUrl || recording?.metadata?.zoomShareUrl);
 
-                                    if (record && report.rows[idx].cells.find(cell => cell.classDate === date)?.status === 'Present') {
+                                    if (record && row.cells.find(cell => cell.classDate === date)?.status === 'Present') {
                                       const mins = Math.round(record.durationSeconds / 60);
                                       return (
                                         <td key={date} className="px-4 py-4">
@@ -2452,8 +2545,8 @@ export default function WorkshopManagementPage() {
                                     return (
                                       <td key={date} className="px-4 py-4">
                                         <div className="flex flex-col gap-1">
-                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-xs border ${report.rows[idx].cells.find(cell => cell.classDate === date)?.status === 'Absent' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                            {report.rows[idx].cells.find(cell => cell.classDate === date)?.status}
+                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-xs border ${row.cells.find(cell => cell.classDate === date)?.status === 'Absent' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                            {row.cells.find(cell => cell.classDate === date)?.status}
                                           </span>
                                           {hasRecording && record && !record.joined && (
                                             <button
@@ -2521,9 +2614,10 @@ export default function WorkshopManagementPage() {
                                     </div>
                                   </td>
                                 </tr>
-                              ))}
-                              {visibleStudents.length === 0 && students.length > 0 && (
-                                <tr><td colSpan={5 + uniqueDates.length} className="px-6 py-8 text-center text-slate-400 text-sm">No students match your search.</td></tr>
+                                );
+                              })}
+                              {report.rows.length === 0 && students.length > 0 && (
+                                <tr><td colSpan={5 + uniqueDates.length} className="px-6 py-8 text-center text-slate-400 text-sm">{analyticsSearch ? `No students match "${analyticsSearch}"` : 'No students match your search.'}</td></tr>
                               )}
                               {students.length === 0 && (
                                 <tr>
