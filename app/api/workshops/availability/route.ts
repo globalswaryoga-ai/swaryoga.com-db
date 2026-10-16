@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, WorkshopSeatInventory } from '@/lib/db';
+import {
+  getWorkshopAvailabilityMap,
+  getAllWorkshopSeatInventory,
+} from '@/lib/bunnyWorkshopScheduleRepository';
+
+export const dynamic = 'force-dynamic';
 
 interface AvailabilityRequestItem {
   workshopSlug: string;
@@ -37,38 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: {} }, { status: 200 });
     }
 
-    await connectDB();
-
-    // Upsert missing inventories (initialize from seatsTotal)
-    await Promise.all(
-      sanitized.map(async (r) => {
-        await WorkshopSeatInventory.updateOne(
-          { workshopSlug: r.workshopSlug, scheduleId: r.scheduleId },
-          {
-            $setOnInsert: {
-              workshopSlug: r.workshopSlug,
-              scheduleId: r.scheduleId,
-              seatsTotal: r.seatsTotal,
-              seatsRemaining: r.seatsTotal,
-            },
-            $set: { updatedAt: new Date() },
-          },
-          { upsert: true }
-        );
-      })
-    );
-
-    const docs = await WorkshopSeatInventory.find({
-      $or: sanitized.map((r) => ({ workshopSlug: r.workshopSlug, scheduleId: r.scheduleId })),
-    })
-      .select({ workshopSlug: 1, scheduleId: 1, seatsRemaining: 1 })
-      .lean();
-
-    const data: Record<string, number> = {};
-    for (const doc of docs as any[]) {
-      const key = `${String(doc.workshopSlug)}|${String(doc.scheduleId)}`;
-      data[key] = Number(doc.seatsRemaining ?? 0);
-    }
+    const data = await getWorkshopAvailabilityMap(sanitized);
 
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
@@ -80,19 +54,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    await connectDB();
-
-    // Fetch all seat inventory records
-    const inventory = await WorkshopSeatInventory.find({})
-      .select({ workshopSlug: 1, scheduleId: 1, seatsTotal: 1, seatsRemaining: 1 })
-      .lean();
+    const inventory = await getAllWorkshopSeatInventory();
 
     return NextResponse.json(
-      { 
-        success: true, 
-        data: inventory || []
+      {
+        success: true,
+        data: inventory || [],
       },
       { status: 200 }
     );

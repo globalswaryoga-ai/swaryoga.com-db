@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getRecordedCourse } from '@/lib/schemas/recordedCourseSchemas';
+import { getCourseById } from '@/lib/bunnyCourseRepository';
+import { saveOrder } from '@/lib/bunnyWebsiteRepository';
 import {
   cashfreeCreateOrder,
   getCashfreeReturnUrl,
@@ -38,11 +38,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    await connectDB();
-
-    // Get course details
-    const RecordedCourse = getRecordedCourse();
-    const course = await RecordedCourse.findById(courseId);
+    // Get course details from BunnyDB
+    const course = await getCourseById(courseId);
 
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
@@ -50,8 +47,9 @@ export async function POST(request: NextRequest) {
 
     // Calculate price
     let amount = course.pricing?.INR?.price || 0;
-    if (course.discount && course.discount > 0) {
-      amount = Math.round(amount * (1 - course.discount / 100));
+    const discount = (course as any).discount;
+    if (discount && discount > 0) {
+      amount = Math.round(amount * (1 - discount / 100));
     }
 
     if (amount <= 0) {
@@ -61,11 +59,10 @@ export async function POST(request: NextRequest) {
     const cashfreeOrderId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 9);
     const returnUrl = getCashfreeReturnUrl(request);
     const notifyUrl = getCashfreeWebhookUrl(request);
-    // Cashfree requires customer_id to be alphanumeric + underscore/hyphen only
-    // (userId can be an email or "guest-<timestamp>" — both need sanitizing).
     const customerId = String(userId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(-48);
 
-    console.log(`📡 Creating Cashfree order: ${cashfreeOrderId} for course ${course.content?.en?.title || courseId}`);
+    const courseTitle = (course.content as any)?.en?.title || course.slug || 'E-Learning Course';
+    console.log(`📡 Creating Cashfree order: ${cashfreeOrderId} for course ${courseTitle}`);
 
     // Call Cashfree API and save order in parallel
     const cfPromise = cashfreeCreateOrder({
@@ -78,19 +75,20 @@ export async function POST(request: NextRequest) {
         customer_email: String(email),
         customer_phone: String(phone),
       },
-      order_note: `E-Learning Course: ${course.content?.en?.title || 'Unknown'}`,
+      order_note: `E-Learning Course: ${courseTitle}`,
       order_meta: {
         return_url: returnUrl,
         notify_url: notifyUrl,
       },
     });
 
-    const order = new Order({
+    const orderId = crypto.randomUUID();
+    const orderPromise = saveOrder({
       userId: userId,
       courseId: courseId,
       items: [
         {
-          name: course.content?.en?.title || 'E-Learning Course',
+          name: courseTitle,
           price: amount,
           quantity: 1,
         },
@@ -112,39 +110,29 @@ export async function POST(request: NextRequest) {
       },
       clientIp: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
       clientUserAgent: request.headers.get('user-agent') || undefined,
-    });
+    }, orderId);
 
-    const [cf] = await Promise.all([cfPromise, order.save()]);
+    const [cf, order] = await Promise.all([cfPromise, orderPromise]);
 
     const paymentSessionId = (cf as any)?.payment_session_id as string | undefined;
 
     if (!paymentSessionId) {
-      await Order.updateOne(
-        { _id: order._id },
-        {
-          $set: {
-            paymentStatus: 'failed',
-            status: 'failed',
-            failureReason: 'Cashfree did not return payment_session_id',
-            updatedAt: new Date(),
-          },
-        }
-      );
+      await saveOrder({
+        id: orderId,
+        paymentStatus: 'failed',
+        status: 'failed',
+        failureReason: 'Cashfree did not return payment_session_id',
+      }, orderId);
 
       console.error('❌ Cashfree response missing payment_session_id');
       return NextResponse.json({ error: 'Cashfree session creation failed' }, { status: 502 });
     }
 
-    await Order.updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          cashfreePaymentSessionId: paymentSessionId,
-          cashfreeOrderStatus: (cf as any)?.order_status || undefined,
-          updatedAt: new Date(),
-        },
-      }
-    );
+    await saveOrder({
+      id: orderId,
+      cashfreePaymentSessionId: paymentSessionId,
+      cashfreeOrderStatus: (cf as any)?.order_status || undefined,
+    }, orderId);
 
     const totalTime = Date.now() - startTime;
     console.log(`✅ Course enrollment payment initiated in ${totalTime}ms`);
@@ -152,7 +140,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       method: 'cashfree',
-      orderId: String(order._id),
+      orderId: order?.id || orderId,
       cashfreeOrderId,
       paymentSessionId,
     }, { status: 200 });

@@ -1,5 +1,5 @@
 /**
- * Admin API for Recorded Courses Management
+ * Admin API for Recorded Courses Management (BunnyDB)
  * GET /api/admin/recorded-courses - List all courses (admin)
  * POST /api/admin/recorded-courses - Create new course
  * PUT /api/admin/recorded-courses - Update course
@@ -7,73 +7,68 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
-  getRecordedCourse,
-  getCourseVideo,
-  getCourseSection,
-  getCourseMaterial,
-  getCourseAssignment,
-  getCourseEnrollment,
-} from '@/lib/schemas/recordedCourseSchemas';
+  listCourses,
+  getCourseById,
+  getCourseBySlug,
+  saveCourse,
+  updateCourse,
+  deleteCourse,
+  listSectionsByCourse,
+  listVideosByCourse,
+  listMaterialsByCourse,
+  listAssignmentsByCourse,
+  countEnrollmentsByCourse,
+  countVideosByCourse,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
-
-// Check superadmin access - E-Learning management is superadmin only
 function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;
   return isSuperAdmin(decoded);
 }
 
 /**
- * GET - List all courses for admin
+ * GET - List all courses for admin or get single course
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Auth required
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const courseId = request.nextUrl.searchParams.get('id');
     const folderId = request.nextUrl.searchParams.get('folderId');
-    const RecordedCourse = getRecordedCourse();
-    const CourseVideo = getCourseVideo();
-    const CourseSection = getCourseSection();
-    const CourseMaterial = getCourseMaterial();
-    const CourseAssignment = getCourseAssignment();
-    const CourseEnrollment = getCourseEnrollment();
 
     // Get specific course with full details
     if (courseId) {
-      const course = await RecordedCourse.findById(courseId).lean();
+      const course = await getCourseById(courseId);
       if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
 
-      const sections = await CourseSection.find({ courseId }).sort({ order: 1 }).lean();
-      const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
-      const materials = await CourseMaterial.find({ courseId }).sort({ order: 1 }).lean();
-      const assignments = await CourseAssignment.find({ courseId }).sort({ order: 1 }).lean();
-      const enrollmentCount = await CourseEnrollment.countDocuments({ courseId });
+      const [sections, videos, materials, assignments, enrollmentCount] = await Promise.all([
+        listSectionsByCourse(courseId),
+        listVideosByCourse(courseId, false),
+        listMaterialsByCourse(courseId, false),
+        listAssignmentsByCourse(courseId, false),
+        countEnrollmentsByCourse(courseId),
+      ]);
 
       return NextResponse.json({
         success: true,
@@ -86,18 +81,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // List all active courses (exclude soft-deleted), optionally filtered by folder
-    const filterQuery: any = { isActive: true };
-    if (folderId) {
-      filterQuery.folderId = new mongoose.Types.ObjectId(folderId);
-    }
-    const courses = await RecordedCourse.find(filterQuery).sort({ order: 1, createdAt: -1 }).lean();
-    
-    // Get enrollment counts
+    // List all active courses
+    const courses = await listCourses({
+      folderId: folderId || undefined,
+      isActive: true,
+    });
+
     const coursesWithStats = await Promise.all(
-      courses.map(async (course: any) => {
-        const enrollmentCount = await CourseEnrollment.countDocuments({ courseId: course._id });
-        const videoCount = await CourseVideo.countDocuments({ courseId: course._id });
+      courses.map(async (course) => {
+        const enrollmentCount = await countEnrollmentsByCourse(course.id);
+        const videoCount = await countVideosByCourse(course.id);
         return {
           ...course,
           enrollmentCount,
@@ -105,12 +98,11 @@ export async function GET(request: NextRequest) {
         };
       })
     );
-    
+
     return NextResponse.json({
       success: true,
       courses: coursesWithStats,
     });
-    
   } catch (error: any) {
     console.error('[Admin Courses GET Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -122,52 +114,46 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Auth required
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
-    const RecordedCourse = getRecordedCourse();
-    
-    // Generate slug if not provided
+
     if (!body.slug && body.content?.en?.title) {
       body.slug = body.content.en.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
     }
-    
-    // Check slug uniqueness
-    const existingCourse = await RecordedCourse.findOne({ slug: body.slug });
+
+    if (!body.slug) {
+      body.slug = `course-${Date.now().toString(36)}`;
+    }
+
+    const existingCourse = await getCourseBySlug(body.slug);
     if (existingCourse) {
       body.slug = `${body.slug}-${Date.now().toString(36)}`;
     }
-    
-    const course = await RecordedCourse.create({
-      ...body,
-      createdBy: decoded.id,
-    });
-    
+
+    const course = await saveCourse(body);
+
     return NextResponse.json({
       success: true,
       course,
     });
-    
   } catch (error: any) {
     console.error('[Admin Courses POST Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -179,57 +165,38 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Auth required
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
     const { courseId, ...updateData } = body;
-    
+
     if (!courseId) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
-    
-    const RecordedCourse = getRecordedCourse();
 
-    // Safe merge for accessSettings - convert to dot notation to avoid clobbering other settings
-    if (updateData.accessSettings) {
-      for (const [key, value] of Object.entries(updateData.accessSettings)) {
-        updateData[`accessSettings.${key}`] = value;
-      }
-      delete updateData.accessSettings;
-    }
-
-    const course = await RecordedCourse.findByIdAndUpdate(
-      courseId,
-      { ...updateData, updatedBy: decoded.id },
-      { new: true }
-    );
-    
+    const course = await updateCourse(courseId, updateData);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       course,
     });
-    
   } catch (error: any) {
     console.error('[Admin Courses PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -241,48 +208,33 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Auth required
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const courseId = request.nextUrl.searchParams.get('id');
     if (!courseId) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
-    
-    const RecordedCourse = getRecordedCourse();
-    
-    // Soft delete
-    const course = await RecordedCourse.findByIdAndUpdate(
-      courseId,
-      { isActive: false, deletedAt: new Date(), deletedBy: decoded.id },
-      { new: true }
-    );
-    
-    if (!course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
-    
+
+    await deleteCourse(courseId);
+
     return NextResponse.json({
       success: true,
-      message: 'Course deleted',
+      message: 'Course deleted successfully',
     });
-    
   } catch (error: any) {
     console.error('[Admin Courses DELETE Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

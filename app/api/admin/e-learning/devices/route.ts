@@ -1,16 +1,15 @@
 /**
- * Admin API for Device Management
+ * Admin API for Device Management (BunnyDB)
  * GET /api/admin/e-learning/devices - Get devices for user/course
- * PUT /api/admin/e-learning/devices/[id] - Block/unblock device
- * DELETE /api/admin/e-learning/devices/[id] - Delete device
+ * PUT /api/admin/e-learning/devices - Block/unblock device
+ * DELETE /api/admin/e-learning/devices - Delete device
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseDevice } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCourseSchema } from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +18,9 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
   return isSuperAdmin(decoded);
 }
 
-/**
- * GET - Get devices for user/course
- */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -45,33 +41,53 @@ export async function GET(request: NextRequest) {
     const userId = request.nextUrl.searchParams.get('userId');
     const courseId = request.nextUrl.searchParams.get('courseId');
 
-    const CourseDevice = getCourseDevice();
+    const conditions: string[] = [];
+    const args: any[] = [];
 
-    let query: any = {};
-    if (userId) query.userId = new mongoose.Types.ObjectId(userId);
-    if (courseId) query.courseId = new mongoose.Types.ObjectId(courseId);
+    if (userId) {
+      conditions.push('user_id = ?');
+      args.push(userId);
+    }
+    if (courseId) {
+      conditions.push('course_id = ?');
+      args.push(courseId);
+    }
 
-    const devices = await CourseDevice.find(query)
-      .sort({ lastUsedAt: -1 })
-      .lean();
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const res = await bunnyExecute({
+      sql: `SELECT * FROM course_devices_sql ${where} ORDER BY last_active_at DESC`,
+      args,
+    });
+
+    const devices = res.rows.map((row: any) => ({
+      _id: String(row.id),
+      id: String(row.id),
+      userId: row.user_id,
+      courseId: row.course_id,
+      deviceFingerprint: row.device_fingerprint,
+      deviceName: row.device_name,
+      deviceType: row.device_type,
+      browser: row.browser,
+      os: row.os,
+      ip: row.ip,
+      isActive: Boolean(row.is_active),
+      lastActiveAt: row.last_active_at,
+      lastUsedAt: row.last_active_at,
+    }));
 
     return NextResponse.json({
       success: true,
       devices,
     });
-
   } catch (error: any) {
     console.error('[Devices GET Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
-/**
- * PUT - Block/unblock device or update device info
- */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -90,41 +106,32 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { deviceId, ...updateData } = body;
+    const { deviceId, isActive, isBlocked } = body;
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
     }
 
-    const CourseDevice = getCourseDevice();
+    const activeVal = isBlocked !== undefined ? (isBlocked ? 0 : 1) : isActive !== undefined ? (isActive ? 1 : 0) : 1;
 
-    const device = await CourseDevice.findByIdAndUpdate(
-      deviceId,
-      { ...updateData, updatedBy: decoded.id },
-      { new: true }
-    );
-
-    if (!device) {
-      return NextResponse.json({ error: 'Device not found' }, { status: 404 });
-    }
+    await bunnyExecute({
+      sql: 'UPDATE course_devices_sql SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [activeVal, deviceId],
+    });
 
     return NextResponse.json({
       success: true,
-      device,
+      message: 'Device updated',
     });
-
   } catch (error: any) {
     console.error('[Devices PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
-/**
- * DELETE - Delete device
- */
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -147,19 +154,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
     }
 
-    const CourseDevice = getCourseDevice();
-
-    const device = await CourseDevice.findByIdAndDelete(deviceId);
-
-    if (!device) {
-      return NextResponse.json({ error: 'Device not found' }, { status: 404 });
-    }
+    await bunnyExecute({
+      sql: 'DELETE FROM course_devices_sql WHERE id = ?',
+      args: [deviceId],
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Device deleted',
     });
-
   } catch (error: any) {
     console.error('[Devices DELETE Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

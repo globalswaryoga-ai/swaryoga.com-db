@@ -1,27 +1,21 @@
 export const dynamic = 'force-dynamic';
 /**
- * Public Language Folders API
+ * Public Language Folders API (BunnyDB)
  * GET /api/language-folders - List active folders (public, no auth required)
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import { NextResponse } from 'next/server';
+import { listLanguageFolders } from '@/lib/bunnyCourseRepository';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const conn = await connectDB();
-    const db = conn.db;
-
-    // Public endpoint - return only active folders
-    const folders = await db.collection('language_folders')
-      .find({ isActive: true })
-      .sort({ order: 1 })
-      .toArray();
+    const folders = await listLanguageFolders(true);
 
     return NextResponse.json({
       success: true,
-      folders: folders.map(f => ({
-        _id: f._id.toString(),
+      folders: folders.map((f) => ({
+        _id: f.id,
+        id: f.id,
         code: f.code,
         name: f.name,
         flag: f.flag,

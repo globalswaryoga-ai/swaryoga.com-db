@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { connectDB } from '@/lib/db';
-import { getWorkshopVideo, getVideoAccessLog } from '@/lib/schemas/workshopSchemas';
+import {
+  listWorkshopVideos,
+  saveWorkshopVideo,
+  deleteWorkshopVideo,
+} from '@/lib/bunnyWorkshopScheduleRepository';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +22,7 @@ const BUCKET_NAME = 'swarygoal1hindi';
 
 /**
  * GET /api/admin/workshops/videos (SUPERADMIN ONLY)
- * List videos for a workshop/batch
+ * List videos for a workshop/batch (BunnyDB)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -29,43 +31,21 @@ export async function GET(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop videos are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const WorkshopVideo = getWorkshopVideo();
-    const VideoAccessLog = getVideoAccessLog();
-
     const { searchParams } = new URL(req.url);
     const workshopId = searchParams.get('workshopId');
-    const batchId = searchParams.get('batchId');
-    const accessType = searchParams.get('accessType'); // 'free', 'enrolled', 'purchased'
+    const batchId = searchParams.get('batchId') || undefined;
 
-    const query: any = {};
-    if (workshopId) query.workshopId = new mongoose.Types.ObjectId(workshopId);
-    if (batchId) query.batchId = new mongoose.Types.ObjectId(batchId);
-    if (accessType) query.accessType = accessType;
+    if (!workshopId) {
+      return NextResponse.json({ error: 'Workshop ID is required' }, { status: 400 });
+    }
 
-    const videos = await WorkshopVideo.find(query)
-      .sort({ dayNumber: 1, createdAt: -1 })
-      .lean();
+    const videos = await listWorkshopVideos(workshopId, batchId);
 
-    // Get view counts for each video
-    const enrichedVideos = await Promise.all(
-      videos.map(async (video: any) => {
-        const viewCount = await VideoAccessLog.countDocuments({ videoId: video._id });
-        const uniqueViewers = await VideoAccessLog.distinct('userId', { videoId: video._id });
-        return {
-          ...video,
-          viewCount,
-          uniqueViewers: uniqueViewers.length,
-        };
-      })
-    );
-
-    return NextResponse.json({ success: true, videos: enrichedVideos });
+    return NextResponse.json({ success: true, videos });
   } catch (error: any) {
     console.error('[Videos API Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -74,7 +54,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/admin/workshops/videos (SUPERADMIN ONLY)
- * Add a new video to a workshop/batch
+ * Add a new video to a workshop/batch (BunnyDB)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -83,13 +63,9 @@ export async function POST(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop videos are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
-    const WorkshopVideo = getWorkshopVideo();
 
     const body = await req.json();
     const {
@@ -98,6 +74,7 @@ export async function POST(req: NextRequest) {
       title,
       description,
       s3Key,
+      bunnyVideoId,
       thumbnail,
       duration,
       dayNumber,
@@ -105,25 +82,25 @@ export async function POST(req: NextRequest) {
       recordedDate,
     } = body;
 
-    if (!workshopId || !title || !s3Key) {
+    if (!workshopId || !title || (!s3Key && !bunnyVideoId)) {
       return NextResponse.json(
-        { error: 'Workshop ID, title, and S3 key are required' },
+        { error: 'Workshop ID, title, and S3 key or Bunny Video ID are required' },
         { status: 400 }
       );
     }
 
-    const video = await WorkshopVideo.create({
-      workshopId: new mongoose.Types.ObjectId(workshopId),
-      batchId: batchId ? new mongoose.Types.ObjectId(batchId) : undefined,
+    const video = await saveWorkshopVideo({
+      workshopId,
+      batchId,
       title,
       description,
       s3Key,
+      bunnyVideoId,
       thumbnail,
       duration,
-      dayNumber: dayNumber || 1,
-      accessType: accessType || 'enrolled',
-      recordedDate: recordedDate ? new Date(recordedDate) : new Date(),
-      isActive: true,
+      dayNumber,
+      accessType,
+      recordedDate,
     });
 
     return NextResponse.json({ success: true, video });
@@ -135,7 +112,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * PUT /api/admin/workshops/videos (SUPERADMIN ONLY)
- * Update a video
+ * Update a video (BunnyDB)
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -144,13 +121,9 @@ export async function PUT(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop videos are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
-    const WorkshopVideo = getWorkshopVideo();
 
     const body = await req.json();
     const { videoId, ...updateData } = body;
@@ -159,26 +132,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Video ID is required' }, { status: 400 });
     }
 
-    // Convert IDs if provided
-    if (updateData.workshopId) {
-      updateData.workshopId = new mongoose.Types.ObjectId(updateData.workshopId);
-    }
-    if (updateData.batchId) {
-      updateData.batchId = new mongoose.Types.ObjectId(updateData.batchId);
-    }
-    if (updateData.recordedDate) {
-      updateData.recordedDate = new Date(updateData.recordedDate);
-    }
-
-    const video = await WorkshopVideo.findByIdAndUpdate(
-      videoId,
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!video) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
+    const video = await saveWorkshopVideo({ id: videoId, ...updateData });
 
     return NextResponse.json({ success: true, video });
   } catch (error: any) {
@@ -189,7 +143,7 @@ export async function PUT(req: NextRequest) {
 
 /**
  * DELETE /api/admin/workshops/videos (SUPERADMIN ONLY)
- * Delete a video
+ * Delete a video (BunnyDB)
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -198,45 +152,18 @@ export async function DELETE(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop videos are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const WorkshopVideo = getWorkshopVideo();
-
     const { searchParams } = new URL(req.url);
     const videoId = searchParams.get('videoId');
-    const deleteS3 = searchParams.get('deleteS3') === 'true';
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID is required' }, { status: 400 });
     }
 
-    const video = await WorkshopVideo.findById(videoId);
-    if (!video) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
-
-    // Delete from S3 if requested
-    if (deleteS3 && video.s3Key) {
-      try {
-        await s3.send(
-          new DeleteObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: video.s3Key,
-          })
-        );
-        console.log('[Video Delete] S3 file deleted:', video.s3Key);
-      } catch (s3Error) {
-        console.error('[Video Delete] S3 error:', s3Error);
-        // Continue with DB deletion even if S3 fails
-      }
-    }
-
-    // Soft delete
-    await WorkshopVideo.findByIdAndUpdate(videoId, { isActive: false });
+    await deleteWorkshopVideo(videoId);
 
     return NextResponse.json({ success: true, message: 'Video deactivated' });
   } catch (error: any) {

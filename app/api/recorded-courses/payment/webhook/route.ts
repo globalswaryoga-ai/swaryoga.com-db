@@ -1,16 +1,21 @@
 /**
  * Cashfree Payment Webhook for Recorded Courses
  * POST /api/recorded-courses/payment/webhook
+ * Connected to Bunny Database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB, { getUser } from '@/lib/db';
-import { getCourseEnrollment, getRecordedCourse } from '@/lib/schemas/recordedCourseSchemas';
+import {
+  findEnrollmentByPaymentId,
+  updateEnrollmentStatus,
+  incrementCourseEnrolledCount,
+  getCourseById,
+} from '@/lib/bunnyCourseRepository';
+import { getUserById } from '@/lib/repositories/userRepository';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
-
 
 // Verify Cashfree signature
 function verifyCashfreeSignature(
@@ -33,18 +38,8 @@ function verifyCashfreeSignature(
   return signature === expectedSignature;
 }
 
-// Generate receipt number
-function generateReceiptNumber(): string {
-  const prefix = 'RCPT';
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `${prefix}-${date}-${random}`;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    
     const rawBody = await request.text();
     const signature = request.headers.get('x-webhook-signature') || '';
     const timestamp = request.headers.get('x-webhook-timestamp') || '';
@@ -74,60 +69,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing order ID' }, { status: 400 });
     }
     
-    const CourseEnrollment = getCourseEnrollment();
-    const RecordedCourse = getRecordedCourse();
-    
-    // Find pending enrollment by payment ID (order ID stored in paymentId field)
-    const enrollment = await CourseEnrollment.findOne({
-      paymentId: order.order_id,
-      status: 'expired', // 'expired' is used for pending payments
-    });
+    // Find pending enrollment by order ID or payment ID
+    const enrollment = await findEnrollmentByPaymentId(order.order_id);
     
     if (!enrollment) {
       console.error('[Cashfree Webhook] No pending enrollment found for order:', order.order_id);
-      // Still acknowledge - might be duplicate webhook
       return NextResponse.json({ success: true, message: 'No pending enrollment' });
     }
     
     // Get course for reference
-    const course = await RecordedCourse.findById(enrollment.courseId);
+    const course = await getCourseById(enrollment.courseId);
     
     // Update enrollment to active
-    const updatedEnrollment = await CourseEnrollment.findByIdAndUpdate(
-      enrollment._id,
-      {
-        status: 'active',
-        // Store transaction ID in paymentId
-        paymentId: payment?.cf_payment_id || payment?.payment_id || order.order_id,
-      },
-      { new: true }
-    );
+    const transactionId = payment?.cf_payment_id || payment?.payment_id || order.order_id;
+    const updatedEnrollment = await updateEnrollmentStatus(enrollment.id, 'active', {
+      paymentId: transactionId,
+      cfPaymentId: payment?.cf_payment_id,
+      paymentStatus: 'SUCCESS',
+      paidAt: new Date().toISOString(),
+    });
     
     // Increment course enrolled count
     if (course) {
-      await RecordedCourse.findByIdAndUpdate(course._id, {
-        $inc: { enrolledCount: 1 },
-      });
+      await incrementCourseEnrolledCount(course.id, 1).catch((e) =>
+        console.error('[Cashfree Webhook] Error updating course count:', e)
+      );
     }
     
     // Send payment confirmation email
     try {
-      const User = getUser();
-      const user = await User.findById(enrollment.userId);
+      const user = await getUserById(enrollment.userId);
       if (user && user.email) {
         await notifyPaymentConfirmation(
           { 
             name: user.name || 'Student', 
             email: user.email,
-            phone: user.phone,
+            phone: user.phone || undefined,
           },
           {
             orderId: order.order_id,
-            amount: enrollment.amountPaid || order.order_amount || 0,
-            currency: enrollment.currency || 'INR',
-            workshopName: course?.content?.en?.title || 'E-Learning Course',
+            amount: enrollment.data?.amountPaid || order.order_amount || 0,
+            currency: enrollment.data?.currency || 'INR',
+            workshopName: (course?.content as any)?.en?.title || course?.slug || 'E-Learning Course',
             paymentMethod: 'Cashfree',
-            transactionId: payment?.cf_payment_id || payment?.payment_id,
+            transactionId,
           }
         );
         console.log('[Cashfree Webhook] Payment confirmation email sent to:', user.email);
@@ -137,12 +122,12 @@ export async function POST(request: NextRequest) {
       console.error('[Cashfree Webhook] Email notification error:', emailErr);
     }
     
-    console.log('[Cashfree Webhook] Enrollment activated:', updatedEnrollment?._id);
+    console.log('[Cashfree Webhook] Enrollment activated:', updatedEnrollment?.id || enrollment.id);
     
     return NextResponse.json({
       success: true,
       message: 'Payment processed',
-      enrollmentId: updatedEnrollment?._id,
+      enrollmentId: updatedEnrollment?.id || enrollment.id,
     });
     
   } catch (error: any) {

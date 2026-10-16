@@ -1,5 +1,5 @@
 /**
- * Admin API for Course Assignments
+ * Admin API for Course Assignments (BunnyDB)
  * GET /api/admin/e-learning/assignments - List assignments for course
  * POST /api/admin/e-learning/assignments - Create assignment
  * PUT /api/admin/e-learning/assignments - Update assignment
@@ -7,10 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseAssignment, getRecordedCourse } from '@/lib/schemas/recordedCourseSchemas';
+import {
+  listAssignmentsByCourse,
+  saveAssignment,
+  deleteAssignment,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +27,6 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,29 +48,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-    const CourseAssignment = getCourseAssignment();
-    const assignments = await CourseAssignment.find({ courseId, isActive: true })
-      .sort({ order: 1 })
-      .lean();
+    const assignments = await listAssignmentsByCourse(courseId, true);
 
     return NextResponse.json({
       success: true,
       assignments,
     });
-
   } catch (error: any) {
-    console.error('[Assignments GET Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[Admin Assignments GET Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
- * POST - Create new assignment
+ * POST - Create assignment
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -87,41 +82,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, ...assignmentData } = body;
+    const { courseId, title, order, ...rest } = body;
 
-    if (!courseId) {
-      return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
+    if (!courseId || !title) {
+      return NextResponse.json({ error: 'Course ID and title required' }, { status: 400 });
     }
 
-    const RecordedCourse = getRecordedCourse();
-    const CourseAssignment = getCourseAssignment();
-
-    // Verify course exists
-    const course = await RecordedCourse.findById(courseId);
-    if (!course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
-
-    // Get next order
-    const lastAssignment = await CourseAssignment.findOne({ courseId }).sort({ order: -1 });
-    const nextOrder = (lastAssignment?.order || 0) + 1;
-
-    const assignment = await CourseAssignment.create({
-      ...assignmentData,
+    const assignment = await saveAssignment({
       courseId,
-      order: assignmentData.order || nextOrder,
+      title,
+      order: Number(order || 1),
       isActive: true,
-      createdBy: decoded.id,
+      content: rest,
     });
 
     return NextResponse.json({
       success: true,
       assignment,
     });
-
   } catch (error: any) {
-    console.error('[Assignments POST Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[Admin Assignments POST Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
@@ -130,8 +111,6 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -149,95 +128,36 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { assignmentId, ...updateData } = body;
+    const { assignmentId, courseId, title, order, ...rest } = body;
 
     if (!assignmentId) {
       return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
     }
 
-    const CourseAssignment = getCourseAssignment();
-
-    const assignment = await CourseAssignment.findByIdAndUpdate(
-      assignmentId,
-      { ...updateData, updatedBy: decoded.id },
-      { new: true }
-    );
-
-    if (!assignment) {
-      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
-    }
+    const assignment = await saveAssignment({
+      id: assignmentId,
+      courseId: courseId || '',
+      title: title || '',
+      order: order !== undefined ? Number(order) : 1,
+      isActive: true,
+      content: rest,
+    });
 
     return NextResponse.json({
       success: true,
       assignment,
     });
-
   } catch (error: any) {
-    console.error('[Assignments PUT Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[Admin Assignments PUT Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
- * PATCH - Update assignment order only
- */
-export async function PATCH(request: NextRequest) {
-  try {
-    await connectDB();
-
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let decoded: any;
-    try {
-      decoded = verifyToken(authHeader.split(' ')[1]);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    if (!checkSuperAdminAccess(decoded)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    const body = await request.json();
-    const { assignmentId, order } = body;
-
-    if (!assignmentId || order === undefined) {
-      return NextResponse.json({ error: 'Assignment ID and order required' }, { status: 400 });
-    }
-
-    const CourseAssignment = getCourseAssignment();
-
-    const assignment = await CourseAssignment.findByIdAndUpdate(
-      assignmentId,
-      { order, updatedBy: decoded.id },
-      { new: true }
-    );
-
-    if (!assignment) {
-      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      assignmentId: assignment._id,
-      order: assignment.order,
-    });
-  } catch (error: any) {
-    console.error('[Assignments PATCH Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-}
-
-/**
- * DELETE - Delete assignment (soft delete)
+ * DELETE - Delete assignment
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -259,25 +179,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
     }
 
-    const CourseAssignment = getCourseAssignment();
-
-    const assignment = await CourseAssignment.findByIdAndUpdate(
-      assignmentId,
-      { isActive: false, deletedAt: new Date(), deletedBy: decoded.id },
-      { new: true }
-    );
-
-    if (!assignment) {
-      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
-    }
+    await deleteAssignment(assignmentId);
 
     return NextResponse.json({
       success: true,
       message: 'Assignment deleted',
     });
-
   } catch (error: any) {
-    console.error('[Assignments DELETE Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[Admin Assignments DELETE Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }

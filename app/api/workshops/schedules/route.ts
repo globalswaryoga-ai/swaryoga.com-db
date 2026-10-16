@@ -1,35 +1,14 @@
 /**
- * @fileoverview Workshop Schedule Management API
+ * @fileoverview Workshop Schedule Management API (BunnyDB)
  * @author Swar Yoga Team
  * @copyright 2025 Global Swar Yoga AI - All Rights Reserved
  * @protected This code is protected under intellectual property laws
  */
 
-// Public API endpoint to get workshop schedules (published only)
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
+import { listWorkshopSchedules } from '@/lib/bunnyWorkshopScheduleRepository';
 
 export const dynamic = 'force-dynamic';
-
-
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const LIVE_SCHEDULES_API = 'https://swaryoga.com/api/workshops/schedules';
-
-function canUseLiveSchedulesFallback(request: NextRequest) {
-  if (process.env.NODE_ENV === 'production') return false;
-  const host = request.nextUrl.hostname;
-  return host === 'localhost' || host === '127.0.0.1';
-}
-
-async function fetchLiveSchedulesFallback(request: NextRequest) {
-  const query = request.nextUrl.search;
-  const res = await fetch(`${LIVE_SCHEDULES_API}${query}`, { cache: 'no-store' });
-  if (!res.ok) {
-    throw new Error(`Live schedules fallback failed with ${res.status}`);
-  }
-
-  return res.json();
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,120 +17,16 @@ export async function GET(request: NextRequest) {
     const mode = (searchParams.get('mode') || '').trim().toLowerCase();
     const language = (searchParams.get('language') || '').trim();
 
-    await connectDB();
-
-    const query: Record<string, any> = {
+    const schedules = await listWorkshopSchedules({
+      workshopSlug: workshopSlug || undefined,
+      mode: mode || undefined,
+      language: language || undefined,
       status: 'published',
-    };
-
-    if (workshopSlug) {
-      query.workshopSlug = workshopSlug;
-    }
-
-    if (mode) {
-      query.mode = mode;
-    }
-
-    if (language) {
-      // Stored language values may be title-cased (e.g., "Hindi") while URL params are
-      // typically lower-cased (e.g., "hindi"). Match case-insensitively.
-      query.language = { $regex: new RegExp(`^${escapeRegExp(language)}$`, 'i') };
-    }
-
-    const docs = await WorkshopSchedule.find(query)
-      .sort({ startDate: 1 })
-      .select({
-        _id: 1,
-        workshopSlug: 1,
-        workshopName: 1,
-        mode: 1,
-        language: 1,
-        batch: 1,
-        startDate: 1,
-        endDate: 1,
-        days: 1,
-        time: 1,
-        startTime: 1,
-        endTime: 1,
-        seatsTotal: 1,
-        registrationCloseDate: 1,
-        location: 1,
-        price: 1,
-        price3Month: 1,
-        priceNPR: 1,
-        nepalQrCode: 1,
-        currency: 1,
-        status: 1,
-      })
-      .lean();
-
-    const inventoryDocs = await WorkshopSeatInventory.find({
-      scheduleId: { $in: (docs as any[]).map((doc) => String(doc._id)) },
-    })
-      .select({ scheduleId: 1, seatsRemaining: 1 })
-      .lean();
-    await Promise.all(
-      (docs as any[]).map((doc) => WorkshopSeatInventory.updateOne(
-        { workshopSlug: String(doc.workshopSlug || ''), scheduleId: String(doc._id) },
-        {
-          $setOnInsert: {
-            workshopSlug: String(doc.workshopSlug || ''),
-            scheduleId: String(doc._id),
-            seatsTotal: Number(doc.seatsTotal || 0),
-            seatsRemaining: Number(doc.seatsTotal || 0),
-          },
-          $set: { updatedAt: new Date() },
-        },
-        { upsert: true },
-      ))
-    );
-    const inventoryByScheduleId = new Map(
-      (inventoryDocs as any[]).map((doc) => [String(doc.scheduleId), Number(doc.seatsRemaining ?? 0)])
-    );
-
-    const schedules = (docs as any[]).map((doc) => ({
-      id: String(doc._id),
-      workshopSlug: String(doc.workshopSlug || ''),
-      workshopName: String(doc.workshopName || ''),
-      mode: doc.mode,
-      language: doc.language,
-      batch: doc.batch,
-      startDate: doc.startDate,
-      endDate: doc.endDate,
-      days: doc.days,
-      time: doc.time,
-      startTime: doc.startTime,
-      endTime: doc.endTime,
-      seatsTotal: doc.seatsTotal,
-      seatsRemaining: inventoryByScheduleId.get(String(doc._id)) ?? Number(doc.seatsTotal ?? 0),
-      registrationCloseDate: doc.registrationCloseDate,
-      location: doc.location,
-      price: doc.price,
-      price3Month: doc.price3Month,
-      priceNPR: doc.priceNPR,
-      nepalQrCode: doc.nepalQrCode,
-      currency: doc.currency,
-      status: doc.status,
-    }));
+    });
 
     return NextResponse.json({ success: true, data: schedules });
   } catch (err) {
-    if (canUseLiveSchedulesFallback(request)) {
-      try {
-        const liveJson = await fetchLiveSchedulesFallback(request);
-        return NextResponse.json(liveJson, {
-          headers: {
-            'x-workshop-schedules-source': 'live-fallback',
-          },
-        });
-      } catch (fallbackErr) {
-        return NextResponse.json(
-          { error: String(err), fallbackError: String(fallbackErr) },
-          { status: 500 }
-        );
-      }
-    }
-
+    console.error('[GET /api/workshops/schedules] Error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 import { makeWorkshopScheduleId } from '@/lib/workshopScheduleIds';
+import {
+  saveWorkshopSchedule,
+  updateWorkshopSchedule,
+  deleteWorkshopSchedule,
+  getWorkshopSchedule,
+} from '@/lib/bunnyWorkshopScheduleRepository';
 
 export const dynamic = 'force-dynamic';
 
-
-const toDateOrUndefined = (value: unknown): Date | undefined => {
+const toDateOrUndefined = (value: unknown): string | undefined => {
   if (!value) return undefined;
   if (typeof value === 'string' && value.trim() === '') return undefined;
   const d = value instanceof Date ? value : new Date(String(value));
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 };
 
 const normalizeMode = (value: unknown) => String(value || '').trim().toLowerCase();
@@ -26,13 +30,11 @@ const normalizeLanguage = (value: unknown) => {
 
 const normalizeBatch = (value: unknown) => {
   const k = String(value ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
-  // Canonical keys expected by UI
   if (k === 'early-morning') return 'early-morning';
   if (k === 'morning') return 'morning';
   if (k === 'afternoon') return 'afternoon';
   if (k === 'evening') return 'evening';
   if (k === 'late-night' || k === 'latenight') return 'late-night';
-  // Back-compat values
   if (k === 'earlymorning') return 'early-morning';
   return k || 'morning';
 };
@@ -51,7 +53,10 @@ export async function POST(request: NextRequest) {
     const mode = normalizeMode(body.mode);
 
     if (!workshopSlug || !mode) {
-      return NextResponse.json({ error: `workshopSlug and mode are required. Got: slugs="${workshopSlug}", mode="${mode}"` }, { status: 400 });
+      return NextResponse.json(
+        { error: `workshopSlug and mode are required. Got: slugs="${workshopSlug}", mode="${mode}"` },
+        { status: 400 }
+      );
     }
 
     const currency = String(body.currency || 'INR').toUpperCase();
@@ -70,10 +75,12 @@ export async function POST(request: NextRequest) {
         })
     );
 
-    await connectDB();
+    const seatsTotal = Number.isFinite(Number(body.seatsTotal))
+      ? Number(body.seatsTotal)
+      : Number(body.slots) || 60;
 
-    const doc = await WorkshopSchedule.create({
-      _id: id,
+    const schedule = await saveWorkshopSchedule({
+      id,
       workshopSlug,
       workshopName: String(body.workshopName || body.workshop_name || ''),
       mode,
@@ -85,7 +92,8 @@ export async function POST(request: NextRequest) {
       time: String(body.time || ''),
       startTime: String(body.startTime || ''),
       endTime: String(body.endTime || ''),
-      seatsTotal: Number.isFinite(Number(body.seatsTotal)) ? Number(body.seatsTotal) : Number(body.slots) || 60,
+      seatsTotal,
+      seatsRemaining: seatsTotal,
       registrationCloseDate: toDateOrUndefined(body.registrationCloseDate || body.registration_close_date),
       location: String(body.location || ''),
       price: Number.isFinite(Number(body.price)) ? Number(body.price) : 0,
@@ -94,47 +102,20 @@ export async function POST(request: NextRequest) {
       nepalQrCode: String(body.nepalQrCode || ''),
       currency,
       status: body.status === 'published' ? 'published' : 'draft',
-      publishedAt: body.status === 'published' ? new Date() : undefined,
+      publishedAt: body.status === 'published' ? new Date().toISOString() : undefined,
     });
 
-    const docObj = doc.toObject();
-    await WorkshopSeatInventory.updateOne(
-      { workshopSlug, scheduleId: String(doc._id) },
-      {
-        $setOnInsert: {
-          workshopSlug,
-          scheduleId: String(doc._id),
-          seatsTotal: Number(doc.seatsTotal || 0),
-          seatsRemaining: Number(doc.seatsTotal || 0),
-        },
-        $set: { updatedAt: new Date() },
-      },
-      { upsert: true },
-    );
-    console.log('[POST] Created schedule:', {
-      id: String(doc._id),
-      workshopName: docObj.workshopName,
-      language: docObj.language,
-      mode: docObj.mode,
-      allKeys: Object.keys(docObj),
-    });
+    console.log('[POST /api/admin/workshops/schedules/crud] Created schedule in BunnyDB:', schedule.id);
 
     return NextResponse.json(
       {
         success: true,
-        data: {
-          id: String(doc._id),
-          ...doc.toObject(),
-        },
+        data: schedule,
       },
       { status: 201 }
     );
   } catch (err) {
-    console.error('[POST /api/admin/workshops/schedules/crud] Error:', {
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString(),
-    });
+    console.error('[POST /api/admin/workshops/schedules/crud] Error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -154,20 +135,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required for update' }, { status: 400 });
     }
 
-    await connectDB();
-
     const nextUpdates: Record<string, any> = {};
-    
-    // Only include fields that are explicitly provided in the request
+
     for (const [key, value] of Object.entries(updates)) {
-      if (key === 'startDate') {
-        nextUpdates.startDate = toDateOrUndefined(value);
-      } else if (key === 'endDate') {
-        nextUpdates.endDate = toDateOrUndefined(value);
-      } else if (key === 'registrationCloseDate') {
-        nextUpdates.registrationCloseDate = toDateOrUndefined(value);
-      } else if (key === 'registration_close_date') {
-        nextUpdates.registrationCloseDate = toDateOrUndefined(value);
+      if (key === 'startDate' || key === 'endDate' || key === 'registrationCloseDate' || key === 'registration_close_date') {
+        nextUpdates[key === 'registration_close_date' ? 'registrationCloseDate' : key] = toDateOrUndefined(value);
       } else if (key === 'slots') {
         nextUpdates.seatsTotal = Number(value);
       } else if (key === 'language') {
@@ -175,7 +147,6 @@ export async function PUT(request: NextRequest) {
       } else if (key === 'batch') {
         nextUpdates.batch = normalizeBatch(value);
       } else if (key === 'price' || key === 'price3Month' || key === 'priceNPR') {
-        // Ensure numeric prices are properly handled
         const numValue = Number(value);
         if (Number.isFinite(numValue)) {
           nextUpdates[key] = numValue;
@@ -191,41 +162,23 @@ export async function PUT(request: NextRequest) {
       const status = String(nextUpdates.status).toLowerCase();
       if (status === 'published') {
         nextUpdates.status = 'published';
-        nextUpdates.publishedAt = new Date();
+        nextUpdates.publishedAt = new Date().toISOString();
       } else if (status === 'draft') {
         nextUpdates.status = 'draft';
-        nextUpdates.publishedAt = undefined;
+        nextUpdates.publishedAt = null;
       }
     }
 
-    if (nextUpdates.seatsTotal !== undefined) {
-      await WorkshopSeatInventory.updateOne(
-        { scheduleId: String(id) },
-        {
-          $set: {
-            seatsTotal: Number(nextUpdates.seatsTotal),
-            seatsRemaining: Number(nextUpdates.seatsTotal),
-            updatedAt: new Date(),
-          },
-        },
-        { upsert: true },
-      );
-    }
+    console.log('[PUT /api/admin/workshops/schedules/crud] Updating schedule in BunnyDB:', id, nextUpdates);
 
-    console.log('[PUT] Updating schedule:', id, 'with:', nextUpdates);
-
-    const updated = await WorkshopSchedule.findByIdAndUpdate(String(id), { $set: nextUpdates }, { new: true });
+    const updated = await updateWorkshopSchedule(String(id), nextUpdates);
     if (!updated) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: { id: String(updated._id), ...updated.toObject() } });
+    return NextResponse.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[PUT /api/admin/workshops/schedules/crud] Error:', {
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString(),
-    });
+    console.error('[PUT /api/admin/workshops/schedules/crud] Error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -243,20 +196,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required for deletion' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const res = await WorkshopSchedule.deleteOne({ _id: String(id) });
-    if (!res.deletedCount) {
+    const deleted = await deleteWorkshopSchedule(String(id));
+    if (!deleted) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
+    console.log('[DELETE /api/admin/workshops/schedules/crud] Deleted schedule from BunnyDB:', id);
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /api/admin/workshops/schedules/crud] Error:', {
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString(),
-    });
+    console.error('[DELETE /api/admin/workshops/schedules/crud] Error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

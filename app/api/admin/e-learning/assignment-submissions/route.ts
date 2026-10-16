@@ -1,16 +1,14 @@
 /**
- * Admin API for Assignment Submissions & Grading
+ * Admin API for Assignment Submissions & Grading (BunnyDB)
  * GET /api/admin/e-learning/assignment-submissions - Get submissions for assignment/student
- * POST /api/admin/e-learning/assignment-submissions - Student submits assignment
  * PUT /api/admin/e-learning/assignment-submissions - Grade submission
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseEnrollment } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCourseSchema } from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +17,9 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
   return isSuperAdmin(decoded);
 }
 
-/**
- * GET - Get submissions for assignment or student
- */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -43,50 +38,45 @@ export async function GET(request: NextRequest) {
     }
 
     const assignmentId = request.nextUrl.searchParams.get('assignmentId');
-    const enrollmentId = request.nextUrl.searchParams.get('enrollmentId');
 
-    const CourseEnrollment = getCourseEnrollment();
-
-    let query: any = {};
+    const conditions: string[] = [];
+    const args: any[] = [];
 
     if (assignmentId) {
-      query['assignmentsCompleted.assignmentId'] = new mongoose.Types.ObjectId(assignmentId);
+      conditions.push('assignment_id = ?');
+      args.push(assignmentId);
     }
 
-    if (enrollmentId) {
-      query._id = new mongoose.Types.ObjectId(enrollmentId);
-    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const res = await bunnyExecute({
+      sql: `SELECT * FROM course_assignment_submissions_sql ${where} ORDER BY submitted_at DESC`,
+      args,
+    });
 
-    const enrollments = await CourseEnrollment.find(query)
-      .populate('userId', 'name email')
-      .lean();
-
-    // Extract assignment completions
-    const submissions = enrollments.flatMap((enrollment: any) =>
-      (enrollment.assignmentsCompleted || []).map((completion: any) => ({
-        ...completion,
-        enrollmentId: enrollment._id,
-        userId: enrollment.userId,
-      }))
-    );
+    const submissions = res.rows.map((row: any) => ({
+      _id: String(row.id),
+      id: String(row.id),
+      assignmentId: row.assignment_id,
+      userId: { _id: row.user_id, name: row.user_id },
+      courseId: row.course_id,
+      status: row.status,
+      submittedAt: row.submitted_at,
+      data: JSON.parse(row.data_json || '{}'),
+    }));
 
     return NextResponse.json({
       success: true,
       submissions,
     });
-
   } catch (error: any) {
     console.error('[Submissions GET Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
-/**
- * PUT - Grade assignment submission
- */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -105,41 +95,23 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { enrollmentId, assignmentId, score } = body;
+    const { submissionId, status, grade, feedback } = body;
 
-    if (!enrollmentId || !assignmentId || score === undefined) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!submissionId) {
+      return NextResponse.json({ error: 'Submission ID required' }, { status: 400 });
     }
 
-    const CourseEnrollment = getCourseEnrollment();
-
-    const enrollment = await CourseEnrollment.findById(enrollmentId);
-    if (!enrollment) {
-      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
-    }
-
-    // Find and update the assignment completion
-    const assignmentIndex = enrollment.assignmentsCompleted.findIndex(
-      (a: any) => a.assignmentId.toString() === assignmentId
-    );
-
-    if (assignmentIndex === -1) {
-      return NextResponse.json({ error: 'Assignment not submitted' }, { status: 404 });
-    }
-
-    (enrollment.assignmentsCompleted[assignmentIndex] as any).score = score;
-    (enrollment.assignmentsCompleted[assignmentIndex] as any).gradedAt = new Date();
-    (enrollment.assignmentsCompleted[assignmentIndex] as any).gradedBy = (decoded as any).id;
-
-    await enrollment.save();
+    await bunnyExecute({
+      sql: 'UPDATE course_assignment_submissions_sql SET status = ?, data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [status || 'graded', JSON.stringify({ grade, feedback }), submissionId],
+    });
 
     return NextResponse.json({
       success: true,
-      enrollment,
+      message: 'Submission graded',
     });
-
   } catch (error: any) {
     console.error('[Submissions PUT Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }

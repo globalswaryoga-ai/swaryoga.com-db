@@ -1,60 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
-import { getCourseEnrollment } from '@/lib/schemas/recordedCourseSchemas';
+import {
+  listEnrollmentsByCourse,
+  countEnrollmentsByCourse,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> | { courseId: string } }
 ) {
   try {
-    await connectDB();
-
-    const courseId = params.courseId;
-    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '15', 10);
-    const skip = parseInt(request.nextUrl.searchParams.get('skip') || '0', 10);
+    const resolved = await params;
+    const courseId = resolved.courseId;
 
     if (!courseId) {
-      return NextResponse.json(
-        { error: 'Course ID required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-    const CourseEnrollment = getCourseEnrollment();
+    const [enrollments, totalCount] = await Promise.all([
+      listEnrollmentsByCourse(courseId),
+      countEnrollmentsByCourse(courseId),
+    ]);
 
-    // Fetch enrolled students with user details
-    const enrollments = await CourseEnrollment.find({
-      courseId,
-      status: 'active',
-    })
-      .populate({
-        path: 'userId',
-        select: 'firstName lastName email',
-      })
-      .select('enrolledAt userId')
-      .sort({ enrolledAt: -1 })
-      .limit(limit)
-      .skip(skip)
-      .lean();
-
-    // Fetch total count for pagination
-    const totalCount = await CourseEnrollment.countDocuments({
-      courseId,
-      status: 'active',
-    });
-
-    let students = enrollments.map((enrollment: any) => ({
-      _id: enrollment._id,
-      firstName: enrollment.userId?.firstName || 'Unknown',
-      lastName: enrollment.userId?.lastName || 'User',
-      email: enrollment.userId?.email || '',
+    const students = enrollments.map((enrollment) => ({
+      _id: enrollment.id,
+      firstName: enrollment.data?.firstName || 'Student',
+      lastName: enrollment.data?.lastName || '',
+      email: enrollment.data?.email || '',
       enrolledAt: enrollment.enrolledAt,
       isReal: true,
     }));
 
-    // Add 15 dummy students to base list
     const dummyNames = [
       { firstName: 'Rajesh', lastName: 'Kumar' },
       { firstName: 'Priya', lastName: 'Singh' },
@@ -74,17 +51,7 @@ export async function GET(
     ];
 
     const dummyStudents = dummyNames.map((name, index) => {
-      let daysAgo = 5; // Default: 5 days ago
-
-      // First 5 students: enrolled 4 days ago
-      if (index < 5) {
-        daysAgo = 4;
-      }
-      // Next 10 students: enrolled 5 days ago
-      else {
-        daysAgo = 5;
-      }
-
+      const daysAgo = index < 5 ? 4 : 5;
       return {
         _id: `dummy-${index}`,
         firstName: name.firstName,
@@ -95,23 +62,17 @@ export async function GET(
       };
     });
 
-    // Combine: base 15 dummy + real enrollments
     const allStudents = [...dummyStudents, ...students];
-    const displayCount = 15 + totalCount; // 15 base + actual enrollments
+    const displayCount = 15 + totalCount;
 
     return NextResponse.json({
       success: true,
-      students: allStudents.slice(0, Math.max(15, allStudents.length)),
-      total: displayCount, // This is what shows as "X Students Joined"
-      actualEnrollments: totalCount,
-      limit,
-      skip,
+      students: allStudents,
+      totalCount: displayCount,
+      realCount: totalCount,
     });
-  } catch (error: any) {
-    console.error('[Get Enrollments API Error]:', error);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error fetching course enrollments:', error);
+    return NextResponse.json({ error: 'Failed to fetch enrollments' }, { status: 500 });
   }
 }

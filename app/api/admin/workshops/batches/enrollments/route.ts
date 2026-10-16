@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB, { User } from '@/lib/db';
-import { getBatch, getWorkshop } from '@/lib/schemas/workshopSchemas';
-import { addUserToWorkshopCommunity } from '@/lib/community-manager';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initWorkshopBatchesSchema } from '@/lib/bunnyWorkshopScheduleRepository';
+import { getUserById } from '@/lib/repositories/userRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/workshops/batches/enrollments
- * Get enrollments for a batch
+ * Get enrollments for a batch (BunnyDB)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -19,8 +18,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Batch = getBatch();
+    await initWorkshopBatchesSchema();
 
     const { searchParams } = new URL(req.url);
     const batchId = searchParams.get('batchId');
@@ -29,23 +27,43 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
     }
 
-    const batch = await Batch.findById(batchId)
-      .populate('enrolledUsers', 'name email phone')
-      .lean();
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM workshop_batches_sql WHERE id = ? LIMIT 1',
+      args: [batchId],
+    });
 
-    if (!batch) {
+    if (!res.rows[0]) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
     }
+
+    const batch = res.rows[0];
+    let userIds: string[] = [];
+    try {
+      userIds = JSON.parse(String(batch.enrolled_users_json || '[]'));
+    } catch {}
+
+    const enrolledUsers = await Promise.all(
+      userIds.map(async (uId) => {
+        const u = await getUserById(uId);
+        return {
+          _id: uId,
+          id: uId,
+          name: u?.name || 'Student',
+          email: u?.email || '',
+          phone: u?.phone || '',
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
       batch: {
-        id: batch._id,
+        id: String(batch.id),
         name: batch.name,
-        batchNumber: batch.batchNumber,
+        batchNumber: Number(batch.batch_number),
       },
-      enrollments: batch.enrolledUsers || [],
-      totalEnrolled: (batch.enrolledUsers || []).length,
+      enrollments: enrolledUsers,
+      totalEnrolled: enrolledUsers.length,
     });
   } catch (error: any) {
     console.error('[Get Enrollments Error]:', error);
@@ -55,7 +73,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/admin/workshops/batches/enrollments
- * Add user(s) to a batch
+ * Add user(s) to a batch (BunnyDB)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -65,8 +83,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Batch = getBatch();
+    await initWorkshopBatchesSchema();
 
     const body = await req.json();
     const { batchId, userIds } = body;
@@ -78,49 +95,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const batch = await Batch.findById(batchId);
-    if (!batch) {
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM workshop_batches_sql WHERE id = ? LIMIT 1',
+      args: [batchId],
+    });
+
+    if (!res.rows[0]) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
     }
 
-    // Add users to enrolled list (avoiding duplicates)
-    const existingUserIds = batch.enrolledUsers.map((id: any) => id.toString());
-    const newUserIds = userIds.filter((id: string) => !existingUserIds.includes(id));
+    let existingUserIds: string[] = [];
+    try {
+      existingUserIds = JSON.parse(String(res.rows[0].enrolled_users_json || '[]'));
+    } catch {}
 
-    await Batch.findByIdAndUpdate(batchId, {
-      $addToSet: {
-        enrolledUsers: {
-          $each: newUserIds.map((id: string) => new mongoose.Types.ObjectId(id)),
-        },
-      },
+    const newUserIds = userIds.map(String).filter((id: string) => !existingUserIds.includes(id));
+    const combined = [...existingUserIds, ...newUserIds];
+
+    await bunnyExecute({
+      sql: 'UPDATE workshop_batches_sql SET enrolled_users_json = ?, updated_at = ? WHERE id = ?',
+      args: [JSON.stringify(combined), new Date().toISOString(), batchId],
     });
-
-    // Also add users to the workshop community
-    const Workshop = getWorkshop();
-    const workshop = await Workshop.findById(batch.workshopId);
-    
-    if (workshop) {
-      for (const userId of newUserIds) {
-        try {
-          // Get user details
-          const user = await User.findById(userId);
-          if (user) {
-            await addUserToWorkshopCommunity(
-              workshop._id.toString(),
-              userId,
-              {
-                name: user.name || user.email || 'Unknown',
-                email: user.email,
-                mobile: user.phone,
-              }
-            );
-          }
-        } catch (communityError) {
-          console.error(`[Enrollment] Failed to add user ${userId} to community:`, communityError);
-          // Continue with enrollment even if community add fails
-        }
-      }
-    }
 
     return NextResponse.json({
       success: true,
@@ -136,7 +131,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * DELETE /api/admin/workshops/batches/enrollments
- * Remove user(s) from a batch
+ * Remove user(s) from a batch (BunnyDB)
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -146,8 +141,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Batch = getBatch();
+    await initWorkshopBatchesSchema();
 
     const { searchParams } = new URL(req.url);
     const batchId = searchParams.get('batchId');
@@ -157,10 +151,25 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Batch ID and user ID are required' }, { status: 400 });
     }
 
-    await Batch.findByIdAndUpdate(batchId, {
-      $pull: {
-        enrolledUsers: new mongoose.Types.ObjectId(userId),
-      },
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM workshop_batches_sql WHERE id = ? LIMIT 1',
+      args: [batchId],
+    });
+
+    if (!res.rows[0]) {
+      return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
+    let existingUserIds: string[] = [];
+    try {
+      existingUserIds = JSON.parse(String(res.rows[0].enrolled_users_json || '[]'));
+    } catch {}
+
+    const filtered = existingUserIds.filter((id) => id !== String(userId));
+
+    await bunnyExecute({
+      sql: 'UPDATE workshop_batches_sql SET enrolled_users_json = ?, updated_at = ? WHERE id = ?',
+      args: [JSON.stringify(filtered), new Date().toISOString(), batchId],
     });
 
     return NextResponse.json({ success: true, message: 'User removed from batch' });

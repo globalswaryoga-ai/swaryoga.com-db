@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       }
 
       let isEnrolled = false;
-      let userStudentData = null;
+      let userStudentData: any = null;
 
       if (decoded?.id) {
         const students = await listStudents(cohortId, true);

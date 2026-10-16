@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import mongoose from 'mongoose';
+import {
+  listLanguageFolders,
+  getLanguageFolder,
+  saveLanguageFolder,
+  deleteLanguageFolder,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
-const languageFolderSchema = new mongoose.Schema({
-  language: String,
-  folderName: String,
-  thumbnail: String,
-  displayOrder: Number,
-  isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-});
-
-function getLanguageFolderModel() {
-  return mongoose.models.LanguageFolder || mongoose.model('LanguageFolder', languageFolderSchema);
-}
-
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,43 +25,45 @@ export async function GET(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
 
     if (id) {
-      const LanguageFolder = getLanguageFolderModel();
-      const folder = await LanguageFolder.findById(id);
+      const folder = await getLanguageFolder(id);
       if (!folder) {
         return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: folder });
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...folder,
+          folderName: folder.name,
+          language: folder.code,
+          displayOrder: folder.order,
+        },
+      });
     } else {
-      // Use direct MongoDB connection to get actual language_folders data
-      const db = (await connectDB()).db;
-      const folders = await db.collection('language_folders')
-        .find({ isActive: true })
-        .sort({ order: 1 })
-        .toArray();
-
-      // Map to proper structure
-      const mappedFolders = folders.map(f => ({
-        _id: f._id?.toString() || f._id,
+      const folders = await listLanguageFolders(true);
+      const mappedFolders = folders.map((f) => ({
+        _id: f.id,
+        id: f.id,
         code: f.code,
         name: f.name,
         flag: f.flag,
         thumbnail: f.thumbnail,
         isActive: f.isActive,
-        order: f.order
+        order: f.order,
+        folderName: f.name,
+        language: f.code,
+        displayOrder: f.order,
       }));
 
       return NextResponse.json({ success: true, folders: mappedFolders });
     }
   } catch (error: any) {
-    console.error('[Language Folders API Error]:', error);
+    console.error('[Admin Language Folders API Error]:', error);
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -91,26 +81,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Language code and name required' }, { status: 400 });
     }
 
-    const LanguageFolder = getLanguageFolderModel();
-    const folder = await LanguageFolder.create({
-      language: code,
-      folderName: name,
-      thumbnail: thumbnail || flag || '',
-      displayOrder: parseInt(order) || 0,
+    const folder = await saveLanguageFolder({
+      code,
+      name,
+      flag,
+      thumbnail,
+      order: parseInt(order) || 1,
       isActive: isActive !== false,
     });
 
     return NextResponse.json({ success: true, data: folder }, { status: 201 });
   } catch (error: any) {
-    console.error('[Language Folders POST Error]:', error);
+    console.error('[Admin Language Folders POST Error]:', error);
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -129,35 +117,25 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { code, name, flag, thumbnail, order, isActive } = body;
 
-    const LanguageFolder = getLanguageFolderModel();
-    const folder = await LanguageFolder.findByIdAndUpdate(
+    const folder = await saveLanguageFolder({
       id,
-      {
-        language: code,
-        folderName: name,
-        thumbnail: thumbnail || flag,
-        displayOrder: parseInt(order) || 0,
-        isActive: isActive !== false,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    );
-
-    if (!folder) {
-      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
-    }
+      code: code || '',
+      name: name || '',
+      flag: flag || '',
+      thumbnail: thumbnail || flag || '',
+      order: parseInt(order) || 1,
+      isActive: isActive !== false,
+    });
 
     return NextResponse.json({ success: true, data: folder });
   } catch (error: any) {
-    console.error('[Language Folders PUT Error]:', error);
+    console.error('[Admin Language Folders PUT Error]:', error);
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -173,16 +151,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    const LanguageFolder = getLanguageFolderModel();
-    const folder = await LanguageFolder.findByIdAndUpdate(id, { isActive: false }, { new: true });
-
-    if (!folder) {
+    const deleted = await deleteLanguageFolder(id);
+    if (!deleted) {
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, message: 'Folder deleted' });
   } catch (error: any) {
-    console.error('[Language Folders DELETE Error]:', error);
+    console.error('[Admin Language Folders DELETE Error]:', error);
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }

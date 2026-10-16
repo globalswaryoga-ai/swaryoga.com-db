@@ -1,93 +1,70 @@
 /**
  * Leaderboard API
  * GET /api/leaderboard - Get leaderboard rankings
+ * Connected to Bunny Database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
-import { getCourseEnrollment } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
+import { verifyToken, TokenPayload } from '@/lib/auth';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { initCourseSchema } from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = verifyToken(authHeader.split(' ')[1]);
-    if (!decoded) {
+    let decoded: TokenPayload | null;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
-    const userId = decoded.id || decoded._id || decoded.userId;
+    const currentUserId = decoded.id || decoded._id || decoded.userId;
     const courseFilter = request.nextUrl.searchParams.get('course') || 'all';
 
-    const CourseEnrollment = getCourseEnrollment();
-    const db = mongoose.connection.db;
-
-    // Aggregate leaderboard data
-    const pipeline: any[] = [
-      {
-        $match: {
-          status: { $in: ['active', 'completed'] },
-        },
-      },
-    ];
+    let sql = `
+      SELECT 
+        e.user_id,
+        COALESCE(u.name, 'Student') as student_name,
+        SUM(e.progress_percent) as total_points,
+        SUM(CASE WHEN e.status = 'completed' THEN 1 ELSE 0 END) as courses_completed
+      FROM course_enrollments_sql e
+      LEFT JOIN users u ON u.id = e.user_id
+      WHERE e.status IN ('active', 'completed')
+    `;
+    const args: any[] = [];
 
     if (courseFilter !== 'all') {
-      pipeline.push({
-        $match: { courseId: new mongoose.Types.ObjectId(courseFilter) },
-      });
+      sql += ' AND e.course_id = ?';
+      args.push(courseFilter);
     }
 
-    pipeline.push(
-      {
-        $group: {
-          _id: '$userId',
-          totalWatchTime: { $sum: '$totalWatchTime' },
-          coursesCompleted: {
-            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
-          },
-          totalPoints: { $sum: '$progress' },
-          badges: { $push: '$badges' },
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      {
-        $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
-      },
-      {
-        $sort: { totalPoints: -1, totalWatchTime: -1 },
-      },
-      {
-        $limit: 100,
-      }
-    );
+    sql += `
+      GROUP BY e.user_id
+      ORDER BY total_points DESC
+      LIMIT 100
+    `;
 
-    const results = await CourseEnrollment.aggregate(pipeline);
+    const res = await bunnyExecute({ sql, args }).catch(() => ({ rows: [] }));
 
-    const leaderboard = results.map((entry: any, idx: number) => ({
+    const leaderboard = res.rows.map((entry: any, idx: number) => ({
       rank: idx + 1,
-      userId: entry._id?.toString() || '',
-      studentName: entry.user?.name || 'Anonymous',
-      totalWatchTime: entry.totalWatchTime || 0,
-      coursesCompleted: entry.coursesCompleted || 0,
-      totalPoints: Math.round(entry.totalPoints || 0),
-      badges: entry.badges?.flat() || [],
-      isCurrentUser: entry._id?.toString() === userId,
+      userId: String(entry.user_id || ''),
+      studentName: entry.student_name || 'Anonymous',
+      totalWatchTime: 0,
+      coursesCompleted: Number(entry.courses_completed || 0),
+      totalPoints: Math.round(Number(entry.total_points || 0)),
+      badges: [],
+      isCurrentUser: String(entry.user_id) === String(currentUserId),
     }));
 
     return NextResponse.json({

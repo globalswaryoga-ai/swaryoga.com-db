@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { connectDB } from '@/lib/db';
-import { getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
-import mongoose from 'mongoose';
+import {
+  listWorkshopBatches,
+  createWorkshopBatch,
+  updateWorkshopBatch,
+  deleteWorkshopBatch,
+} from '@/lib/bunnyWorkshopScheduleRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/workshops/batches (SUPERADMIN ONLY)
- * List batches for a workshop
+ * List batches for a workshop (BunnyDB)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -18,14 +21,9 @@ export async function GET(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop batches are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
-    const Batch = getBatch();
-    const WorkshopVideo = getWorkshopVideo();
 
     const { searchParams } = new URL(req.url);
     const workshopId = searchParams.get('workshopId');
@@ -34,19 +32,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Workshop ID is required' }, { status: 400 });
     }
 
-    const batches = await Batch.find({ workshopId: new mongoose.Types.ObjectId(workshopId) })
-      .sort({ batchNumber: -1 })
-      .lean();
+    const batches = await listWorkshopBatches(workshopId);
 
-    // Enrich with video counts
-    const enrichedBatches = await Promise.all(
-      batches.map(async (batch: any) => {
-        const videoCount = await WorkshopVideo.countDocuments({ batchId: batch._id });
-        return { ...batch, videoCount };
-      })
-    );
-
-    return NextResponse.json({ success: true, batches: enrichedBatches });
+    return NextResponse.json({ success: true, batches });
   } catch (error: any) {
     console.error('[Batches API Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -55,7 +43,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/admin/workshops/batches (SUPERADMIN ONLY)
- * Create a new batch for a workshop
+ * Create a new batch for a workshop (BunnyDB)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -64,13 +52,9 @@ export async function POST(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop batches are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
-    const Batch = getBatch();
 
     const body = await req.json();
     const { workshopId, batchNumber, name, startDate, endDate, isActive } = body;
@@ -79,20 +63,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workshop ID and batch number are required' }, { status: 400 });
     }
 
-    // Check if batch number already exists for this workshop
-    const existing = await Batch.findOne({ workshopId, batchNumber });
-    if (existing) {
-      return NextResponse.json({ error: 'Batch number already exists for this workshop' }, { status: 400 });
-    }
-
-    const batch = await Batch.create({
-      workshopId: new mongoose.Types.ObjectId(workshopId),
-      batchNumber,
-      name: name || `Batch ${batchNumber}`,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      isActive: isActive !== false,
-      enrolledUsers: [],
+    const batch = await createWorkshopBatch({
+      workshopId,
+      batchNumber: Number(batchNumber),
+      name,
+      startDate,
+      endDate,
+      isActive,
     });
 
     return NextResponse.json({ success: true, batch });
@@ -104,7 +81,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * PUT /api/admin/workshops/batches (SUPERADMIN ONLY)
- * Update a batch
+ * Update a batch (BunnyDB)
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -113,13 +90,9 @@ export async function PUT(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Workshop batches are main website data - superadmin only
     if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
-    const Batch = getBatch();
 
     const body = await req.json();
     const { batchId, ...updateData } = body;
@@ -128,19 +101,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
     }
 
-    // Convert dates if provided
-    if (updateData.startDate) {
-      updateData.startDate = new Date(updateData.startDate);
-    }
-    if (updateData.endDate) {
-      updateData.endDate = new Date(updateData.endDate);
-    }
-
-    const batch = await Batch.findByIdAndUpdate(
-      batchId,
-      { $set: updateData },
-      { new: true }
-    );
+    const batch = await updateWorkshopBatch(batchId, updateData);
 
     if (!batch) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
@@ -155,7 +116,7 @@ export async function PUT(req: NextRequest) {
 
 /**
  * DELETE /api/admin/workshops/batches
- * Delete a batch
+ * Delete a batch (BunnyDB)
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -165,9 +126,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Batch = getBatch();
-
     const { searchParams } = new URL(req.url);
     const batchId = searchParams.get('batchId');
 
@@ -175,7 +133,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
     }
 
-    await Batch.findByIdAndUpdate(batchId, { isActive: false });
+    await deleteWorkshopBatch(batchId);
 
     return NextResponse.json({ success: true, message: 'Batch deactivated' });
   } catch (error: any) {

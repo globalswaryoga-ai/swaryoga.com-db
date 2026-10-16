@@ -93,7 +93,7 @@ export async function getOrdersByUser(userId: string): Promise<BunnyOrder[]> {
   return r.rows.map(orderRowToObj);
 }
 
-export async function saveOrder(input: Record<string, any>, orderId = id()): Promise<BunnyOrder | null> {
+export async function saveOrder(input: Record<string, any>, orderId: string = id()): Promise<BunnyOrder | null> {
   await initOrdersSchema();
   const timestamp = now();
   await bunnyExecute({

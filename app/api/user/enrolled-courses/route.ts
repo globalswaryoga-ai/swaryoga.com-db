@@ -1,26 +1,24 @@
 /**
  * User Enrolled Courses API
  * GET /api/user/enrolled-courses - Get user's enrolled courses with progress
+ * Connected to Bunny Database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import {
-  getRecordedCourse,
-  getCourseVideo,
-  getCourseEnrollment,
-  getVideoWatchLog,
-  getCourseAssignment,
-  getCourseMaterial,
-} from '@/lib/schemas/recordedCourseSchemas';
+  listEnrollmentsByUser,
+  getCourseById,
+  listVideos,
+  listAssignments,
+  listMaterials,
+  listWatchLogs,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     // Auth required
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -39,18 +37,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    const RecordedCourse = getRecordedCourse();
-    const CourseVideo = getCourseVideo();
-    const CourseEnrollment = getCourseEnrollment();
-    const VideoWatchLog = getVideoWatchLog();
-    const CourseAssignment = getCourseAssignment();
-    const CourseMaterial = getCourseMaterial();
-
-    // Get user's enrolled courses
-    const enrollments = await CourseEnrollment.find({
-      userId,
-      status: { $in: ['active', 'completed'] },
-    }).sort({ enrolledAt: -1 }).lean();
+    // Get user's enrolled courses from BunnyDB
+    const allEnrollments = await listEnrollmentsByUser(String(userId));
+    const enrollments = allEnrollments.filter((e) => ['active', 'completed'].includes(e.status));
 
     if (enrollments.length === 0) {
       return NextResponse.json({
@@ -62,43 +51,33 @@ export async function GET(request: NextRequest) {
 
     // Enrich with course details and progress
     const enrolledCoursesWithProgress = await Promise.all(
-      enrollments.map(async (enrollment: any) => {
-        const course: any = await RecordedCourse.findById(enrollment.courseId).lean();
+      enrollments.map(async (enrollment) => {
+        const course = await getCourseById(enrollment.courseId);
         if (!course) return null;
 
-        const videos = await CourseVideo.find({
-          courseId: course._id,
-          isActive: true,
-        }).sort({ order: 1 }).lean();
+        const [videos, watchLogs, assignments, materials] = await Promise.all([
+          listVideos(course.id),
+          listWatchLogs(String(userId), course.id),
+          listAssignments(course.id),
+          listMaterials(course.id),
+        ]);
 
-        const watchLogs = await VideoWatchLog.find({
-          userId,
-          courseId: course._id,
-        }).lean();
-
-        const assignments = await CourseAssignment.find({
-          courseId: course._id,
-          isActive: true,
-        }).lean();
-
-        const materials = await CourseMaterial.find({
-          courseId: course._id,
-          isActive: true,
-        }).lean();
+        const activeVideos = videos.filter((v) => v.isActive);
 
         const watchedVideoIds = new Set(
           watchLogs
-            .filter((log: any) => log.isCompleted)
-            .map((log: any) => log.videoId.toString())
+            .filter((log) => log.isCompleted)
+            .map((log) => String(log.videoId))
         );
 
-        const completionPercentage = videos.length > 0
-          ? Math.round((watchedVideoIds.size / videos.length) * 100)
+        const completionPercentage = activeVideos.length > 0
+          ? Math.round((watchedVideoIds.size / activeVideos.length) * 100)
           : 0;
 
         // Calculate remaining days/hours
         const enrolledDate = new Date(enrollment.enrolledAt);
-        const expiryDate = new Date(enrolledDate.getTime() + (course.giftHours?.hours || 0) * 60 * 60 * 1000);
+        const giftHours = (course as any).giftHours?.hours || 0;
+        const expiryDate = new Date(enrolledDate.getTime() + giftHours * 60 * 60 * 1000);
         const now = new Date();
         const remainingMs = Math.max(0, expiryDate.getTime() - now.getTime());
         const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
@@ -106,55 +85,55 @@ export async function GET(request: NextRequest) {
 
         return {
           enrollment: {
-            _id: enrollment._id,
+            _id: enrollment.id,
             status: enrollment.status,
             enrolledAt: enrollment.enrolledAt,
-            completedAt: enrollment.completedAt,
+            completedAt: (enrollment as any).completedAt || null,
           },
           course: {
-            _id: course._id,
+            _id: course.id,
             slug: course.slug,
-            title: course.content?.en?.title || course.title || '',
-            subtitle: course.content?.en?.subtitle,
-            description: course.content?.en?.description,
+            title: (course.content as any)?.en?.title || course.slug || '',
+            subtitle: (course.content as any)?.en?.subtitle,
+            description: (course.content as any)?.en?.description,
             thumbnail: course.thumbnail,
             level: course.level,
             videoLanguage: course.videoLanguage,
-            totalVideos: videos.length,
+            totalVideos: activeVideos.length,
             totalDuration: course.totalDuration,
             pricing: course.pricing,
           },
           progress: {
             watchedCount: watchedVideoIds.size,
-            totalCount: videos.length,
+            totalCount: activeVideos.length,
             completionPercentage,
             remainingDays,
             remainingHours,
           },
-          videos: videos.map((v: any) => ({
-            _id: v._id,
-            title: v.content?.en?.title || v.title || '',
+          videos: activeVideos.map((v) => ({
+            _id: v.id,
+            title: (v.content as any)?.en?.title || v.id,
             duration: v.duration,
             order: v.order,
             bunnyVideoId: v.bunnyVideoId,
-            isWatched: watchedVideoIds.has(v._id.toString()),
+            isWatched: watchedVideoIds.has(String(v.id)),
             isCompleted: watchLogs.some(
-              (log: any) => log.videoId.toString() === v._id.toString() && log.isCompleted
+              (log) => String(log.videoId) === String(v.id) && log.isCompleted
             ),
           })),
-          assignments: assignments.map((a: any) => ({
-            _id: a._id,
-            title: a.content?.en?.title || a.title || '',
-            description: a.content?.en?.description,
-            dueDate: a.dueDate,
-            isSubmitted: !!a.submittedAt,
-            submittedAt: a.submittedAt,
+          assignments: assignments.map((a) => ({
+            _id: a.id,
+            title: (a.content as any)?.en?.title || a.id,
+            description: (a.content as any)?.en?.description,
+            dueDate: (a.content as any)?.dueDate || null,
+            isSubmitted: false,
+            submittedAt: null,
           })),
-          materials: materials.map((m: any) => ({
-            _id: m._id,
-            title: m.content?.en?.title || m.title || '',
-            type: m.type,
-            fileUrl: m.type === 'pdf' ? m.fileUrl : null,
+          materials: materials.map((m) => ({
+            _id: m.id,
+            title: (m.content as any)?.en?.title || m.title || m.id,
+            type: m.fileType,
+            fileUrl: m.fileUrl,
           })),
           hasCertificate: enrollment.status === 'completed' && completionPercentage === 100,
         };

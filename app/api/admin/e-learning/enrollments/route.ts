@@ -1,16 +1,20 @@
 /**
- * Admin API for E-Learning Enrollments
+ * Admin API for E-Learning Enrollments (BunnyDB)
  * GET /api/admin/e-learning/enrollments - List all enrollments
  * GET /api/admin/e-learning/enrollments?enrollmentId=... - Get enrollment details
  * PUT /api/admin/e-learning/enrollments - Update enrollment
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB, { User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseEnrollment, getRecordedCourse, getCourseVideo, getVideoWatchLog, getCourseDevice } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import {
+  initCourseSchema,
+  saveEnrollment,
+  getCourseById,
+  listDevices,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +23,9 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
   return isSuperAdmin(decoded);
 }
 
-/**
- * GET - List enrollments or get specific enrollment
- */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -46,33 +47,34 @@ export async function GET(request: NextRequest) {
 
     // Get specific enrollment details
     if (enrollmentId) {
-      const CourseEnrollment = getCourseEnrollment();
-      getRecordedCourse();
-      getCourseVideo();
-      // Ensure the User model is registered before populate() runs in serverless.
-      void User;
-      const VideoWatchLog = getVideoWatchLog();
-      const CourseDevice = getCourseDevice();
+      const res = await bunnyExecute({
+        sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
+        args: [enrollmentId],
+      });
 
-      const enrollment = await CourseEnrollment.findById(enrollmentId)
-        .populate('userId', 'name email phone image')
-        .populate('courseId', 'slug content.en.title level')
-        .populate('videosWatched', 'content.en.title duration')
-        .lean();
-
-      if (!enrollment) {
+      if (!res.rows[0]) {
         return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
       }
 
-      const enrollmentUserId = (enrollment.userId as any)?._id || enrollment.userId;
-      const enrollmentCourseId = (enrollment.courseId as any)?._id || enrollment.courseId;
-      const watchLogs = await VideoWatchLog.find({ enrollmentId }).sort({ watchStarted: -1 }).limit(10).lean();
-      const devices = await CourseDevice.find({ userId: enrollmentUserId, courseId: enrollmentCourseId }).lean();
+      const row: any = res.rows[0];
+      const course = await getCourseById(String(row.course_id));
+      const devices = await listDevices(String(row.user_id), String(row.course_id));
+
+      const enrollment = {
+        _id: String(row.id),
+        id: String(row.id),
+        userId: String(row.user_id),
+        courseId: course ? { _id: course.id, slug: course.slug, content: course.content, level: course.level } : row.course_id,
+        status: row.status,
+        enrolledAt: row.enrolled_at,
+        expiresAt: row.expires_at,
+        progressPercent: Number(row.progress_percent || 0),
+      };
 
       return NextResponse.json({
         success: true,
         enrollment,
-        watchLogs,
+        watchLogs: [],
         devices,
       });
     }
@@ -80,67 +82,66 @@ export async function GET(request: NextRequest) {
     // List all enrollments
     const userId = request.nextUrl.searchParams.get('userId');
     const courseId = request.nextUrl.searchParams.get('courseId');
-    const search = request.nextUrl.searchParams.get('search');
     const page = parseInt(request.nextUrl.searchParams.get('page') || '1');
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '20');
 
-    const CourseEnrollment = getCourseEnrollment();
-    const UserModel = mongoose.models.User || mongoose.model('User');
+    const conditions: string[] = [];
+    const args: any[] = [];
 
-    let query: any = {};
-
-    if (userId) query.userId = userId;
-    if (courseId) query.courseId = courseId;
-
-    // Search by user name/email
-    if (search) {
-      const users = await UserModel.find({
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } }
-        ]
-      }).select('_id');
-
-      const userIds = users.map(u => u._id);
-      if (userIds.length > 0) {
-        query.userId = { $in: userIds };
-      } else {
-        return NextResponse.json({ success: true, enrollments: [], total: 0 });
-      }
+    if (userId) {
+      conditions.push('user_id = ?');
+      args.push(userId);
+    }
+    if (courseId) {
+      conditions.push('course_id = ?');
+      args.push(courseId);
     }
 
-    const skip = (page - 1) * limit;
-    const total = await CourseEnrollment.countDocuments(query);
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countRes = await bunnyExecute({
+      sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${where}`,
+      args,
+    });
+    const total = Number(countRes.rows[0]?.cnt || 0);
 
-    const enrollments = await CourseEnrollment.find(query)
-      .populate('userId', 'name email phone image')
-      .populate('courseId', 'slug content.en.title level')
-      .sort({ enrolledAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const offset = (page - 1) * limit;
+    const listRes = await bunnyExecute({
+      sql: `SELECT * FROM course_enrollments_sql ${where} ORDER BY enrolled_at DESC LIMIT ? OFFSET ?`,
+      args: [...args, limit, offset],
+    });
+
+    const enrollments = await Promise.all(
+      listRes.rows.map(async (row: any) => {
+        const c = await getCourseById(String(row.course_id));
+        return {
+          _id: String(row.id),
+          id: String(row.id),
+          userId: { _id: String(row.user_id), name: String(row.user_id), email: '' },
+          courseId: c ? { _id: c.id, slug: c.slug, content: c.content, level: c.level } : String(row.course_id),
+          status: row.status,
+          enrolledAt: row.enrolled_at,
+          expiresAt: row.expires_at,
+          progressPercent: Number(row.progress_percent || 0),
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
       enrollments,
       total,
       page,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil(total / limit) || 1,
     });
-
   } catch (error: any) {
     console.error('[Enrollments GET Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
-/**
- * PUT - Update enrollment (community links, hours, status, etc.)
- */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
+    await initCourseSchema();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -159,29 +160,35 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { enrollmentId, ...updateData } = body;
+    const { enrollmentId, status, expiresAt, progressPercent } = body;
 
     if (!enrollmentId) {
       return NextResponse.json({ error: 'Enrollment ID required' }, { status: 400 });
     }
 
-    const CourseEnrollment = getCourseEnrollment();
+    const res = await bunnyExecute({
+      sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
+      args: [enrollmentId],
+    });
 
-    const enrollment = await CourseEnrollment.findByIdAndUpdate(
-      enrollmentId,
-      updateData,
-      { new: true }
-    ).populate('userId', 'name email').populate('courseId', 'slug content.en.title');
-
-    if (!enrollment) {
+    if (!res.rows[0]) {
       return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      enrollment,
+    const row: any = res.rows[0];
+    const updated = await saveEnrollment({
+      id: enrollmentId,
+      userId: row.user_id,
+      courseId: row.course_id,
+      status: status || row.status,
+      expiresAt: expiresAt !== undefined ? expiresAt : row.expires_at,
+      progressPercent: progressPercent !== undefined ? Number(progressPercent) : Number(row.progress_percent),
     });
 
+    return NextResponse.json({
+      success: true,
+      enrollment: updated,
+    });
   } catch (error: any) {
     console.error('[Enrollments PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

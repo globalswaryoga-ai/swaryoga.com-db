@@ -1,37 +1,30 @@
 /**
- * Recorded Courses API
+ * Recorded Courses API (BunnyDB)
  * GET /api/recorded-courses - List all published courses
  * GET /api/recorded-courses?slug=xxx - Get specific course details
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB, { Order } from '@/lib/db';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import {
-  getRecordedCourse,
-  getCourseVideo,
-  getCourseSection,
-  getCourseMaterial,
-  getCourseEnrollment,
-  getCourseReview,
-} from '@/lib/schemas/recordedCourseSchemas';
-import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+  listCourses,
+  getCourseBySlug,
+  listSectionsByCourse,
+  listVideosByCourse,
+  listMaterialsByCourse,
+  getEnrollment,
+  listEnrollmentsByUser,
+  countVideosByCourse,
+} from '@/lib/bunnyCourseRepository';
+import { getOrdersByUser } from '@/lib/bunnyWebsiteRepository';
 
 export const dynamic = 'force-dynamic';
 
-
-// Helper to get user-preferred language (supports all languages, falls back to EN for unsupported)
 function getPreferredLanguage(request: NextRequest): string {
   const langParam = request.nextUrl.searchParams.get('lang');
   if (langParam) {
-    // Accept any language code - unsupported languages will fall back to English in getLocalizedContent
     return langParam.toLowerCase();
   }
-  // Check Accept-Language header
   const acceptLang = request.headers.get('accept-language') || '';
   if (acceptLang.includes('hi')) return 'hi';
   if (acceptLang.includes('mr')) return 'mr';
@@ -39,13 +32,11 @@ function getPreferredLanguage(request: NextRequest): string {
   return 'en';
 }
 
-// Helper to get content in preferred language with fallback to English
 function getLocalizedContent(content: any, lang: string) {
   if (!content) return {};
   const localContent = content[lang] || content.en || {};
   const enContent = content.en || {};
-  
-  // Merge: use local if available, fallback to English
+
   return {
     title: localContent.title || enContent.title || '',
     subtitle: localContent.subtitle || enContent.subtitle || '',
@@ -58,12 +49,9 @@ function getLocalizedContent(content: any, lang: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
     const slug = request.nextUrl.searchParams.get('slug');
     const lang = getPreferredLanguage(request);
-    
-    // Auth check (optional - for enrollment status)
+
     let decoded: TokenPayload | null = null;
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
@@ -73,147 +61,86 @@ export async function GET(request: NextRequest) {
         // Token invalid, continue as guest
       }
     }
-    
-    const RecordedCourse = getRecordedCourse();
-    const CourseVideo = getCourseVideo();
-    const CourseSection = getCourseSection();
-    const CourseMaterial = getCourseMaterial();
-    const CourseEnrollment = getCourseEnrollment();
-    const CourseReview = getCourseReview();
-    
+
+    const userId = (decoded as any)?.id || (decoded as any)?._id || (decoded as any)?.userId;
+
     // ============================================
     // GET SPECIFIC COURSE
     // ============================================
     if (slug) {
-      const course = await RecordedCourse.findOne({ 
-        slug, 
-        isActive: true, 
-        isPublished: true 
-      }).lean();
-      
-      if (!course) {
+      const course = await getCourseBySlug(slug);
+
+      if (!course || !course.isActive || !course.isPublished) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
-      
-      // Get sections
-      const sections = await CourseSection.find({
-        courseId: course._id,
-        isActive: true,
-      }).sort({ order: 1 }).lean();
-      
-      // Get videos
-      const videos = await CourseVideo.find({
-        courseId: course._id,
-        isActive: true,
-      }).sort({ order: 1 }).lean();
-      
-      // Get materials (non-certificate)
-      const materials = await CourseMaterial.find({
-        courseId: course._id,
-        isActive: true,
-        type: { $ne: 'certificate' },
-      }).sort({ order: 1 }).lean();
-      
-      // Get reviews
-      const reviews = await CourseReview.find({
-        courseId: course._id,
-        isApproved: true,
-        isPublic: true,
-      }).sort({ createdAt: -1 }).limit(10).lean();
-      
-      // Check enrollment status
-      let enrollment = null;
-      let canAccessPaidContent = false;
-      const userId = decoded?.id || decoded?._id || decoded?.userId;
-      
+
+      const [sections, videos, materials] = await Promise.all([
+        listSectionsByCourse(course.id),
+        listVideosByCourse(course.id, true),
+        listMaterialsByCourse(course.id, true),
+      ]);
+
+      let enrollment: any = null;
+      let canAccessPaidContent = course.isFree;
+
       if (userId) {
-        enrollment = await CourseEnrollment.findOne({
-          userId,
-          courseId: course._id,
-          status: { $in: ['active', 'completed'] },
-        }).lean();
-
-        canAccessPaidContent = !!enrollment;
-
-        // ── SELF-HEAL: paid but not enrolled ──
-        // Historically the e-learning payment flow could complete an Order
-        // without ever creating the CourseEnrollment (missed webhook / old
-        // initiate flow), locking paying users out of their videos. If this
-        // viewer has a completed order for this course, activate it now.
-        if (!enrollment) {
+        enrollment = await getEnrollment(String(userId), course.id);
+        if (enrollment) {
+          canAccessPaidContent = true;
+        } else {
+          // Check completed orders for user in BunnyDB
           try {
-            const orderMatch: any[] = [{ userId: String(userId) }];
-            if (decoded?.email) {
-              orderMatch.push({
-                'shippingAddress.email': new RegExp(`^${escapeRegex(String(decoded.email).trim())}$`, 'i'),
-              });
+            const userOrders = await getOrdersByUser(String(userId));
+            const paid = userOrders.find(
+              (o) => String(o.courseId) === course.id && o.paymentStatus === 'completed'
+            );
+            if (paid) {
+              canAccessPaidContent = true;
             }
-            const paidOrder: any = await Order.findOne({
-              courseId: course._id,
-              paymentStatus: 'completed',
-              $or: orderMatch,
-            }).sort({ createdAt: -1 });
-
-            if (paidOrder) {
-              await activateCourseEnrollmentForOrder(paidOrder, paidOrder.cashfreeOrderId || String(paidOrder._id));
-              enrollment = await CourseEnrollment.findOne({
-                userId,
-                courseId: course._id,
-                status: { $in: ['active', 'completed'] },
-              }).lean();
-              canAccessPaidContent = !!enrollment;
-              if (enrollment) {
-                console.log(`[Recorded Courses] Self-healed enrollment for user ${userId} on course ${course.slug}`);
-              }
-            }
-          } catch (healErr: any) {
-            console.error('[Recorded Courses] Self-heal check failed:', healErr?.message);
+          } catch {
+            // ignore
           }
         }
       }
-      
-      // Calculate gift hours availability
-      const giftHoursAvailable = course.giftHours?.enabled && !enrollment;
-      
-      // Localize content
+
+      const giftHoursAvailable = Boolean(course.giftHours?.enabled && !enrollment);
+
       const localizedCourse = {
         ...course,
-        videoLanguage: course.videoLanguage,
         ...getLocalizedContent(course.content, lang),
-        content: undefined, // Remove raw content object
+        content: undefined,
       };
-      
-      const localizedSections = sections.map((s: any) => ({
+
+      const localizedSections = sections.map((s) => ({
         ...s,
         ...getLocalizedContent(s.content, lang),
         content: undefined,
       }));
-      
-      const localizedVideos = videos.map((v: any) => ({
+
+      const localizedVideos = videos.map((v) => ({
         ...v,
         ...getLocalizedContent(v.content, lang),
         content: undefined,
-        // Don't expose video URL for paid content if not enrolled
-        videoUrl: (v.isFree === true || canAccessPaidContent) ? v.videoUrl : undefined,
-        bunnyVideoId: (v.isFree === true || canAccessPaidContent) ? v.bunnyVideoId : undefined,
-        canWatch: v.isFree === true || canAccessPaidContent,
+        videoUrl: (v.isFree || canAccessPaidContent) ? v.videoUrl : undefined,
+        bunnyVideoId: (v.isFree || canAccessPaidContent) ? v.bunnyVideoId : undefined,
+        canWatch: v.isFree || canAccessPaidContent,
         isLocked: !v.isFree && !canAccessPaidContent,
       }));
-      
-      const localizedMaterials = materials.map((m: any) => ({
+
+      const localizedMaterials = materials.map((m) => ({
         ...m,
         ...getLocalizedContent(m.content, lang),
         content: undefined,
         fileUrl: canAccessPaidContent ? m.fileUrl : undefined,
       }));
-      
+
       return NextResponse.json({
         success: true,
         course: localizedCourse,
         sections: localizedSections,
         videos: localizedVideos,
         materials: localizedMaterials,
-        reviews,
+        reviews: [],
         enrollment,
         canAccessPaidContent,
         giftHoursAvailable,
@@ -221,76 +148,56 @@ export async function GET(request: NextRequest) {
         language: lang,
       });
     }
-    
+
     // ============================================
     // LIST ALL COURSES
     // ============================================
     const folderId = request.nextUrl.searchParams.get('folderId');
-    const query: any = {
-      isActive: true,
+    const courses = await listCourses({
+      folderId: folderId || undefined,
       isPublished: true,
-    };
-
-    // Filter by folder if provided
-    if (folderId) {
-      query.folderId = folderId;
-    }
-
-    const courses = await RecordedCourse.find(query).sort({ order: 1, createdAt: -1 }).lean();
-    
-    // Get user enrollments
-    let userEnrollments: any[] = [];
-    const userId = decoded?.id || decoded?._id || decoded?.userId;
-    if (userId) {
-      userEnrollments = await CourseEnrollment.find({
-        userId,
-        status: { $in: ['active', 'completed'] },
-      }).lean();
-    }
-    
-    const enrolledCourseIds = new Set(userEnrollments.map((e: any) => e.courseId.toString()));
-    
-    // Localize and enrich courses
-    const localizedCourses = courses.map((course: any) => {
-      const isEnrolled = enrolledCourseIds.has(course._id.toString());
-      const enrollment = userEnrollments.find((e: any) => e.courseId.toString() === course._id.toString());
-
-      return {
-        _id: course._id,
-        slug: course.slug,
-        thumbnail: course.thumbnail,
-        previewVideoUrl: course.previewVideoUrl,
-        level: course.level,
-        videoLanguage: course.videoLanguage,
-        category: course.category,
-        totalDuration: course.totalDuration,
-        totalVideos: course.totalVideos,
-        pricing: course.pricing,
-        discount: course.discount,
-        promoCode: course.promoCode,
-        isFree: course.isFree,
-        giftHours: course.giftHours,
-        defaultStudents: course.defaultStudents,
-        enrolledCount: course.enrolledCount,
-        averageRating: course.averageRating,
-        reviewCount: course.reviewCount,
-        // Localized content
-        ...getLocalizedContent(course.content, lang),
-        // Enrollment status
-        isEnrolled,
-        progress: enrollment?.progress || 0,
-      };
+      isActive: true,
     });
-    
+
+    let userEnrollments: any[] = [];
+    if (userId) {
+      try {
+        userEnrollments = await listEnrollmentsByUser(String(userId));
+      } catch {
+        // ignore
+      }
+    }
+
+    const enrolledCourseIds = new Set(
+      userEnrollments
+        .filter((e) => e.status === 'active' || e.status === 'completed')
+        .map((e) => String(e.courseId))
+    );
+
+    const coursesWithStats = await Promise.all(
+      courses.map(async (c) => {
+        const videoCount = await countVideosByCourse(c.id);
+        const localized = getLocalizedContent(c.content, lang);
+
+        return {
+          ...c,
+          title: localized.title || c.data?.title || c.slug,
+          subtitle: localized.subtitle || c.data?.subtitle || '',
+          description: localized.description || c.data?.description || '',
+          content: undefined,
+          videoCount,
+          isEnrolled: enrolledCourseIds.has(c.id),
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      courses: localizedCourses,
+      courses: coursesWithStats,
       isLoggedIn: !!decoded,
-      language: lang,
     });
-    
-  } catch (error: any) {
-    console.error('[Recorded Courses API Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  } catch (err) {
+    console.error('[GET /api/recorded-courses] Error:', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

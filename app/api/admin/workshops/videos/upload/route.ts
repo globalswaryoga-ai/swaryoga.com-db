@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
-import { generateUploadUrl, getPublicFileUrl } from '@/lib/bunny-storage';
-import mongoose from 'mongoose';
+import { saveWorkshopVideo } from '@/lib/bunnyWorkshopScheduleRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { generateUploadUrl } from '@/lib/bunny-storage';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/workshops/videos/upload
- * Get a presigned URL for uploading a workshop video to S3
+ * Get a presigned URL for uploading a workshop video to Bunny Storage
  */
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +50,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate Bunny storage key path
-    const ext = filename.split('.').pop() || 'mp4';
     const timestamp = Date.now();
     const slug = workshopSlug || 'workshop';
     const batch = batchNumber || 'general';
@@ -61,22 +61,17 @@ export async function POST(req: NextRequest) {
     // Generate upload URL for Bunny Storage
     const presignedUrl = await generateUploadUrl(s3Key, contentType);
 
-    // If title is provided, create the video record immediately
-    // (will be marked as pending until upload completes)
     let videoRecord: any = null;
     if (title) {
-      await connectDB();
-      const WorkshopVideo = getWorkshopVideo();
-
-      videoRecord = await WorkshopVideo.create({
-        workshopId: new mongoose.Types.ObjectId(workshopId),
-        batchId: batchId ? new mongoose.Types.ObjectId(batchId) : undefined,
+      videoRecord = await saveWorkshopVideo({
+        workshopId,
+        batchId: batchId || undefined,
         title,
         description,
         s3Key,
-        dayNumber: dayNumber || 1,
+        dayNumber: Number(dayNumber || 1),
         accessType: accessType || 'enrolled',
-        recordedDate: recordedDate ? new Date(recordedDate) : new Date(),
+        recordedDate: recordedDate || new Date().toISOString().split('T')[0],
         isActive: false, // Will be activated after upload confirmation
       });
     }
@@ -85,7 +80,7 @@ export async function POST(req: NextRequest) {
       success: true,
       uploadUrl: presignedUrl,
       s3Key,
-      videoId: videoRecord?._id,
+      videoId: videoRecord?._id || videoRecord?.id,
       expiresIn: 3600,
       instructions: {
         method: 'PUT',
@@ -103,7 +98,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * PUT /api/admin/workshops/videos/upload
- * Confirm upload completion and activate the video
+ * Confirm upload completion and activate the video (BunnyDB)
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -123,31 +118,36 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    await connectDB();
-    const WorkshopVideo = getWorkshopVideo();
-
-    const query = videoId 
-      ? { _id: new mongoose.Types.ObjectId(videoId) }
-      : { s3Key };
-
-    const video = await WorkshopVideo.findOneAndUpdate(
-      query,
-      { 
-        $set: { 
-          isActive: true,
-          ...(duration && { duration }),
-        } 
-      },
-      { new: true }
-    );
-
-    if (!video) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    let where = 'id = ?';
+    let arg = videoId;
+    if (!videoId && s3Key) {
+      where = 's3_key = ?';
+      arg = s3Key;
     }
+
+    const durationNum = duration ? Number(duration) : undefined;
+    const updates = ['is_active = 1', 'updated_at = ?'];
+    const args: any[] = [new Date().toISOString()];
+
+    if (durationNum !== undefined) {
+      updates.push('duration = ?');
+      args.push(durationNum);
+    }
+    args.push(arg);
+
+    await bunnyExecute({
+      sql: `UPDATE workshop_videos_sql SET ${updates.join(', ')} WHERE ${where}`,
+      args,
+    });
+
+    const res = await bunnyExecute({
+      sql: `SELECT * FROM workshop_videos_sql WHERE ${where} LIMIT 1`,
+      args: [arg],
+    });
 
     return NextResponse.json({
       success: true,
-      video,
+      video: res.rows[0] ? { _id: res.rows[0].id, id: res.rows[0].id, ...res.rows[0] } : null,
       message: 'Video upload confirmed and activated',
     });
   } catch (error: any) {

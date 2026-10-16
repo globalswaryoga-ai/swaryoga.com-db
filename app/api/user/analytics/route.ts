@@ -1,117 +1,94 @@
 /**
  * User Analytics API
  * GET /api/user/analytics - Get learning analytics for user
+ * Connected to Bunny Database
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
-import { getCourseEnrollment, getRecordedCourse, getVideoWatchLog } from '@/lib/schemas/recordedCourseSchemas';
-import mongoose from 'mongoose';
+import { verifyToken, TokenPayload } from '@/lib/auth';
+import {
+  listEnrollmentsByUser,
+  getCourseById,
+  listWatchLogs,
+  listVideos,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = verifyToken(authHeader.split(' ')[1]);
-    if (!decoded) {
+    let decoded: TokenPayload | null;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const userId = decoded.id || decoded._id || decoded.userId;
-    const timeframe = request.nextUrl.searchParams.get('timeframe') || 'month';
+    if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 400 });
 
-    const CourseEnrollment = getCourseEnrollment();
-    const RecordedCourse = getRecordedCourse();
-    const VideoWatchLog = getVideoWatchLog();
+    const enrollments = await listEnrollmentsByUser(String(userId));
+    const activeEnrollments = enrollments.filter((e) => ['active', 'completed'].includes(e.status));
 
-    // Calculate date range
-    const now = new Date();
-    let startDate = new Date();
-    if (timeframe === 'week') {
-      startDate.setDate(now.getDate() - 7);
-    } else if (timeframe === 'month') {
-      startDate.setMonth(now.getMonth() - 1);
-    } else {
-      startDate = new Date(0); // All time
-    }
-
-    // Get user enrollments
-    const enrollments = await CourseEnrollment.find({
-      userId: userId,
-    }).populate('courseId');
-
-    // Build analytics for each course
     const analytics = await Promise.all(
-      enrollments.map(async (enrollment: any) => {
-        const course = enrollment.courseId;
-        const courseId = course._id;
+      activeEnrollments.map(async (enrollment) => {
+        const course = await getCourseById(enrollment.courseId);
+        if (!course) return null;
 
-        // Get watch logs for this course in the timeframe
-        const watchLogs = await VideoWatchLog.find({
-          userId: userId,
-          courseId: courseId,
-          startTime: { $gte: startDate },
-        });
+        const [watchLogs, videos] = await Promise.all([
+          listWatchLogs(String(userId), course.id),
+          listVideos(course.id),
+        ]);
 
-        // Calculate stats
-        const totalWatchTime = watchLogs.reduce((sum: number, log: any) => {
-          return sum + (log.watchedSeconds || 0);
-        }, 0);
-
+        const totalWatchTime = watchLogs.reduce((sum, log) => sum + (log.watchTime || 0), 0);
         const daysActive = new Set(
-          watchLogs.map((log: any) => log.startTime.toISOString().split('T')[0])
+          watchLogs
+            .filter((l) => l.lastWatchedAt)
+            .map((l) => l.lastWatchedAt.split('T')[0])
         ).size;
 
-        const averageWatchTimePerVideo = enrollment.videosWatched?.length > 0
-          ? totalWatchTime / enrollment.videosWatched.length
-          : 0;
+        const watchedCount = enrollment.videosWatched?.length || 0;
+        const averageWatchTimePerVideo = watchedCount > 0 ? Math.round(totalWatchTime / watchedCount) : 0;
 
-        // Get video-specific watch stats
-        const videoWatchStats = await Promise.all(
-          (enrollment.videosWatched || []).map(async (videoId: any) => {
-            const logs: any = await VideoWatchLog.findOne({
-              userId: userId,
-              videoId: videoId,
-            })
-              .populate('videoId', 'content duration')
-              .sort({ createdAt: -1 });
+        const videoMap = new Map<string, any>(videos.map((v) => [v.id, v]));
 
-            return {
-              videoTitle: logs?.videoId?.content?.en?.title || 'Video',
-              watchedSeconds: logs?.watchedSeconds || 0,
-              completedWatch: logs?.completedWatch || false,
-            };
-          })
-        );
+        const videoWatchStats = watchLogs.map((log) => {
+          const video = videoMap.get(log.videoId);
+          return {
+            videoTitle: (video?.content as any)?.en?.title || log.videoId,
+            watchedSeconds: log.watchTime,
+            completedWatch: log.completed,
+          };
+        });
 
         return {
-          courseId: courseId.toString(),
-          courseTitle: course.content?.en?.title || course.title || 'Course',
-          progress: enrollment.progress || 0,
+          courseId: course.id,
+          courseTitle: (course.content as any)?.en?.title || course.slug || 'Course',
+          progress: enrollment.progressPercent || 0,
           totalWatchTime,
-          videosWatched: enrollment.videosWatched?.length || 0,
-          totalVideos: course.totalVideos || 0,
+          videosWatched: watchedCount,
+          totalVideos: videos.length,
           averageWatchTimePerVideo,
-          completionRate: enrollment.progress || 0,
+          completionRate: enrollment.progressPercent || 0,
           daysActive,
-          lastWatchedDate: enrollment.lastWatchedAt || enrollment.enrolledAt,
-          watchTimePerDay: [], // Can be calculated if needed
+          lastWatchedDate: enrollment.updatedAt || enrollment.enrolledAt,
+          watchTimePerDay: [],
           videoWatchStats,
         };
       })
     );
 
+    const validAnalytics = analytics.filter(Boolean);
+
     return NextResponse.json({
       success: true,
-      data: analytics.filter((a) => a.totalWatchTime > 0 || a.videosWatched > 0),
+      data: validAnalytics,
     });
 
   } catch (error: any) {

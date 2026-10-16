@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { generateAIText, type AiHistoryTurn } from '@/lib/ai/generateWithFallback';
 import { buildRagContext, pickLangVariant, languageName, type RagSource } from '@/lib/ragRetrieval';
 import {
-  getRecordedCourse,
-  getCourseVideo,
-  getCourseMaterial,
-  getCourseEnrollment,
-} from '@/lib/schemas/recordedCourseSchemas';
+  getVideoById,
+  getCourseById,
+  getEnrollment,
+  listMaterialsByCourse,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +28,10 @@ async function canAccessVideo(request: NextRequest, video: any, course: any) {
 
   try {
     const decoded = verifyToken(authHeader.split(' ')[1]);
-    const userId = decoded?.id || decoded?._id || decoded?.userId || null;
+    const userId = (decoded as any)?.id || (decoded as any)?._id || (decoded as any)?.userId || null;
     if (!userId) return false;
 
-    const CourseEnrollment = getCourseEnrollment();
-    const enrollment = await CourseEnrollment.findOne({
-      userId,
-      courseId: course._id,
-      status: { $in: ['active', 'completed'] },
-    }).lean();
-
+    const enrollment = await getEnrollment(String(userId), course.id);
     return !!enrollment;
   } catch {
     return false;
@@ -47,8 +40,6 @@ async function canAccessVideo(request: NextRequest, video: any, course: any) {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    await connectDB();
-
     const { videoId } = await params;
     const body = await request.json().catch(() => ({}));
     const question = String(body?.question || '').trim();
@@ -59,15 +50,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
-    const CourseVideo = getCourseVideo();
-    const RecordedCourse = getRecordedCourse();
-    const video = await CourseVideo.findById(videoId).lean() as any;
-
+    const video = await getVideoById(videoId);
     if (!video || !video.isActive) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
-    const course = await RecordedCourse.findById(video.courseId).lean() as any;
+    const course = await getCourseById(video.courseId);
     if (!course || !course.isActive) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
@@ -77,31 +65,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Enrollment required' }, { status: 403 });
     }
 
-    // Pick the learner's language variant of each source, falling back to the
-    // base (source-language) fields. Cross-language Q&A still works either way
-    // — the model reads the source and answers in the learner's language.
-    const transcript = pickLangVariant(video.transcriptI18n, video.transcript, lang);
-    const summary = pickLangVariant(video.aiSummaryI18n, video.aiSummary, lang);
     const description = String(video.description || video.content?.[lang]?.description || video.content?.en?.description || '').trim();
 
-    // E-book / study materials: those linked to this video plus course-wide ones.
-    const CourseMaterial = getCourseMaterial();
-    const materials: any[] = await CourseMaterial.find({
-      courseId: course._id,
-      isActive: true,
-      type: { $ne: 'certificate' },
-      $or: [{ videoId: video._id }, { videoId: { $exists: false } }, { videoId: null }],
-    }).sort({ order: 1 }).limit(20).lean();
+    const materials = await listMaterialsByCourse(course.id, true);
 
     const sources: RagSource[] = [];
-    if (summary) sources.push({ label: 'Video summary', text: summary });
-    if (transcript) sources.push({ label: 'Video transcript', text: transcript });
-    if (!transcript && description) sources.push({ label: 'Video notes', text: description });
+    if (description) sources.push({ label: 'Video notes', text: description });
 
     for (const m of materials) {
-      const text = pickLangVariant(m.ragTextI18n, m.ragText, lang);
+      const text = pickLangVariant(m.content?.[lang]?.ragText, m.content?.ragText, lang);
       if (!text) continue;
-      const title = String(m.content?.[lang]?.title || m.content?.en?.title || 'Study material');
+      const title = String(m.content?.[lang]?.title || m.content?.en?.title || m.title || 'Study material');
       sources.push({ label: `E-book: ${title}`, text });
     }
 

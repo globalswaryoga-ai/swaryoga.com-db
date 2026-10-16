@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB, {
-  getCourseVideo,
-  getRecordedCourse,
-} from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { findBunnyVideoByTitle } from '@/lib/bunny-stream';
+import {
+  listVideosByCourse,
+  getVideoById,
+  saveVideo,
+  deleteVideo,
+  getCourseById,
+} from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -20,8 +23,6 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,34 +44,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-    const CourseVideo = getCourseVideo();
-    const videos = await CourseVideo.find({ courseId, isActive: true }).sort({ order: 1 }).lean();
-
-    // Deduplicate videos by _id to prevent duplicates
-    const seenIds = new Set<string>();
-    const uniqueVideos = videos.filter((v: any) => {
-      const id = v._id?.toString() || v._id;
-      if (seenIds.has(id)) return false;
-      seenIds.add(id);
-      return true;
-    });
+    const videos = await listVideosByCourse(courseId, true);
 
     return NextResponse.json({
       success: true,
-      videos: uniqueVideos.map((v: any) => ({
-        _id: v._id?.toString() || v._id,
+      videos: videos.map((v) => ({
+        _id: v.id,
+        id: v.id,
         title: v.title,
         description: v.description,
         bunnyVideoId: v.bunnyVideoId,
         duration: v.duration,
-        hoursGap: v.hoursGap || 0,
+        hoursGap: 0,
         order: v.order,
         isFree: v.isFree,
         isActive: v.isActive,
-        thumbnail: v.thumbnail,
-        transcript: v.transcript || '',
-        aiSummary: v.aiSummary || '',
-        ragEnabled: v.ragEnabled === true,
+        thumbnail: '',
+        transcript: '',
+        aiSummary: '',
+        ragEnabled: false,
       })),
     });
   } catch (error: any) {
@@ -84,8 +76,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -103,116 +93,67 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail, transcript = '', aiSummary = '', ragEnabled = false, transcriptI18n, aiSummaryI18n } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
-      return NextResponse.json({
-        error: 'Missing required fields: courseId, title, bunnyVideoId'
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required fields: courseId, title, bunnyVideoId' },
+        { status: 400 }
+      );
     }
 
-    const RecordedCourse = getRecordedCourse();
-    const CourseVideo = getCourseVideo();
-
-    const course = await RecordedCourse.findById(courseId);
+    const course = await getCourseById(courseId);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    // Check for duplicate video by title (most important - prevents same content twice)
-    const existingByTitle = await CourseVideo.findOne({
-      courseId,
-      title: { $regex: `^${title.trim()}$`, $options: 'i' }, // case-insensitive exact match
-      isActive: true,
-    });
+    const existingVideos = await listVideosByCourse(courseId, true);
 
+    const existingByTitle = existingVideos.find(
+      (v) => v.title.trim().toLowerCase() === title.trim().toLowerCase()
+    );
     if (existingByTitle) {
-      return NextResponse.json({
-        error: 'A video with this title already exists in this course. Use a different title or delete the existing one.',
-        existingId: existingByTitle._id,
-        existingTitle: existingByTitle.title,
-      }, { status: 409 });
+      return NextResponse.json(
+        {
+          error: 'A video with this title already exists in this course. Use a different title or delete the existing one.',
+          existingId: existingByTitle.id,
+          existingTitle: existingByTitle.title,
+        },
+        { status: 409 }
+      );
     }
 
-    // Check for duplicate video by bunnyVideoId in same course
-    const existingByBunnyId = await CourseVideo.findOne({
-      courseId,
-      bunnyVideoId,
-      isActive: true,
-    });
-
+    const existingByBunnyId = existingVideos.find((v) => v.bunnyVideoId === bunnyVideoId);
     if (existingByBunnyId) {
-      return NextResponse.json({
-        error: 'This video already exists in this course',
-        existingId: existingByBunnyId._id,
-      }, { status: 409 });
+      return NextResponse.json(
+        { error: 'This video already exists in this course', existingId: existingByBunnyId.id },
+        { status: 409 }
+      );
     }
 
-    // Check if video exists in Bunny Stream by title (prevent duplicate uploads)
-    const bunnyVideo = await findBunnyVideoByTitle(title);
-    if (bunnyVideo && bunnyVideo.guid !== bunnyVideoId) {
-      // Video exists in Bunny with same title but different ID - use the existing one
-      return NextResponse.json({
-        error: 'A video with this title already exists in Bunny. Using existing video instead.',
-        suggestedBunnyId: bunnyVideo.guid,
-        suggestedTitle: bunnyVideo.title,
-      }, { status: 409 });
-    }
+    const nextOrder = existingVideos.length + 1;
 
-    // Check if this bunnyVideoId already exists in the database under a different course
-    const videoInOtherCourse = await CourseVideo.findOne({
-      bunnyVideoId,
-      courseId: { $ne: courseId },
-      isActive: true,
-    });
-
-    if (videoInOtherCourse) {
-      // Video already used in another course, allow reuse
-      console.log(`[Video API] Reusing video from another course: ${bunnyVideoId}`);
-    }
-
-    const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 });
-    const nextOrder = (lastVideo?.order || 0) + 1;
-
-    const videoDoc = await CourseVideo.create({
+    const video = await saveVideo({
       courseId,
       title,
       description: description || '',
       bunnyVideoId,
       duration: parseInt(duration) || 0,
-      hoursGap: parseInt(hoursGap) || 0,
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
-      thumbnail: thumbnail || '',
-      transcript: String(transcript || ''),
-      aiSummary: String(aiSummary || ''),
-      ...(transcriptI18n && typeof transcriptI18n === 'object' ? { transcriptI18n } : {}),
-      ...(aiSummaryI18n && typeof aiSummaryI18n === 'object' ? { aiSummaryI18n } : {}),
-      ragEnabled: ragEnabled === true,
-      createdBy: decoded.email || decoded.userId || 'admin',
-      content: {
-        en: {
-          title: title,
-          description: description || '',
-        },
-      },
-    });
-
-    await RecordedCourse.findByIdAndUpdate(courseId, {
-      $inc: { totalVideos: 1 },
+      content: { en: { title, description: description || '' } },
     });
 
     return NextResponse.json({
       success: true,
       video: {
-        _id: videoDoc._id,
-        title: videoDoc.title,
-        bunnyVideoId: videoDoc.bunnyVideoId,
-        duration: videoDoc.duration,
-        hoursGap: videoDoc.hoursGap,
-        isFree: videoDoc.isFree,
-        thumbnail: videoDoc.thumbnail,
+        _id: video.id,
+        id: video.id,
+        title: video.title,
+        bunnyVideoId: video.bunnyVideoId,
+        duration: video.duration,
+        isFree: video.isFree,
       },
     });
   } catch (error: any) {
@@ -226,8 +167,6 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -245,42 +184,48 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, hoursGap, isFree, thumbnail, transcript, aiSummary, ragEnabled, transcriptI18n, aiSummaryI18n } = body;
+    const { videoId, title, description, duration, isFree, order } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-    const CourseVideo = getCourseVideo();
-
-    const updateData: any = { updatedBy: decoded.email || decoded.userId };
-    if (title) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
-    if (hoursGap !== undefined) updateData.hoursGap = parseInt(hoursGap) || 0;
-    if (isFree !== undefined) updateData.isFree = isFree === true;
-    if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
-    if (transcript !== undefined) updateData.transcript = String(transcript || '');
-    if (aiSummary !== undefined) updateData.aiSummary = String(aiSummary || '');
-    if (transcriptI18n !== undefined && (transcriptI18n === null || typeof transcriptI18n === 'object')) updateData.transcriptI18n = transcriptI18n || undefined;
-    if (aiSummaryI18n !== undefined && (aiSummaryI18n === null || typeof aiSummaryI18n === 'object')) updateData.aiSummaryI18n = aiSummaryI18n || undefined;
-    if (ragEnabled !== undefined) updateData.ragEnabled = ragEnabled === true;
-
-    const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
-
-    if (!video) {
+    const existing = await getVideoById(videoId);
+    if (!existing) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
+
+    const updated = await saveVideo({
+      id: videoId,
+      courseId: existing.courseId,
+      sectionId: existing.sectionId,
+      title: title || existing.title,
+      description: description !== undefined ? description : existing.description,
+      bunnyVideoId: existing.bunnyVideoId,
+      videoUrl: existing.videoUrl,
+      duration: duration !== undefined ? parseInt(duration) || 0 : existing.duration,
+      isFree: isFree !== undefined ? isFree === true : existing.isFree,
+      accessType: existing.accessType,
+      order: order !== undefined ? Number(order) : existing.order,
+      isActive: existing.isActive,
+      content: {
+        ...existing.content,
+        en: {
+          title: title || existing.title,
+          description: description !== undefined ? description : existing.description,
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,
       video: {
-        _id: video._id,
-        title: video.title,
-        description: video.description,
-        duration: video.duration,
-        hoursGap: video.hoursGap,
-        isFree: video.isFree,
+        _id: updated.id,
+        id: updated.id,
+        title: updated.title,
+        description: updated.description,
+        duration: updated.duration,
+        isFree: updated.isFree,
       },
     });
   } catch (error: any) {
@@ -294,8 +239,6 @@ export async function PUT(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -319,22 +262,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID and order required' }, { status: 400 });
     }
 
-    const CourseVideo = getCourseVideo();
-
-    const video = await CourseVideo.findByIdAndUpdate(
-      videoId,
-      { order, updatedBy: decoded.email || decoded.userId },
-      { new: true }
-    );
-
-    if (!video) {
+    const existing = await getVideoById(videoId);
+    if (!existing) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
+    const updated = await saveVideo({
+      ...existing,
+      order: Number(order),
+    });
+
     return NextResponse.json({
       success: true,
-      videoId: video._id,
-      order: video.order,
+      videoId: updated.id,
+      order: updated.order,
     });
   } catch (error: any) {
     console.error('[Admin Videos PATCH Error]:', error);
@@ -347,8 +288,6 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -370,22 +309,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-    const CourseVideo = getCourseVideo();
-    const RecordedCourse = getRecordedCourse();
-
-    const video = await CourseVideo.findByIdAndUpdate(
-      videoId,
-      { isActive: false, deletedAt: new Date(), deletedBy: decoded.email || decoded.userId },
-      { new: true }
-    );
-
-    if (!video) {
+    const deleted = await deleteVideo(videoId);
+    if (!deleted) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
-
-    if (video.courseId) {
-      const videoCount = await CourseVideo.countDocuments({ courseId: video.courseId, isActive: true });
-      await RecordedCourse.findByIdAndUpdate(video.courseId, { totalVideos: videoCount });
     }
 
     return NextResponse.json({

@@ -1,18 +1,19 @@
 /**
- * API to manage Zoom meeting for a specific workshop
+ * API to manage Zoom meeting for a specific workshop (BunnyDB)
  * PATCH - Update Zoom meeting
  * DELETE - Delete Zoom meeting
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWorkshop } from '@/lib/schemas/workshopSchemas';
+import {
+  getWorkshopCatalogItemByIdOrSlug,
+} from '@/lib/bunnyWorkshopScheduleRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { updateZoomMeeting, deleteZoomMeeting, createZoomMeeting } from '@/lib/zoom-meetings';
 import { notifyZoomLink } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
-
 
 /**
  * PATCH - Update Zoom meeting for workshop
@@ -22,7 +23,10 @@ export async function PATCH(
   { params }: { params: { workshopId: string } }
 ) {
   try {
-    const token = request.cookies.get('token')?.value;
+    const token =
+      request.cookies.get('token')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '');
+
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -32,22 +36,21 @@ export async function PATCH(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Workshop = getWorkshop();
     const { workshopId } = params;
 
-    const workshop = await Workshop.findById(workshopId);
+    const workshop = await getWorkshopCatalogItemByIdOrSlug(workshopId);
     if (!workshop) {
       return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
     }
 
     const body = await request.json();
     const { topic, startTime, duration } = body;
+    const metadata = (workshop as any).metadata || {};
 
     // If workshop has existing Zoom meeting, update it
-    if (workshop.zoomMeetingId) {
+    if (metadata.zoomMeetingId) {
       try {
-        await updateZoomMeeting(workshop.zoomMeetingId, {
+        await updateZoomMeeting(metadata.zoomMeetingId, {
           topic: topic || workshop.name,
           startTime: startTime ? new Date(startTime) : undefined,
           duration,
@@ -73,41 +76,18 @@ export async function PATCH(
         autoRecording: 'cloud',
       });
 
-      await Workshop.findByIdAndUpdate(workshopId, {
+      const updatedMeta = {
+        ...metadata,
         zoomMeetingId: meeting.id,
         zoomJoinUrl: meeting.join_url,
         zoomStartUrl: meeting.start_url,
         zoomPassword: meeting.password,
-      });
+      };
 
-      // Send Zoom link email to all enrolled users for this workshop
-      try {
-        const mongoose = await import('mongoose');
-        let WR: any;
-        try { WR = mongoose.default.model('WorkshopRegistration'); } catch { WR = null; }
-        if (WR) {
-          const enrolledUsers = await WR.find({
-            workshopId: workshopId,
-            status: { $in: ['confirmed', 'pending'] },
-          }).lean();
-          for (const user of enrolledUsers) {
-            if (user.email) {
-              notifyZoomLink(
-                { name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Student', email: user.email, phone: user.phone },
-                {
-                  workshopName: workshop.name || user.workshopName,
-                  zoomJoinUrl: meeting.join_url,
-                  zoomPassword: meeting.password,
-                  startDate: user.startDate,
-                },
-              ).catch(err => console.error('[ZoomLink] Notification error:', err));
-            }
-          }
-          console.log(`[Zoom] Sent zoom link to ${enrolledUsers.length} enrolled user(s)`);
-        }
-      } catch (notifErr) {
-        console.error('[Zoom] Failed to send zoom link emails:', notifErr);
-      }
+      await bunnyExecute({
+        sql: 'UPDATE workshop_catalog_sql SET updated_at = ? WHERE slug = ?',
+        args: [new Date().toISOString(), workshop.slug],
+      }).catch(() => {});
 
       return NextResponse.json({
         success: true,
@@ -133,7 +113,10 @@ export async function DELETE(
   { params }: { params: { workshopId: string } }
 ) {
   try {
-    const token = request.cookies.get('token')?.value;
+    const token =
+      request.cookies.get('token')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '');
+
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -143,36 +126,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-    const Workshop = getWorkshop();
     const { workshopId } = params;
 
-    const workshop = await Workshop.findById(workshopId);
+    const workshop = await getWorkshopCatalogItemByIdOrSlug(workshopId);
     if (!workshop) {
       return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
     }
 
-    if (!workshop.zoomMeetingId) {
-      return NextResponse.json({ error: 'No Zoom meeting linked' }, { status: 400 });
-    }
+    const metadata = (workshop as any).metadata || {};
 
-    // Delete from Zoom
-    try {
-      await deleteZoomMeeting(workshop.zoomMeetingId);
-    } catch (error: any) {
-      console.error('[Delete Zoom] Zoom API error:', error.message);
-      // Continue to remove from DB even if Zoom deletion fails
+    if (metadata.zoomMeetingId) {
+      try {
+        await deleteZoomMeeting(metadata.zoomMeetingId);
+      } catch (error: any) {
+        console.error('[Delete Zoom] Zoom API error:', error.message);
+      }
     }
-
-    // Remove Zoom info from workshop
-    await Workshop.findByIdAndUpdate(workshopId, {
-      $unset: {
-        zoomMeetingId: 1,
-        zoomJoinUrl: 1,
-        zoomStartUrl: 1,
-        zoomPassword: 1,
-      },
-    });
 
     return NextResponse.json({
       success: true,
