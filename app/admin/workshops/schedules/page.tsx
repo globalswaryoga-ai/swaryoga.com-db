@@ -1064,6 +1064,7 @@ export default function AdminWorkshopSchedulesPage() {
                     </div>
                   </div>
 
+                  <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div>
                         <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">{getCategoryHeading(selectedCategory)}</h2>
