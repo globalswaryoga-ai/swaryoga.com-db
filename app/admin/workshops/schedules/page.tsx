@@ -40,6 +40,7 @@ type AdminSchedule = {
 };
 
 type EditForm = {
+  mode: string;
   startDate: string;
   endDate: string;
   registrationCloseDate: string;
@@ -163,6 +164,7 @@ const formatScheduleTime = (s: { time?: string; startTime?: string; endTime?: st
 };
 
 const emptyEditForm = (s?: AdminSchedule): EditForm => ({
+  mode: String(s?.mode || 'online'),
   startDate: toInputDate(s?.startDate || null),
   endDate: toInputDate(s?.endDate || null),
   registrationCloseDate: toInputDate(s?.registrationCloseDate || null),
@@ -509,6 +511,15 @@ export default function AdminWorkshopSchedulesPage() {
       return filtered;
     }, [schedulesForWorkshopAndMode, searchQuery, statusFilter]);
 
+    const otherSchedulesForWorkshop = useMemo(() => {
+      if (!selectedWorkshopSlug) return [];
+      return allSchedules.filter(
+        (s) =>
+          s.workshopSlug === selectedWorkshopSlug &&
+          (s.mode !== selectedMode || normalizeKey(s.language) !== normalizeKey(selectedLanguage))
+      );
+    }, [allSchedules, selectedWorkshopSlug, selectedMode, selectedLanguage]);
+
     const sixMonthBlocks = useMemo(() => {
       if (!selectedWorkshopSlug) return [] as Array<{ label: string; dateText: string; available: boolean }>;
 
@@ -623,6 +634,7 @@ export default function AdminWorkshopSchedulesPage() {
       // a newly saved schedule starts as Draft.
       setStatusFilter('all');
       setCreateForm({
+        mode: selectedMode,
         startDate: `${y}-${m}-${d}`,
         endDate: '',
         registrationCloseDate: '',
@@ -647,7 +659,7 @@ export default function AdminWorkshopSchedulesPage() {
       setCreateForm(emptyCreateForm());
     };
 
-    const createSchedule = async () => {
+    const createSchedule = async (targetStatus: 'draft' | 'published' = 'draft') => {
       if (!adminToken) {
         setError('No admin token found. Please log in again.');
         return;
@@ -661,12 +673,14 @@ export default function AdminWorkshopSchedulesPage() {
         setError('');
 
         const workshopName = selectedWorkshop?.name || '';
+        const targetMode = ((createForm.mode || selectedMode) as ModeKey);
+        const targetLanguage = createForm.language || selectedLanguage;
 
         const basePayload = {
           workshopSlug: selectedWorkshopSlug,
           workshopName,
-          mode: selectedMode,
-          language: createForm.language,
+          mode: targetMode,
+          language: targetLanguage,
           batch: createForm.batch?.trim() || 'evening',
           startDate: fromInputDate(createForm.startDate),
           endDate: fromInputDate(createForm.endDate),
@@ -679,8 +693,7 @@ export default function AdminWorkshopSchedulesPage() {
           price3Month: createForm.price3Month === '' ? undefined : Number(createForm.price3Month),
           priceNPR: createForm.priceNPR === '' ? undefined : Number(createForm.priceNPR),
           location: createForm.location,
-          // Save creates a Draft (then Publish makes it visible on public pages).
-          status: 'draft' as const,
+          status: targetStatus,
         };
 
         const currencies = createForm.allCurrencies
@@ -690,7 +703,7 @@ export default function AdminWorkshopSchedulesPage() {
         for (const currency of currencies) {
           const payload = { ...basePayload, currency };
 
-          console.log(`[createSchedule] Creating ${currency} schedule:`, payload);
+          console.log(`[createSchedule] Creating ${currency} schedule (${targetStatus}):`, payload);
 
           const res = await fetch('/api/admin/workshops/schedules/crud', {
             method: 'POST',
@@ -720,8 +733,22 @@ export default function AdminWorkshopSchedulesPage() {
         }
 
         await loadAllSchedules(adminToken);
-        setSuccess(`✓ Schedule saved (Draft). Click Publish to show on the main site.`);
-        setTimeout(() => setSuccess(''), 4000);
+
+        // Auto-switch view to created schedule's mode and language so it is immediately visible!
+        if (targetMode && targetMode !== selectedMode) {
+          setSelectedMode(targetMode);
+        }
+        const normLang = normalizeLanguageLabel(targetLanguage);
+        if (normLang && normLang !== selectedLanguage) {
+          setSelectedLanguage(normLang);
+        }
+
+        setSuccess(
+          targetStatus === 'published'
+            ? '✓ Schedule saved & Published successfully! Visible on website.'
+            : '✓ Schedule saved in Draft. Click Publish to make it visible on website.'
+        );
+        setTimeout(() => setSuccess(''), 5000);
         cancelCreate();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -1304,7 +1331,7 @@ export default function AdminWorkshopSchedulesPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                           <div>
                             <h3 className="text-lg font-extrabold text-swar-text">Schedules</h3>
-                            <p className="text-sm text-swar-text-secondary">Publish to show on main site. Edit → Save updates MongoDB.</p>
+                            <p className="text-sm text-swar-text-secondary">Publish to show on main site. Saved in Bunny Database.</p>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-sm text-swar-text-secondary">
@@ -1507,25 +1534,36 @@ export default function AdminWorkshopSchedulesPage() {
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      <span className="inline-flex rounded-full px-2 py-1 text-xs font-bold bg-swar-primary-light text-swar-text">
-                                        Draft
+                                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        New
                                       </span>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      <div className="flex gap-2">
+                                      <div className="flex items-center gap-2">
                                         <button
                                           type="button"
                                           disabled={savingId === '__create__'}
-                                          onClick={createSchedule}
-                                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-bold text-white hover:bg-swar-primary disabled:opacity-60"
+                                          onClick={() => createSchedule('draft')}
+                                          className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700 shadow-sm disabled:opacity-60 whitespace-nowrap"
+                                          title="Save schedule as draft"
                                         >
-                                          {savingId === '__create__' ? 'Saving…' : 'Save'}
+                                          {savingId === '__create__' ? 'Saving…' : 'Save as Draft'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={savingId === '__create__'}
+                                          onClick={() => createSchedule('published')}
+                                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm disabled:opacity-60 flex items-center gap-1 whitespace-nowrap"
+                                          title="Save and publish directly to website"
+                                        >
+                                          {savingId === '__create__' ? 'Saving…' : '✓ Save & Publish'}
                                         </button>
                                         <button
                                           type="button"
                                           disabled={savingId === '__create__'}
                                           onClick={cancelCreate}
-                                          className="rounded-lg bg-swar-primary-light px-3 py-2 text-xs font-bold text-swar-text hover:bg-swar-primary-light disabled:opacity-60"
+                                          className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-200 disabled:opacity-60 whitespace-nowrap"
                                         >
                                           Cancel
                                         </button>
@@ -1537,7 +1575,33 @@ export default function AdminWorkshopSchedulesPage() {
                                 {filteredSchedules.length === 0 && !creating ? (
                                   <tr>
                                     <td colSpan={10} className="px-4 py-8 text-center text-swar-text-secondary">
-                                      No schedules found for this workshop + mode + language.
+                                      <div>No schedules found for <strong>{selectedWorkshop?.name || selectedWorkshopSlug}</strong> in <strong>{selectedMode}</strong> ({selectedLanguage}).</div>
+                                      {otherSchedulesForWorkshop.length > 0 && (
+                                        <div className="mt-4 p-3 bg-emerald-50/70 rounded-xl border border-emerald-200 inline-block text-left max-w-lg mx-auto">
+                                          <div className="text-xs font-bold text-emerald-900 mb-1">
+                                            Found {otherSchedulesForWorkshop.length} schedule(s) for this workshop in other modes/languages:
+                                          </div>
+                                          <div className="flex flex-wrap gap-2 mt-2">
+                                            {Array.from(new Set(otherSchedulesForWorkshop.map((s) => `${s.mode}::${s.language || 'Hindi'}`))).map((combo) => {
+                                              const [m, l] = combo.split('::');
+                                              return (
+                                                <button
+                                                  key={combo}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setSelectedMode(m as ModeKey);
+                                                    const nl = normalizeLanguageLabel(l);
+                                                    if (nl) setSelectedLanguage(nl);
+                                                  }}
+                                                  className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-md font-semibold border border-emerald-300 text-xs shadow-sm transition"
+                                                >
+                                                  Switch to {m.toUpperCase()} ({l}) →
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
                                     </td>
                                   </tr>
                                 ) : (
@@ -1715,30 +1779,32 @@ export default function AdminWorkshopSchedulesPage() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                           <span
-                                            className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${
+                                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
                                               published
-                                                ? 'bg-swar-primary-light text-swar-primary'
-                                                : 'bg-swar-primary-light text-swar-text'
+                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                                : 'bg-amber-100 text-amber-800 border border-amber-300'
                                             }`}
                                           >
+                                            <span className={`w-1.5 h-1.5 rounded-full ${published ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                                             {published ? 'Published' : 'Draft'}
                                           </span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
-                                          <div className="flex gap-2 flex-wrap">
+                                          <div className="flex gap-2 flex-wrap items-center">
                                             <button
                                               type="button"
                                               disabled={busy}
                                               onClick={() =>
                                                 setPublishStatus(s.id, published ? 'draft' : 'published')
                                               }
-                                              className={`rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-60 ${
+                                              className={`rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-60 transition shadow-sm flex items-center gap-1 ${
                                                 published
-                                                  ? 'bg-yellow-100 text-yellow-900 hover:bg-yellow-200'
-                                                  : 'bg-swar-primary text-white hover:bg-swar-primary'
+                                                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
+                                                  : 'bg-emerald-600 text-white hover:bg-emerald-700 font-extrabold'
                                               }`}
+                                              title={published ? 'Unpublish schedule' : 'Publish schedule to website'}
                                             >
-                                              {published ? 'Unpublish' : 'Publish'}
+                                              {published ? 'Unpublish' : '✓ Publish'}
                                             </button>
 
                                             {!editing ? (
