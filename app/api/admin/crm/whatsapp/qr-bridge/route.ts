@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { upsertBunnyQrChat, upsertBunnyQrMessage, listBunnyQrChats, listBunnyQrMessages, getQrOwnerIds } from '@/lib/bunnyQrRepository';
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 
 function getLead() {
   return {
