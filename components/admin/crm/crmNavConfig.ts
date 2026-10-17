@@ -315,7 +315,25 @@ export const sectionConfigs: SectionConfig[] = [
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/recording-management', '/admin/crm/zoom-analytics', '/admin/crm/workshop-management', '/admin/crm/new-registration', '/admin/crm/workshop-offer'
+      '/admin/crm/recording-management', '/admin/crm/zoom-analytics'
+    ],
+  },
+
+  // 6c. Workshop Management
+  {
+    key: 'workshop-management',
+    title: 'Workshop Management',
+    icon: GraduationCap,
+    items: [
+      { label: 'Workshop Students', href: '/admin/crm/workshop-management', icon: Users },
+      { label: 'Register New Batch', href: '/admin/crm/new-registration/english', icon: Plus },
+      { label: 'Workshop Offer', href: '/admin/crm/workshop-offer', icon: Tag },
+    ],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/workshop-management',
+      '/admin/crm/new-registration',
+      '/admin/crm/workshop-offer',
     ],
   },
 

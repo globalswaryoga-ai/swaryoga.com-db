@@ -1487,16 +1487,37 @@ export default function WorkshopManagementPage() {
             <p className="text-sm text-slate-500 font-medium">Manage cohorts, students, attendance, and recordings</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <a
+            href="/admin/crm/workshop-management"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+          >
+            <Users className="h-4 w-4" />
+            Workshop Students
+          </a>
+          <a
+            href="/admin/crm/new-registration/english"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Register New Batch
+          </a>
+          <a
+            href="/admin/crm/workshop-offer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Workshop Offer
+          </a>
           <button 
             onClick={() => setShowMetaFormModal(true)}
-            className="bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
+            className="bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
           >
             <LinkIcon size={16} /> Connect Meta Form
           </button>
           <button 
             onClick={() => setShowCreateForm(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
           >
             <Plus size={18} /> Add Workshop
           </button>

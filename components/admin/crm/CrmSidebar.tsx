@@ -33,7 +33,7 @@ const TENANT_SECTION_KEYS = [
   'email', 'messages', 'telegram',
   'elearning',
   'sadhana', 'sadhana-schedule',
-  'community', 'zoom',
+  'community', 'zoom', 'workshop-management',
   'planner',
   'reports',
   'automation', 'chatbot',
