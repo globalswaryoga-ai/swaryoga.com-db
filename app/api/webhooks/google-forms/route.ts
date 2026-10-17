@@ -12,6 +12,7 @@ import { createSubmission, ensureFormTables } from '@/lib/bunny-forms-db';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { getUserByEmail, upsertUser } from '@/lib/repositories/userRepository';
+import { listCourses, saveEnrollment } from '@/lib/bunnyCourseRepository';
 import { randomInt } from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -172,24 +173,55 @@ export async function POST(req: NextRequest) {
 
     if (track === 'elearning') {
       try {
-        const existingUser = await getUserByEmail(cleanEmail);
-        if (!existingUser) {
+        let user = await getUserByEmail(cleanEmail);
+        if (!user) {
           generatedPassword = generatePassword();
           const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-          await upsertUser({
+          user = await upsertUser({
             email: cleanEmail,
             name: cleanName,
             phone: cleanPhone,
             password: hashedPassword,
             role: 'student',
-            courses: ['swar-yoga-basic'],
-            createdAt: new Date()
+            status: 'active',
+            isAdmin: false,
+            provider: 'google-forms',
+            emailVerified: true,
+            managedUserIds: [],
+            permissions: ['course:read'],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           });
           accountProvisioned = true;
           console.log(`[Google Forms Webhook] Created E-Learning account for ${cleanEmail}`);
         }
+
+        // Auto-enroll into matching published recorded courses
+        const targetUserId = (user as any)?.id || (user as any)?._id || cleanEmail;
+        const availableCourses = await listCourses({ isPublished: true, isActive: true });
+        
+        // Find matching course by language or default to first available course
+        const matchedCourse = availableCourses.find(c => 
+          c.videoLanguage?.toLowerCase() === language.toLowerCase()
+        ) || availableCourses[0];
+
+        if (matchedCourse && targetUserId) {
+          await saveEnrollment({
+            userId: String(targetUserId),
+            courseId: matchedCourse.id,
+            status: 'active',
+            progressPercent: 0,
+            data: {
+              enrolledVia: 'google-forms-webhook',
+              source: 'meta-lead',
+              language: language,
+              courseTitle: matchedCourse.slug
+            }
+          });
+          console.log(`[Google Forms Webhook] Enrolled ${cleanEmail} into course ${matchedCourse.slug}`);
+        }
       } catch (userErr) {
-        console.warn('[Google Forms Webhook] User provisioning skipped/failed:', userErr);
+        console.warn('[Google Forms Webhook] User provisioning/enrollment skipped/failed:', userErr);
       }
     }
 
