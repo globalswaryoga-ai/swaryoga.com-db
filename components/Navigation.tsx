@@ -1,15 +1,45 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { Menu, X, ShoppingCart, User, LogOut } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Menu, X, ShoppingCart, User, LogOut, ChevronDown, Users, Sun, BookOpen, Film } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { getStoredCart } from '@/lib/cart';
 import { clearSession } from '@/lib/sessionManager';
 
+const communityDropdownItems = [
+  {
+    name: 'Community',
+    href: '/community',
+    description: 'Join discussions & connect with practitioners',
+    icon: Users,
+  },
+  {
+    name: 'Rutucharya',
+    href: '/life-planner/ritucharya',
+    description: 'Seasonal Ayurvedic & Swar diet routines',
+    icon: Sun,
+  },
+  {
+    name: 'Blogs',
+    href: '/blog',
+    description: 'Articles, insights, and wisdom',
+    icon: BookOpen,
+  },
+  {
+    name: 'Media',
+    href: '/media',
+    description: 'Photos, videos, and press coverage',
+    icon: Film,
+  },
+];
+
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isCommunityDropdownOpen, setIsCommunityDropdownOpen] = useState(false);
+  const [isMobileCommunityOpen, setIsMobileCommunityOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [cartCount, setCartCount] = useState(0);
   const [userDisplayName, setUserDisplayName] = useState<string>('');
@@ -21,11 +51,6 @@ export default function Navigation() {
     { name: 'Workshops', href: '/workshops' },
     { name: 'E-Learning', href: '/e-learning' },
     { name: 'Resort', href: '/resort' },
-    { name: 'Ritucharya', href: '/life-planner/ritucharya' },
-    { name: 'Blog', href: '/blog' },
-    { name: 'Community', href: '/community' },
-    { name: 'Contact', href: '/contact' },
-    { name: 'Media', href: '/media' },
   ];
 
   // Handle scroll effect
@@ -85,6 +110,30 @@ export default function Navigation() {
   }, []);
 
   const isActive = (path: string) => pathname === path;
+
+  const isCommunityActive = communityDropdownItems.some(
+    (item) =>
+      pathname === item.href ||
+      (item.href === '/blog' && (pathname === '/blogs' || pathname?.startsWith('/blog/'))) ||
+      (item.href === '/life-planner/ritucharya' && (pathname?.includes('ritucharya') || pathname?.includes('rutucharya')))
+  );
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsCommunityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown and mobile menu on route change
+  useEffect(() => {
+    setIsCommunityDropdownOpen(false);
+    setIsMenuOpen(false);
+  }, [pathname]);
 
   const handleLogout = () => {
     // Proper logout: clear token/user/expiry + life planner legacy keys.
@@ -164,7 +213,7 @@ export default function Navigation() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 group ${
+                  className={`relative px-3.5 py-2 rounded-lg font-medium transition-all duration-200 group ${
                     isActive(item.href) 
                       ? 'text-swar-primary bg-swar-primary-light' 
                       : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
@@ -177,6 +226,81 @@ export default function Navigation() {
                   <div className="absolute inset-0 rounded-lg bg-swar-primary/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
                 </Link>
               ))}
+
+              {/* Community Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsCommunityDropdownOpen((prev) => !prev)}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-medium transition-all duration-200 group ${
+                    isCommunityActive || isCommunityDropdownOpen
+                      ? 'text-swar-primary bg-swar-primary-light'
+                      : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
+                  }`}
+                  aria-expanded={isCommunityDropdownOpen}
+                  aria-haspopup="true"
+                >
+                  <span>Community</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      isCommunityDropdownOpen ? 'rotate-180 text-swar-primary' : 'text-gray-400 group-hover:text-swar-primary'
+                    }`}
+                  />
+                  {isCommunityActive && (
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-swar-primary rounded-full"></div>
+                  )}
+                  <div className="absolute inset-0 rounded-lg bg-swar-primary/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                </button>
+
+                {/* Dropdown Menu */}
+                {isCommunityDropdownOpen && (
+                  <div className="absolute left-0 mt-2 w-64 rounded-2xl bg-white shadow-xl border border-gray-100 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    {communityDropdownItems.map((subItem) => {
+                      const Icon = subItem.icon;
+                      const subActive =
+                        pathname === subItem.href ||
+                        (subItem.href === '/blog' && (pathname === '/blogs' || pathname?.startsWith('/blog/'))) ||
+                        (subItem.href === '/life-planner/ritucharya' && (pathname?.includes('ritucharya') || pathname?.includes('rutucharya')));
+                      return (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          onClick={() => setIsCommunityDropdownOpen(false)}
+                          className={`flex items-start gap-3 p-2.5 rounded-xl transition-all duration-150 ${
+                            subActive
+                              ? 'bg-swar-primary-light text-swar-primary'
+                              : 'hover:bg-gray-50 text-gray-700 hover:text-swar-primary'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-lg mt-0.5 ${subActive ? 'bg-swar-primary text-white' : 'bg-green-50 text-swar-primary'}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm leading-snug">{subItem.name}</span>
+                            <span className="text-[11px] text-gray-500 font-normal leading-tight mt-0.5">{subItem.description}</span>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Contact Link */}
+              <Link
+                href="/contact"
+                className={`relative px-3.5 py-2 rounded-lg font-medium transition-all duration-200 group ${
+                  isActive('/contact') 
+                    ? 'text-swar-primary bg-swar-primary-light' 
+                    : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
+                }`}
+              >
+                Contact
+                {isActive('/contact') && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-swar-primary rounded-full"></div>
+                )}
+                <div className="absolute inset-0 rounded-lg bg-swar-primary/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+              </Link>
             </nav>
 
             {/* Right Side Actions */}
@@ -307,6 +431,66 @@ export default function Navigation() {
                     {item.name}
                   </Link>
                 ))}
+
+                {/* Mobile Community Accordion */}
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileCommunityOpen((prev) => !prev)}
+                    className={`flex items-center justify-between px-4 py-3.5 rounded-xl font-medium transition-all duration-200 touch-manipulation active:scale-[0.98] ${
+                      isCommunityActive
+                        ? 'text-white bg-gradient-to-r from-swar-primary to-green-600 shadow-md'
+                        : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
+                    }`}
+                  >
+                    <span>Community</span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform duration-200 ${
+                        isMobileCommunityOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {isMobileCommunityOpen && (
+                    <div className="pl-3 pr-2 py-1.5 space-y-1 bg-gray-50/80 rounded-xl mt-1 border border-gray-100">
+                      {communityDropdownItems.map((subItem) => {
+                        const Icon = subItem.icon;
+                        const subActive =
+                          pathname === subItem.href ||
+                          (subItem.href === '/blog' && (pathname === '/blogs' || pathname?.startsWith('/blog/'))) ||
+                          (subItem.href === '/life-planner/ritucharya' && (pathname?.includes('ritucharya') || pathname?.includes('rutucharya')));
+                        return (
+                          <Link
+                            key={subItem.name}
+                            href={subItem.href}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                              subActive
+                                ? 'text-swar-primary bg-swar-primary-light font-bold'
+                                : 'text-gray-600 hover:text-swar-primary hover:bg-gray-100'
+                            }`}
+                            onClick={closeMenu}
+                          >
+                            <Icon className="h-4 w-4 text-swar-primary" />
+                            <span>{subItem.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Contact Link */}
+                <Link
+                  href="/contact"
+                  className={`px-4 py-3.5 rounded-xl font-medium transition-all duration-200 touch-manipulation active:scale-[0.98] ${
+                    isActive('/contact')
+                      ? 'text-white bg-gradient-to-r from-swar-primary to-green-600 shadow-md'
+                      : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
+                  }`}
+                  onClick={closeMenu}
+                >
+                  Contact
+                </Link>
 
                 {/* Cart */}
                 <div className="pt-4 mt-2 border-t border-swar-border">
