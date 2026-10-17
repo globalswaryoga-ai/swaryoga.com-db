@@ -707,15 +707,15 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 // Type Selector Modal
 function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType) => void; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-gray-900 shrink-0">
           <h2 className="text-xl font-bold text-white">Add Content Type</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 space-y-3">
+        <div className="p-4 sm:p-6 space-y-3 overflow-y-auto flex-1">
           {[
             { type: 'level' as ContentType, label: 'Course Level / Section Header', icon: Layers, color: 'purple' },
             { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
@@ -841,9 +841,9 @@ function AddZoomMeetingModal({ token, courseId, order, onClose, onAdded }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-xl my-8">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800 sticky top-0 bg-gray-900">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-xl max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-gray-900 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
               <VideoIcon className="text-indigo-400" size={20} />
@@ -853,12 +853,13 @@ function AddZoomMeetingModal({ token, courseId, order, onClose, onAdded }: {
               <p className="text-xs text-gray-400">Add date/time slots with countdown for students</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {error}
@@ -983,8 +984,9 @@ function AddZoomMeetingModal({ token, courseId, order, onClose, onAdded }: {
               ))}
             </div>
           </div>
+          </div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
+          <div className="flex items-center justify-end gap-3 p-4 sm:p-5 border-t border-gray-800 bg-gray-900 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -1097,15 +1099,16 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-gray-900 shrink-0">
           <h2 className="text-xl font-bold text-white">Add Material / PDF</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {error}
@@ -1250,7 +1253,9 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          </div>
+
+          <div className="flex gap-3 p-4 sm:p-5 border-t border-gray-800 bg-gray-900 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -1428,8 +1433,8 @@ function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-3xl my-6 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-3xl max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-gray-900/90 backdrop-blur sticky top-0 z-10">
           <div className="flex items-center gap-3">
@@ -1808,15 +1813,16 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-gray-900 shrink-0">
           <h2 className="text-xl font-bold text-white">Edit Video</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {error}
@@ -1926,7 +1932,9 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          </div>
+
+          <div className="flex gap-3 p-4 sm:p-5 border-t border-gray-800 bg-gray-900 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -2133,15 +2141,16 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg my-8">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-gray-900 shrink-0">
           <h2 className="text-xl font-bold text-white">Add New Video</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
           <div>
             <label className="block text-sm font-medium text-green-400 mb-3">Video Source</label>
             <div className="grid grid-cols-3 gap-2">
@@ -2385,7 +2394,9 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          </div>
+
+          <div className="flex gap-3 p-4 sm:p-5 border-t border-gray-800 bg-gray-900 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -2487,9 +2498,9 @@ function AddLevelModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-purple-950/40">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col shadow-2xl shadow-purple-950/40 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-800 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
               <Layers size={22} />
@@ -2512,7 +2523,8 @@ function AddLevelModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-lg flex items-center gap-2">
               <AlertCircle size={16} className="shrink-0" />
@@ -2567,7 +2579,9 @@ function AddLevelModal({
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-800">
+          </div>
+
+          <div className="p-4 sm:p-5 flex items-center justify-end gap-3 border-t border-gray-800 bg-gray-900 shrink-0">
             <button
               type="button"
               onClick={onClose}
