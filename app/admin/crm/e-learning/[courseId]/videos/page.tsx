@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Video, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2,
-  ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera
+  ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera,
+  Video as VideoIcon, Calendar, Clock, Globe
 } from 'lucide-react';
 
-type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question';
+type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question' | 'zoom';
 
 interface UnifiedItem {
   _id: string;
@@ -30,6 +31,12 @@ interface UnifiedItem {
   transcript?: string;
   aiSummary?: string;
   ragEnabled?: boolean;
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingUrl?: string;
+  meetingId?: string;
+  meetingPassword?: string;
+  slots?: Array<{ date: string; time: string; joinUrl?: string; meetingId?: string; password?: string }>;
 }
 
 interface VideoItem {
@@ -157,15 +164,23 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 
       if (materialsData.success && materialsData.materials) {
         materialsData.materials.forEach((m: any) => {
+          const isZoom = m.type === 'zoom' || m.materialType === 'zoom' || m.fileType === 'zoom';
+          const contentObj = m.content?.en || m.content || {};
           items.push({
             _id: m._id,
-            type: 'material',
-            title: m.content?.en?.title || 'Untitled Material',
+            type: isZoom ? 'zoom' : 'material',
+            title: contentObj.title || m.title || 'Untitled Material',
             order: m.order,
             fileUrl: m.fileUrl,
             materialType: m.type,
             downloadable: m.downloadable,
-            description: m.content?.en?.description,
+            description: contentObj.description || m.description,
+            meetingDate: contentObj.meetingDate || m.meetingDate,
+            meetingTime: contentObj.meetingTime || m.meetingTime,
+            meetingUrl: m.fileUrl || contentObj.meetingUrl,
+            meetingId: contentObj.meetingId,
+            meetingPassword: contentObj.meetingPassword,
+            slots: contentObj.slots || [],
           });
         });
       }
@@ -445,17 +460,19 @@ export default function VideosPage({ params }: { params: { courseId: string } })
                 {/* Type Badge */}
                 <div className={`px-3 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
                   item.type === 'video' ? 'bg-blue-500/20 text-blue-400'
+                  : item.type === 'zoom' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
                   : item.type === 'material' ? 'bg-orange-500/20 text-orange-400'
                   : item.type === 'task' ? 'bg-yellow-500/20 text-yellow-400'
                   : item.type === 'question' ? 'bg-teal-500/20 text-teal-400'
                   : 'bg-purple-500/20 text-purple-400'
                 }`}>
                   {item.type === 'video' && <Camera size={12} className="inline mr-1" />}
+                  {item.type === 'zoom' && <VideoIcon size={12} className="inline mr-1 text-indigo-400" />}
                   {item.type === 'material' && <FileText size={12} className="inline mr-1" />}
                   {item.type === 'task' && <CheckSquare size={12} className="inline mr-1" />}
                   {item.type === 'question' && <HelpCircle size={12} className="inline mr-1" />}
                   {item.type === 'assignment' && <ClipboardList size={12} className="inline mr-1" />}
-                  {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                  {item.type === 'zoom' ? 'Zoom Meeting' : item.type.charAt(0).toUpperCase() + item.type.slice(1)}
                 </div>
 
                 {/* Content Info */}
@@ -463,6 +480,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
                   <h3 className="text-white font-medium truncate">{item.title}</h3>
                   <p className="text-xs text-gray-500">
                     {item.type === 'video' && item.duration ? `${Math.round(item.duration / 60)}min`
+                      : item.type === 'zoom' ? `Live Zoom • ${item.meetingDate || 'Scheduled'}${item.meetingTime ? ` at ${item.meetingTime}` : ''}${item.slots?.length ? ` (${item.slots.length} slots)` : ''}`
                       : item.type === 'material' ? `${item.materialType || 'file'}${item.downloadable ? ' • Downloadable' : ''}`
                       : item.type === 'assignment' ? `${item.totalPoints || 0} pts`
                       : ''}
@@ -554,11 +572,10 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         />
       )}
 
-      {showAddModal && (addModalType === 'assignment' || addModalType === 'task' || addModalType === 'question') && token && (
-        <AddAssignmentModal
+      {showAddModal && addModalType === 'zoom' && token && (
+        <AddZoomMeetingModal
           token={token}
           courseId={courseId}
-          subType={addModalType as 'assignment' | 'task' | 'question'}
           order={insertAfterOrder}
           onClose={() => { setShowAddModal(false); setAddModalType(null); }}
           onAdded={() => { setShowAddModal(false); setAddModalType(null); fetchData(); }}
@@ -582,6 +599,7 @@ function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType
         <div className="p-6 space-y-3">
           {[
             { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
+            { type: 'zoom' as ContentType, label: 'Live Zoom Meeting (Slots & Countdown)', icon: VideoIcon, color: 'indigo' },
             { type: 'material' as ContentType, label: 'PDF / Material', icon: FileText, color: 'orange' },
             { type: 'assignment' as ContentType, label: 'Assignment', icon: ClipboardList, color: 'purple' },
             { type: 'task' as ContentType, label: 'Task', icon: CheckSquare, color: 'yellow' },
@@ -592,6 +610,7 @@ function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType
               onClick={() => onSelect(type)}
               className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
                 color === 'blue' ? 'bg-blue-500/10 border-blue-500/50 hover:border-blue-500'
+                : color === 'indigo' ? 'bg-indigo-500/10 border-indigo-500/50 hover:border-indigo-500'
                 : color === 'orange' ? 'bg-orange-500/10 border-orange-500/50 hover:border-orange-500'
                 : color === 'purple' ? 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500'
                 : color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/50 hover:border-yellow-500'
@@ -600,6 +619,309 @@ function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType
             >
               <Icon size={24} className={
                 color === 'blue' ? 'text-blue-400'
+                : color === 'indigo' ? 'text-indigo-400'
+                : color === 'orange' ? 'text-orange-400'
+                : color === 'purple' ? 'text-purple-400'
+                : color === 'yellow' ? 'text-yellow-400'
+                : 'text-teal-400'
+              } />
+              <span className="text-white font-medium">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add Live Zoom Meeting Modal
+function AddZoomMeetingModal({ token, courseId, order, onClose, onAdded }: {
+  token: string;
+  courseId: string;
+  order: number;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [meetingUrl, setMeetingUrl] = useState('');
+  const [meetingId, setMeetingId] = useState('');
+  const [meetingPassword, setMeetingPassword] = useState('');
+  const [slots, setSlots] = useState<Array<{ date: string; time: string; joinUrl?: string }>>([
+    { date: '', time: '07:00' },
+    { date: '', time: '19:00' }
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const addSlot = () => {
+    setSlots([...slots, { date: '', time: '07:00' }]);
+  };
+
+  const removeSlot = (index: number) => {
+    setSlots(slots.filter((_, i) => i !== index));
+  };
+
+  const updateSlot = (index: number, field: 'date' | 'time' | 'joinUrl', val: string) => {
+    const updated = [...slots];
+    updated[index] = { ...updated[index], [field]: val };
+    setSlots(updated);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !meetingUrl) {
+      setError('Meeting Title and Zoom Join URL are required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const firstSlot = slots.find(s => s.date) || slots[0];
+      const res = await fetch('/api/admin/e-learning/materials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          courseId,
+          title,
+          fileUrl: meetingUrl,
+          fileType: 'zoom',
+          order,
+          content: {
+            en: {
+              title,
+              description,
+              meetingUrl,
+              meetingId,
+              meetingPassword,
+              meetingDate: firstSlot?.date || '',
+              meetingTime: firstSlot?.time || '',
+              slots: slots.filter(s => s.date || s.time),
+            }
+          }
+        }),
+      });
+
+      if (res.ok) {
+        onAdded();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to save Zoom meeting');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error saving Zoom meeting');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-xl my-8">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 sticky top-0 bg-gray-900">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+              <VideoIcon className="text-indigo-400" size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Add Live Zoom Meeting</h2>
+              <p className="text-xs text-gray-400">Add date/time slots with countdown for students</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-indigo-400 mb-1">Session / Meeting Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Live Q&A & Swar Sadhana Session"
+              className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-indigo-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Instructions or guidelines for students before joining..."
+              rows={2}
+              className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-indigo-500 focus:outline-none resize-none text-sm"
+            />
+          </div>
+
+          <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
+              <LinkIcon size={16} />
+              Zoom Connection Details
+            </h3>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1">Zoom Meeting Join URL *</label>
+              <input
+                type="url"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                placeholder="https://us02web.zoom.us/j/1234567890?pwd=..."
+                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-indigo-500 focus:outline-none font-mono text-sm"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Meeting ID</label>
+                <input
+                  type="text"
+                  value={meetingId}
+                  onChange={(e) => setMeetingId(e.target.value)}
+                  placeholder="892 1234 5678"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-indigo-500 focus:outline-none text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">Passcode / Password</label>
+                <input
+                  type="text"
+                  value={meetingPassword}
+                  onChange={(e) => setMeetingPassword(e.target.value)}
+                  placeholder="SWAR2024"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-indigo-500 focus:outline-none text-sm font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Slot Selection */}
+          <div className="border border-gray-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Calendar size={16} className="text-green-400" />
+                  Available Date & Time Slots
+                </h3>
+                <p className="text-xs text-gray-500">Students can select a slot and see live countdown</p>
+              </div>
+              <button
+                type="button"
+                onClick={addSlot}
+                className="px-3 py-1 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+              >
+                <Plus size={14} /> Add Slot
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {slots.map((slot, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-black/60 p-2.5 rounded-lg border border-gray-800">
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-gray-400 uppercase font-semibold mb-0.5">Date</label>
+                    <input
+                      type="date"
+                      value={slot.date}
+                      onChange={(e) => updateSlot(idx, 'date', e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-xs focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="w-32">
+                    <label className="block text-[10px] text-gray-400 uppercase font-semibold mb-0.5">Time</label>
+                    <input
+                      type="time"
+                      value={slot.time}
+                      onChange={(e) => updateSlot(idx, 'time', e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-xs focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  {slots.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSlot(idx)}
+                      className="mt-4 p-1.5 text-gray-500 hover:text-red-400 rounded"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-gray-400 hover:text-white text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <VideoIcon size={16} />}
+              Save Zoom Meeting
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Type Selector Modal
+function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType) => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <h2 className="text-xl font-bold text-white">Add Content Type</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-6 space-y-3">
+          {[
+            { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
+            { type: 'zoom' as ContentType, label: 'Live Zoom Meeting (Slots & Countdown)', icon: VideoIcon, color: 'indigo' },
+            { type: 'material' as ContentType, label: 'PDF / Material', icon: FileText, color: 'orange' },
+            { type: 'assignment' as ContentType, label: 'Assignment', icon: ClipboardList, color: 'purple' },
+            { type: 'task' as ContentType, label: 'Task', icon: CheckSquare, color: 'yellow' },
+            { type: 'question' as ContentType, label: 'Question', icon: HelpCircle, color: 'teal' },
+          ].map(({ type, label, icon: Icon, color }) => (
+            <button
+              key={type}
+              onClick={() => onSelect(type)}
+              className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                color === 'blue' ? 'bg-blue-500/10 border-blue-500/50 hover:border-blue-500'
+                : color === 'indigo' ? 'bg-indigo-500/10 border-indigo-500/50 hover:border-indigo-500'
+                : color === 'orange' ? 'bg-orange-500/10 border-orange-500/50 hover:border-orange-500'
+                : color === 'purple' ? 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500'
+                : color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/50 hover:border-yellow-500'
+                : 'bg-teal-500/10 border-teal-500/50 hover:border-teal-500'
+              }`}
+            >
+              <Icon size={24} className={
+                color === 'blue' ? 'text-blue-400'
+                : color === 'indigo' ? 'text-indigo-400'
                 : color === 'orange' ? 'text-orange-400'
                 : color === 'purple' ? 'text-purple-400'
                 : color === 'yellow' ? 'text-yellow-400'

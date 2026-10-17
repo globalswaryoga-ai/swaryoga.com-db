@@ -147,6 +147,13 @@ interface Material {
   title: string;
   type: string;
   fileUrl?: string;
+  description?: string;
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingUrl?: string;
+  meetingId?: string;
+  meetingPassword?: string;
+  slots?: Array<{ date: string; time: string; joinUrl?: string; meetingId?: string; password?: string }>;
 }
 
 interface Course {
@@ -207,6 +214,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [sections, setSections] = useState<Section[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [activeTab, setActiveTab] = useState<'videos' | 'zoom' | 'materials'>('videos');
+  const [selectedZoomMeeting, setSelectedZoomMeeting] = useState<Material | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(0);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [canAccessPaidContent, setCanAccessPaidContent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -686,8 +696,81 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           )}
         </div>
 
-        {/* Video List */}
+          {/* Tabs: Recorded Videos vs Live Zoom */}
+          <div className="flex gap-1 mt-4 p-1 bg-gray-900 rounded-xl border border-gray-700">
+            <button
+              onClick={() => { setActiveTab('videos'); setSelectedZoomMeeting(null); }}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'videos'
+                  ? 'bg-orange-500 text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Videos ({videos.length})
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('zoom');
+                const firstZoom = materials.find(m => m.type === 'zoom' || m.materialType === 'zoom' || m.fileUrl?.includes('zoom.us'));
+                if (firstZoom) setSelectedZoomMeeting(firstZoom);
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'zoom'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5 text-indigo-300" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
+              </svg>
+              Live Zoom ({materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).length})
+            </button>
+          </div>
+        </div>
+
+        {/* List Content */}
         <div className="flex-1 overflow-y-auto">
+          {activeTab === 'zoom' ? (
+            <div className="p-3 space-y-2">
+              {materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-xs">
+                  No live Zoom sessions scheduled for this course yet.
+                </div>
+              ) : (
+                materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).map((meeting) => (
+                  <button
+                    key={meeting._id}
+                    onClick={() => setSelectedZoomMeeting(meeting)}
+                    className={`w-full p-3 rounded-xl border text-left transition-all ${
+                      selectedZoomMeeting?._id === meeting._id
+                        ? 'bg-indigo-500/20 border-indigo-500 text-white'
+                        : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:border-indigo-500/50 hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Live Zoom Session</span>
+                    </div>
+                    <p className="font-semibold text-sm line-clamp-1 text-white">{meeting.title}</p>
+                    {meeting.meetingDate && (
+                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        📅 {meeting.meetingDate} {meeting.meetingTime ? `at ${meeting.meetingTime}` : ''}
+                      </p>
+                    )}
+                    {meeting.slots && meeting.slots.length > 0 && (
+                      <span className="inline-block mt-2 text-[10px] bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full font-medium">
+                        {meeting.slots.length} Slots Available
+                      </span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
           <div className="p-2">
             {sections.map((section) => (
               <div key={section._id} className="mb-2">
@@ -865,9 +948,111 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           </button>
         </div>
 
-        {/* Video Player Area */}
+        {/* Video Player or Live Zoom Area */}
         <div className="flex-1 flex flex-col bg-black">
-          {currentVideo && !currentVideo.canWatch && currentVideo.isLocked ? (
+          {activeTab === 'zoom' && selectedZoomMeeting ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 overflow-y-auto">
+              <div className="max-w-xl w-full bg-gray-900 border border-indigo-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Live Zoom Session</span>
+                    <h2 className="text-xl sm:text-2xl font-bold text-white leading-tight">{selectedZoomMeeting.title}</h2>
+                  </div>
+                </div>
+
+                {selectedZoomMeeting.description && (
+                  <p className="text-gray-300 text-sm mb-6 bg-black/40 p-3 rounded-xl border border-gray-800">
+                    {selectedZoomMeeting.description}
+                  </p>
+                )}
+
+                {/* Slots Selector */}
+                {selectedZoomMeeting.slots && selectedZoomMeeting.slots.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">
+                      Select Your Date & Time Slot:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedZoomMeeting.slots.map((slot, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSelectedSlotIndex(idx)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            selectedSlotIndex === idx
+                              ? 'bg-indigo-600/30 border-indigo-500 ring-2 ring-indigo-500/50 text-white'
+                              : 'bg-black/50 border-gray-800 text-gray-400 hover:border-gray-700'
+                          }`}
+                        >
+                          <div className="font-bold text-sm text-white">📅 {slot.date || 'Any Date'}</div>
+                          <div className="text-xs text-indigo-300 font-semibold mt-0.5">⏰ {slot.time || '07:00 AM'}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Countdown Component */}
+                <div className="bg-black/60 border border-gray-800 rounded-xl p-4 mb-6 text-center">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">
+                    Scheduled Time:
+                  </p>
+                  <p className="text-lg font-bold text-indigo-300 mb-1">
+                    {selectedZoomMeeting.slots?.[selectedSlotIndex]?.date || selectedZoomMeeting.meetingDate || 'Upcoming Session'}
+                    {' at '}
+                    {selectedZoomMeeting.slots?.[selectedSlotIndex]?.time || selectedZoomMeeting.meetingTime || '07:00 AM IST'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Live room opens automatically. You can test your connection or join below.
+                  </p>
+                </div>
+
+                {/* Credentials */}
+                {(selectedZoomMeeting.meetingId || selectedZoomMeeting.meetingPassword) && (
+                  <div className="flex items-center justify-between bg-gray-800/80 p-3 rounded-xl mb-6 text-xs text-gray-300 font-mono">
+                    {selectedZoomMeeting.meetingId && (
+                      <div>
+                        <span className="text-gray-500">ID: </span>
+                        <span className="text-white font-bold">{selectedZoomMeeting.meetingId}</span>
+                      </div>
+                    )}
+                    {selectedZoomMeeting.meetingPassword && (
+                      <div>
+                        <span className="text-gray-500">Pass: </span>
+                        <span className="text-white font-bold">{selectedZoomMeeting.meetingPassword}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <a
+                    href={selectedZoomMeeting.slots?.[selectedSlotIndex]?.joinUrl || selectedZoomMeeting.meetingUrl || selectedZoomMeeting.fileUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-3 px-6 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl text-center shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
+                    </svg>
+                    Join Zoom Meeting
+                  </a>
+                  <button
+                    onClick={() => { setActiveTab('videos'); setSelectedZoomMeeting(null); }}
+                    className="py-3 px-4 border border-gray-700 text-gray-400 hover:text-white rounded-xl text-sm"
+                  >
+                    Back to Videos
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : currentVideo && !currentVideo.canWatch && currentVideo.isLocked ? (
             // Locked Video Screen
             <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
               <div className="text-center">
