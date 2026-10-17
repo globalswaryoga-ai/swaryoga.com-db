@@ -1,98 +1,82 @@
 /**
- * Tenant Management API Routes
+ * Tenant Management API Routes (Pure BunnyDB)
  * POST /api/tenants - Create new tenant
- * GET /api/tenants - List tenants (admin only)
- * GET /api/tenants/:slug - Get tenant details
+ * GET /api/tenants - List tenants (admin only) or get by ?slug=xxx
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import {
-  createTenant as createTenantHandler,
-  generateAPIKey,
-  getTenantBySlug,
-  getTenantById,
-} from '@/lib/multiTenant/handlers';
-
-export const dynamic = 'force-dynamic';
-import { buildTenantContext, tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import {
+  listTenants,
+  getTenantBySlug,
+  createTenant,
+} from '@/lib/tenant/bunnyTenantRepository';
+
+export const dynamic = 'force-dynamic';
+
+function tenantError(message: string, status = 400) {
+  return NextResponse.json({ success: false, error: message }, { status });
+}
+
+function tenantSuccess(data: any, message = 'Success', status = 200) {
+  return NextResponse.json({ success: true, message, ...data }, { status });
+}
 
 // ============================================================================
-// POST /api/tenants - Create new tenant (public, or superadmin only)
+// POST /api/tenants - Create new tenant (Pure BunnyDB)
 // ============================================================================
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const body = await request.json();
     const {
       tenantSlug,
+      slug,
       organizationName,
+      name,
       adminEmail,
-      billingEmail,
+      ownerEmail,
+      ownerUserId,
+      password,
       initialTier = 'free',
-      authToken, // Optional: if coming from logged-in user
+      plan = 'free',
     } = body;
 
+    const finalSlug = (tenantSlug || slug || '').trim().toLowerCase();
+    const finalName = (organizationName || name || '').trim();
+    const finalEmail = (adminEmail || ownerEmail || '').trim().toLowerCase();
+    const finalUserId = (ownerUserId || finalEmail).trim().toLowerCase();
+    const finalPlan = (plan || initialTier || 'free').toLowerCase();
+
     // Validation
-    if (!tenantSlug || !organizationName || !adminEmail) {
+    if (!finalSlug || !finalName || !finalEmail) {
       return tenantError(
-        'Missing required fields: tenantSlug, organizationName, adminEmail',
+        'Missing required fields: slug, name, and email',
         400
       );
     }
 
-    let adminUserId = 'anonymous'; // Default for new registrations
-    let adminName = organizationName.split(' ')[0]; // Use org name as fallback
-
-    // If auth token provided, use logged-in user
-    if (authToken) {
-      try {
-        const decoded = verifyToken(authToken);
-        if (decoded?.userId) {
-          adminUserId = decoded.userId;
-          adminName = decoded.username || 'Admin';
-        }
-      } catch (e) {
-        // Ignore invalid token, allow anonymous signup
-      }
-    }
-
-    // Create tenant
-    const newTenant = await createTenantHandler({
-      tenantSlug,
-      organizationName,
-      adminUserId,
-      adminName,
-      adminEmail,
-      billingEmail: billingEmail || adminEmail,
-      initialTier,
+    const newTenant = await createTenant({
+      slug: finalSlug,
+      name: finalName,
+      ownerEmail: finalEmail,
+      ownerUserId: finalUserId,
+      password: password || 'Welcome@123',
+      plan: finalPlan,
     });
-
-    // Generate initial API key for this tenant
-    const apiKeyResult = await generateAPIKey(
-      newTenant._id.toString(),
-      newTenant.tenantSlug,
-      'Default API Key'
-    );
 
     return tenantSuccess(
       {
         tenantId: newTenant._id,
-        tenantSlug: newTenant.tenantSlug,
-        organizationName: newTenant.organizationName,
-        subscriptionTier: newTenant.subscriptionTier,
-        subscriptionStatus: newTenant.subscriptionStatus,
-        adminEmail: newTenant.adminEmail,
+        tenantSlug: newTenant.slug,
+        organizationName: newTenant.name,
+        subscriptionTier: newTenant.plan,
+        subscriptionStatus: newTenant.status,
+        adminEmail: newTenant.ownerEmail,
         createdAt: newTenant.createdAt,
-        // Return API key only once
-        apiKey: apiKeyResult.plainKey,
-        apiKeyNote: 'Save this API key securely. You cannot view it again.',
       },
-      'Tenant created',
+      'Tenant created in BunnyDB',
       201
     );
   } catch (error: any) {
@@ -102,7 +86,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ============================================================================
-// GET /api/tenants - List all tenants (superadmin only)
+// GET /api/tenants - List all tenants (superadmin) or get by ?slug= (Pure BunnyDB)
 // ============================================================================
 
 export async function GET(request: NextRequest) {
@@ -114,15 +98,7 @@ export async function GET(request: NextRequest) {
       try {
         const decoded = verifyToken(token);
         if (isSuperAdmin(decoded)) {
-          // Superadmin listing all tenants
-          await connectDB();
-          const { getTenant } = await import('@/lib/multiTenant/schemas');
-          const TenantModel = getTenant();
-
-          const tenants = await TenantModel.find({ isActive: true })
-            .select('-usage') // Exclude detailed usage for list view
-            .lean();
-
+          const { tenants } = await listTenants({ limit: 100 });
           return NextResponse.json(
             {
               success: true,
@@ -137,17 +113,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Otherwise, expect ?slug=xxx or :slug in URL
+    // Otherwise, expect ?slug=xxx in URL
     const slug = request.nextUrl.searchParams.get('slug');
     if (!slug) {
-      return tenantError(
-        'Provide ?slug=yourtenant or use x-tenant-slug header',
-        400
-      );
+      return tenantError('Provide ?slug=yourtenant', 400);
     }
 
-    // Look up tenant by slug (public info only)
-    const tenant = await getTenantBySlug(slug) as any;
+    const tenant = await getTenantBySlug(slug);
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
@@ -156,10 +128,10 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         tenant: {
-          tenantSlug: tenant.tenantSlug,
-          organizationName: tenant.organizationName,
-          subscriptionTier: tenant.subscriptionTier,
-          subscriptionStatus: tenant.subscriptionStatus,
+          tenantSlug: tenant.slug,
+          organizationName: tenant.name,
+          subscriptionTier: tenant.plan,
+          subscriptionStatus: tenant.status,
         },
       },
       { status: 200 }

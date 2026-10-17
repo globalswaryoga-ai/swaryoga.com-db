@@ -1,25 +1,21 @@
 /**
- * Tenant Usage & Stats API
+ * Tenant Usage & Stats API (Pure BunnyDB)
  *
- * GET /api/admin/tenants/usage?slug=acme&days=30
- *   Returns daily usage snapshots for a specific tenant.
+ * GET /api/admin/tenants/usage?slug=acme
+ *   Returns live usage and limit utilisation for a tenant from BunnyDB.
  */
 
-
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiSuccess, apiError } from '@/lib/api-error';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getTenantUsageModel, getTenantModel } from '@/lib/tenant/tenantSchemas';
-import { getTenantDb } from '@/lib/tenant/tenantDb';
+import { getTenantBySlug } from '@/lib/tenant/bunnyTenantRepository';
 import { resolveEffectiveLimits } from '@/lib/tenant/plans';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  await connectDB();
-
   const token = request.headers.get('authorization')?.replace('Bearer ', '') || '';
   const decoded = verifyToken(token);
   if (!decoded || !isSuperAdmin(decoded)) return apiError('UNAUTHORIZED');
@@ -28,57 +24,47 @@ export async function GET(request: NextRequest) {
   const slug = searchParams.get('slug');
   if (!slug) return apiError('VALIDATION_ERROR', 'slug query param required');
 
-  const days = Math.min(90, Math.max(1, parseInt(searchParams.get('days') || '30', 10)));
-
-  const Tenant = getTenantModel();
-  const tenant = await Tenant.findOne({ slug }).lean() as any;
-  if (!tenant) return apiError('NOT_FOUND', `Tenant "${slug}" not found`);
-
-  // Get usage history
-  const TenantUsage = getTenantUsageModel();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-
-  const usage = await TenantUsage.find({
-    tenantId: slug,
-    date: { $gte: cutoffStr },
-  })
-    .sort({ date: -1 })
-    .lean();
-
-  // Get live lead count from tenant's CRM DB
-  let liveLeadCount = tenant.currentLeadCount || 0;
   try {
-    const tenantDb = getTenantDb(slug);
-    const db = tenantDb.db;
-    if (db) {
-      const leadsCol = db.collection('leads');
-      liveLeadCount = await leadsCol.countDocuments();
+    const tenant = await getTenantBySlug(slug);
+    if (!tenant) return apiError('NOT_FOUND', `Tenant "${slug}" not found`);
+
+    // Live lead count from leads_sql
+    let liveLeadCount = tenant.currentLeadCount || 0;
+    try {
+      const owners = Array.from(new Set([tenant.ownerUserId, tenant.ownerEmail, slug].filter(Boolean)));
+      const placeholders = owners.map(() => '?').join(', ');
+      const res = await bunnyExecute({
+        sql: `SELECT COUNT(*) as count FROM leads_sql WHERE owner_user_id IN (${placeholders})`,
+        args: owners,
+      });
+      liveLeadCount = Number(res.rows[0]?.count || 0);
+    } catch {
+      // Non-fatal — fallback to cached count
     }
-  } catch {
-    // Non-fatal — use cached count
+
+    const limits = resolveEffectiveLimits(tenant.plan as any, tenant.customLimits);
+
+    return apiSuccess({
+      tenant: {
+        slug: tenant.slug,
+        name: tenant.name,
+        plan: tenant.plan,
+        status: tenant.status,
+      },
+      limits,
+      currentUsage: {
+        leads: liveLeadCount,
+        users: tenant.currentUserCount || 0,
+        storageMB: tenant.currentStorageMB || 0,
+      },
+      utilisation: {
+        leadsPercent: Math.round((liveLeadCount / (limits.maxLeads || 1)) * 100),
+        usersPercent: Math.round(((tenant.currentUserCount || 0) / (limits.maxUsers || 1)) * 100),
+      },
+      dailyUsage: [],
+    });
+  } catch (err: any) {
+    console.error('[GET /api/admin/tenants/usage Error]:', err);
+    return apiError('SERVER_ERROR', err.message || 'Failed to fetch tenant usage');
   }
-
-  const limits = resolveEffectiveLimits(tenant.plan, tenant.customLimits);
-
-  return apiSuccess({
-    tenant: {
-      slug: tenant.slug,
-      name: tenant.name,
-      plan: tenant.plan,
-      status: tenant.status,
-    },
-    limits,
-    currentUsage: {
-      leads: liveLeadCount,
-      users: tenant.currentUserCount || 0,
-      storageMB: tenant.currentStorageMB || 0,
-    },
-    utilisation: {
-      leadsPercent: Math.round((liveLeadCount / limits.maxLeads) * 100),
-      usersPercent: Math.round(((tenant.currentUserCount || 0) / limits.maxUsers) * 100),
-    },
-    dailyUsage: usage,
-  });
 }

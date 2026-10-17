@@ -14,9 +14,7 @@
 
 import type { ITenant, TenantContext } from './types';
 import { resolveEffectiveLimits, resolveEnabledModules } from './plans';
-import { getTenantDb, tenantDbName } from './tenantDb';
-import { getTenantModel } from './tenantSchemas';
-import { MASTER_TENANT_SLUG } from './tenantDb';
+import { getTenantDb, tenantDbName, MASTER_TENANT_SLUG } from './tenantDb';
 
 // ---------------------------------------------------------------------------
 // Header constants
@@ -82,13 +80,14 @@ export function extractTenantSlug(headers: {
  *
  * @returns TenantContext or `null` if tenant not found / suspended.
  */
+import { getTenantBySlug } from './bunnyTenantRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+
 export async function resolveTenant(
   headers: { get(name: string): string | null },
   hostname?: string,
   tokenTenantId?: string,
 ): Promise<TenantContext | null> {
-  const Tenant = getTenantModel();
-
   // Try lightweight extraction first
   let slug = extractTenantSlug(headers, hostname);
 
@@ -97,10 +96,13 @@ export async function resolveTenant(
     slug = tokenTenantId;
   }
 
-  let tenant: ITenant | null = null;
+  let tenant: any = null;
 
   if (slug) {
-    tenant = await Tenant.findOne({ slug, status: 'active' }).lean() as ITenant | null;
+    tenant = await getTenantBySlug(slug);
+    if (tenant && tenant.status !== 'active') {
+      tenant = null;
+    }
   }
 
   // 3. If still unresolved, try custom domain lookup
@@ -108,28 +110,28 @@ export async function resolveTenant(
     const lowerHost = hostname.toLowerCase();
     // Skip if hostname is our own app domain
     if (!lowerHost.endsWith(APP_DOMAIN) && !lowerHost.includes('localhost')) {
-      tenant = await Tenant.findOne({
-        customDomain: lowerHost,
-        customDomainVerified: true,
-        status: 'active',
-      }).lean() as ITenant | null;
+      const res = await bunnyExecute({
+        sql: `SELECT * FROM crm_tenants_sql WHERE json_extract(data_json, '$.customDomain') = ? AND json_extract(data_json, '$.status') = 'active' LIMIT 1`,
+        args: [lowerHost],
+      });
+      if (res.rows.length > 0) {
+        const { normalizeTenant } = await import('./bunnyTenantRepository');
+        tenant = normalizeTenant(res.rows[0]);
+      }
     }
   }
 
   // 5. Fall back to master tenant
   if (!tenant) {
-    tenant = await Tenant.findOne({
-      slug: MASTER_TENANT_SLUG,
-      status: 'active',
-    }).lean() as ITenant | null;
+    tenant = await getTenantBySlug(MASTER_TENANT_SLUG);
 
-    // If master tenant doesn't exist yet (pre-migration), create a synthetic context
+    // If master tenant doesn't exist yet, create a synthetic context
     if (!tenant) {
       return createMasterFallbackContext();
     }
   }
 
-  return buildTenantContext(tenant);
+  return buildTenantContext(tenant as unknown as ITenant);
 }
 
 // ---------------------------------------------------------------------------
