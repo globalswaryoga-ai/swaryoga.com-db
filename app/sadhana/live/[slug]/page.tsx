@@ -2,17 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
+import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play, Volume2 } from 'lucide-react';
 
-// CRITICAL: ABSOLUTE VIDEO CONTROL HIDING & UNMUTE ENFORCEMENT - NO EXCEPTIONS
+// Video styling and controls hiding
 if (typeof document !== 'undefined') {
   const styleId = 'sadhana-video-no-controls';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      /* === ABSOLUTE FINAL VIDEO CONTROL HIDING - MAXIMUM PRIORITY === */
-
       video {
         display: block !important;
         width: 100% !important;
@@ -20,76 +18,49 @@ if (typeof document !== 'undefined') {
         outline: none !important;
         border: none !important;
         background: #000 !important;
-        cursor: none !important;
         --webkit-audio-session: playback !important;
       }
-
-      /* WEBKIT BROWSERS */
       video::-webkit-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; width: 0 !important; pointer-events: none !important; }
       video::-webkit-media-controls-enclosure { display: none !important; }
       video::-webkit-media-controls-panel { display: none !important; }
       video::-webkit-media-controls-play-button { display: none !important; }
-      video::-webkit-media-controls-timeline-container { display: none !important; }
-      video::-webkit-media-controls-current-time-display { display: none !important; }
-      video::-webkit-media-controls-time-remaining-display { display: none !important; }
       video::-webkit-media-controls-timeline { display: none !important; }
-      video::-webkit-media-controls-volume-slider-container { display: none !important; }
-      video::-webkit-media-controls-volume-slider { display: none !important; }
-      video::-webkit-media-controls-mute-button { display: none !important; }
-      video::-webkit-media-controls-fullscreen-button { display: none !important; }
-      video::-webkit-media-controls-download-button { display: none !important; }
-      video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
-      video::-webkit-media-controls-seek-backward-button { display: none !important; }
-      video::-webkit-media-controls-seek-forward-button { display: none !important; }
-      video::-webkit-media-controls-media-button { display: none !important; }
-
-      /* FIREFOX */
       video::-moz-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; }
-      video::-moz-media-controls-panel { display: none !important; }
-      video::-moz-media-controls-play-button { display: none !important; }
-      video::-moz-media-controls-timeline { display: none !important; }
-      video::-moz-media-controls-volume-slider { display: none !important; }
-      video::-moz-media-controls-mute-button { display: none !important; }
-      video::-moz-media-controls-fullscreen-button { display: none !important; }
-
-      /* UNIVERSAL */
       video { user-select: none !important; -webkit-user-select: none !important; }
     `;
     document.head.appendChild(style);
   }
 
-  /* AGGRESSIVE JAVASCRIPT ENFORCEMENT - RUN CONTINUOUSLY */
-  const enforceNoControlsAndUnmute = () => {
+  const enforceNoControls = () => {
     document.querySelectorAll('video').forEach((video: any) => {
-      // Remove controls
       video.removeAttribute('controls');
       video.removeAttribute('controlsList');
-
-      // Enforce unmute permanently
-      video.muted = false;
-      video.volume = 1;
-
-      // Enforce styles
       video.style.outline = 'none';
       video.style.border = 'none';
       video.style.width = '100%';
       video.style.height = '100%';
       video.style.display = 'block';
-      video.style.cursor = 'none';
     });
   };
 
-  enforceNoControlsAndUnmute();
+  enforceNoControls();
   if (typeof window !== 'undefined') {
-    const observer = new MutationObserver(enforceNoControlsAndUnmute);
+    const observer = new MutationObserver(enforceNoControls);
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-    setInterval(enforceNoControlsAndUnmute, 100);
   }
 }
 
 interface Participant { name: string; joinedAt: string; }
 interface ChatMsg { id: string; name: string; message: string; createdAt: string; }
-interface Program { slug: string; name: string; description?: string; timezone: string; scheduleTime: string; }
+interface Program {
+  slug: string;
+  name: string;
+  description?: string;
+  timezone: string;
+  scheduleTime: string | string[];
+  timeSlots?: string[];
+  videoDuration?: number;
+}
 interface TodayVideo { date: string; title: string; videoUrl: string; }
 interface UpcomingVideo { date: string; title: string; }
 interface SessionInfo {
@@ -151,7 +122,8 @@ export default function ProgramLivePage() {
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
-  const [fullscreenMode, setFullscreenMode] = useState(true);
+  const [fullscreenMode, setFullscreenMode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
@@ -195,42 +167,54 @@ export default function ProgramLivePage() {
     }
   };
 
-  // Auto-fullscreen on first play or after a short delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (containerRef.current && !document.fullscreenElement) {
-        containerRef.current.requestFullscreen().catch(err => {
-          console.warn('Auto-fullscreen failed (may be prevented by browser):', err);
-        });
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
   useEffect(() => {
-    if (session?.status === 'live' && !videoStarted) {
+    if ((session?.status === 'live' || previewMode) && !videoStarted) {
       setVideoStarted(true);
     }
-  }, [session?.status, videoStarted]);
+  }, [session?.status, previewMode, videoStarted]);
 
-  // Announcements endpoint disabled (not implemented)
-  // useEffect(() => {
-  //   const loadAnnouncement = async () => {
-  //     try {
-  //       const res = await fetch('/api/admin/sadhana-announcements');
-  //       const data = await res.json();
-  //       if (data.success) setAnnouncement(data.announcement);
-  //     } catch (err) { console.warn('Failed to load announcement:', err); }
-  //   };
-  //   loadAnnouncement();
-  // }, []);
+  const applyStateData = (data: any) => {
+    if (data.program) setProgram(data.program);
+    if (data.todayVideo) setTodayVideo(data.todayVideo);
+    if (data.upcomingVideos) setUpcoming(data.upcomingVideos || []);
+    if (data.participants) setParticipants(data.participants || []);
+    if (typeof data.count === 'number') setCount(data.count);
+    if (data.session) setSession(data.session);
+    if (data.playerMode) setPlayerMode(data.playerMode || 'player');
+    if (data.playerUrl) setPlayerUrl(data.playerUrl);
+    if (data.playableVideoUrl) setPlayableUrl(data.playableVideoUrl);
+    if (data.chat) setChat(data.chat || []);
+    if (data.serverTime) setServerTime(new Date(data.serverTime));
+  };
+
+  // Initial fetch on mount before joining (fetches program info, timings, and live status)
+  useEffect(() => {
+    let mounted = true;
+    const fetchInitial = async () => {
+      try {
+        const res = await fetch(`/api/sadhana/live/${slug}/state`, { method: 'GET' });
+        if (res.status === 404) {
+          if (mounted) setProgramNotFound(true);
+          return;
+        }
+        const data = await res.json();
+        if (data.success && mounted) {
+          applyStateData(data);
+        }
+      } catch (err) {
+        console.warn('Initial sadhana state fetch error:', err);
+      }
+    };
+    fetchInitial();
+    return () => { mounted = false; };
+  }, [slug]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    localStorage.setItem('sadhana_live_name', name);
+    localStorage.setItem('sadhana_live_name', name.trim());
     await fetch(`/api/sadhana/live/${slug}/join`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: sidRef.current, name: name.trim() }),
@@ -244,37 +228,19 @@ export default function ProgramLivePage() {
       try {
         const res = await fetch(`/api/sadhana/live/${slug}/state`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: sidRef.current }),
+          body: JSON.stringify({ sessionId: sidRef.current, preview: previewMode }),
         });
         if (res.status === 404) { setProgramNotFound(true); return; }
         const data = await res.json();
         if (data.success) {
-          setProgram(data.program);
-          setTodayVideo(data.todayVideo);
-          setUpcoming(data.upcomingVideos || []);
-          setParticipants(data.participants || []);
-          setCount(data.count || 0);
-          setSession(data.session || null);
-          setPlayerMode(data.playerMode || 'player');
-          setPlayerUrl(data.playerUrl || null);
-          // Only set playableUrl once when first going live
-          if (data.session?.status === 'live' && data.playableVideoUrl && !urlSetRef.current) {
-            setPlayableUrl(data.playableVideoUrl);
-            urlSetRef.current = true;
-          } else if (data.session?.status !== 'live') {
-            // Reset ref when session is no longer live
-            urlSetRef.current = false;
-            if (data.session?.status !== 'live') setPlayableUrl(null);
-          }
-          setChat(data.chat || []);
-          if (data.serverTime) setServerTime(new Date(data.serverTime));
+          applyStateData(data);
         }
       } catch (err) { console.warn('Poll error:', err); }
     };
     poll();
     const t = setInterval(poll, 3000);
     return () => clearInterval(t);
-  }, [joined, slug]);
+  }, [joined, slug, previewMode]);
 
   useEffect(() => {
     const i = setInterval(() => setNowTick(new Date()), 1000);
@@ -314,27 +280,72 @@ export default function ProgramLivePage() {
   }
 
   if (!joined) {
+    const isLiveNow = session?.status === 'live';
+    const isCountdown = session?.status === 'countdown';
+    const scheduleList = program?.scheduleTime
+      ? (Array.isArray(program.scheduleTime) ? program.scheduleTime : [program.scheduleTime])
+      : [];
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-6 sm:p-8 max-w-md w-full border border-white/20">
-          <div className="text-center mb-6 sm:mb-8">
-            <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🧘</div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Sadhana Live</h1>
-            <p className="text-sm sm:text-base text-purple-200">Join the community session</p>
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 sm:p-8 max-w-md w-full border border-white/20 shadow-2xl">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">🧘</div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1.5">{program?.name || 'Sadhana Live'}</h1>
+            {program?.description && (
+              <p className="text-xs sm:text-sm text-purple-300 mb-3">{program.description}</p>
+            )}
+
+            {isLiveNow ? (
+              <div className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse shadow-md">
+                <span className="w-2 h-2 rounded-full bg-white"></span>
+                LIVE NOW
+              </div>
+            ) : isCountdown ? (
+              <div className="inline-flex items-center gap-1.5 bg-amber-500 text-black px-3 py-1 rounded-full text-xs font-semibold shadow-md">
+                ⏳ Starting in {session?.countdownMinutes || 5} min
+              </div>
+            ) : session?.nextSessionUtc ? (
+              <div className="inline-flex items-center gap-1.5 bg-purple-800/80 text-purple-200 px-3 py-1 rounded-full text-xs">
+                <span>🕒 Next:</span>
+                <span className="font-semibold text-white">{fmtTime(session.nextSessionUtc, program?.timezone || 'Asia/Kolkata')}</span>
+              </div>
+            ) : null}
           </div>
+
           <form onSubmit={handleJoin} className="space-y-4">
             <div>
-              <label className="block text-white mb-2 text-xs sm:text-sm">Your Name</label>
+              <label className="block text-white mb-2 text-xs sm:text-sm font-medium">Your Name</label>
               <input
-                type="text" value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your name" required autoFocus
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-white/20 text-white placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white text-sm sm:text-base"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your name"
+                required
+                autoFocus
+                className="w-full px-4 py-2.5 rounded-lg bg-white/20 text-white placeholder-purple-200 border border-white/30 focus:outline-none focus:border-pink-500 text-sm sm:text-base"
               />
             </div>
-            <button type="submit" className="w-full bg-gradient-to-r from-pink-500 to-violet-500 text-white font-semibold py-2.5 sm:py-3 rounded-lg hover:opacity-90 transition text-sm sm:text-base">
-              Join Live Session 🙏
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-pink-500 to-violet-500 text-white font-bold py-3 rounded-lg hover:opacity-90 transition text-sm sm:text-base shadow-lg cursor-pointer"
+            >
+              {isLiveNow ? 'Join Live Practice Now 🔴' : 'Join Sadhana Room 🙏'}
             </button>
           </form>
+
+          {scheduleList.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-white/10 text-center">
+              <p className="text-xs text-purple-300 mb-2 font-medium">Daily Sessions (IST)</p>
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {scheduleList.map((time, idx) => (
+                  <span key={idx} className="bg-white/10 text-purple-200 px-3 py-0.5 rounded-full text-xs">
+                    {time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -344,43 +355,91 @@ export default function ProgramLivePage() {
   const synced = new Date(nowTick.getTime() + drift);
 
   let sessionView: React.ReactNode = null;
+  const isLive = session?.status === 'live' || previewMode;
 
-  if (!session || session.status === 'waiting') {
+  if (isLive) {
+    const activeStreamUrl = playerUrl || playableUrl || todayVideo?.videoUrl || '';
+    const isHlsStream = playerMode === 'hls' ||
+                        activeStreamUrl.includes('.m3u8') ||
+                        activeStreamUrl.includes('b-cdn.net') ||
+                        activeStreamUrl.includes('playlist');
+
+    if (isHlsStream && activeStreamUrl) {
+      sessionView = (
+        <HLSPlayer
+          url={activeStreamUrl}
+          videoRef={videoRef as any}
+          offsetSeconds={previewMode ? 0 : (session?.videoOffsetSeconds || 0)}
+        />
+      );
+    } else if (activeStreamUrl) {
+      sessionView = (
+        <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
+          <iframe
+            src={activeStreamUrl}
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="eager"
+            title="Video player"
+          />
+        </div>
+      );
+    } else {
+      sessionView = (
+        <div className="w-full h-full flex items-center justify-center p-8 bg-black">
+          <p className="text-purple-200 animate-pulse">Preparing live session video...</p>
+        </div>
+      );
+    }
+  } else if (!session || session.status === 'waiting') {
+    const scheduleList = program?.scheduleTime
+      ? (Array.isArray(program.scheduleTime) ? program.scheduleTime : [program.scheduleTime])
+      : [];
+
     sessionView = (
       <div className="w-full h-full flex items-center justify-center p-4 sm:p-8">
         <div className="text-center max-w-md">
           <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">⏳</div>
-          <p className="text-base sm:text-xl text-purple-100 mb-4">
+          <p className="text-base sm:text-xl text-purple-100 mb-2 font-medium">
             {todayVideo ? 'Session starts later today' : 'No session scheduled for today'}
           </p>
+          {todayVideo?.title && (
+            <p className="text-xs sm:text-sm text-purple-300 mb-4">
+              Today's Practice: <span className="font-semibold text-white">{todayVideo.title}</span>
+            </p>
+          )}
 
           {session?.nextSessionUtc && program && (
-            <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-purple-900/40 border border-purple-500/50 rounded-lg">
-              <p className="text-xs sm:text-sm text-purple-300 mb-2">Next Session</p>
-              <p className="text-base sm:text-lg font-bold text-white">
+            <div className="mb-4 sm:mb-6 p-4 bg-purple-900/40 border border-purple-500/50 rounded-xl">
+              <p className="text-xs text-purple-300 uppercase tracking-wider mb-1">Next Live Broadcast</p>
+              <p className="text-lg sm:text-xl font-bold text-white">
                 {fmtTime(session.nextSessionUtc, program.timezone)}
               </p>
             </div>
           )}
 
-          {program?.scheduleTime && (
-            <div className="space-y-2">
-              <p className="text-xs sm:text-sm text-purple-300">Today's Sessions</p>
-              <div className="flex flex-wrap gap-1 sm:gap-2 justify-center">
-                {Array.isArray(program.scheduleTime) ? (
-                  program.scheduleTime.map((time: string, idx: number) => (
-                    <span key={idx} className="bg-pink-600 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold">
-                      {time}
-                    </span>
-                  ))
-                ) : (
-                  <span className="bg-pink-600 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold">
-                    {program.scheduleTime}
+          {scheduleList.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <p className="text-xs sm:text-sm text-purple-300">Daily Sessions (IST)</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {scheduleList.map((time: string, idx: number) => (
+                  <span key={idx} className="bg-pink-600 text-white px-3 py-1 rounded-full text-xs sm:text-sm font-semibold shadow">
+                    {time}
                   </span>
-                )}
+                ))}
               </div>
             </div>
           )}
+
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <button
+              onClick={() => setPreviewMode(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-purple-200 hover:text-white rounded-lg text-xs font-medium transition cursor-pointer border border-white/20"
+            >
+              <Play size={14} /> Preview Today's Practice Video
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -399,44 +458,6 @@ export default function ProgramLivePage() {
         </div>
       </div>
     );
-  } else if (session.status === 'live') {
-    if (playerMode === 'hls' && playerUrl) {
-      sessionView = (
-        <HLSPlayer url={playerUrl} videoRef={videoRef as any} offsetSeconds={session.videoOffsetSeconds} />
-      );
-    } else {
-      // Convert Bunny player embed URL to direct HLS stream URL
-      // player.mediadelivery.net/play/{libraryId}/{videoId} → vz-{libraryId}.b-cdn.net/{videoId}/playlist.m3u8
-      let hlsUrl = '';
-      if (playableUrl) {
-        const bunnyMatch = playableUrl.match(/mediadelivery\.net\/play\/(\d+)\/([a-f0-9-]+)/i);
-        if (bunnyMatch) {
-          hlsUrl = `https://vz-${bunnyMatch[1]}.b-cdn.net/${bunnyMatch[2]}/playlist.m3u8`;
-        } else if (playableUrl.includes('.m3u8') || playableUrl.includes('playlist')) {
-          hlsUrl = playableUrl;
-        }
-      }
-
-      sessionView = hlsUrl ? (
-        <HLSPlayer url={hlsUrl} videoRef={videoRef as any} offsetSeconds={session.videoOffsetSeconds} />
-      ) : playableUrl ? (
-        <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
-          <iframe
-            src={playableUrl}
-            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-            sandbox="allow-scripts allow-same-origin allow-presentation"
-            loading="eager"
-            title="Video player"
-          />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} />
-        </div>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <p className="text-purple-200">Loading video...</p>
-        </div>
-      );
-    }
   } else if (session.status === 'ended') {
     sessionView = (
       <div className="w-full h-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-indigo-900 to-purple-900">
@@ -447,12 +468,18 @@ export default function ProgramLivePage() {
           {upcoming[0] && (
             <p className="text-purple-300 text-xs sm:text-sm">Next: {fmtDate(upcoming[0].date)} {upcoming[0].title && `- ${upcoming[0].title}`}</p>
           )}
+          <div className="mt-4">
+            <button
+              onClick={() => setPreviewMode(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-purple-200 hover:text-white rounded text-xs transition cursor-pointer"
+            >
+              <Play size={14} /> Replay Video
+            </button>
+          </div>
         </div>
       </div>
     );
   }
-
-  const isLive = session?.status === 'live';
 
   const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || playableUrl);
 
@@ -473,18 +500,18 @@ export default function ProgramLivePage() {
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
                 <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse flex-shrink-0"></span>
-                <span className="truncate">{isLive ? 'LIVE' : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
+                <span className="truncate">{isLive ? (previewMode ? 'PREVIEW' : 'LIVE') : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
               </div>
               <button
                 onClick={toggleFullscreen}
-                className="bg-purple-600 hover:bg-purple-500 p-1.5 sm:p-2 rounded-lg transition flex-shrink-0"
+                className="bg-purple-600 hover:bg-purple-500 p-1.5 sm:p-2 rounded-lg transition flex-shrink-0 cursor-pointer"
                 title={fullscreenMode ? 'Exit fullscreen' : 'Fullscreen'}
               >
                 {fullscreenMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
               <button
                 onClick={handleLeave}
-                className="bg-red-600 hover:bg-red-500 p-1.5 sm:p-2 rounded-lg transition flex items-center gap-1 flex-shrink-0"
+                className="bg-red-600 hover:bg-red-500 p-1.5 sm:p-2 rounded-lg transition flex items-center gap-1 flex-shrink-0 cursor-pointer"
                 title="Leave session"
               >
                 <LogOut size={16} /> <span className="text-xs sm:text-sm hidden sm:inline">Leave</span>
@@ -496,10 +523,21 @@ export default function ProgramLivePage() {
             <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'md:grid-cols-4' : 'md:grid-cols-1'} gap-2 sm:gap-4`}>
               <div className={`${showSidebar && !fullscreenMode ? 'md:col-span-3' : 'md:col-span-1'} bg-black rounded-lg sm:rounded-xl overflow-hidden aspect-video relative`}>
                 {sessionView}
+                {previewMode && (
+                  <div className="absolute top-3 left-3 z-30 bg-amber-500 text-black px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-lg">
+                    <span>👁️ Preview Mode</span>
+                    <button
+                      onClick={() => setPreviewMode(false)}
+                      className="ml-2 underline text-xs font-semibold hover:opacity-80 cursor-pointer bg-black/20 px-1.5 py-0.5 rounded"
+                    >
+                      Exit Preview
+                    </button>
+                  </div>
+                )}
                 {showSidebar && (
                   <button
                     onClick={() => setShowSidebar(false)}
-                    className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold"
+                    className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold z-20 cursor-pointer"
                     title="Hide sidebar for fullscreen video"
                   >
                     ⛔ Hide
@@ -718,74 +756,111 @@ interface HLSPlayerProps {
 
 function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
   const seekPerformed = useRef(false);
   const hlsRef = useRef<any>(null);
+
+  const unmuteAudio = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      videoRef.current.volume = 1;
+      setIsMuted(false);
+      videoRef.current.play().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (!videoRef.current || !url) return;
 
-    const isValidHlsUrl = url.endsWith('.m3u8') || url.includes('playlist');
-    if (!isValidHlsUrl) { setError('Invalid HLS URL'); return; }
+    const isValidHlsUrl = url.endsWith('.m3u8') || url.includes('playlist') || url.includes('b-cdn.net');
+    if (!isValidHlsUrl) { setError('Invalid stream URL'); return; }
 
     const video = videoRef.current;
     seekPerformed.current = false;
 
     const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
-    const handleCanPlay = () => { if (video.paused) video.play().catch(() => {}); };
-    const handleVolumeChange = () => { if (video.muted || video.volume !== 1) { video.muted = false; video.volume = 1; } };
+    const handleCanPlay = () => {
+      if (video.paused) {
+        video.play().catch(() => {
+          video.muted = true;
+          setIsMuted(true);
+          video.play().catch(() => {});
+        });
+      }
+    };
 
-    // PERMANENT UNMUTE ENFORCEMENT - Critical
-    video.muted = false;
-    video.volume = 1;
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
 
     video.addEventListener('ratechange', handleRateChange);
     video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('volumechange', handleVolumeChange);
-    video.addEventListener('pause', () => video.play().catch(() => {}));
 
     // Destroy previous hls instance
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
     const setup = async () => {
-      const Hls = (await import('hls.js')).default;
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 60,
-          maxBufferLength: 30,
-          maxBufferSize: 60 * 1000 * 1000,
-          maxMaxBufferLength: 60,
-          fragLoadingTimeOut: 20000,
-          fragLoadingMaxRetry: 6,
-          levelLoadingTimeOut: 10000,
-          levelLoadingMaxRetry: 4,
-          manifestLoadingTimeOut: 10000,
-          manifestLoadingMaxRetry: 1,
-          startLevel: -1,
-        });
-        hlsRef.current = hls;
-        hls.loadSource(url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          video.play().catch(() => {});
-        });
-        hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-          if (data.fatal) {
-            console.error('[HLS] Fatal error:', data);
-            setError('Stream error — please refresh');
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS
-        video.src = url;
-        video.load();
-        video.play().catch(() => {});
-      } else {
-        setError('Video playback not supported on this browser');
+      try {
+        const Hls = (await import('hls.js')).default;
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 60,
+            maxBufferLength: 30,
+            maxBufferSize: 60 * 1000 * 1000,
+            fragLoadingTimeOut: 20000,
+            fragLoadingMaxRetry: 6,
+            levelLoadingTimeOut: 10000,
+            levelLoadingMaxRetry: 4,
+            manifestLoadingTimeOut: 10000,
+            manifestLoadingMaxRetry: 2,
+            startLevel: -1,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(url);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            video.play().catch((err) => {
+              console.warn('[HLS] Autoplay with sound blocked, trying muted:', err);
+              video.muted = true;
+              setIsMuted(true);
+              video.play().catch((e) => console.error('[HLS] Muted play failed:', e));
+            });
+          });
+          hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+            if (data.fatal) {
+              console.error('[HLS] Fatal error:', data);
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  hls.destroy();
+                  setError('Stream error — please refresh');
+                  break;
+              }
+            }
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          video.src = url;
+          video.load();
+          video.play().catch((err) => {
+            console.warn('[Safari HLS] Autoplay blocked, trying muted:', err);
+            video.muted = true;
+            setIsMuted(true);
+            video.play().catch(() => {});
+          });
+        } else {
+          setError('Video playback not supported on this browser');
+        }
+      } catch (err) {
+        console.error('[HLS] Setup error:', err);
+        setError('Failed to load video player');
       }
     };
 
@@ -807,14 +882,27 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
         seekPerformed.current = true;
       }
     };
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    if (video.readyState >= 1) {
+      video.currentTime = offsetSeconds;
+      seekPerformed.current = true;
+    } else {
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    }
   }, [offsetSeconds, url, videoRef]);
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-black">
-        <p className="text-red-400">{error}</p>
+      <div className="w-full h-full flex items-center justify-center bg-black p-4 text-center">
+        <div>
+          <p className="text-red-400 mb-2 font-medium">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-xs"
+          >
+            Refresh Page
+          </button>
+        </div>
       </div>
     );
   }
@@ -828,14 +916,26 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
         crossOrigin="anonymous"
         style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none' } as React.CSSProperties}
       />
-      {/* Transparent overlay blocks ALL mouse events — Chrome cannot show its native controls */}
+
+      {isMuted && (
+        <button
+          onClick={unmuteAudio}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-pink-600 to-violet-600 text-white px-5 py-2.5 rounded-full font-bold shadow-2xl flex items-center gap-2 animate-bounce cursor-pointer border border-white/30 text-xs sm:text-sm hover:opacity-95"
+        >
+          <Volume2 size={18} /> Tap to Unmute Audio 🔊
+        </button>
+      )}
+
+      {/* Transparent overlay blocks right-click / unwanted seeking while allowing tap-to-unmute */}
       <div
         style={{
           position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
           zIndex: 10,
-          cursor: 'none',
           backgroundColor: 'transparent',
+        }}
+        onClick={() => {
+          if (isMuted) unmuteAudio();
         }}
         onContextMenu={(e) => e.preventDefault()}
       />

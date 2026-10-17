@@ -122,10 +122,27 @@ function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): strin
   return `${videoUrl}${autoplay}${start}`;
 }
 
+export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
+  return handleStateRequest(request, params, null);
+}
+
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const { sessionId } = await request.json();
-    console.log(`[Sadhana Live] ${params.slug} - Session state requested`, { sessionId, time: new Date().toISOString() });
+    const body = await request.json().catch(() => ({}));
+    return handleStateRequest(request, params, body);
+  } catch (error) {
+    return handleCrmError(error, 'POST sadhana/live/[slug]/state');
+  }
+}
+
+async function handleStateRequest(request: NextRequest, params: { slug: string }, body: any) {
+  try {
+    const sessionId = body?.sessionId;
+    const isPreview = request.nextUrl.searchParams.get('preview') === '1' ||
+                      request.nextUrl.searchParams.get('test') === '1' ||
+                      body?.preview === true;
+
+    console.log(`[Sadhana Live] ${params.slug} - Session state requested`, { sessionId, isPreview, time: new Date().toISOString() });
 
     await initSadhanaBunnySchema();
     const now = new Date();
@@ -162,54 +179,59 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
 
-    console.log(`[Sadhana Live] ${params.slug} - Program found`, {
-      name: activeSchedule.name,
-      playerMode: activeSchedule.playerMode,
-      hasVideoUrl: !!activeSchedule.playerUrl,
-    });
-
-    let sessionInfo: any = null;
-    let playableVideoUrl: any = null;
-    
-    // Convert program format to old schedule format for computeSessionStatus
+    // Convert program format to schedule format for computeSessionStatus
     const scheduleFmt = {
       ...activeSchedule,
       timezone: activeSchedule.timezone || 'Asia/Kolkata',
       timeSlots: activeSchedule.timeSlots,
-      videoDuration: activeSchedule.videoDuration,
+      videoDuration: activeSchedule.videoDuration || 32,
       countdownMinutes: activeSchedule.countdownMinutes || 5,
       days: activeSchedule.days || [0, 1, 2, 3, 4, 5, 6],
       startDate: activeSchedule.startDate,
       videoUrl: activeSchedule.playerUrl
     };
 
-    sessionInfo = computeSessionStatus(scheduleFmt, now);
-    let videoUrlForPlayback = activeSchedule.playerUrl;
-    
-    if (!videoUrlForPlayback && activeSchedule.videoCalendar) {
-      try {
-        const tz = activeSchedule.timezone || 'Asia/Kolkata';
-        const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
-        const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
-        const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
-        const yyyymmdd = `${y}-${mo}-${d}`;
-        const todayEntry = activeSchedule.videoCalendar[yyyymmdd];
-        
-        if (todayEntry) {
-          const playerMode = activeSchedule.playerMode || 'player';
-          if (playerMode === 'hls' && todayEntry.hlsUrl) {
-            videoUrlForPlayback = todayEntry.hlsUrl;
-          } else if (todayEntry.videoUrl) {
-            videoUrlForPlayback = todayEntry.videoUrl;
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching video from calendar:', err);
-      }
+    let sessionInfo = computeSessionStatus(scheduleFmt, now);
+
+    // If preview mode requested, force status to live with 0 offset
+    if (isPreview) {
+      sessionInfo = {
+        ...sessionInfo,
+        status: 'live',
+        sessionStartUtc: nowIso,
+        sessionEndUtc: new Date(now.getTime() + (activeSchedule.videoDuration || 32) * 60 * 1000).toISOString(),
+        videoOffsetSeconds: 0,
+      };
     }
 
-    if (sessionInfo.status === 'live' && videoUrlForPlayback && videoUrlForPlayback.startsWith('http')) {
-      playableVideoUrl = buildVideoUrlWithOffset(videoUrlForPlayback, sessionInfo.videoOffsetSeconds);
+    // Determine today's date in program timezone
+    const tz = activeSchedule.timezone || 'Asia/Kolkata';
+    const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+    const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+    const yyyymmdd = `${y}-${mo}-${d}`;
+    const todayEntry = activeSchedule.videoCalendar ? activeSchedule.videoCalendar[yyyymmdd] : null;
+
+    // Resolve today's effective video URL from either calendar entry or schedule settings
+    const calendarVideoUrl = todayEntry ? (todayEntry.hlsUrl || todayEntry.videoUrl || '') : '';
+    const rawVideoUrl = (calendarVideoUrl || activeSchedule.playerUrl || '').trim();
+
+    // Auto-detect HLS if URL is m3u8, b-cdn.net playlist, or if playerMode was set to hls
+    const isHls = rawVideoUrl.includes('.m3u8') ||
+                  rawVideoUrl.includes('b-cdn.net') ||
+                  rawVideoUrl.includes('playlist') ||
+                  activeSchedule.playerMode === 'hls';
+
+    const playerMode: 'hls' | 'player' = isHls ? 'hls' : (activeSchedule.playerMode || 'player');
+    const playerUrl = rawVideoUrl;
+    let playableVideoUrl: string | null = null;
+
+    if (sessionInfo.status === 'live' && rawVideoUrl) {
+      if (playerMode === 'hls') {
+        playableVideoUrl = rawVideoUrl;
+      } else {
+        playableVideoUrl = buildVideoUrlWithOffset(rawVideoUrl, sessionInfo.videoOffsetSeconds);
+      }
     }
 
     // Bot logic
@@ -256,8 +278,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const chatMessages = (await bunnyExecute({
-      sql: `SELECT * FROM sadhana_live_chat_sql WHERE created_at >= ? ORDER BY created_at DESC LIMIT 50`,
-      args: [oneDayAgo]
+      sql: `SELECT * FROM sadhana_live_chat_sql WHERE program_slug = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 50`,
+      args: [params.slug, oneDayAgo]
     })).rows || [];
 
     const todaysJoins = (await bunnyExecute({
@@ -265,29 +287,18 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       args: [params.slug, oneDayAgo]
     })).rows || [];
 
+    const todayTitle = (todayEntry?.title && todayEntry.title.trim()) || activeSchedule.name || 'Daily Sadhana Practice';
     let todayVideo: any = null;
-    let upcomingVideos: any[] = [];
-    if (activeSchedule.videoCalendar) {
-      const tz = activeSchedule.timezone || 'Asia/Kolkata';
-      const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
-      const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
-      const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
-      const yyyymmdd = `${y}-${mo}-${d}`;
-      const todayEntry = activeSchedule.videoCalendar[yyyymmdd];
-      
-      if (todayEntry) {
-        let playerMode = activeSchedule.playerMode || 'player';
-        if (playerMode === 'player' && !todayEntry.videoUrl && todayEntry.hlsUrl) {
-          playerMode = 'hls';
-          if (sessionInfo.status === 'live') {
-            activeSchedule.playerMode = 'hls';
-            activeSchedule.playerUrl = todayEntry.hlsUrl;
-          }
-        }
-        const url = playerMode === 'hls' && todayEntry.hlsUrl ? todayEntry.hlsUrl : todayEntry.videoUrl;
-        todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: url };
-      }
+    if (rawVideoUrl) {
+      todayVideo = {
+        date: yyyymmdd,
+        title: todayTitle,
+        videoUrl: rawVideoUrl
+      };
+    }
 
+    const upcomingVideos: any[] = [];
+    if (activeSchedule.videoCalendar) {
       for (let i = 1; i <= 7; i++) {
         const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
         const fy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(futureDate);
@@ -295,31 +306,38 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         const fd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(futureDate);
         const futureDateStr = `${fy}-${fmo}-${fd}`;
         const entry = activeSchedule.videoCalendar[futureDateStr];
-        if (entry) upcomingVideos.push({ date: futureDateStr, title: entry.title });
+        if (entry) {
+          upcomingVideos.push({
+            date: futureDateStr,
+            title: (entry.title && entry.title.trim()) || activeSchedule.name || 'Daily Practice'
+          });
+        }
       }
     }
 
-    if (!todayVideo && activeSchedule.playerUrl) {
-      todayVideo = { title: activeSchedule.name || 'Session', videoUrl: activeSchedule.playerUrl };
-    }
-
-    let playerMode = activeSchedule.playerMode || 'player';
-    let playerUrl = activeSchedule.playerUrl || '';
-
-    const validPlayerUrl = playerUrl && playerUrl.startsWith('http') ? playerUrl : '';
+    const timeSlots = activeSchedule.timeSlots || ((activeSchedule as any).scheduleTime ? [(activeSchedule as any).scheduleTime] : []);
 
     return NextResponse.json({
       success: true,
       count: activeParticipants.length,
       participants: activeParticipants.map((p: any) => ({ name: p.name, joinedAt: p.joined_at })),
       todaysParticipants: todaysJoins.map((p: any) => ({ name: p.name, joinedAt: p.joined_at })),
-      program: { slug: params.slug, name: activeSchedule.name || 'Sadhana Live', timezone: activeSchedule.timezone || 'Asia/Kolkata' },
+      program: {
+        slug: params.slug,
+        name: activeSchedule.name || 'Sadhana Live',
+        description: activeSchedule.description || '',
+        timezone: activeSchedule.timezone || 'Asia/Kolkata',
+        scheduleTime: timeSlots,
+        timeSlots: timeSlots,
+        videoDuration: activeSchedule.videoDuration || 32,
+        countdownMinutes: activeSchedule.countdownMinutes || 5,
+      },
       todayVideo,
       upcomingVideos,
       session: sessionInfo,
-      playableVideoUrl,
+      playableVideoUrl: playableVideoUrl || playerUrl,
       playerMode,
-      playerUrl: validPlayerUrl,
+      playerUrl,
       chat: chatMessages.reverse().map((m: any) => ({
         id: m.id,
         name: m.sender,
