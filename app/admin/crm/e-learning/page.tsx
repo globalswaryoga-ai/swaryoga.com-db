@@ -914,6 +914,42 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                   </div>
                 </div>
 
+                {/* Quick Discount Presets */}
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Quick Discount Presets
+                  </label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { pct: 10, label: '10% OFF', code: 'SWAR10' },
+                      { pct: 25, label: '25% OFF', code: 'SAVE25' },
+                      { pct: 50, label: '50% OFF', code: 'HALF50' },
+                      { pct: 75, label: '75% OFF', code: 'SPECIAL75' },
+                      { pct: 100, label: '100% FREE', code: 'FREE100' },
+                    ].map(({ pct, label, code }) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setDiscount(String(pct));
+                          if (!promoCode || ['SWAR10','SAVE25','HALF50','SPECIAL75','FREE100'].includes(promoCode)) {
+                            setPromoCode(code);
+                          }
+                        }}
+                        className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                          parseInt(discount) === pct
+                            ? pct === 100
+                              ? 'bg-green-500/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
+                              : 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
+                            : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Row 6 - Discount & Promo */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -934,7 +970,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                       type="text"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none uppercase font-mono tracking-wider"
                       placeholder="SUMMER2024"
                     />
                   </div>
@@ -1271,28 +1307,85 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                   </div>
                 </div>
 
-                {/* Row 6 - Discount & Promo */}
+                {/* Quick Discount Presets */}
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Quick Discount Presets
+                  </label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { pct: 10, label: '10% OFF', code: 'SWAR10' },
+                      { pct: 25, label: '25% OFF', code: 'SAVE25' },
+                      { pct: 50, label: '50% OFF', code: 'HALF50' },
+                      { pct: 75, label: '75% OFF', code: 'SPECIAL75' },
+                      { pct: 100, label: '100% FREE', code: 'FREE100' },
+                    ].map(({ pct, label, code }) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setDiscount(String(pct));
+                          if (!promoCode || ['SWAR10','SAVE25','HALF50','SPECIAL75','FREE100'].includes(promoCode)) {
+                            setPromoCode(code);
+                          }
+                        }}
+                        className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                          parseInt(discount) === pct
+                            ? pct === 100
+                              ? 'bg-green-500/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
+                              : 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
+                            : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Row 6 - Custom Discount & Promo */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
-                    <input
-                      type="number"
-                      value={discount}
-                      onChange={(e) => setDiscount(e.target.value)}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                      placeholder="0"
-                      min="0"
-                      max="100"
-                    />
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-300">Discount (%)</label>
+                      <span className="text-xs text-gray-500">0 - 100%</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={discount}
+                        onChange={(e) => {
+                          const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                          setDiscount(String(val));
+                        }}
+                        className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                        placeholder="0"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-4 top-3.5 text-gray-500 text-sm font-bold">%</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-300">Promo Code</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pct = parseInt(discount) || 0;
+                          setPromoCode(pct === 100 ? 'FREE100' : pct > 0 ? `SAVE${pct}` : 'SWARYOGA');
+                        }}
+                        className="text-xs text-green-400 hover:text-green-300"
+                      >
+                        Auto-generate
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                      placeholder="SUMMER2024"
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none uppercase font-mono tracking-wider"
+                      placeholder="e.g. FREE100, SAVE75"
                     />
                   </div>
                 </div>
