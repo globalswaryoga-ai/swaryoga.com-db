@@ -1399,6 +1399,15 @@ export async function incrementCourseEnrolledCount(courseId: string, amount: num
   });
 }
 
+export async function deleteEnrollment(id: string): Promise<boolean> {
+  await initCourseSchema();
+  const res = await bunnyExecute({
+    sql: 'DELETE FROM course_enrollments_sql WHERE id = ?',
+    args: [id],
+  });
+  return (res.rowsAffected || 0) > 0;
+}
+
 
 // User Devices
 export async function listDevices(userId: string, courseId?: string): Promise<BunnyCourseDevice[]> {

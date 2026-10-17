@@ -14,7 +14,10 @@ import {
   saveEnrollment,
   getCourseById,
   listDevices,
+  deleteEnrollment,
 } from '@/lib/bunnyCourseRepository';
+import { getUserByEmail, upsertUser } from '@/lib/repositories/userRepository';
+import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -192,5 +195,123 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     console.error('[Enrollments PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await initCourseSchema();
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let decoded: any;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, email, phone, courseId, level, status = 'active', password } = body;
+
+    if (!email || !courseId) {
+      return NextResponse.json({ error: 'Email and Course ID are required' }, { status: 400 });
+    }
+
+    // Check or create user
+    let user = await getUserByEmail(email);
+    let generatedPassword = '';
+    if (!user) {
+      generatedPassword = password || `Swar@${Math.floor(1000 + Math.random() * 9000)}`;
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+      user = await upsertUser({
+        email,
+        name: name || email.split('@')[0],
+        phone: phone || '',
+        password: hashedPassword,
+        role: 'student',
+        status: 'active',
+        isAdmin: false,
+        provider: 'admin-manual',
+        emailVerified: true,
+        managedUserIds: [],
+        permissions: ['course:read'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const userId = (user as any)?.id || (user as any)?._id || email;
+
+    const newEnrollment = await saveEnrollment({
+      userId: String(userId),
+      courseId: String(courseId),
+      status: status || 'active',
+      progressPercent: 0,
+      data: {
+        enrolledBy: decoded?.email || 'admin',
+        studentLevel: level || 'beginner',
+        studentName: name || '',
+        studentPhone: phone || '',
+        enrolledAt: new Date().toISOString(),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Student enrolled successfully',
+      enrollment: newEnrollment,
+      generatedPassword: generatedPassword || undefined,
+    });
+  } catch (error: any) {
+    console.error('[Enrollments POST Error]:', error);
+    return NextResponse.json({ error: error.message || 'Failed to add student' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await initCourseSchema();
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let decoded: any;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const enrollmentId = request.nextUrl.searchParams.get('id') || request.nextUrl.searchParams.get('enrollmentId');
+    if (!enrollmentId) {
+      return NextResponse.json({ error: 'Enrollment ID required' }, { status: 400 });
+    }
+
+    const deleted = await deleteEnrollment(enrollmentId);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Enrollment not found or already deleted' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Student enrollment deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('[Enrollments DELETE Error]:', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete student' }, { status: 500 });
   }
 }

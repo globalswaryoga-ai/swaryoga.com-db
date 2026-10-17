@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag } from 'lucide-react';
+import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check } from 'lucide-react';
 
 interface Enrollment {
   _id: string;
@@ -67,6 +67,25 @@ export default function ELearningUsersPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [hierarchyLoading, setHierarchyLoading] = useState(false);
+
+  // Student management modals
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedEnrollment, setSelectedEnrollment] = useState<any | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // New Student Form State
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [newStudentPhone, setNewStudentPhone] = useState('');
+  const [newStudentCourseId, setNewStudentCourseId] = useState('');
+  const [newStudentLevel, setNewStudentLevel] = useState('beginner');
+
+  // Edit Student Form State
+  const [editLevel, setEditLevel] = useState('beginner');
+  const [editStatus, setEditStatus] = useState('active');
+  const [editProgress, setEditProgress] = useState(0);
 
   // Fetch language folders
   const fetchFolders = useCallback(async () => {
@@ -163,19 +182,148 @@ export default function ELearningUsersPage() {
     setPage(1);
   };
 
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !newStudentEmail || !newStudentCourseId) {
+      setMessage({ type: 'error', text: 'Email and Course are required' });
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setMessage(null);
+      const res = await fetch('/api/admin/e-learning/enrollments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newStudentName,
+          email: newStudentEmail,
+          phone: newStudentPhone,
+          courseId: newStudentCourseId,
+          level: newStudentLevel,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({ type: 'success', text: `Student enrolled! ${data.generatedPassword ? `Auto-generated Password: ${data.generatedPassword}` : ''}` });
+        setShowAddModal(false);
+        setNewStudentName('');
+        setNewStudentEmail('');
+        setNewStudentPhone('');
+        fetchEnrollments();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to add student' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error adding student' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSaveEditStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedEnrollment) return;
+
+    try {
+      setActionLoading(true);
+      setMessage(null);
+      const res = await fetch('/api/admin/e-learning/enrollments', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          enrollmentId: selectedEnrollment._id,
+          status: editStatus,
+          progressPercent: Number(editProgress),
+          level: editLevel,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({ type: 'success', text: 'Student details updated successfully!' });
+        setShowEditModal(false);
+        setSelectedEnrollment(null);
+        fetchEnrollments();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update student' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error updating student' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteStudent = async (enrollmentId: string, studentName: string) => {
+    if (!token) return;
+    if (!window.confirm(`Are you sure you want to remove ${studentName || 'this student'} from the course?`)) return;
+
+    try {
+      setActionLoading(true);
+      setMessage(null);
+      const res = await fetch(`/api/admin/e-learning/enrollments?id=${enrollmentId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({ type: 'success', text: 'Student removed from course successfully!' });
+        fetchEnrollments();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to delete student' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error deleting student' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-            <Users className="w-6 h-6 text-green-400" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-green-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">E-Learning Students</h1>
+              <p className="text-sm text-gray-400">Add, edit levels, manage progress, or remove students</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">E-Learning Users</h1>
-            <p className="text-sm text-gray-400">Manage enrolled students and their courses</p>
-          </div>
+
+          <button
+            onClick={() => {
+              setNewStudentCourseId(selectedCourseId || (courses[0]?._id || ''));
+              setShowAddModal(true);
+            }}
+            className="flex items-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl shadow-lg transition-all"
+          >
+            <Plus size={18} />
+            Add New Student
+          </button>
         </div>
+
+        {message && (
+          <div className={`p-4 rounded-xl mb-4 border ${
+            message.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'
+          }`}>
+            {message.text}
+          </div>
+        )}
 
         {/* Search */}
         <div className="max-w-md relative">
@@ -429,13 +577,37 @@ export default function ELearningUsersPage() {
                     <p className="text-sm text-gray-400">{new Date(enrollment.enrolledAt).toLocaleDateString()}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <Link
-                      href={`/admin/crm/e-learning/users/${enrollment.userId._id}?enrollmentId=${enrollment._id}`}
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors"
-                    >
-                      Manage
-                      <ArrowRight size={16} />
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedEnrollment(enrollment);
+                          setEditStatus(enrollment.status || 'active');
+                          setEditProgress(enrollment.progress || 0);
+                          setEditLevel(enrollment.courseId?.level || 'beginner');
+                          setShowEditModal(true);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 rounded-lg text-xs font-medium transition-colors"
+                        title="Edit Student Level & Status"
+                      >
+                        <Edit2 size={14} />
+                        Level
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStudent(enrollment._id, enrollment.userId?.name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-medium transition-colors"
+                        title="Delete Student"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <Link
+                        href={`/admin/crm/e-learning/users/${enrollment.userId._id}?enrollmentId=${enrollment._id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
+                        title="Full Details"
+                      >
+                        Manage
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -467,6 +639,192 @@ export default function ELearningUsersPage() {
         </div>
       )}
         </>
+      )}
+
+      {/* ADD STUDENT MODAL */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg p-6">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-800 mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="text-green-400" size={22} />
+                Enroll New Student
+              </h2>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStudent} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={newStudentName}
+                  onChange={(e) => setNewStudentName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={newStudentEmail}
+                  onChange={(e) => setNewStudentEmail(e.target.value)}
+                  placeholder="student@example.com"
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">WhatsApp / Phone</label>
+                <input
+                  type="tel"
+                  value={newStudentPhone}
+                  onChange={(e) => setNewStudentPhone(e.target.value)}
+                  placeholder="+91 9876543210"
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Course / Workshop</label>
+                  <select
+                    value={newStudentCourseId}
+                    onChange={(e) => setNewStudentCourseId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-sm"
+                    required
+                  >
+                    <option value="">Select Course...</option>
+                    {courses.map(c => (
+                      <option key={c._id} value={c._id}>{c.content?.en?.title || c.slug}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Assigned Level</label>
+                  <select
+                    value={newStudentLevel}
+                    onChange={(e) => setNewStudentLevel(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-sm"
+                  >
+                    <option value="beginner">Level 1: Beginner</option>
+                    <option value="intermediate">Level 2: Intermediate</option>
+                    <option value="advanced">Level 3: Advanced</option>
+                    <option value="master">Level 4: Master / Sadhak</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader size={16} className="animate-spin" /> : <Plus size={16} />}
+                  Enroll Student
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT STUDENT LEVEL & STATUS MODAL */}
+      {showEditModal && selectedEnrollment && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md p-6">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-800 mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Edit2 className="text-yellow-400" size={20} />
+                Edit Student Details
+              </h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStudent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Student</label>
+                <p className="text-white font-medium">{selectedEnrollment.userId?.name || selectedEnrollment.userId?._id}</p>
+                <p className="text-sm text-gray-400">{selectedEnrollment.userId?.email}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Change Student Level</label>
+                <select
+                  value={editLevel}
+                  onChange={(e) => setEditLevel(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                >
+                  <option value="beginner">Level 1: Beginner</option>
+                  <option value="intermediate">Level 2: Intermediate</option>
+                  <option value="advanced">Level 3: Advanced</option>
+                  <option value="master">Level 4: Master / Sadhak</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Enrollment Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                >
+                  <option value="active">Active (Access Allowed)</option>
+                  <option value="completed">Completed</option>
+                  <option value="suspended">Suspended (Blocked)</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Course Progress (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editProgress}
+                  onChange={(e) => setEditProgress(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg font-bold flex items-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader size={16} className="animate-spin" /> : <Check size={16} />}
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
