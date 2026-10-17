@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Play, X, Star, MessageSquareText } from 'lucide-react';
-import { findWorkshopBySlug, workshopLandingPages } from '@/lib/workshopsData';
+import { findWorkshopBySlug, workshopLandingPages, WorkshopOverview } from '@/lib/workshopsData';
 import EnquiryFormModal from '@/components/EnquiryFormModal';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,7 @@ const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; curren
   'master-swar-yoga': { minPrice: 1500, maxPrice: 1500, currency: 'INR' },
   'yogasana-sadhana': { minPrice: 330, maxPrice: 330, currency: 'INR' },
   'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'hindi-swar-yoga-l-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-2': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-youth': { minPrice: 999, maxPrice: 999, currency: 'INR' },
   'weight-loss': { minPrice: 6600, maxPrice: 6600, currency: 'INR' },
@@ -220,10 +221,52 @@ function Stars({ value }: { value: number }) {
 }
 
 export default function WorkshopLandingPage({ params }: { params: { slug: string } }) {
-  const workshop = findWorkshopBySlug(params.slug);
+  const staticWorkshop = findWorkshopBySlug(params.slug);
+  const [workshop, setWorkshop] = useState<WorkshopOverview | null>(staticWorkshop || null);
+  const [loadingWorkshop, setLoadingWorkshop] = useState(!staticWorkshop);
+  const [notFoundTriggered, setNotFoundTriggered] = useState(false);
 
-  if (!workshop) {
+  useEffect(() => {
+    if (workshop) return;
+    let isCancelled = false;
+    async function loadDynamicWorkshop() {
+      try {
+        const res = await fetch(`/api/workshops/catalog?slug=${encodeURIComponent(params.slug)}`, {
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => null);
+        if (!isCancelled) {
+          if (res.ok && json?.workshop) {
+            setWorkshop(json.workshop);
+          } else {
+            setNotFoundTriggered(true);
+          }
+        }
+      } catch {
+        if (!isCancelled) setNotFoundTriggered(true);
+      } finally {
+        if (!isCancelled) setLoadingWorkshop(false);
+      }
+    }
+    loadDynamicWorkshop();
+    return () => {
+      isCancelled = true;
+    };
+  }, [params.slug, workshop]);
+
+  if (notFoundTriggered) {
     notFound();
+  }
+
+  if (loadingWorkshop || !workshop) {
+    return (
+      <div className="min-h-screen bg-swar-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-swar-primary border-t-transparent" />
+          <p className="text-sm font-semibold text-swar-text">Loading workshop...</p>
+        </div>
+      </div>
+    );
   }
 
   const [activeVideoModal, setActiveVideoModal] = useState<string | null>(null);

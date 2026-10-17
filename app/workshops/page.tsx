@@ -21,6 +21,7 @@ const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; curren
   'master-swar-yoga': { minPrice: 1500, maxPrice: 1500, currency: 'INR' },
   'yogasana-sadhana': { minPrice: 5400, maxPrice: 5400, currency: 'INR' },
   'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'hindi-swar-yoga-l-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-3': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-4': { minPrice: 6000, maxPrice: 6000, currency: 'INR' },
   '96-days-weight-loss': { minPrice: 6600, maxPrice: 6600, currency: 'INR' },

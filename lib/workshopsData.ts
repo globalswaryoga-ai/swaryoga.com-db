@@ -82,6 +82,21 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
   },
+  'hindi-swar-yoga-l-1': {
+    name: 'Hindi Swar Yoga L-1',
+    slug: 'hindi-swar-yoga-l-1',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
+    description: '१५ दिवसीय हिंदी स्वर योग लेवल-१ ऑनलाइन कार्यशाला - सांसों का प्राचीन विज्ञान।',
+    detailedDescription:
+      'Hindi Swar Yoga Level-1 (स्वर योग लेवल-१) offers a comprehensive 15-day journey into the sacred ancient Vedic science of breath and nadis. Understand how the flow of breath through the left (Ida / Chandra) and right (Pingala / Surya) nostrils governs your physical vitality, nervous system, emotional equilibrium, and mental strength. Learn step-by-step techniques to detect, balance, and align your breath rhythm with daily activities for optimum health, disease prevention, peace of mind, and harmonious life decisions.',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
+    duration: '15 days',
+    level: 'Beginner to Intermediate',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
   'swar-yoga-level-2': {
     name: 'Swar Yoga Level-2 Workshop',
     slug: 'swar-yoga-level-2',
@@ -646,6 +661,41 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
     ],
     finalCTA: 'Begin your 15-day Swar Yoga Level-1 journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
+  },
+  'hindi-swar-yoga-l-1': {
+    heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
+    whatYouWillLearn: [
+      'स्वर योग का मूल परिचय: इड़ा, पिंगला और सुषुम्ना नाड़ी का रहस्य (Understand the science of Ida, Pingala & Sushumna)',
+      'नासिका स्वर की जांच और अपनी श्वास को नियंत्रित करने की सटीक विधियां (Detect and switch your active nostril at will)',
+      'रोग निवारण और ऊर्जा संतुलन: दिनचर्या में स्वर योग का सही उपयोग (Harness breath rhythms for energy, digestion, and healing)',
+      'सही समय पर सही कार्य: स्वर के अनुसार निर्णय और सफलता (Auspicious timing and decision-making aligned with lunar/solar breaths)',
+      '१५ दिनों का दैनिक व्यावहारिक अभ्यास और ध्यान (15-day daily guided practical sadhana and breath meditation)'
+    ],
+    highlightVideos: [
+      { title: 'Hindi Swar Yoga L-1 Masterclass', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'स्वर कैसे बदलें - प्रत्यक्ष तकनीक', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'दैनिक जीवन में स्वर योग का चमत्कार', url: 'https://www.youtube.com/embed/luSaTlBXssM' }
+    ],
+    detailVideos: [
+      { title: 'स्वास्थ्य और ऊर्जा संतुलन', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'सूर्य और चंद्र नाड़ी का विज्ञान', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' },
+      { title: 'सफल साधकों के अनुभव', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+    ],
+    mentorInfo: 'यह कार्यशाला अनुभवी स्वर योग आचार्यों द्वारा निर्देशित है, जिन्होंने हजारों साधकों को स्वर विज्ञान के माध्यम से जीवन रूपांतरण की राह दिखाई है। हर कक्षा में व्यक्तिगत मार्गदर्शन और प्रश्नोत्तर सत्र उपलब्ध रहेगा।',
+    testimonials: [
+      { quote: 'स्वर योग लेवल-१ से मेरा पुराना सिरदर्द और तनाव हमेशा के लिए ठीक हो गया।', name: 'राजेश शर्मा', place: 'दिल्ली' },
+      { quote: 'सांस बदलने की तकनीक से मेरे काम में एकाग्रता और ऊर्जा दोगुनी हो गई है।', name: 'सुनीता वर्मा', place: 'लखनऊ' },
+      { quote: 'यह केवल योग नहीं, बल्कि जीवन जीने का सबसे गहरा विज्ञान है। हर किसी को सीखना चाहिए।', name: 'मनोज कुलकर्णी', place: 'पुणे' },
+      { quote: '१५ दिनों में मेरे जीवन और स्वास्थ्य में अद्भुत सकारात्मक बदलाव आया।', name: 'प्रियंका जोशी', place: 'इंदौर' }
+    ],
+    videoTestimonials: [
+      { name: 'राजेश शर्मा - व्यवसायी', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'डॉ. अनीता - चिकित्सक', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'विकास मेहता - इंजीनियर', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'सुमन पटेल - गृहिणी', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+    ],
+    finalCTA: '१५ दिवसीय हिंदी स्वर योग लेवल-१ कार्यशाला में अभी प्रवेश लें और अपनी सांसों के माध्यम से आरोग्य और सुखमय जीवन की शुरुआत करें।'
   },
   'swar-yoga-level-2': {
     heroImage: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=1200',

@@ -6,6 +6,8 @@ import { Calendar, Clock, Users, Star, ArrowRight, CheckCircle, Globe, Languages
 import Link from 'next/link';
 import Image from 'next/image';
 import { findWorkshopBySlug } from '@/lib/workshopsData';
+import { getWorkshopCatalogItem } from '@/lib/bunnyWorkshopScheduleRepository';
+import { dbCatalogItemToOverview } from '@/app/api/workshops/catalog/route';
 import WorkshopBatchForm from '@/components/WorkshopBatchForm';
 import WorkshopPaymentButton from '@/components/WorkshopPaymentButton';
 
@@ -68,8 +70,14 @@ const normalizeYouTubeEmbedUrl = (raw: string): string => {
   return url;
 };
 
-export default function WorkshopDetailPage({ params }: { params: { slug: string } }) {
-  const workshop = findWorkshopBySlug(params.slug);
+export default async function WorkshopDetailPage({ params }: { params: { slug: string } }) {
+  let workshop = findWorkshopBySlug(params.slug);
+  if (!workshop) {
+    const dbItem = await getWorkshopCatalogItem(params.slug).catch(() => null);
+    if (dbItem) {
+      workshop = dbCatalogItemToOverview(dbItem);
+    }
+  }
 
   // Invalid slug (including reserved words like "register") should be a real 404.
   if (!workshop) {
