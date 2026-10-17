@@ -7,16 +7,17 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Video, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2,
   ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera,
-  Video as VideoIcon, Calendar, Clock, Globe, AlertCircle
+  Video as VideoIcon, Calendar, Clock, Globe, AlertCircle, Layers
 } from 'lucide-react';
 
-type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question' | 'zoom';
+type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question' | 'zoom' | 'level';
 
 interface UnifiedItem {
   _id: string;
   type: ContentType;
   title: string;
   order: number;
+  levelNumber?: number;
   bunnyVideoId?: string;
   duration?: number;
   thumbnail?: string;
@@ -83,6 +84,9 @@ export default function VideosPage({ params }: { params: { courseId: string } })
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState<UnifiedItem | null>(null);
 
+  const [showAddLevelModal, setShowAddLevelModal] = useState(false);
+  const [editingLevel, setEditingLevel] = useState<UnifiedItem | null>(null);
+
   const [reordering, setReordering] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -118,7 +122,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
     setAuthChecked(true);
   }, [router]);
 
-  // Fetch all content - videos, materials, assignments
+  // Fetch all content - videos, materials, assignments, levels
   const fetchData = useCallback(async () => {
     if (!token || !courseId) return;
 
@@ -126,18 +130,20 @@ export default function VideosPage({ params }: { params: { courseId: string } })
       setLoading(true);
       setError(null);
 
-      const [coursesRes, videosRes, materialsRes, assignmentsRes] = await Promise.all([
+      const [coursesRes, videosRes, materialsRes, assignmentsRes, sectionsRes] = await Promise.all([
         fetch('/api/admin/recorded-courses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/admin/recorded-courses/videos?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/admin/e-learning/materials?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/admin/e-learning/assignments?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/admin/recorded-courses/sections?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
-      const [coursesData, videosData, materialsData, assignmentsData] = await Promise.all([
+      const [coursesData, videosData, materialsData, assignmentsData, sectionsData] = await Promise.all([
         coursesRes.json(),
         videosRes.json(),
         materialsRes.json(),
         assignmentsRes.json(),
+        sectionsRes.json(),
       ]);
 
       // Build unified list
@@ -205,6 +211,20 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         });
       }
 
+      if (sectionsData.success && sectionsData.sections) {
+        sectionsData.sections.forEach((s: any) => {
+          const contentObj = s.content?.en || s.content || {};
+          items.push({
+            _id: s._id || s.id,
+            type: 'level',
+            title: contentObj.title || s.title || `Level ${s.order || 1}`,
+            levelNumber: Number(contentObj.levelNumber || s.order || 1),
+            order: s.order || 1,
+            description: contentObj.description || s.description || '',
+          });
+        });
+      }
+
       items.sort((a, b) => a.order - b.order);
       setUnifiedList(items);
 
@@ -261,11 +281,13 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 
   const patchOrder = async (item: UnifiedItem, newOrder: number) => {
     const url = item.type === 'video' ? '/api/admin/recorded-courses/videos'
-      : item.type === 'material' ? '/api/admin/e-learning/materials'
+      : item.type === 'material' || item.type === 'zoom' ? '/api/admin/e-learning/materials'
+      : item.type === 'level' ? '/api/admin/recorded-courses/sections'
       : '/api/admin/e-learning/assignments';
 
     const key = item.type === 'video' ? 'videoId'
-      : item.type === 'material' ? 'materialId'
+      : item.type === 'material' || item.type === 'zoom' ? 'materialId'
+      : item.type === 'level' ? 'sectionId'
       : 'assignmentId';
 
     const res = await fetch(url, {
@@ -283,7 +305,8 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 
     try {
       const url = item.type === 'video' ? `/api/admin/recorded-courses/videos?id=${item._id}`
-        : item.type === 'material' ? `/api/admin/e-learning/materials?id=${item._id}`
+        : item.type === 'material' || item.type === 'zoom' ? `/api/admin/e-learning/materials?id=${item._id}`
+        : item.type === 'level' ? `/api/admin/recorded-courses/sections?id=${item._id}`
         : `/api/admin/e-learning/assignments?id=${item._id}`;
 
       const res = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
@@ -328,6 +351,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
     );
   }
 
+  const levelCount = unifiedList.filter(i => i.type === 'level').length;
   const videoCount = unifiedList.filter(i => i.type === 'video').length;
   const materialCount = unifiedList.filter(i => i.type === 'material').length;
   const taskCount = unifiedList.filter(i => i.type === 'task' || i.type === 'question' || i.type === 'assignment').length;
@@ -335,26 +359,39 @@ export default function VideosPage({ params }: { params: { courseId: string } })
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href={`/admin/crm/e-learning`} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-          <ArrowLeft size={24} />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Course Content</h1>
-          <p className="text-sm text-gray-400">
-            {unifiedList.length} items — {videoCount} videos, {materialCount} PDFs, {taskCount} tasks/assignments
-          </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+          <Link href={`/admin/crm/e-learning`} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <ArrowLeft size={24} />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Course Content</h1>
+            <p className="text-sm text-gray-400">
+              {unifiedList.length} items — {levelCount} levels, {videoCount} videos, {materialCount} PDFs, {taskCount} tasks/assignments
+            </p>
+          </div>
         </div>
-        <button
-          onClick={() => {
-            setAddModalType(null);
-            setInsertAfterOrder((unifiedList[unifiedList.length - 1]?.order || 0) + 10);
-            setShowAddModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg"
-        >
-          <Plus size={18} /> Add Content
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setEditingLevel(null);
+              setShowAddLevelModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-lg shadow-lg shadow-purple-600/20 transition-all"
+          >
+            <Layers size={18} /> Add Level
+          </button>
+          <button
+            onClick={() => {
+              setAddModalType(null);
+              setInsertAfterOrder((unifiedList[unifiedList.length - 1]?.order || 0) + 10);
+              setShowAddModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg"
+          >
+            <Plus size={18} /> Add Content
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -439,84 +476,137 @@ export default function VideosPage({ params }: { params: { courseId: string } })
               )}
 
               {/* Content Row */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-2 sm:gap-4 group">
-                {/* Position Badge */}
-                <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center font-bold text-white flex-shrink-0">
-                  {idx + 1}
-                </div>
-
-                {/* Thumbnail */}
-                {item.type === 'video' && item.thumbnail && (
-                  <div className="w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                    <img
-                      src={item.thumbnail}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => (e.currentTarget.style.display = 'none')}
-                    />
+              {item.type === 'level' ? (
+                <div className="bg-gradient-to-r from-purple-950/70 via-indigo-950/50 to-gray-900 border-2 border-purple-500/50 rounded-xl p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 shadow-xl shadow-purple-950/30 group">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-lg shadow-purple-600/30">
+                    L{item.levelNumber || idx + 1}
                   </div>
-                )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-500 text-white tracking-wider shadow">
+                        Level {item.levelNumber || 1} Header
+                      </span>
+                    </div>
+                    <h3 className="text-white font-extrabold text-lg truncate">{item.title}</h3>
+                    {item.description && (
+                      <p className="text-xs text-gray-300 line-clamp-1 mt-0.5">{item.description}</p>
+                    )}
+                  </div>
 
-                {/* Type Badge */}
-                <div className={`px-3 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
-                  item.type === 'video' ? 'bg-blue-500/20 text-blue-400'
-                  : item.type === 'zoom' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                  : item.type === 'material' ? 'bg-orange-500/20 text-orange-400'
-                  : item.type === 'task' ? 'bg-yellow-500/20 text-yellow-400'
-                  : item.type === 'question' ? 'bg-teal-500/20 text-teal-400'
-                  : 'bg-purple-500/20 text-purple-400'
-                }`}>
-                  {item.type === 'video' && <Camera size={12} className="inline mr-1" />}
-                  {item.type === 'zoom' && <VideoIcon size={12} className="inline mr-1 text-indigo-400" />}
-                  {item.type === 'material' && <FileText size={12} className="inline mr-1" />}
-                  {item.type === 'task' && <CheckSquare size={12} className="inline mr-1" />}
-                  {item.type === 'question' && <HelpCircle size={12} className="inline mr-1" />}
-                  {item.type === 'assignment' && <ClipboardList size={12} className="inline mr-1" />}
-                  {item.type === 'zoom' ? 'Zoom Meeting' : item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => moveItem(idx, 'up')}
+                      disabled={idx === 0 || reordering === item._id}
+                      className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move up"
+                    >
+                      {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
+                    </button>
+                    <button
+                      onClick={() => moveItem(idx, 'down')}
+                      disabled={idx === unifiedList.length - 1 || reordering === item._id}
+                      className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move down"
+                    >
+                      {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowDown size={18} />}
+                    </button>
+                    <button
+                      onClick={() => { setEditingLevel(item); setShowAddLevelModal(true); }}
+                      className="p-2 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors"
+                      title="Edit level"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => deleteItem(item)}
+                      className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors"
+                      title="Delete level"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-2 sm:gap-4 group">
+                  {/* Position Badge */}
+                  <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center font-bold text-white flex-shrink-0">
+                    {idx + 1}
+                  </div>
 
-                {/* Content Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-medium truncate">{item.title}</h3>
-                  <p className="text-xs text-gray-500">
-                    {item.type === 'video' && item.duration ? `${Math.round(item.duration / 60)}min`
-                      : item.type === 'zoom' ? `Live Zoom • ${item.meetingDate || 'Scheduled'}${item.meetingTime ? ` at ${item.meetingTime}` : ''}${item.slots?.length ? ` (${item.slots.length} slots)` : ''}`
-                      : item.type === 'material' ? `${item.materialType || 'file'}${item.downloadable ? ' • Downloadable' : ''}`
-                      : item.type === 'assignment' ? `${item.totalPoints || 0} pts`
-                      : ''}
-                  </p>
-                </div>
+                  {/* Thumbnail */}
+                  {item.type === 'video' && item.thumbnail && (
+                    <div className="w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                      <img
+                        src={item.thumbnail}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                    </div>
+                  )}
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => moveItem(idx, 'up')}
-                    disabled={idx === 0 || reordering === item._id}
-                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
-                  </button>
-                  <button
-                    onClick={() => moveItem(idx, 'down')}
-                    disabled={idx === unifiedList.length - 1 || reordering === item._id}
-                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowDown size={18} />}
-                  </button>
-                  <button
-                    onClick={() => { setEditingItem(item); setShowEditModal(true); }}
-                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => deleteItem(item)}
-                    className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  {/* Type Badge */}
+                  <div className={`px-3 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
+                    item.type === 'video' ? 'bg-blue-500/20 text-blue-400'
+                    : item.type === 'zoom' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                    : item.type === 'material' ? 'bg-orange-500/20 text-orange-400'
+                    : item.type === 'task' ? 'bg-yellow-500/20 text-yellow-400'
+                    : item.type === 'question' ? 'bg-teal-500/20 text-teal-400'
+                    : 'bg-purple-500/20 text-purple-400'
+                  }`}>
+                    {item.type === 'video' && <Camera size={12} className="inline mr-1" />}
+                    {item.type === 'zoom' && <VideoIcon size={12} className="inline mr-1 text-indigo-400" />}
+                    {item.type === 'material' && <FileText size={12} className="inline mr-1" />}
+                    {item.type === 'task' && <CheckSquare size={12} className="inline mr-1" />}
+                    {item.type === 'question' && <HelpCircle size={12} className="inline mr-1" />}
+                    {item.type === 'assignment' && <ClipboardList size={12} className="inline mr-1" />}
+                    {item.type === 'zoom' ? 'Zoom Meeting' : item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                  </div>
+
+                  {/* Content Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white font-medium truncate">{item.title}</h3>
+                    <p className="text-xs text-gray-500">
+                      {item.type === 'video' && item.duration ? `${Math.round(item.duration / 60)}min`
+                        : item.type === 'zoom' ? `Live Zoom • ${item.meetingDate || 'Scheduled'}${item.meetingTime ? ` at ${item.meetingTime}` : ''}${item.slots?.length ? ` (${item.slots.length} slots)` : ''}`
+                        : item.type === 'material' ? `${item.materialType || 'file'}${item.downloadable ? ' • Downloadable' : ''}`
+                        : item.type === 'assignment' ? `${item.totalPoints || 0} pts`
+                        : ''}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => moveItem(idx, 'up')}
+                      disabled={idx === 0 || reordering === item._id}
+                      className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
+                    </button>
+                    <button
+                      onClick={() => moveItem(idx, 'down')}
+                      disabled={idx === unifiedList.length - 1 || reordering === item._id}
+                      className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowDown size={18} />}
+                    </button>
+                    <button
+                      onClick={() => { setEditingItem(item); setShowEditModal(true); }}
+                      className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => deleteItem(item)}
+                      className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))
         )}
@@ -546,9 +636,38 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         />
       )}
 
+      {showAddLevelModal && token && (
+        <AddLevelModal
+          token={token}
+          courseId={courseId}
+          existingLevel={editingLevel}
+          defaultLevelNumber={
+            (unifiedList.filter((i) => i.type === 'level').reduce((max, i) => Math.max(max, i.levelNumber || 0), 0) || 0) + 1
+          }
+          insertOrder={insertAfterOrder}
+          onClose={() => {
+            setShowAddLevelModal(false);
+            setEditingLevel(null);
+          }}
+          onSaved={() => {
+            setShowAddLevelModal(false);
+            setEditingLevel(null);
+            fetchData();
+          }}
+        />
+      )}
+
       {showAddModal && !addModalType && (
         <TypeSelectorModal
-          onSelect={(type) => setAddModalType(type)}
+          onSelect={(type) => {
+            if (type === 'level') {
+              setShowAddModal(false);
+              setEditingLevel(null);
+              setShowAddLevelModal(true);
+            } else {
+              setAddModalType(type);
+            }
+          }}
           onClose={() => setShowAddModal(false)}
         />
       )}
@@ -598,6 +717,7 @@ function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType
         </div>
         <div className="p-6 space-y-3">
           {[
+            { type: 'level' as ContentType, label: 'Course Level / Section Header', icon: Layers, color: 'purple' },
             { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
             { type: 'zoom' as ContentType, label: 'Live Zoom Meeting (Slots & Countdown)', icon: VideoIcon, color: 'indigo' },
             { type: 'material' as ContentType, label: 'PDF / Material', icon: FileText, color: 'orange' },
@@ -2281,6 +2401,197 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             >
               {(saving || uploading) && <Loader2 size={18} className="animate-spin" />}
               {uploading ? 'Uploading...' : saving ? 'Saving...' : 'Add Video'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add / Edit Level Modal
+function AddLevelModal({
+  token,
+  courseId,
+  existingLevel,
+  defaultLevelNumber = 1,
+  insertOrder,
+  onClose,
+  onSaved,
+}: {
+  token: string;
+  courseId: string;
+  existingLevel?: UnifiedItem | null;
+  defaultLevelNumber?: number;
+  insertOrder?: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [levelNumber, setLevelNumber] = useState<number>(existingLevel?.levelNumber || defaultLevelNumber);
+  const [name, setName] = useState<string>(existingLevel?.title || '');
+  const [description, setDescription] = useState<string>(existingLevel?.description || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Please enter a Level Name');
+      return;
+    }
+    if (!levelNumber || levelNumber < 1) {
+      setError('Please enter a valid Level Number (minimum 1)');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const payload = {
+        ...(existingLevel ? { sectionId: existingLevel._id, id: existingLevel._id } : {}),
+        courseId,
+        order: existingLevel ? existingLevel.order : (insertOrder ?? 0),
+        content: {
+          title: name.trim(),
+          levelNumber: Number(levelNumber),
+          description: description.trim(),
+          en: {
+            title: name.trim(),
+            description: description.trim(),
+          },
+        },
+      };
+
+      const res = await fetch('/api/admin/recorded-courses/sections', {
+        method: existingLevel ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save level');
+      }
+
+      onSaved();
+    } catch (err: unknown) {
+      console.error('Error saving level:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save level');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-purple-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-purple-950/40">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+              <Layers size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                {existingLevel ? 'Edit Level' : 'Add Level'}
+              </h2>
+              <p className="text-xs text-purple-300/70">
+                Organize your curriculum into progressive stages
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="p-2 hover:bg-gray-800 text-gray-400 hover:text-white rounded-lg transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-lg flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                Level # <span className="text-purple-400">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={levelNumber}
+                onChange={(e) => setLevelNumber(parseInt(e.target.value) || 1)}
+                className="w-full px-4 py-2.5 bg-black/60 border border-gray-700 focus:border-purple-500 rounded-lg text-white font-bold text-center focus:outline-none transition-colors"
+                required
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                Level Name <span className="text-purple-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Level 1 - Basic Breathing Techniques"
+                className="w-full px-4 py-2.5 bg-black/60 border border-gray-700 focus:border-purple-500 rounded-lg text-white placeholder-gray-500 focus:outline-none transition-colors"
+                required
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-300">
+                Description <span className="text-xs text-gray-500 font-normal">(Optional)</span>
+              </label>
+              <span className="text-xs text-gray-500">Brief summary of this level</span>
+            </div>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="e.g. Introduction to fundamental breath awareness, Ida and Pingala swaras, and morning routines."
+              className="w-full px-4 py-2.5 bg-black/60 border border-gray-700 focus:border-purple-500 rounded-lg text-white placeholder-gray-500 focus:outline-none resize-none transition-colors"
+            />
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-800">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2.5 border border-gray-700 hover:bg-gray-800 text-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Layers size={16} />
+                  <span>{existingLevel ? 'Update Level' : 'Save Level'}</span>
+                </>
+              )}
             </button>
           </div>
         </form>

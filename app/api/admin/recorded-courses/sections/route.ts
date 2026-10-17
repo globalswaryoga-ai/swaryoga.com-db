@@ -126,7 +126,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sectionId, courseId, order, content } = body;
+    const sectionId = body.sectionId || body.id;
+    const { courseId, order, content } = body;
 
     if (!sectionId) {
       return NextResponse.json({ error: 'Section ID required' }, { status: 400 });
@@ -186,3 +187,40 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
+/**
+ * PATCH - Reorder section
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const sectionId = body.sectionId || body.id;
+    const { order } = body;
+
+    if (!sectionId || order === undefined) {
+      return NextResponse.json({ error: 'Section ID and order required' }, { status: 400 });
+    }
+
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    await bunnyExecute({
+      sql: 'UPDATE course_sections_sql SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      args: [Number(order), String(sectionId)],
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('[Admin Sections PATCH Error]:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+}
+
