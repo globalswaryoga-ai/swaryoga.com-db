@@ -205,6 +205,27 @@ interface VideoStreamData {
   watchLogId?: string;
 }
 
+interface AssignmentQuestion {
+  id: string;
+  type: 'short_text' | 'paragraph' | 'single_choice' | 'multiple_choice' | 'dropdown';
+  prompt: string;
+  options: string[];
+  correctAnswer: string | string[];
+  points: number;
+}
+
+interface Assignment {
+  _id: string;
+  id?: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  level?: string;
+  totalPoints: number;
+  passingPoints: number;
+  questions?: AssignmentQuestion[];
+}
+
 export default function CourseLearnPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -214,9 +235,14 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [sections, setSections] = useState<Section[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
-  const [activeTab, setActiveTab] = useState<'videos' | 'zoom' | 'materials'>('videos');
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [activeTab, setActiveTab] = useState<'videos' | 'zoom' | 'assignments'>('videos');
   const [selectedZoomMeeting, setSelectedZoomMeeting] = useState<Material | null>(null);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number>(0);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [userAnswers, setUserAnswers] = useState<Record<string, any>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
+  const [quizResult, setQuizResult] = useState<{ score: number; total: number; passed: boolean } | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [canAccessPaidContent, setCanAccessPaidContent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -320,6 +346,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         setSections(data.sections || []);
         setVideos(data.videos || []);
         setMaterials(data.materials || []);
+        setAssignments(data.assignments || []);
         setEnrollment(data.enrollment);
         setCanAccessPaidContent(data.canAccessPaidContent);
 
@@ -611,6 +638,100 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
   const completedCount = enrollment?.videosWatched?.length || enrollment?.completedVideos?.length || 0;
 
+  // Real-time ticking live countdown
+  const [zoomCountdown, setZoomCountdown] = useState({ days: 0, hours: 2, minutes: 45, seconds: 12 });
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setZoomCountdown((prev) => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
+        if (prev.hours > 0) return { ...prev, hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        if (prev.days > 0) return { ...prev, days: prev.days - 1, hours: 23, minutes: 59, seconds: 59 };
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleAnswerChange = (questionId: string, value: any) => {
+    setUserAnswers((prev) => ({
+      ...prev,
+      [questionId]: value,
+    }));
+  };
+
+  const handleToggleMultipleChoice = (questionId: string, option: string) => {
+    setUserAnswers((prev) => {
+      const current = Array.isArray(prev[questionId]) ? prev[questionId] : [];
+      const updated = current.includes(option)
+        ? current.filter((x: string) => x !== option)
+        : [...current, option];
+      return { ...prev, [questionId]: updated };
+    });
+  };
+
+  const handleSubmitQuiz = () => {
+    if (!selectedAssignment) return;
+    const questions = selectedAssignment.questions || [];
+    let calculatedScore = 0;
+    let maxPoints = 0;
+
+    questions.forEach((q) => {
+      const qPts = Number(q.points) || 10;
+      maxPoints += qPts;
+      const userAns = userAnswers[q.id];
+
+      if (q.type === 'single_choice' || q.type === 'dropdown') {
+        if (
+          userAns &&
+          q.correctAnswer &&
+          String(userAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase()
+        ) {
+          calculatedScore += qPts;
+        }
+      } else if (q.type === 'multiple_choice') {
+        const correctArray = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
+        const userArray = Array.isArray(userAns) ? userAns : [userAns];
+        const isMatch =
+          correctArray.length > 0 &&
+          correctArray.every((a) => userArray.includes(a)) &&
+          userArray.every((a) => correctArray.includes(a));
+        if (isMatch) calculatedScore += qPts;
+      } else if (q.type === 'short_text') {
+        if (
+          userAns &&
+          q.correctAnswer &&
+          String(userAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase()
+        ) {
+          calculatedScore += qPts;
+        } else if (userAns && String(userAns).trim().length > 0) {
+          calculatedScore += qPts;
+        }
+      } else if (q.type === 'paragraph') {
+        if (userAns && String(userAns).trim().length > 10) {
+          calculatedScore += qPts;
+        }
+      }
+    });
+
+    if (maxPoints === 0) maxPoints = selectedAssignment.totalPoints || 100;
+    const passingRequired = selectedAssignment.passingPoints || 60;
+    const isPassed = calculatedScore >= passingRequired;
+
+    setQuizResult({
+      score: calculatedScore,
+      total: maxPoints,
+      passed: isPassed,
+    });
+    setQuizSubmitted(true);
+  };
+
+  const handleResetQuiz = () => {
+    setUserAnswers({});
+    setQuizSubmitted(false);
+    setQuizResult(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -694,47 +815,114 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               </span>
             </div>
           )}
-        </div>
-
-          {/* Tabs: Recorded Videos vs Live Zoom */}
-          <div className="flex gap-1 mt-4 p-1 bg-gray-900 rounded-xl border border-gray-700">
+          {/* Tabs: Recorded Videos vs Live Zoom vs Quizzes */}
+          <div className="grid grid-cols-3 gap-1 mt-4 p-1 bg-gray-900/90 rounded-xl border border-gray-700/80">
             <button
-              onClick={() => { setActiveTab('videos'); setSelectedZoomMeeting(null); }}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              onClick={() => { setActiveTab('videos'); setSelectedZoomMeeting(null); setSelectedAssignment(null); }}
+              className={`py-2 px-1 rounded-lg text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
                 activeTab === 'videos'
-                  ? 'bg-orange-500 text-white shadow'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-orange-500/20'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Videos ({videos.length})
+              <span>Videos ({videos.length})</span>
             </button>
             <button
               onClick={() => {
                 setActiveTab('zoom');
-                const firstZoom = materials.find(m => m.type === 'zoom' || m.materialType === 'zoom' || m.fileUrl?.includes('zoom.us'));
+                setSelectedAssignment(null);
+                const firstZoom = materials.find(m => m.type === 'zoom' || (m as any).materialType === 'zoom' || m.fileUrl?.includes('zoom.us'));
                 if (firstZoom) setSelectedZoomMeeting(firstZoom);
               }}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 px-1 rounded-lg text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
                 activeTab === 'zoom'
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <svg className="w-3.5 h-3.5 text-indigo-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-purple-300" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
+                </svg>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <span>Live Zoom ({materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).length})</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('assignments');
+                setSelectedZoomMeeting(null);
+                if (assignments.length > 0 && !selectedAssignment) {
+                  setSelectedAssignment(assignments[0]);
+                }
+              }}
+              className={`py-2 px-1 rounded-lg text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                activeTab === 'assignments'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              <svg className="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
-              Live Zoom ({materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).length})
+              <span>Quizzes ({assignments.length})</span>
             </button>
           </div>
         </div>
 
         {/* List Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'zoom' ? (
+          {activeTab === 'assignments' ? (
+            <div className="p-3 space-y-2">
+              {assignments.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-xs">
+                  No assignments or quizzes published yet.
+                </div>
+              ) : (
+                assignments.map((assignment) => {
+                  const isSelected = selectedAssignment?._id === assignment._id || selectedAssignment?.id === assignment.id;
+                  const lvl = assignment.level || 'Level 1: Beginner';
+                  const qCount = assignment.questions?.length || 0;
+                  return (
+                    <button
+                      key={assignment._id || assignment.id}
+                      onClick={() => {
+                        setSelectedAssignment(assignment);
+                        handleResetQuiz();
+                      }}
+                      className={`w-full p-3 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border-emerald-500 ring-2 ring-emerald-500/30 text-white shadow-lg'
+                          : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:border-emerald-500/50 hover:bg-gray-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                          {lvl}
+                        </span>
+                        <span className="text-[10px] font-semibold text-amber-400">
+                          🎯 Passing: {assignment.passingPoints} pts
+                        </span>
+                      </div>
+                      <p className="font-bold text-sm line-clamp-1 text-white">{assignment.title}</p>
+                      {assignment.description && (
+                        <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{assignment.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-400 font-medium">
+                        <span>📝 {qCount} Questions</span>
+                        <span>•</span>
+                        <span>⭐ {assignment.totalPoints || 100} Total Marks</span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : activeTab === 'zoom' ? (
             <div className="p-3 space-y-2">
               {materials.filter(m => m.type === 'zoom' || m.fileUrl?.includes('zoom.us')).length === 0 ? (
                 <div className="text-center py-8 text-gray-500 text-xs">
@@ -883,6 +1071,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               </div>
             )}
           </div>
+        )}
         </div>
       </div>
 
@@ -931,9 +1120,21 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           </div>
 
           <div className="flex-1 min-w-0">
-            {currentVideo && (
+            {activeTab === 'assignments' ? (
+              <h1 className="text-xs sm:text-sm md:text-base text-white font-medium truncate flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="text-emerald-400 font-bold">Quiz / Assignment:</span>
+                <span className="text-gray-200">{selectedAssignment?.title || 'Select a quiz from sidebar'}</span>
+              </h1>
+            ) : activeTab === 'zoom' ? (
+              <h1 className="text-xs sm:text-sm md:text-base text-white font-medium truncate flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
+                <span className="text-indigo-400 font-bold">Live Zoom:</span>
+                <span className="text-gray-200">{selectedZoomMeeting?.title || 'Interactive Session'}</span>
+              </h1>
+            ) : currentVideo ? (
               <h1 className="text-xs sm:text-sm md:text-base text-white font-medium truncate">{currentVideo.title}</h1>
-            )}
+            ) : null}
           </div>
 
           {/* Mobile Sidebar Toggle */}
@@ -948,25 +1149,315 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           </button>
         </div>
 
-        {/* Video Player or Live Zoom Area */}
-        <div className="flex-1 flex flex-col bg-black">
-          {activeTab === 'zoom' && selectedZoomMeeting ? (
+        {/* Video Player, Live Zoom, or Assignment Area */}
+        <div className="flex-1 flex flex-col bg-black overflow-y-auto">
+          {activeTab === 'assignments' ? (
+            <div className="flex-1 p-4 sm:p-8 max-w-4xl mx-auto w-full">
+              {!selectedAssignment ? (
+                <div className="text-center py-16 bg-gray-900/60 rounded-2xl border border-gray-800 p-8 my-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-bold text-white mb-2">Select a Quiz or Level</h2>
+                  <p className="text-gray-400 text-sm max-w-md mx-auto mb-4">
+                    Choose an assignment from the sidebar to test your understanding and unlock your next level!
+                  </p>
+                  {assignments.length > 0 && (
+                    <button
+                      onClick={() => { setSelectedAssignment(assignments[0]); handleResetQuiz(); }}
+                      className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl text-sm shadow-lg shadow-emerald-600/30"
+                    >
+                      Start First Quiz: {assignments[0].title}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Hero Card */}
+                  <div className="bg-gradient-to-br from-emerald-950/70 via-gray-900 to-teal-950/70 border border-emerald-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 text-black uppercase tracking-wider shadow">
+                        {selectedAssignment.level || 'Level 1: Beginner'}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        🎯 Passing: {selectedAssignment.passingPoints} Marks
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-800 text-gray-300">
+                        ⭐ Total: {selectedAssignment.totalPoints || 100} Points
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-800 text-gray-300">
+                        📝 {selectedAssignment.questions?.length || 0} Questions
+                      </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-2">
+                      {selectedAssignment.title}
+                    </h1>
+
+                    {selectedAssignment.description && (
+                      <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-4 max-w-3xl">
+                        {selectedAssignment.description}
+                      </p>
+                    )}
+
+                    {selectedAssignment.instructions && (
+                      <div className="p-3 bg-black/40 rounded-xl border border-gray-800 text-xs text-gray-400 flex items-center gap-2">
+                        <span>ℹ️</span>
+                        <span>{selectedAssignment.instructions}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Result Card if Submitted */}
+                  {quizSubmitted && quizResult && (
+                    <div
+                      className={`p-6 sm:p-8 rounded-3xl border shadow-2xl text-center transition-all animate-in fade-in zoom-in-95 duration-300 ${
+                        quizResult.passed
+                          ? 'bg-gradient-to-br from-emerald-950 via-gray-900 to-teal-950 border-emerald-500 shadow-emerald-500/20'
+                          : 'bg-gradient-to-br from-amber-950 via-gray-900 to-rose-950 border-amber-500 shadow-amber-500/20'
+                      }`}
+                    >
+                      <div className="w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-3xl mb-4 shadow-lg border border-white/10 bg-white/5">
+                        {quizResult.passed ? '🎉' : '💪'}
+                      </div>
+
+                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
+                        {quizResult.passed ? 'Level Cleared! Congratulations! 🎉' : 'Keep Practicing! Almost There!'}
+                      </h2>
+
+                      <p className="text-sm sm:text-base text-gray-300 max-w-md mx-auto mb-4">
+                        {quizResult.passed
+                          ? `You scored ${quizResult.score} out of ${quizResult.total} points! You have satisfied the passing requirement (${selectedAssignment.passingPoints} marks).`
+                          : `You scored ${quizResult.score} out of ${quizResult.total} points. Minimum passing requirement is ${selectedAssignment.passingPoints} marks.`}
+                      </p>
+
+                      <div className="inline-flex items-center gap-3 px-6 py-2.5 rounded-2xl bg-black/50 border border-gray-800 mb-6">
+                        <span className="text-sm text-gray-400 font-semibold">Your Score:</span>
+                        <span className={`text-xl font-black ${quizResult.passed ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {quizResult.score} / {quizResult.total} Pts
+                        </span>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                          quizResult.passed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                          {quizResult.passed ? 'PASSED' : 'NEEDS PRACTICE'}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap justify-center gap-3">
+                        <button
+                          onClick={handleResetQuiz}
+                          className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-xl text-sm transition-all"
+                        >
+                          Retake Quiz 🔄
+                        </button>
+                        {quizResult.passed && (
+                          <button
+                            onClick={() => { setActiveTab('videos'); }}
+                            className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold rounded-xl text-sm shadow-lg shadow-emerald-500/30 transition-all"
+                          >
+                            Continue to Next Lesson ➡️
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Questions List */}
+                  {selectedAssignment.questions && selectedAssignment.questions.length > 0 ? (
+                    <div className="space-y-4">
+                      {selectedAssignment.questions.map((q, qIdx) => {
+                        const userAns = userAnswers[q.id];
+                        return (
+                          <div
+                            key={q.id || qIdx}
+                            className="bg-gray-900/80 border border-gray-800 hover:border-gray-700 rounded-2xl p-5 sm:p-6 transition-all shadow-lg"
+                          >
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2.5">
+                                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 text-white text-xs font-black flex items-center justify-center shadow">
+                                  #{qIdx + 1}
+                                </span>
+                                <span className="text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">
+                                  {q.type === 'single_choice' && '🔘 Select One'}
+                                  {q.type === 'multiple_choice' && '☑️ Multiple Choice'}
+                                  {q.type === 'short_text' && '📝 Short Note'}
+                                  {q.type === 'paragraph' && '📄 Paragraph'}
+                                  {q.type === 'dropdown' && '🔽 Dropdown'}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                                +{q.points || 10} Points
+                              </span>
+                            </div>
+
+                            <p className="text-base font-bold text-white mb-4 leading-relaxed">
+                              {q.prompt || `Question ${qIdx + 1}`}
+                            </p>
+
+                            {/* Single Choice (Radio) */}
+                            {q.type === 'single_choice' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {q.options.map((opt, optIdx) => {
+                                  const isSelected = userAns === opt;
+                                  return (
+                                    <button
+                                      key={optIdx}
+                                      type="button"
+                                      onClick={() => handleAnswerChange(q.id, opt)}
+                                      className={`p-3.5 rounded-xl border text-left font-medium text-sm flex items-center gap-3 transition-all ${
+                                        isSelected
+                                          ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 border-emerald-500 ring-2 ring-emerald-500/40 text-white shadow'
+                                          : 'bg-black/50 border-gray-800 text-gray-300 hover:border-gray-700 hover:bg-gray-800/40'
+                                      }`}
+                                    >
+                                      <span className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs font-bold transition-all ${
+                                        isSelected
+                                          ? 'bg-emerald-500 border-emerald-500 text-black'
+                                          : 'border-gray-600 text-gray-500'
+                                      }`}>
+                                        {isSelected ? '✓' : String.fromCharCode(65 + optIdx)}
+                                      </span>
+                                      <span className="flex-1">{opt}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Multiple Choice (Checkboxes) */}
+                            {q.type === 'multiple_choice' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {q.options.map((opt, optIdx) => {
+                                  const isChecked = Array.isArray(userAns) && userAns.includes(opt);
+                                  return (
+                                    <button
+                                      key={optIdx}
+                                      type="button"
+                                      onClick={() => handleToggleMultipleChoice(q.id, opt)}
+                                      className={`p-3.5 rounded-xl border text-left font-medium text-sm flex items-center gap-3 transition-all ${
+                                        isChecked
+                                          ? 'bg-gradient-to-r from-purple-600/30 to-indigo-600/30 border-purple-500 ring-2 ring-purple-500/40 text-white shadow'
+                                          : 'bg-black/50 border-gray-800 text-gray-300 hover:border-gray-700 hover:bg-gray-800/40'
+                                      }`}
+                                    >
+                                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs font-bold transition-all ${
+                                        isChecked
+                                          ? 'bg-purple-500 border-purple-500 text-white'
+                                          : 'border-gray-600 text-transparent'
+                                      }`}>
+                                        ✓
+                                      </span>
+                                      <span className="flex-1">{opt}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Dropdown */}
+                            {q.type === 'dropdown' && (
+                              <div>
+                                <select
+                                  value={userAns || ''}
+                                  onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                  className="w-full px-4 py-3 bg-black border border-gray-700 rounded-xl text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                >
+                                  <option value="">-- Choose your answer --</option>
+                                  {q.options.map((opt, optIdx) => (
+                                    <option key={optIdx} value={opt}>
+                                      {opt}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {/* Short Text */}
+                            {q.type === 'short_text' && (
+                              <input
+                                type="text"
+                                value={userAns || ''}
+                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                placeholder="Write your short answer here..."
+                                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-xl text-white text-sm placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            )}
+
+                            {/* Paragraph */}
+                            {q.type === 'paragraph' && (
+                              <textarea
+                                value={userAns || ''}
+                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                rows={3}
+                                placeholder="Explain your answer in detail..."
+                                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-xl text-white text-sm placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Sticky Submit Bar */}
+                      <div className="bg-gray-900/90 border border-gray-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 sticky bottom-4 shadow-2xl backdrop-blur-xl">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Answered:</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300">
+                            {Object.keys(userAnswers).length} of {selectedAssignment.questions.length} Questions
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                          <button
+                            type="button"
+                            onClick={handleResetQuiz}
+                            className="px-4 py-2.5 border border-gray-700 text-gray-400 hover:text-white rounded-xl text-sm transition-all"
+                          >
+                            Reset Answers
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSubmitQuiz}
+                            className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-black font-black rounded-xl text-sm shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2"
+                          >
+                            <span>Submit Assignment & Check Score ✨</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-gray-900/40 rounded-2xl border border-gray-800 text-gray-400 text-sm">
+                      This assignment does not have interactive questions configured yet.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'zoom' && selectedZoomMeeting ? (
             <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 overflow-y-auto">
-              <div className="max-w-xl w-full bg-gray-900 border border-indigo-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
+              <div className="max-w-xl w-full bg-gradient-to-br from-indigo-950/80 via-gray-900 to-purple-950/80 border border-indigo-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-6 h-6 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/30">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
                     </svg>
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Live Zoom Session</span>
-                    <h2 className="text-xl sm:text-2xl font-bold text-white leading-tight">{selectedZoomMeeting.title}</h2>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-black text-indigo-300 uppercase tracking-wider">Live Zoom Session</span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-black text-white leading-tight mt-0.5">{selectedZoomMeeting.title}</h2>
                   </div>
                 </div>
 
                 {selectedZoomMeeting.description && (
-                  <p className="text-gray-300 text-sm mb-6 bg-black/40 p-3 rounded-xl border border-gray-800">
+                  <p className="text-gray-300 text-sm mb-6 bg-black/50 p-3.5 rounded-xl border border-gray-800">
                     {selectedZoomMeeting.description}
                   </p>
                 )}
@@ -974,10 +1465,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                 {/* Slots Selector */}
                 {selectedZoomMeeting.slots && selectedZoomMeeting.slots.length > 0 && (
                   <div className="mb-6">
-                    <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                       Select Your Date & Time Slot:
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {selectedZoomMeeting.slots.map((slot, idx) => (
                         <button
                           key={idx}
@@ -985,7 +1476,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                           onClick={() => setSelectedSlotIndex(idx)}
                           className={`p-3 rounded-xl border text-left transition-all ${
                             selectedSlotIndex === idx
-                              ? 'bg-indigo-600/30 border-indigo-500 ring-2 ring-indigo-500/50 text-white'
+                              ? 'bg-gradient-to-r from-indigo-600/40 to-purple-600/40 border-indigo-400 ring-2 ring-indigo-500/50 text-white shadow'
                               : 'bg-black/50 border-gray-800 text-gray-400 hover:border-gray-700'
                           }`}
                         >
@@ -997,34 +1488,52 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   </div>
                 )}
 
-                {/* Live Countdown Component */}
-                <div className="bg-black/60 border border-gray-800 rounded-xl p-4 mb-6 text-center">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">
-                    Scheduled Time:
+                {/* Colorful Neon Countdown Component */}
+                <div className="bg-black/70 border border-indigo-500/30 rounded-2xl p-5 mb-6 text-center">
+                  <p className="text-[11px] text-gray-400 uppercase tracking-widest font-bold mb-3">
+                    Starts In / Scheduled Time:
                   </p>
-                  <p className="text-lg font-bold text-indigo-300 mb-1">
+                  
+                  {/* Neon Countdown Tiles */}
+                  <div className="grid grid-cols-4 gap-2 mb-3 max-w-xs mx-auto">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-b from-emerald-500/20 to-emerald-950/40 border border-emerald-500/30">
+                      <div className="text-xl font-black text-emerald-300 font-mono">{zoomCountdown.days}</div>
+                      <div className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Days</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-gradient-to-b from-blue-500/20 to-blue-950/40 border border-blue-500/30">
+                      <div className="text-xl font-black text-blue-300 font-mono">{zoomCountdown.hours}</div>
+                      <div className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Hours</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-gradient-to-b from-amber-500/20 to-amber-950/40 border border-amber-500/30">
+                      <div className="text-xl font-black text-amber-300 font-mono">{zoomCountdown.minutes}</div>
+                      <div className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Mins</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-gradient-to-b from-rose-500/20 to-rose-950/40 border border-rose-500/30">
+                      <div className="text-xl font-black text-rose-300 font-mono">{zoomCountdown.seconds}</div>
+                      <div className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Secs</div>
+                    </div>
+                  </div>
+
+                  <p className="text-sm font-bold text-indigo-300">
                     {selectedZoomMeeting.slots?.[selectedSlotIndex]?.date || selectedZoomMeeting.meetingDate || 'Upcoming Session'}
                     {' at '}
                     {selectedZoomMeeting.slots?.[selectedSlotIndex]?.time || selectedZoomMeeting.meetingTime || '07:00 AM IST'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Live room opens automatically. You can test your connection or join below.
                   </p>
                 </div>
 
                 {/* Credentials */}
                 {(selectedZoomMeeting.meetingId || selectedZoomMeeting.meetingPassword) && (
-                  <div className="flex items-center justify-between bg-gray-800/80 p-3 rounded-xl mb-6 text-xs text-gray-300 font-mono">
+                  <div className="flex items-center justify-between bg-black/60 border border-gray-800 p-3.5 rounded-xl mb-6 text-xs text-gray-300 font-mono">
                     {selectedZoomMeeting.meetingId && (
                       <div>
-                        <span className="text-gray-500">ID: </span>
-                        <span className="text-white font-bold">{selectedZoomMeeting.meetingId}</span>
+                        <span className="text-gray-500 font-sans">Meeting ID: </span>
+                        <span className="text-indigo-300 font-bold tracking-wider">{selectedZoomMeeting.meetingId}</span>
                       </div>
                     )}
                     {selectedZoomMeeting.meetingPassword && (
                       <div>
-                        <span className="text-gray-500">Pass: </span>
-                        <span className="text-white font-bold">{selectedZoomMeeting.meetingPassword}</span>
+                        <span className="text-gray-500 font-sans">Passcode: </span>
+                        <span className="text-emerald-300 font-bold tracking-wider">{selectedZoomMeeting.meetingPassword}</span>
                       </div>
                     )}
                   </div>
@@ -1036,16 +1545,16 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     href={selectedZoomMeeting.slots?.[selectedSlotIndex]?.joinUrl || selectedZoomMeeting.meetingUrl || selectedZoomMeeting.fileUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-3 px-6 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl text-center shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black rounded-xl text-center shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M4.5 4.5A2.25 2.25 0 002.25 6.75v10.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25v-10.5A2.25 2.25 0 0015 4.5H4.5zm12 3.879l4.5-2.25v11.742l-4.5-2.25V8.379z" />
                     </svg>
-                    Join Zoom Meeting
+                    Join Zoom Meeting Now
                   </a>
                   <button
                     onClick={() => { setActiveTab('videos'); setSelectedZoomMeeting(null); }}
-                    className="py-3 px-4 border border-gray-700 text-gray-400 hover:text-white rounded-xl text-sm"
+                    className="py-3.5 px-4 border border-gray-700 text-gray-400 hover:text-white rounded-xl text-sm transition-all"
                   >
                     Back to Videos
                   </button>

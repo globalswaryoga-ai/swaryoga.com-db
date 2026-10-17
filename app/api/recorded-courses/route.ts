@@ -12,6 +12,7 @@ import {
   listSectionsByCourse,
   listVideosByCourse,
   listMaterialsByCourse,
+  listAssignmentsByCourse,
   getEnrollment,
   listEnrollmentsByUser,
   countVideosByCourse,
@@ -74,10 +75,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
 
-      const [sections, videos, materials] = await Promise.all([
+      const [sections, videos, materials, assignments] = await Promise.all([
         listSectionsByCourse(course.id),
         listVideosByCourse(course.id, true),
         listMaterialsByCourse(course.id, true),
+        listAssignmentsByCourse(course.id, true),
       ]);
 
       let enrollment: any = null;
@@ -134,12 +136,28 @@ export async function GET(request: NextRequest) {
         fileUrl: canAccessPaidContent ? m.fileUrl : undefined,
       }));
 
+      const localizedAssignments = assignments.map((a) => {
+        const c = a.content || {};
+        return {
+          ...a,
+          ...getLocalizedContent(c, lang),
+          questions: c.questions || [],
+          level: c.level || 'Level 1: Beginner',
+          passingPoints: c.passingPoints || 60,
+          totalPoints: c.totalPoints || 100,
+          description: c.description || c.en?.description || '',
+          instructions: c.instructions || c.en?.instructions || '',
+          content: undefined,
+        };
+      });
+
       return NextResponse.json({
         success: true,
         course: localizedCourse,
         sections: localizedSections,
         videos: localizedVideos,
         materials: localizedMaterials,
+        assignments: localizedAssignments,
         reviews: [],
         enrollment,
         canAccessPaidContent,

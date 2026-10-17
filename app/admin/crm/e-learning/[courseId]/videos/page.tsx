@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Video, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2,
   ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera,
-  Video as VideoIcon, Calendar, Clock, Globe
+  Video as VideoIcon, Calendar, Clock, Globe, AlertCircle
 } from 'lucide-react';
 
 type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question' | 'zoom';
@@ -887,55 +887,6 @@ function AddZoomMeetingModal({ token, courseId, order, onClose, onAdded }: {
   );
 }
 
-// Type Selector Modal
-function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType) => void; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
-          <h2 className="text-xl font-bold text-white">Add Content Type</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="p-6 space-y-3">
-          {[
-            { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
-            { type: 'zoom' as ContentType, label: 'Live Zoom Meeting (Slots & Countdown)', icon: VideoIcon, color: 'indigo' },
-            { type: 'material' as ContentType, label: 'PDF / Material', icon: FileText, color: 'orange' },
-            { type: 'assignment' as ContentType, label: 'Assignment', icon: ClipboardList, color: 'purple' },
-            { type: 'task' as ContentType, label: 'Task', icon: CheckSquare, color: 'yellow' },
-            { type: 'question' as ContentType, label: 'Question', icon: HelpCircle, color: 'teal' },
-          ].map(({ type, label, icon: Icon, color }) => (
-            <button
-              key={type}
-              onClick={() => onSelect(type)}
-              className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
-                color === 'blue' ? 'bg-blue-500/10 border-blue-500/50 hover:border-blue-500'
-                : color === 'indigo' ? 'bg-indigo-500/10 border-indigo-500/50 hover:border-indigo-500'
-                : color === 'orange' ? 'bg-orange-500/10 border-orange-500/50 hover:border-orange-500'
-                : color === 'purple' ? 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500'
-                : color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/50 hover:border-yellow-500'
-                : 'bg-teal-500/10 border-teal-500/50 hover:border-teal-500'
-              }`}
-            >
-              <Icon size={24} className={
-                color === 'blue' ? 'text-blue-400'
-                : color === 'indigo' ? 'text-indigo-400'
-                : color === 'orange' ? 'text-orange-400'
-                : color === 'purple' ? 'text-purple-400'
-                : color === 'yellow' ? 'text-yellow-400'
-                : 'text-teal-400'
-              } />
-              <span className="text-white font-medium">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Add Material Modal
 function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
   token: string;
@@ -1203,7 +1154,16 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
   );
 }
 
-// Add Assignment Modal
+// Add Assignment & Form Builder Modal
+interface FormQuestion {
+  id: string;
+  question: string;
+  type: 'short_text' | 'paragraph' | 'single_choice' | 'multiple_choice' | 'dropdown';
+  options: string[];
+  correctAnswer: string; // for auto-checking or single/multiple choice
+  marks: number;
+}
+
 function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded }: {
   token: string;
   courseId: string;
@@ -1213,16 +1173,96 @@ function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded 
   onAdded: () => void;
 }) {
   const [title, setTitle] = useState('');
+  const [level, setLevel] = useState('Level 1: Beginner');
   const [description, setDescription] = useState('');
   const [totalPoints, setTotalPoints] = useState('100');
-  const [passingPoints, setPassingPoints] = useState('60');
+  const [passingPoints, setPassingPoints] = useState('40');
   const [isRequired, setIsRequired] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Form Builder Questions State
+  const [questions, setQuestions] = useState<FormQuestion[]>([
+    {
+      id: 'q_1',
+      question: 'What is the primary benefit of Surya Nadi (Right Swar) practice?',
+      type: 'single_choice',
+      options: ['Activates solar energy & digestion', 'Induces deep sleep', 'Cools down body temperature', 'None of the above'],
+      correctAnswer: 'Activates solar energy & digestion',
+      marks: 10,
+    }
+  ]);
+
+  const addQuestion = (type: FormQuestion['type'] = 'single_choice') => {
+    const newQ: FormQuestion = {
+      id: `q_${Date.now()}`,
+      question: '',
+      type,
+      options: type === 'single_choice' || type === 'multiple_choice' || type === 'dropdown' ? ['Option 1', 'Option 2'] : [],
+      correctAnswer: '',
+      marks: 10,
+    };
+    setQuestions([...questions, newQ]);
+  };
+
+  const removeQuestion = (id: string) => {
+    setQuestions(questions.filter(q => q.id !== id));
+  };
+
+  const updateQuestion = (id: string, field: keyof FormQuestion, val: any) => {
+    setQuestions(questions.map(q => {
+      if (q.id === id) {
+        if (field === 'type') {
+          const needsOptions = val === 'single_choice' || val === 'multiple_choice' || val === 'dropdown';
+          return {
+            ...q,
+            type: val,
+            options: needsOptions && q.options.length === 0 ? ['Option 1', 'Option 2'] : q.options,
+          };
+        }
+        return { ...q, [field]: val };
+      }
+      return q;
+    }));
+  };
+
+  const addOption = (qId: string) => {
+    setQuestions(questions.map(q => {
+      if (q.id === qId) {
+        return { ...q, options: [...q.options, `Option ${q.options.length + 1}`] };
+      }
+      return q;
+    }));
+  };
+
+  const removeOption = (qId: string, optIdx: number) => {
+    setQuestions(questions.map(q => {
+      if (q.id === qId) {
+        return { ...q, options: q.options.filter((_, i) => i !== optIdx) };
+      }
+      return q;
+    }));
+  };
+
+  const updateOption = (qId: string, optIdx: number, val: string) => {
+    setQuestions(questions.map(q => {
+      if (q.id === qId) {
+        const newOpts = [...q.options];
+        newOpts[optIdx] = val;
+        return { ...q, options: newOpts };
+      }
+      return q;
+    }));
+  };
+
+  const calculatedTotalMarks = questions.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title) {
+      setError('Assignment Title is required');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -1237,11 +1277,20 @@ function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded 
         body: JSON.stringify({
           courseId,
           subType,
-          content: { en: { title, description } },
-          totalPoints: parseInt(totalPoints) || 100,
-          passingPoints: parseInt(passingPoints) || 60,
+          title,
+          content: {
+            en: {
+              title,
+              level,
+              description,
+              questions,
+            }
+          },
+          totalPoints: calculatedTotalMarks || parseInt(totalPoints) || 100,
+          passingPoints: parseInt(passingPoints) || 40,
           isRequired,
           order,
+          questions,
         }),
       });
 
@@ -1251,110 +1300,324 @@ function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded 
         const data = await res.json();
         setError(data.error || 'Failed to add assignment');
       }
-    } catch (err) {
-      setError('Error saving assignment');
+    } catch (err: any) {
+      setError(err.message || 'Error saving assignment');
     } finally {
       setSaving(false);
     }
   };
 
-  const isSimpleType = subType === 'task' || subType === 'question';
-
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
-          <h2 className="text-xl font-bold text-white">
-            {subType === 'task' ? 'Add Task' : subType === 'question' ? 'Add Question' : 'Add Assignment'}
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-3xl my-6 shadow-2xl flex flex-col max-h-[90vh]">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-gray-900/90 backdrop-blur sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-md">
+              <ClipboardList className="text-white" size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-white">
+                {subType === 'task' ? 'Create Task' : subType === 'question' ? 'Create Quiz Question' : 'Assignment Form Builder'}
+              </h2>
+              <p className="text-xs text-gray-400">Design levels, passing marks, and customizable question forms</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white">
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        {/* Modal Form Content */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3.5 rounded-xl text-sm flex items-center gap-2">
+              <AlertCircle size={18} />
               {error}
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder={subType === 'task' ? 'Task title' : subType === 'question' ? 'Question text' : 'Assignment title'}
-              required
-            />
+          {/* Section 1: Assignment Basics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1.5">
+                Assignment Title *
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none"
+                placeholder="e.g. Swar Yoga Level 1 Mastery Assessment"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1.5">
+                Target Level
+              </label>
+              <select
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-xl text-white focus:border-purple-500 focus:outline-none"
+              >
+                <option value="Level 1: Beginner">Level 1: Beginner (Prathama)</option>
+                <option value="Level 2: Intermediate">Level 2: Intermediate (Madhyama)</option>
+                <option value="Level 3: Advanced">Level 3: Advanced (Uttama)</option>
+                <option value="Level 4: Master">Level 4: Master / Sadhak</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Description / Instructions</label>
+            <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
+              Description & Instructions
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
-              placeholder={subType === 'task' ? 'Task instructions' : 'Description'}
+              rows={2}
+              className="w-full px-4 py-2 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none resize-none text-sm"
+              placeholder="Instructions for students before taking this assessment..."
             />
           </div>
 
-          {!isSimpleType && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-green-400 mb-2">Total Points</label>
-                  <input
-                    type="number"
-                    value={totalPoints}
-                    onChange={(e) => setTotalPoints(e.target.value)}
-                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-green-400 mb-2">Passing Points</label>
-                  <input
-                    type="number"
-                    value={passingPoints}
-                    onChange={(e) => setPassingPoints(e.target.value)}
-                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-                  />
-                </div>
+          {/* Scoring Grid */}
+          <div className="grid grid-cols-3 gap-3 bg-gray-950/80 p-4 rounded-xl border border-gray-800">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase mb-1">Total Marks</label>
+              <div className="text-xl font-bold text-white flex items-center gap-1.5">
+                <span className="text-purple-400">{calculatedTotalMarks || totalPoints}</span>
+                <span className="text-xs text-gray-500 font-normal">pts</span>
               </div>
-
-              <div className="flex items-center gap-2">
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase mb-1">Passing Mark</label>
+              <input
+                type="number"
+                value={passingPoints}
+                onChange={(e) => setPassingPoints(e.target.value)}
+                className="w-24 px-3 py-1 bg-black border border-gray-700 rounded-lg text-emerald-400 font-bold focus:border-emerald-500 focus:outline-none text-sm"
+              />
+            </div>
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 font-medium">
                 <input
                   type="checkbox"
-                  id="required"
                   checked={isRequired}
                   onChange={(e) => setIsRequired(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+                  className="w-4 h-4 rounded border-gray-600 bg-black text-purple-600 focus:ring-purple-500"
                 />
-                <label htmlFor="required" className="text-white cursor-pointer">
-                  Required to complete course
-                </label>
-              </div>
-            </>
-          )}
+                Mandatory for Passing
+              </label>
+            </div>
+          </div>
 
-          <div className="flex gap-3 pt-4">
+          {/* Section 2: Interactive Question Form Builder */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-800">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <CheckSquare size={16} className="text-emerald-400" />
+                  Questions & Assessment Form ({questions.length})
+                </h3>
+                <p className="text-xs text-gray-400">Short answer, paragraph, single choice, multiple choice, or dropdown</p>
+              </div>
+
+              {/* Add Question Dropdown */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => addQuestion('single_choice')}
+                  className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Plus size={14} /> Single Choice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addQuestion('multiple_choice')}
+                  className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Plus size={14} /> Multiple
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addQuestion('short_text')}
+                  className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 border border-yellow-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Plus size={14} /> Short Note
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addQuestion('dropdown')}
+                  className="px-3 py-1.5 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Plus size={14} /> Dropdown
+                </button>
+              </div>
+            </div>
+
+            {/* Questions List */}
+            <div className="space-y-4">
+              {questions.map((q, qIndex) => (
+                <div
+                  key={q.id}
+                  className="p-4 rounded-xl border border-gray-800 bg-gray-950/60 space-y-3 relative group hover:border-gray-700 transition-all"
+                >
+                  {/* Question Header & Controls */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="w-6 h-6 rounded-full bg-purple-600/30 border border-purple-500/50 text-purple-300 font-bold text-xs flex items-center justify-center">
+                      {qIndex + 1}
+                    </span>
+
+                    <input
+                      type="text"
+                      value={q.question}
+                      onChange={(e) => updateQuestion(q.id, 'question', e.target.value)}
+                      placeholder="Enter question title or prompt..."
+                      className="flex-1 px-3 py-1.5 bg-black border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+
+                    {/* Question Type Selector */}
+                    <select
+                      value={q.type}
+                      onChange={(e) => updateQuestion(q.id, 'type', e.target.value as any)}
+                      className="px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-purple-300 font-semibold focus:border-purple-500 focus:outline-none"
+                    >
+                      <option value="single_choice">Select One (Radio)</option>
+                      <option value="multiple_choice">Multiple Choice (Checkboxes)</option>
+                      <option value="dropdown">Dropdown Select</option>
+                      <option value="short_text">Short Note (1 line)</option>
+                      <option value="paragraph">Paragraph Essay</option>
+                    </select>
+
+                    {/* Question Marks */}
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="1"
+                        value={q.marks}
+                        onChange={(e) => updateQuestion(q.id, 'marks', Number(e.target.value))}
+                        className="w-14 px-2 py-1 bg-black border border-gray-700 rounded-lg text-emerald-400 font-bold text-xs text-center focus:border-emerald-500 focus:outline-none"
+                      />
+                      <span className="text-[11px] text-gray-500 font-semibold">pts</span>
+                    </div>
+
+                    {questions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(q.id)}
+                        className="p-1.5 text-gray-500 hover:text-red-400 rounded-lg transition-colors"
+                        title="Remove Question"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Options for Choice / Dropdown Types */}
+                  {(q.type === 'single_choice' || q.type === 'multiple_choice' || q.type === 'dropdown') && (
+                    <div className="pl-9 space-y-2">
+                      <div className="space-y-1.5">
+                        {q.options.map((opt, optIdx) => (
+                          <div key={optIdx} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 font-bold w-4">
+                              {String.fromCharCode(65 + optIdx)}.
+                            </span>
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) => updateOption(q.id, optIdx, e.target.value)}
+                              className="flex-1 px-3 py-1 bg-black border border-gray-800 rounded-lg text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
+                              placeholder={`Option ${optIdx + 1}`}
+                            />
+                            {q.options.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => removeOption(q.id, optIdx)}
+                                className="text-gray-600 hover:text-red-400 p-1"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => addOption(q.id)}
+                          className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 font-medium"
+                        >
+                          <Plus size={12} /> Add Option
+                        </button>
+
+                        {/* Correct Answer Selection */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-emerald-400 font-semibold">Correct Answer:</span>
+                          <select
+                            value={q.correctAnswer}
+                            onChange={(e) => updateQuestion(q.id, 'correctAnswer', e.target.value)}
+                            className="px-2 py-1 bg-black border border-emerald-500/50 rounded-lg text-xs text-emerald-300 focus:outline-none"
+                          >
+                            <option value="">Select Correct Option...</option>
+                            {q.options.map((opt, i) => (
+                              <option key={i} value={opt}>
+                                {String.fromCharCode(65 + i)}: {opt || `Option ${i + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Text / Paragraph Preview */}
+                  {q.type === 'short_text' && (
+                    <div className="pl-9">
+                      <input
+                        type="text"
+                        disabled
+                        placeholder="Student will enter a short answer here..."
+                        className="w-full px-3 py-1.5 bg-black/40 border border-gray-800 border-dashed rounded-lg text-xs text-gray-500 cursor-not-allowed"
+                      />
+                    </div>
+                  )}
+
+                  {q.type === 'paragraph' && (
+                    <div className="pl-9">
+                      <textarea
+                        disabled
+                        rows={2}
+                        placeholder="Student will write an in-depth paragraph here..."
+                        className="w-full px-3 py-1.5 bg-black/40 border border-gray-800 border-dashed rounded-lg text-xs text-gray-500 cursor-not-allowed resize-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex items-center justify-end gap-3 pt-5 border-t border-gray-800">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 border border-gray-700 text-gray-400 hover:text-white rounded-xl text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
+              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all disabled:opacity-50"
             >
-              {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-              {saving ? 'Adding...' : `Add ${subType.charAt(0).toUpperCase() + subType.slice(1)}`}
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save Assignment & Quiz Form
             </button>
           </div>
         </form>

@@ -82,18 +82,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, order, ...rest } = body;
+    const resolvedTitle = body.title || body.content?.en?.title || body.content?.title || '';
+    const { courseId, order, ...rest } = body;
 
-    if (!courseId || !title) {
+    if (!courseId || !resolvedTitle) {
       return NextResponse.json({ error: 'Course ID and title required' }, { status: 400 });
     }
 
     const assignment = await saveAssignment({
       courseId,
-      title,
+      title: resolvedTitle,
       order: Number(order || 1),
       isActive: true,
-      content: rest,
+      content: { ...rest, en: { ...(rest.content?.en || {}), title: resolvedTitle } },
     });
 
     return NextResponse.json({
@@ -128,7 +129,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { assignmentId, courseId, title, order, ...rest } = body;
+    const resolvedTitle = body.title || body.content?.en?.title || body.content?.title || '';
+    const { assignmentId, courseId, order, ...rest } = body;
 
     if (!assignmentId) {
       return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
@@ -137,10 +139,10 @@ export async function PUT(request: NextRequest) {
     const assignment = await saveAssignment({
       id: assignmentId,
       courseId: courseId || '',
-      title: title || '',
+      title: resolvedTitle,
       order: order !== undefined ? Number(order) : 1,
       isActive: true,
-      content: rest,
+      content: { ...rest, en: { ...(rest.content?.en || {}), title: resolvedTitle } },
     });
 
     return NextResponse.json({
