@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check } from 'lucide-react';
+import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon } from 'lucide-react';
 
 interface Enrollment {
   _id: string;
@@ -86,6 +86,31 @@ export default function ELearningUsersPage() {
   const [editLevel, setEditLevel] = useState('beginner');
   const [editStatus, setEditStatus] = useState('active');
   const [editProgress, setEditProgress] = useState(0);
+
+  // Bulk Import state
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkCourseId, setBulkCourseId] = useState('');
+  const [bulkLevel, setBulkLevel] = useState('beginner');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState<{
+    totalRows: number;
+    validRows: number;
+    sample: any[];
+    columns: string[];
+  } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{
+    imported: number;
+    updated: number;
+    skipped: number;
+    total: number;
+    errors: string[];
+    message: string;
+  } | null>(null);
+
+  // All courses cache for modal
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Fetch language folders
   const fetchFolders = useCallback(async () => {
@@ -180,6 +205,129 @@ export default function ELearningUsersPage() {
   const handleSearch = (value: string) => {
     setSearch(value);
     setPage(1);
+  };
+
+  // Fetch all recorded courses (for bulk & add student dropdowns)
+  const fetchAllCourses = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/recorded-courses', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.courses)) {
+        setAllCourses(data.courses);
+      }
+    } catch (err) {
+      console.error('Error fetching all courses:', err);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAllCourses();
+  }, [fetchAllCourses]);
+
+  const handleCopyEnquiryLink = () => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/enquiry` : 'https://swaryoga.com/enquiry';
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setMessage({
+      type: 'success',
+      text: `All-in-One Workshop Enquiry link copied to clipboard: ${url}. Anyone can view & enquire about any added workshop!`,
+    });
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const csvContent =
+      'Name,Email,Phone,Level\n' +
+      'Rahul Sharma,rahul.sharma@example.com,9876543210,beginner\n' +
+      'Priya Patel,priya.patel@example.com,9123456780,intermediate\n' +
+      'Amit Verma,amit.verma@example.com,9988776655,advanced\n';
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'swaryoga_students_import_sample.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleBulkFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkFile(file);
+    setBulkResult(null);
+
+    try {
+      setBulkLoading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('action', 'preview');
+      formData.append('courseId', bulkCourseId || selectedCourseId || (courses[0]?._id || allCourses[0]?._id || ''));
+      formData.append('level', bulkLevel);
+
+      const res = await fetch('/api/admin/e-learning/enrollments/bulk', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBulkPreview(data);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to parse file preview' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error parsing file' });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleExecuteBulkImport = async () => {
+    if (!token || !bulkFile) {
+      setMessage({ type: 'error', text: 'Please choose an Excel or CSV file first' });
+      return;
+    }
+    const targetCourse = bulkCourseId || selectedCourseId || (courses[0]?._id || allCourses[0]?._id || '');
+    if (!targetCourse) {
+      setMessage({ type: 'error', text: 'Please select a Course / Workshop for enrollment' });
+      return;
+    }
+
+    try {
+      setBulkLoading(true);
+      setBulkResult(null);
+      const formData = new FormData();
+      formData.append('file', bulkFile);
+      formData.append('action', 'import');
+      formData.append('courseId', targetCourse);
+      formData.append('level', bulkLevel);
+
+      const res = await fetch('/api/admin/e-learning/enrollments/bulk', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBulkResult(data);
+        setMessage({
+          type: 'success',
+          text: `Bulk Import Completed: ${data.imported} new enrolled, ${data.updated} updated, ${data.skipped} skipped.`,
+        });
+        fetchEnrollments();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Bulk import failed' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error executing bulk import' });
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -305,16 +453,45 @@ export default function ELearningUsersPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setNewStudentCourseId(selectedCourseId || (courses[0]?._id || ''));
-              setShowAddModal(true);
-            }}
-            className="flex items-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl shadow-lg transition-all"
-          >
-            <Plus size={18} />
-            Add New Student
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={handleCopyEnquiryLink}
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-md active:scale-95 text-sm"
+              title="Copy public all-in-one enquiry form URL that dynamically lists all active workshops"
+            >
+              {copiedLink ? <Check size={18} /> : <LinkIcon size={18} />}
+              {copiedLink ? 'Copied Form Link!' : 'Copy Form Link'}
+            </button>
+            <button
+              onClick={() => {
+                setBulkCourseId(selectedCourseId || (courses[0]?._id || allCourses[0]?._id || ''));
+                setShowBulkModal(true);
+              }}
+              className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-lg transition-all"
+              title="Bulk import students from Excel (.xlsx, .xls) or CSV"
+            >
+              <FileSpreadsheet size={18} />
+              Bulk Import (Excel / CSV)
+            </button>
+            <Link
+              href="/admin/crm/e-learning/results"
+              className="flex items-center gap-2 px-5 py-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-xl border border-amber-500/40 shadow-lg transition-all"
+              title="View student results, daily tasks, and question answers in bulk"
+            >
+              <Award size={18} />
+              Results & Tasks Hub
+            </Link>
+            <button
+              onClick={() => {
+                setNewStudentCourseId(selectedCourseId || (courses[0]?._id || allCourses[0]?._id || ''));
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl shadow-lg transition-all"
+            >
+              <Plus size={18} />
+              Add New Student
+            </button>
+          </div>
         </div>
 
         {message && (
@@ -701,7 +878,7 @@ export default function ELearningUsersPage() {
                     required
                   >
                     <option value="">Select Course...</option>
-                    {courses.map(c => (
+                    {(courses.length > 0 ? courses : allCourses).map(c => (
                       <option key={c._id} value={c._id}>{c.content?.en?.title || c.slug}</option>
                     ))}
                   </select>
@@ -823,6 +1000,217 @@ export default function ELearningUsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* BULK IMPORT STUDENTS MODAL (EXCEL / CSV) */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-2xl p-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-800 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                  <FileSpreadsheet size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Bulk Import Students</h2>
+                  <p className="text-xs text-gray-400">Upload Excel (.xlsx, .xls) or CSV to enroll multiple students</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkFile(null);
+                  setBulkPreview(null);
+                  setBulkResult(null);
+                }} 
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* Target Course & Default Level */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-950/60 p-4 rounded-xl border border-gray-800">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-gray-400 mb-1.5">
+                    Target Workshop / Course *
+                  </label>
+                  <select
+                    value={bulkCourseId}
+                    onChange={(e) => setBulkCourseId(e.target.value)}
+                    className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none text-sm"
+                  >
+                    <option value="">-- Choose Course / Workshop --</option>
+                    {(courses.length > 0 ? courses : allCourses).map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.content?.en?.title || c.slug}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">If file has &apos;Course&apos; column, it will take precedence.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-gray-400 mb-1.5">
+                    Default Level
+                  </label>
+                  <select
+                    value={bulkLevel}
+                    onChange={(e) => setBulkLevel(e.target.value)}
+                    className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none text-sm"
+                  >
+                    <option value="beginner">Level 1: Beginner</option>
+                    <option value="intermediate">Level 2: Intermediate</option>
+                    <option value="advanced">Level 3: Advanced</option>
+                    <option value="master">Level 4: Master / Sadhak</option>
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">Applied if &apos;Level&apos; column is not specified.</p>
+                </div>
+              </div>
+
+              {/* Download Sample Template & Instructions */}
+              <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-300 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-blue-400 shrink-0" />
+                  <span>Columns supported: <strong>Name</strong>, <strong>Email</strong>, <strong>Phone</strong>, <strong>Level</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleCsv}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shrink-0"
+                >
+                  <Download size={13} />
+                  Download Sample CSV
+                </button>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div>
+                <label className="block text-xs font-semibold uppercase text-gray-400 mb-1.5">
+                  Select File (.xlsx, .xls, .csv)
+                </label>
+                <div className="border-2 border-dashed border-gray-700 hover:border-blue-500/60 rounded-xl p-6 text-center bg-black/40 transition-colors">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleBulkFileSelected}
+                    className="hidden"
+                    id="bulk-student-file-input"
+                  />
+                  <label htmlFor="bulk-student-file-input" className="cursor-pointer flex flex-col items-center">
+                    <Upload size={32} className="text-gray-400 mb-2" />
+                    <span className="text-sm font-medium text-white mb-1">
+                      {bulkFile ? bulkFile.name : 'Click to browse or drop your spreadsheet here'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Supports Excel (.xlsx, .xls) and Comma-Separated Values (.csv)
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {bulkLoading && (
+                <div className="flex items-center justify-center gap-3 py-4 text-blue-400 text-sm">
+                  <Loader size={18} className="animate-spin" />
+                  <span>Processing file rows...</span>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {bulkPreview && !bulkResult && (
+                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-gray-400 border-b border-gray-800 pb-2">
+                    <span className="text-white font-semibold">File Preview</span>
+                    <div className="flex items-center gap-3">
+                      <span>Total Rows: <strong className="text-white">{bulkPreview.totalRows}</strong></span>
+                      <span>Valid: <strong className="text-green-400">{bulkPreview.validRows}</strong></span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto">
+                    <table className="w-full text-left text-xs text-gray-300">
+                      <thead className="text-gray-500 border-b border-gray-800">
+                        <tr>
+                          <th className="py-1.5 px-2">#</th>
+                          <th className="py-1.5 px-2">Name</th>
+                          <th className="py-1.5 px-2">Email</th>
+                          <th className="py-1.5 px-2">Phone</th>
+                          <th className="py-1.5 px-2">Level</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-900">
+                        {bulkPreview.sample.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-gray-900/50">
+                            <td className="py-1.5 px-2 text-gray-500">{row.rowIndex}</td>
+                            <td className="py-1.5 px-2 font-medium text-white">{row.name || '—'}</td>
+                            <td className="py-1.5 px-2 font-mono text-gray-300">{row.email || <span className="text-red-400">Missing Email</span>}</td>
+                            <td className="py-1.5 px-2">{row.phone || '—'}</td>
+                            <td className="py-1.5 px-2 capitalize">{row.level || bulkLevel}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Results & Errors */}
+              {bulkResult && (
+                <div className="p-4 rounded-xl border bg-green-500/10 border-green-500/30 text-green-300 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sm text-green-400">
+                    <Check size={18} />
+                    {bulkResult.message}
+                  </div>
+                  <div className="text-xs text-gray-300 flex items-center gap-4">
+                    <span>Enrolled: <strong>{bulkResult.imported}</strong></span>
+                    <span>Updated: <strong>{bulkResult.updated}</strong></span>
+                    <span>Skipped: <strong>{bulkResult.skipped}</strong></span>
+                  </div>
+                  {bulkResult.errors && bulkResult.errors.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-800 text-xs text-red-300 space-y-1 max-h-32 overflow-y-auto">
+                      <div className="font-semibold text-red-400">Skipped Row Details:</div>
+                      {bulkResult.errors.map((err, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          <AlertCircle size={12} className="shrink-0" />
+                          <span>{err}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkModal(false);
+                    setBulkFile(null);
+                    setBulkPreview(null);
+                    setBulkResult(null);
+                  }}
+                  className="px-4 py-2 text-gray-400 hover:text-white text-sm"
+                >
+                  {bulkResult ? 'Close' : 'Cancel'}
+                </button>
+                {!bulkResult && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteBulkImport}
+                    disabled={bulkLoading || !bulkFile}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm flex items-center gap-2 disabled:opacity-50 transition"
+                  >
+                    {bulkLoading ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
+                    Import {bulkPreview ? `${bulkPreview.validRows} Students` : 'Students'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

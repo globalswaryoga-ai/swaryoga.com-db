@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3, Award, Check, Link as LinkIcon } from 'lucide-react';
 
 // All 19 language options
 const languageOptions = [
@@ -65,6 +65,7 @@ export default function ELearningPage() {
   const [showLanguageFolderModal, setShowLanguageFolderModal] = useState(false);
   const [languageFolderToEdit, setLanguageFolderToEdit] = useState<any | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(false);
+  const [copiedFormLink, setCopiedFormLink] = useState(false);
 
   // Check superadmin status
   useEffect(() => {
@@ -293,6 +294,19 @@ export default function ELearningPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => {
+                const url = typeof window !== 'undefined' ? `${window.location.origin}/enquiry` : 'https://swaryoga.com/enquiry';
+                navigator.clipboard.writeText(url);
+                setCopiedFormLink(true);
+                setTimeout(() => setCopiedFormLink(false), 2000);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-md active:scale-95 text-sm"
+              title="Copy All-in-One Workshop Enquiry Form Link"
+            >
+              {copiedFormLink ? <Check size={18} /> : <LinkIcon size={18} />}
+              {copiedFormLink ? 'Copied Form Link!' : 'Copy Form Link'}
+            </button>
             {selectedFolder && (
               <button
                 onClick={() => setSelectedFolder(null)}
@@ -319,6 +333,14 @@ export default function ELearningPage() {
             >
               <BarChart3 size={18} />
               Dashboard
+            </Link>
+            <Link
+              href="/admin/crm/e-learning/results"
+              className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-lg transition-colors shadow-lg shadow-amber-500/10"
+              title="View student results, daily tasks, and question answers in bulk"
+            >
+              <Award size={18} />
+              Results & Tasks
             </Link>
             <Link
               href="/admin/crm/e-learning/users"

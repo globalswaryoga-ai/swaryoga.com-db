@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
+import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle } from 'lucide-react';
 
 // Global video control hiding - only for direct HTML5 videos, not iframes
 if (typeof document !== 'undefined') {
@@ -158,6 +159,7 @@ interface Material {
 
 interface Course {
   _id: string;
+  id?: string;
   slug: string;
   title: string;
   totalVideos: number;
@@ -214,6 +216,13 @@ interface AssignmentQuestion {
   points: number;
 }
 
+interface TaskChecklistItem {
+  id: string;
+  text: string;
+  hint?: string;
+  required?: boolean;
+}
+
 interface Assignment {
   _id: string;
   id?: string;
@@ -224,6 +233,13 @@ interface Assignment {
   totalPoints: number;
   passingPoints: number;
   questions?: AssignmentQuestion[];
+  subType?: 'assignment' | 'task' | 'question' | string;
+  taskType?: string;
+  checklist?: TaskChecklistItem[];
+  countdownHours?: number | null;
+  reminderType?: string | null;
+  reminderNote?: string;
+  isRecurring?: boolean;
 }
 
 export default function CourseLearnPage({ params }: { params: { slug: string } }) {
@@ -243,6 +259,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [userAnswers, setUserAnswers] = useState<Record<string, any>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
   const [quizResult, setQuizResult] = useState<{ score: number; total: number; passed: boolean } | null>(null);
+  const [taskChecklistState, setTaskChecklistState] = useState<Record<string, boolean>>({});
+  const [taskCompleted, setTaskCompleted] = useState<boolean>(false);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, any>>({});
+  const [questionSubmitted, setQuestionSubmitted] = useState<boolean>(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [canAccessPaidContent, setCanAccessPaidContent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -724,12 +744,245 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       passed: isPassed,
     });
     setQuizSubmitted(true);
+
+    // Save to database
+    try {
+      const token = localStorage.getItem('token');
+      if (token && selectedAssignment) {
+        fetch('/api/user/assignments/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            assignmentId: selectedAssignment._id || selectedAssignment.id,
+            courseId: course?._id || course?.id || '',
+            subType: selectedAssignment.subType || 'assignment',
+            title: selectedAssignment.title,
+            answers: userAnswers,
+            score: calculatedScore,
+            total: maxPoints,
+            passed: isPassed,
+            status: isPassed ? 'passed' : 'submitted',
+          }),
+        }).catch((err) => console.error('Quiz sync error:', err));
+      }
+    } catch {}
   };
 
   const handleResetQuiz = () => {
     setUserAnswers({});
     setQuizSubmitted(false);
     setQuizResult(null);
+  };
+
+  useEffect(() => {
+    if (selectedAssignment?._id || selectedAssignment?.id) {
+      const keyId = selectedAssignment._id || selectedAssignment.id;
+      try {
+        const saved = localStorage.getItem(`swar_task_${keyId}`);
+        if (saved) {
+          setTaskChecklistState(JSON.parse(saved));
+        } else {
+          setTaskChecklistState({});
+        }
+        const done = localStorage.getItem(`swar_task_${keyId}_done`);
+        setTaskCompleted(done === 'true');
+      } catch {
+        // ignore
+      }
+
+      // Try fetching saved submission from database
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`/api/user/assignments/submit?assignmentId=${keyId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((resData) => {
+            if (resData.success && resData.submissions?.length > 0) {
+              const sub = resData.submissions[0];
+              if (sub.subType === 'task' || sub.checklist?.length > 0) {
+                if (sub.status === 'completed') setTaskCompleted(true);
+                if (Array.isArray(sub.checklist)) {
+                  const restoredState: Record<string, boolean> = {};
+                  sub.checklist.forEach((item: any) => {
+                    if (item.id) restoredState[item.id] = Boolean(item.checked);
+                  });
+                  if (Object.keys(restoredState).length > 0) {
+                    setTaskChecklistState((prev) => ({ ...restoredState, ...prev }));
+                  }
+                }
+              } else if (sub.subType === 'question' && sub.answers) {
+                setQuestionAnswers((prev) => ({ ...sub.answers, ...prev }));
+                if (sub.status === 'submitted') setQuestionSubmitted(true);
+              } else if (sub.answers) {
+                setUserAnswers((prev) => ({ ...sub.answers, ...prev }));
+                if (sub.score !== undefined && sub.score !== null) {
+                  setQuizResult({
+                    score: sub.score,
+                    total: sub.total || 100,
+                    passed: Boolean(sub.passed),
+                  });
+                  setQuizSubmitted(true);
+                }
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [selectedAssignment?._id, selectedAssignment?.id, course?._id, course?.id]);
+
+  const handleToggleChecklistItem = (itemId: string) => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    const updated = { ...taskChecklistState, [itemId]: !taskChecklistState[itemId] };
+    setTaskChecklistState(updated);
+    try {
+      localStorage.setItem(`swar_task_${keyId}`, JSON.stringify(updated));
+    } catch {}
+
+    // Background sync checklist update
+    try {
+      const token = localStorage.getItem('token');
+      if (token && selectedAssignment) {
+        const checklistItems = (selectedAssignment.checklist || []).map((item, idx) => {
+          const chkId = item.id || `item_${idx}`;
+          return {
+            id: chkId,
+            text: item.text,
+            checked: Boolean(updated[chkId]),
+          };
+        });
+        const allChecked = checklistItems.length > 0 && checklistItems.every((c) => c.checked);
+        fetch('/api/user/assignments/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            assignmentId: keyId,
+            courseId: course?._id || course?.id || '',
+            subType: 'task',
+            title: selectedAssignment.title,
+            checklist: checklistItems,
+            status: allChecked ? 'completed' : 'in_progress',
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handleCompleteTask = () => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    setTaskCompleted(true);
+    try {
+      localStorage.setItem(`swar_task_${keyId}_done`, 'true');
+    } catch {}
+
+    // Sync to database
+    try {
+      const token = localStorage.getItem('token');
+      if (token && selectedAssignment) {
+        const checklistItems = (selectedAssignment.checklist || []).map((item, idx) => {
+          const chkId = item.id || `item_${idx}`;
+          return {
+            id: chkId,
+            text: item.text,
+            checked: true, // mark all complete
+          };
+        });
+        // also set state
+        const allState: Record<string, boolean> = {};
+        checklistItems.forEach((c) => (allState[c.id] = true));
+        setTaskChecklistState(allState);
+
+        fetch('/api/user/assignments/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            assignmentId: keyId,
+            courseId: course?._id || course?.id || '',
+            subType: 'task',
+            title: selectedAssignment.title,
+            checklist: checklistItems,
+            status: 'completed',
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handleResetTask = () => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    setTaskCompleted(false);
+    setTaskChecklistState({});
+    try {
+      localStorage.removeItem(`swar_task_${keyId}`);
+      localStorage.removeItem(`swar_task_${keyId}_done`);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (selectedAssignment?._id || selectedAssignment?.id) {
+      const keyId = selectedAssignment._id || selectedAssignment.id;
+      try {
+        const savedQ = localStorage.getItem(`swar_q_answers_${keyId}`);
+        if (savedQ) {
+          setQuestionAnswers(JSON.parse(savedQ));
+        } else {
+          setQuestionAnswers({});
+        }
+        const doneQ = localStorage.getItem(`swar_q_submitted_${keyId}`);
+        setQuestionSubmitted(doneQ === 'true');
+      } catch {}
+    }
+  }, [selectedAssignment?._id, selectedAssignment?.id]);
+
+  const handleAnswerQuestion = (qId: string, val: any) => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    const updated = { ...questionAnswers, [qId]: val };
+    setQuestionAnswers(updated);
+    try {
+      localStorage.setItem(`swar_q_answers_${keyId}`, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleSubmitQuestion = () => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    setQuestionSubmitted(true);
+    try {
+      localStorage.setItem(`swar_q_submitted_${keyId}`, 'true');
+    } catch {}
+
+    // Sync to database
+    try {
+      const token = localStorage.getItem('token');
+      if (token && selectedAssignment) {
+        fetch('/api/user/assignments/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            assignmentId: keyId,
+            courseId: course?._id || course?.id || '',
+            subType: 'question',
+            title: selectedAssignment.title,
+            answers: questionAnswers,
+            status: 'submitted',
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handleResetQuestion = () => {
+    const keyId = selectedAssignment?._id || selectedAssignment?.id;
+    if (!keyId) return;
+    setQuestionSubmitted(false);
+    try {
+      localStorage.removeItem(`swar_q_submitted_${keyId}`);
+    } catch {}
   };
 
   if (loading) {
@@ -866,10 +1119,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              <svg className="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
-              <span>Quizzes ({assignments.length})</span>
+              <span>Tasks & Quizzes ({assignments.length})</span>
             </button>
           </div>
         </div>
@@ -880,13 +1133,17 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             <div className="p-3 space-y-2">
               {assignments.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 text-xs">
-                  No assignments or quizzes published yet.
+                  No tasks or quizzes published yet.
                 </div>
               ) : (
                 assignments.map((assignment) => {
                   const isSelected = selectedAssignment?._id === assignment._id || selectedAssignment?.id === assignment.id;
+                  const isTask = assignment.subType === 'task' || (assignment.checklist && assignment.checklist.length > 0);
+                  const isQuestion = assignment.subType === 'question';
                   const lvl = assignment.level || 'Level 1: Beginner';
                   const qCount = assignment.questions?.length || 0;
+                  const chkCount = assignment.checklist?.length || 0;
+
                   return (
                     <button
                       key={assignment._id || assignment.id}
@@ -896,26 +1153,72 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       }}
                       className={`w-full p-3 rounded-xl border text-left transition-all ${
                         isSelected
-                          ? 'bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border-emerald-500 ring-2 ring-emerald-500/30 text-white shadow-lg'
-                          : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:border-emerald-500/50 hover:bg-gray-800'
+                          ? isTask
+                            ? 'bg-gradient-to-r from-amber-950/60 to-yellow-950/60 border-amber-500 ring-2 ring-amber-500/30 text-white shadow-lg'
+                            : isQuestion
+                            ? 'bg-gradient-to-r from-teal-950/60 to-cyan-950/60 border-teal-500 ring-2 ring-teal-500/30 text-white shadow-lg'
+                            : 'bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border-emerald-500 ring-2 ring-emerald-500/30 text-white shadow-lg'
+                          : isTask
+                            ? 'bg-gray-800/60 border-amber-500/30 text-gray-300 hover:border-amber-500/60 hover:bg-gray-800'
+                            : isQuestion
+                            ? 'bg-gray-800/60 border-teal-500/30 text-gray-300 hover:border-teal-500/60 hover:bg-gray-800'
+                            : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:border-emerald-500/50 hover:bg-gray-800'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
-                          {lvl}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                          isTask
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : isQuestion
+                            ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        }`}>
+                          {isTask ? '📋 Practice Task' : isQuestion ? '❓ Question(s)' : lvl}
                         </span>
-                        <span className="text-[10px] font-semibold text-amber-400">
-                          🎯 Passing: {assignment.passingPoints} pts
-                        </span>
+                        {isTask ? (
+                          assignment.countdownHours ? (
+                            <span className="text-[10px] font-semibold text-amber-400">
+                              ⏱️ {assignment.countdownHours}h Countdown
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-gray-400">
+                              To-Do Checklist
+                            </span>
+                          )
+                        ) : isQuestion ? (
+                          <span className="text-[10px] font-semibold text-teal-400">
+                            💬 {qCount} Question(s)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-amber-400">
+                            🎯 Passing: {assignment.passingPoints} pts
+                          </span>
+                        )}
                       </div>
                       <p className="font-bold text-sm line-clamp-1 text-white">{assignment.title}</p>
                       {assignment.description && (
                         <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{assignment.description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-400 font-medium">
-                        <span>📝 {qCount} Questions</span>
-                        <span>•</span>
-                        <span>⭐ {assignment.totalPoints || 100} Total Marks</span>
+                        {isTask ? (
+                          <>
+                            <span>✅ {chkCount} Action Items</span>
+                            {assignment.reminderType && (
+                              <>
+                                <span>•</span>
+                                <span>🔔 {assignment.reminderType === 'sunrise' ? 'Sunrise' : assignment.reminderType === 'morning' ? 'Morning' : assignment.reminderType === 'bedtime' ? 'Night' : 'Daily'}</span>
+                              </>
+                            )}
+                          </>
+                        ) : isQuestion ? (
+                          <span>📝 Student Q&A / Reflection</span>
+                        ) : (
+                          <>
+                            <span>📝 {qCount} Questions</span>
+                            <span>•</span>
+                            <span>⭐ {assignment.totalPoints || 100} Total Marks</span>
+                          </>
+                        )}
                       </div>
                     </button>
                   );
@@ -1172,6 +1475,373 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       Start First Quiz: {assignments[0].title}
                     </button>
                   )}
+                </div>
+              ) : (selectedAssignment.subType === 'task' || (selectedAssignment.checklist && selectedAssignment.checklist.length > 0)) ? (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Task Hero Card */}
+                  <div className="bg-gradient-to-br from-amber-950/70 via-gray-900 to-yellow-950/60 border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-yellow-500 text-black uppercase tracking-wider shadow">
+                        {selectedAssignment.level || 'Level 1: Beginner'}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+                        <ListTodo size={13} />
+                        <span>Actionable Practice Task</span>
+                      </span>
+                      {selectedAssignment.countdownHours ? (
+                        <span className="px-3 py-1 rounded-full text-xs font-mono font-semibold bg-gray-800 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <Clock size={13} />
+                          <span>{selectedAssignment.countdownHours}h Countdown Timer</span>
+                        </span>
+                      ) : null}
+                      {selectedAssignment.isRecurring && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-800 text-gray-300">
+                          🔄 Daily Practice Habit
+                        </span>
+                      )}
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-2">
+                      {selectedAssignment.title}
+                    </h1>
+
+                    {selectedAssignment.description && (
+                      <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-4 max-w-3xl">
+                        {selectedAssignment.description}
+                      </p>
+                    )}
+
+                    {/* Reminder & Recommended Timing Banner */}
+                    {(selectedAssignment.reminderType || selectedAssignment.reminderNote) && (
+                      <div className="p-3.5 bg-black/60 rounded-2xl border border-amber-500/30 text-xs sm:text-sm text-gray-300 flex items-start gap-2.5 shadow-sm">
+                        <Bell size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-amber-300">
+                            Recommended Timing:{' '}
+                            {selectedAssignment.reminderType === 'sunrise'
+                              ? '🌅 Brahma Muhurta / Sunrise (5:00 - 6:30 AM)'
+                              : selectedAssignment.reminderType === 'morning'
+                              ? '☀️ Morning Practice (6:30 - 9:00 AM)'
+                              : selectedAssignment.reminderType === 'afternoon'
+                              ? '🥗 Mid-Day / Digestion (12:00 - 2:00 PM)'
+                              : selectedAssignment.reminderType === 'sunset'
+                              ? '🌇 Sunset / Sandhya (5:30 - 7:00 PM)'
+                              : selectedAssignment.reminderType === 'bedtime'
+                              ? '🌙 Night / Pre-Sleep (9:00 - 10:30 PM)'
+                              : selectedAssignment.reminderType === 'twice_daily'
+                              ? '🔄 Twice Daily (Morning & Sunset)'
+                              : '⏰ Flexible / Anytime Practice'}
+                          </div>
+                          {selectedAssignment.reminderNote && (
+                            <div className="text-gray-400 text-xs">{selectedAssignment.reminderNote}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Completed Celebration Banner */}
+                  {taskCompleted && (
+                    <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-amber-950 via-gray-900 to-emerald-950 border border-amber-500 shadow-2xl text-center animate-in fade-in zoom-in-95 duration-300">
+                      <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3 shadow-lg bg-amber-500/20 border border-amber-500/40">
+                        🎉
+                      </div>
+                      <h2 className="text-2xl font-black text-white mb-1">
+                        Task Completed! Sadhana Logged ✨
+                      </h2>
+                      <p className="text-sm text-gray-300 max-w-md mx-auto mb-5">
+                        Great dedication! You have successfully completed all action items for this practice task. Keep building your daily Swar Yoga streak!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResetTask}
+                        className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-600 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2"
+                      >
+                        <RotateCcw size={14} />
+                        <span>Reset & Practice Again Today</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* To-Do Checklist Card */}
+                  <div className="bg-gray-900/80 border border-gray-800 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
+                    {/* Progress Header */}
+                    {(() => {
+                      const chkList = selectedAssignment.checklist || [];
+                      const completedCount = chkList.filter(c => taskChecklistState[c.id]).length;
+                      const totalCount = chkList.length;
+                      const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                      const requiredCount = chkList.filter(c => c.required !== false).length;
+                      const completedRequiredCount = chkList.filter(c => c.required !== false && taskChecklistState[c.id]).length;
+                      const canComplete = requiredCount === 0 ? completedCount > 0 : completedRequiredCount >= requiredCount;
+
+                      return (
+                        <>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs sm:text-sm">
+                              <span className="font-bold text-white flex items-center gap-2">
+                                <CheckSquare size={16} className="text-amber-400" />
+                                <span>Practice Checklist ({completedCount}/{totalCount} Completed)</span>
+                              </span>
+                              <span className="font-mono font-bold text-amber-400">
+                                {percent}% Complete
+                              </span>
+                            </div>
+                            <div className="w-full h-2.5 bg-black/60 rounded-full overflow-hidden border border-gray-800">
+                              <div
+                                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-300"
+                                style={{ width: `${percent}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Checklist Items */}
+                          {chkList.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500 text-sm">
+                              No checklist items configured for this task.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {chkList.map((item) => {
+                                const isChecked = Boolean(taskChecklistState[item.id]);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => handleToggleChecklistItem(item.id)}
+                                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 select-none ${
+                                      isChecked
+                                        ? 'bg-amber-950/20 border-amber-500/40 text-gray-300 hover:border-amber-500/60'
+                                        : 'bg-black/50 border-gray-800 hover:border-gray-700 text-white hover:bg-black/70'
+                                    }`}
+                                  >
+                                    <div className="pt-0.5 shrink-0">
+                                      <div
+                                        className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
+                                          isChecked
+                                            ? 'bg-amber-500 border-amber-500 text-black shadow-md shadow-amber-500/30'
+                                            : 'border-gray-600 bg-gray-900 text-transparent hover:border-amber-400'
+                                        }`}
+                                      >
+                                        <svg className="w-4 h-4 font-black" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-sm sm:text-base font-semibold transition-all ${isChecked ? 'line-through text-gray-400' : 'text-white'}`}>
+                                          {item.text}
+                                        </span>
+                                        {item.required !== false && (
+                                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-800 text-amber-400 border border-amber-500/20">
+                                            Required
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.hint && (
+                                        <p className="text-xs text-gray-400 leading-relaxed">
+                                          💡 {item.hint}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Submit Task Action Bar */}
+                          {!taskCompleted && (
+                            <div className="pt-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                              <span className="text-xs text-gray-400 text-center sm:text-left">
+                                {canComplete
+                                  ? '✨ All required tasks completed! You can now mark your task completed.'
+                                  : `Check off the remaining required items (${completedRequiredCount}/${requiredCount}) to complete.`}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={handleCompleteTask}
+                                disabled={!canComplete}
+                                className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 ${
+                                  canComplete
+                                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black shadow-amber-500/30'
+                                    : 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed opacity-60'
+                                }`}
+                              >
+                                <Sparkles size={16} />
+                                <span>Mark Task Completed & Log Sadhana ✨</span>
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (selectedAssignment.subType === 'question') ? (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Question Hero Card */}
+                  <div className="bg-gradient-to-br from-teal-950/70 via-gray-900 to-cyan-950/60 border border-teal-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40 flex items-center gap-1.5">
+                        <HelpCircle size={14} />
+                        <span>Student Questions & Reflection</span>
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-800 text-gray-300">
+                        📝 {selectedAssignment.questions?.length || 1} Question(s)
+                      </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-2">
+                      {selectedAssignment.title}
+                    </h1>
+
+                    {selectedAssignment.description && (
+                      <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-3xl">
+                        {selectedAssignment.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Submitted Confirmation Card */}
+                  {questionSubmitted && (
+                    <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-teal-950 via-gray-900 to-emerald-950 border border-teal-500 shadow-2xl text-center animate-in fade-in zoom-in-95 duration-300">
+                      <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3 shadow-lg bg-teal-500/20 border border-teal-500/40">
+                        ✨
+                      </div>
+                      <h2 className="text-2xl font-black text-white mb-1">
+                        Answer Submitted!
+                      </h2>
+                      <p className="text-sm text-gray-300 max-w-md mx-auto mb-5">
+                        Thank you for sharing your answer and reflection. Your response has been recorded.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResetQuestion}
+                        className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-600 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2"
+                      >
+                        <RotateCcw size={14} />
+                        <span>Edit My Answers</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Questions Form Card */}
+                  <div className="bg-gray-900/80 border border-gray-800 rounded-3xl p-5 sm:p-7 shadow-xl space-y-6">
+                    {(!selectedAssignment.questions || selectedAssignment.questions.length === 0) ? (
+                      <div className="text-center py-8 text-gray-500 text-sm">
+                        No questions configured yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {selectedAssignment.questions.map((q, idx) => {
+                          const userAns = questionAnswers[q.id];
+                          const isSingleChoice = q.type === 'single_choice' || (Array.isArray(q.options) && q.options.length > 0 && q.type !== 'short_text' && q.type !== 'paragraph');
+                          const isParagraph = q.type === 'paragraph';
+
+                          return (
+                            <div
+                              key={q.id || idx}
+                              className="p-5 sm:p-6 rounded-2xl bg-black/50 border border-gray-800 space-y-4"
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                                  {idx + 1}
+                                </span>
+                                <h3 className="text-base sm:text-lg font-bold text-white leading-snug">
+                                  {q.prompt}
+                                </h3>
+                              </div>
+
+                              {/* Select One (Radio) */}
+                              {isSingleChoice && (
+                                <div className="space-y-2.5 pt-1 pl-10">
+                                  {q.options.map((opt, optIdx) => {
+                                    const isSelected = userAns === opt;
+                                    return (
+                                      <button
+                                        key={optIdx}
+                                        type="button"
+                                        disabled={questionSubmitted}
+                                        onClick={() => handleAnswerQuestion(q.id, opt)}
+                                        className={`w-full p-3.5 rounded-xl border text-left text-sm font-medium transition-all flex items-center gap-3 ${
+                                          isSelected
+                                            ? 'bg-teal-950/60 border-teal-500 text-teal-200 ring-2 ring-teal-500/30 shadow'
+                                            : 'bg-black/60 border-gray-800 text-gray-300 hover:border-gray-700 hover:text-white'
+                                        } ${questionSubmitted ? 'opacity-80 cursor-default' : ''}`}
+                                      >
+                                        <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                                          isSelected ? 'border-teal-400 bg-teal-500' : 'border-gray-600'
+                                        }`}>
+                                          {isSelected && <span className="w-2 h-2 rounded-full bg-black" />}
+                                        </span>
+                                        <span className="flex-1">{opt}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Short Answer */}
+                              {!isSingleChoice && !isParagraph && (
+                                <div className="pl-10">
+                                  <input
+                                    type="text"
+                                    disabled={questionSubmitted}
+                                    value={userAns || ''}
+                                    onChange={(e) => handleAnswerQuestion(q.id, e.target.value)}
+                                    placeholder="Type your answer here..."
+                                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-xl text-white text-sm focus:border-teal-500 focus:outline-none placeholder-gray-500 disabled:opacity-70"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Paragraph Answer */}
+                              {isParagraph && (
+                                <div className="pl-10">
+                                  <textarea
+                                    disabled={questionSubmitted}
+                                    value={userAns || ''}
+                                    onChange={(e) => handleAnswerQuestion(q.id, e.target.value)}
+                                    rows={4}
+                                    placeholder="Write your answer or reflection here..."
+                                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-xl text-white text-sm focus:border-teal-500 focus:outline-none placeholder-gray-500 resize-none disabled:opacity-70"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Submit Bar */}
+                    {!questionSubmitted && selectedAssignment.questions && selectedAssignment.questions.length > 0 && (
+                      <div className="pt-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <span className="text-xs text-gray-400">
+                          {Object.keys(questionAnswers).length > 0
+                            ? `Answered ${Object.keys(questionAnswers).length} of ${selectedAssignment.questions.length} questions`
+                            : 'Please answer the question(s) above'}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={handleSubmitQuestion}
+                          disabled={Object.keys(questionAnswers).length === 0}
+                          className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl text-sm shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Sparkles size={16} />
+                          <span>Submit Answers ✨</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">

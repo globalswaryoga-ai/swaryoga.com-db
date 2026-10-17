@@ -7,7 +7,7 @@ import {
   Video, CheckCircle, Loader, Save, AlertCircle, ChevronRight,
   Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf,
   PersonStanding, Menu, X, CheckSquare, Square, ToggleLeft, ToggleRight,
-  Edit, Search, User, Phone, Eye, ChevronDown, Users, Trash2
+  Edit, Search, User, Phone, Eye, ChevronDown, Users, Trash2, Check, Link as LinkIcon
 } from 'lucide-react';
 import StudentWorkshopTab from './components/StudentWorkshopTab';
 import ZoomAnalysisTab from './components/ZoomAnalysisTab';
@@ -41,6 +41,7 @@ export default function RecordingManagementPage() {
   const token = useAuth();
   
   const [activeTab, setActiveTab] = useState<'recordings' | 'zoom-analysis' | 'student-workshop'>('recordings');
+  const [copiedFormLink, setCopiedFormLink] = useState(false);
 
   // State for dynamic communities
   const [allCommunities, setAllCommunities] = useState<any[]>([]);
@@ -366,6 +367,19 @@ export default function RecordingManagementPage() {
               <h1 className="text-lg font-bold text-gray-900">Community Recording Management</h1>
             </div>
           </div>
+          <button
+            onClick={() => {
+              const url = typeof window !== 'undefined' ? `${window.location.origin}/enquiry` : 'https://swaryoga.com/enquiry';
+              navigator.clipboard.writeText(url);
+              setCopiedFormLink(true);
+              setTimeout(() => setCopiedFormLink(false), 2000);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-200 hover:scale-105 bg-purple-600 hover:bg-purple-700 text-white shadow-md active:scale-95"
+            title="Copy Workshop Form Link"
+          >
+            {copiedFormLink ? <Check className="h-4 w-4" /> : <LinkIcon className="h-4 w-4" />}
+            {copiedFormLink ? 'Copied Form Link!' : 'Copy Form Link'}
+          </button>
         </header>
 
         {/* Tabs */}

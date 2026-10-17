@@ -60,6 +60,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           { status: 403 }
         );
       }
+      const disabledVideoIds = Array.isArray(enrollment.data?.disabledVideoIds)
+        ? enrollment.data.disabledVideoIds
+        : Array.isArray((enrollment as any).disabledVideoIds)
+        ? (enrollment as any).disabledVideoIds
+        : [];
+      if (disabledVideoIds.includes(video.id)) {
+        return NextResponse.json(
+          { error: 'This video has been locked by the instructor for your account.', isLocked: true, disabledByAdmin: true },
+          { status: 403 }
+        );
+      }
     } else if (!isFreeAccess && !userId) {
       return NextResponse.json(
         { error: 'Enrollment required', requiresEnrollment: true },

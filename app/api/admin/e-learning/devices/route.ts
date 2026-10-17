@@ -149,9 +149,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    const clearAll = request.nextUrl.searchParams.get('clearAll') === 'true';
+    const userId = request.nextUrl.searchParams.get('userId');
+
+    if (clearAll && userId) {
+      await bunnyExecute({
+        sql: 'DELETE FROM course_devices_sql WHERE user_id = ?',
+        args: [userId],
+      });
+      return NextResponse.json({
+        success: true,
+        message: 'All devices reset for user',
+      });
+    }
+
     const deviceId = request.nextUrl.searchParams.get('id');
     if (!deviceId) {
-      return NextResponse.json({ error: 'Device ID required' }, { status: 400 });
+      return NextResponse.json({ error: 'Device ID or clearAll with userId required' }, { status: 400 });
     }
 
     await bunnyExecute({
@@ -165,6 +179,84 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[Devices DELETE Error]:', error);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await initCourseSchema();
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let decoded: any;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { userId, courseId, deviceName, deviceType, browser, os, ip } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+    }
+
+    const devId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+    const fingerprint = `manual_${Math.random().toString(36).slice(2, 12)}`;
+
+    await bunnyExecute({
+      sql: `INSERT INTO course_devices_sql (
+        id, user_id, course_id, device_fingerprint, device_name, device_type,
+        browser, os, ip, is_active, last_active_at, data_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, '{}', ?, ?)`,
+      args: [
+        devId,
+        userId,
+        courseId || null,
+        fingerprint,
+        deviceName || 'Authorized Device',
+        deviceType || 'desktop',
+        browser || 'Browser',
+        os || 'System',
+        ip || '127.0.0.1',
+        timestamp,
+        timestamp,
+        timestamp,
+      ],
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Device authorized',
+      device: {
+        _id: devId,
+        id: devId,
+        userId,
+        courseId,
+        deviceFingerprint: fingerprint,
+        deviceName: deviceName || 'Authorized Device',
+        deviceType: deviceType || 'desktop',
+        browser: browser || 'Browser',
+        os: os || 'System',
+        ip: ip || '127.0.0.1',
+        isActive: true,
+        isBlocked: false,
+        lastUsedAt: timestamp,
+        registeredAt: timestamp,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Devices POST Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

@@ -19,6 +19,8 @@ import {
   Receipt,
   Users,
   Plus,
+  Link as LinkIcon,
+  Check,
 } from 'lucide-react';
 
 export interface SubNavItem {
@@ -358,6 +360,14 @@ export default function CrmSubNav({
     router.push(isCrm ? '/crm-site/login' : '/admin/login');
   };
 
+  const [copiedFormLink, setCopiedFormLink] = useState(false);
+  const handleCopyFormLink = () => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/enquiry` : 'https://swaryoga.com/enquiry';
+    navigator.clipboard.writeText(url);
+    setCopiedFormLink(true);
+    setTimeout(() => setCopiedFormLink(false), 2000);
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
       <div className="flex items-center justify-between px-4 py-2">
@@ -510,6 +520,14 @@ export default function CrmSubNav({
 
         {/* Global Action Buttons */}
         <div className="flex items-center gap-3 shrink-0 ml-auto mr-4">
+          <button
+            onClick={handleCopyFormLink}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-200 hover:scale-105 bg-purple-600 hover:bg-purple-700 text-white shadow-md active:scale-95"
+            title="Copy All-in-One Workshop Enquiry Form Link (dynamic for all workshops)"
+          >
+            {copiedFormLink ? <Check className="h-4 w-4" /> : <LinkIcon className="h-4 w-4" />}
+            {copiedFormLink ? 'Copied Form Link!' : 'Copy Form Link'}
+          </button>
           <Link
             href="/admin/crm/workshop-management"
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 text-white shadow-sm ${

@@ -207,7 +207,7 @@ function sectionRowToObj(row: any): BunnyCourseSection {
     id: String(row.id),
     _id: String(row.id),
     courseId: String(row.course_id),
-    order: Number(row.display_order || 1),
+    order: Number(row.display_order !== null && row.display_order !== undefined ? row.display_order : 1),
     content: parse(row.content_json, {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -227,7 +227,7 @@ function videoRowToObj(row: any): BunnyCourseVideo {
     duration: Number(row.duration || 0),
     isFree: Boolean(row.is_free),
     accessType: row.access_type || 'paid',
-    order: Number(row.display_order || 1),
+    order: Number(row.display_order !== null && row.display_order !== undefined ? row.display_order : 1),
     isActive: Boolean(row.is_active),
     content: parse(row.content_json, {}),
     createdAt: row.created_at,
@@ -245,7 +245,7 @@ function materialRowToObj(row: any): BunnyCourseMaterial {
     fileUrl: row.file_url || '',
     fileType: row.file_type || '',
     fileSize: Number(row.file_size || 0),
-    order: Number(row.display_order || 1),
+    order: Number(row.display_order !== null && row.display_order !== undefined ? row.display_order : 1),
     isActive: Boolean(row.is_active),
     content: parse(row.content_json, {}),
     createdAt: row.created_at,
@@ -259,7 +259,7 @@ function assignmentRowToObj(row: any): BunnyCourseAssignment {
     _id: String(row.id),
     courseId: String(row.course_id),
     title: row.title,
-    order: Number(row.display_order || 1),
+    order: Number(row.display_order !== null && row.display_order !== undefined ? row.display_order : 1),
     isActive: Boolean(row.is_active),
     content: parse(row.content_json, {}),
     createdAt: row.created_at,
@@ -860,7 +860,7 @@ export async function saveCourse(
       data.category || 'swar-yoga',
       data.level || 'all',
       data.isFree ? 1 : 0,
-      data.isPublished ? 1 : 0,
+      data.isPublished !== false ? 1 : 0,
       data.isActive !== false ? 1 : 0,
       Number(data.order || 1),
       data.thumbnail || '',
@@ -1001,7 +1001,7 @@ export async function saveSection(data: {
       display_order = excluded.display_order,
       content_json = excluded.content_json,
       updated_at = excluded.updated_at`,
-    args: [sectionId, String(data.courseId), Number(data.order || 1), json(data.content, {}), timestamp, timestamp],
+    args: [sectionId, String(data.courseId), Number(data.order !== undefined && data.order !== null ? data.order : 1), json(data.content, {}), timestamp, timestamp],
   });
   const res = await bunnyExecute({
     sql: 'SELECT * FROM course_sections_sql WHERE id = ? LIMIT 1',
@@ -1089,7 +1089,7 @@ export async function saveVideo(data: {
       Number(data.duration || 0),
       data.isFree ? 1 : 0,
       data.accessType || 'paid',
-      Number(data.order || 1),
+      Number(data.order !== undefined && data.order !== null ? data.order : 1),
       data.isActive !== false ? 1 : 0,
       json(data.content, {}),
       timestamp,
@@ -1161,7 +1161,7 @@ export async function saveMaterial(data: {
       data.fileUrl,
       data.fileType || '',
       Number(data.fileSize || 0),
-      Number(data.order || 1),
+      Number(data.order !== undefined && data.order !== null ? data.order : 1),
       data.isActive !== false ? 1 : 0,
       json(data.content, {}),
       timestamp,
@@ -1222,7 +1222,7 @@ export async function saveAssignment(data: {
       assignId,
       String(data.courseId),
       data.title,
-      Number(data.order || 1),
+      Number(data.order !== undefined && data.order !== null ? data.order : 1),
       data.isActive !== false ? 1 : 0,
       json(data.content, {}),
       timestamp,
@@ -1307,6 +1307,25 @@ export async function saveEnrollment(data: {
   await initCourseSchema();
   const enrollId = String(data.id || id());
   const timestamp = now();
+
+  // If this is an update, preserve/merge existing data_json and videos_watched_json
+  let mergedDataJson = data.data ? json(data.data, {}) : null;
+  let mergedWatchedJson = data.videosWatched ? json(data.videosWatched, []) : null;
+
+  if (data.id) {
+    const existing = await getEnrollmentById(data.id);
+    if (existing) {
+      if (data.data) {
+        mergedDataJson = json({ ...existing.data, ...data.data }, {});
+      } else {
+        mergedDataJson = json(existing.data, {});
+      }
+      if (!data.videosWatched) {
+        mergedWatchedJson = json(existing.videosWatched, []);
+      }
+    }
+  }
+
   await bunnyExecute({
     sql: `INSERT INTO course_enrollments_sql (
       id, user_id, course_id, status, enrolled_at, expires_at, progress_percent,
@@ -1327,8 +1346,8 @@ export async function saveEnrollment(data: {
       timestamp,
       data.expiresAt || null,
       Number(data.progressPercent || 0),
-      json(data.videosWatched, []),
-      json(data.data, {}),
+      mergedWatchedJson || json(data.videosWatched, []),
+      mergedDataJson || json(data.data, {}),
       timestamp,
       timestamp,
     ],
@@ -1410,12 +1429,18 @@ export async function deleteEnrollment(id: string): Promise<boolean> {
 
 
 // User Devices
-export async function listDevices(userId: string, courseId?: string): Promise<BunnyCourseDevice[]> {
+export async function listDevices(userId: string, courseId?: string, activeOnly = false): Promise<BunnyCourseDevice[]> {
   await initCourseSchema();
-  const sql = courseId
-    ? 'SELECT * FROM course_devices_sql WHERE user_id = ? AND course_id = ? AND is_active = 1'
-    : 'SELECT * FROM course_devices_sql WHERE user_id = ? AND is_active = 1';
-  const args = courseId ? [userId, courseId] : [userId];
+  const conditions = ['user_id = ?'];
+  const args = [userId];
+  if (courseId) {
+    conditions.push('course_id = ?');
+    args.push(courseId);
+  }
+  if (activeOnly) {
+    conditions.push('is_active = 1');
+  }
+  const sql = `SELECT * FROM course_devices_sql WHERE ${conditions.join(' AND ')} ORDER BY last_active_at DESC`;
   const res = await bunnyExecute({ sql, args });
   return res.rows.map(deviceRowToObj);
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, Loader, ExternalLink, CreditCard, Check } from 'lucide-react';
+import { CheckCircle, Loader, ExternalLink, CreditCard, Check, Copy, Share2, Sparkles, BookOpen } from 'lucide-react';
 import { COUNTRY_PHONE_CODES } from '@/lib/countryPhoneCodes';
 
 interface DynamicQuestion {
@@ -38,12 +38,33 @@ interface EnquiryFormDetails {
   holidays?: string;
   description?: string;
   workshopImage?: string;
+  workshopMode?: string;
+}
+
+interface WorkshopListItem {
+  id: string;
+  name: string;
+  source: 'form' | 'cohort' | 'course';
+  formId?: string;
+  workshopDate?: string;
+  workshopEndDate?: string;
+  workshopTime?: string;
+  duration?: string;
+  mode?: string;
+  description?: string;
+  image?: string;
+  price?: number;
+  currency?: string;
 }
 
 function EnquiryForm() {
   const searchParams = useSearchParams();
-  const formId = searchParams.get('workshopId') || searchParams.get('w') || '';
-  const isGoogleForm = formId.length > 30; // Google Form IDs are ~44 chars
+  const initialFormId = searchParams.get('workshopId') || searchParams.get('w') || '';
+  const isGoogleForm = initialFormId.length > 30; // Google Form IDs are ~44 chars
+
+  const [isAllInOneMode, setIsAllInOneMode] = useState(!initialFormId);
+  const [workshopsList, setWorkshopsList] = useState<WorkshopListItem[]>([]);
+  const [selectedWorkshopId, setSelectedWorkshopId] = useState(initialFormId);
 
   const [formDetails, setFormDetails] = useState<EnquiryFormDetails | null>(null);
   const [dynamicQuestions, setDynamicQuestions] = useState<DynamicQuestion[]>([]);
@@ -64,34 +85,121 @@ function EnquiryForm() {
   const [submitted, setSubmitted] = useState(false);
   const [submittedLeadNumber, setSubmittedLeadNumber] = useState('');
   const [error, setError] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // Load specific form details and questions
-  useEffect(() => {
-    if (!formId) {
-      setLoadingForm(false);
-      setError('No form ID provided in URL.');
-      return;
-    }
+  // Copy All-in-One Form Link
+  const handleCopyLink = () => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/enquiry` : 'https://swaryoga.com/enquiry';
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
-    fetch(`/api/enquiry-form/${formId}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success) {
-          setError(data.error || 'Form not found or inactive.');
-          return;
-        }
+  // Load workshop by formId or cohort
+  const loadWorkshopForm = async (targetId: string, preloadedInfo?: Partial<EnquiryFormDetails>) => {
+    try {
+      setLoadingForm(true);
+      setError('');
+
+      const res = await fetch(`/api/enquiry-form/${targetId}`);
+      const data = await res.json();
+
+      if (data.success && data.form) {
         setFormDetails(data.form);
         setDynamicQuestions(data.questions || []);
-        
+
         const init: Record<string, string | string[]> = {};
         (data.questions || []).forEach((q: DynamicQuestion) => {
           init[q.fieldKey] = q.questionType === 'checkbox' ? [] : '';
         });
         setDynamicAnswers(init);
-      })
-      .catch(() => setError('Failed to load form.'))
-      .finally(() => setLoadingForm(false));
-  }, [formId]);
+      } else {
+        // Fallback for general cohort or course without dedicated form_questions
+        setFormDetails({
+          formId: targetId,
+          workshopName: preloadedInfo?.workshopName || 'Swar Yoga Workshop / Course',
+          workshopDate: preloadedInfo?.workshopDate || '',
+          workshopEndDate: preloadedInfo?.workshopEndDate || '',
+          workshopTime: preloadedInfo?.workshopTime || '',
+          duration: preloadedInfo?.duration || '',
+          description: preloadedInfo?.description || 'Enquire about joining our upcoming batch or session.',
+          workshopImage: preloadedInfo?.workshopImage || '',
+          workshopMode: preloadedInfo?.workshopMode || 'online',
+        });
+        // Default inquiry questions
+        setDynamicQuestions([
+          {
+            _id: 'q_message',
+            fieldKey: 'enquiryMessage',
+            questionType: 'paragraph',
+            label: { en: 'Your Questions, Comments or Batch Preferences' },
+            placeholder: { en: 'What would you like to know or achieve with this workshop?' },
+            required: false,
+          },
+        ]);
+        setDynamicAnswers({ enquiryMessage: '' });
+      }
+    } catch {
+      setError('Failed to load workshop details.');
+    } finally {
+      setLoadingForm(false);
+    }
+  };
+
+  // Initial load: specific form vs all-in-one
+  useEffect(() => {
+    if (initialFormId) {
+      loadWorkshopForm(initialFormId);
+    } else {
+      // All-in-One Mode: fetch all added workshops
+      setIsAllInOneMode(true);
+      fetch('/api/enquiry-form')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.workshops) && data.workshops.length > 0) {
+            setWorkshopsList(data.workshops);
+            // Default select the first active workshop
+            const first = data.workshops[0];
+            setSelectedWorkshopId(first.id);
+            loadWorkshopForm(first.formId || first.id, {
+              workshopName: first.name,
+              workshopDate: first.workshopDate,
+              workshopEndDate: first.workshopEndDate,
+              workshopTime: first.workshopTime,
+              duration: first.duration,
+              description: first.description,
+              workshopImage: first.image,
+              workshopMode: first.mode,
+            });
+          } else {
+            setError('No active workshops found at the moment.');
+            setLoadingForm(false);
+          }
+        })
+        .catch(() => {
+          setError('Failed to load workshops. Please refresh the page.');
+          setLoadingForm(false);
+        });
+    }
+  }, [initialFormId]);
+
+  // When user switches workshop in All-in-One mode
+  const handleWorkshopChange = (newId: string) => {
+    setSelectedWorkshopId(newId);
+    const chosen = workshopsList.find(w => w.id === newId);
+    if (chosen) {
+      loadWorkshopForm(chosen.formId || chosen.id, {
+        workshopName: chosen.name,
+        workshopDate: chosen.workshopDate,
+        workshopEndDate: chosen.workshopEndDate,
+        workshopTime: chosen.workshopTime,
+        duration: chosen.duration,
+        description: chosen.description,
+        workshopImage: chosen.image,
+        workshopMode: chosen.mode,
+      });
+    }
+  };
 
   const setAnswer = (key: string, value: string) => {
     setDynamicAnswers(prev => ({ ...prev, [key]: value }));
@@ -109,7 +217,6 @@ function EnquiryForm() {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // 5MB Validation
     if (file.size > 5 * 1024 * 1024) {
       setError('File size must be less than 5MB');
       e.target.value = '';
@@ -135,7 +242,7 @@ function EnquiryForm() {
         setSubmitting(false);
       };
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch {
       setError('Error reading file');
       setSubmitting(false);
     }
@@ -153,12 +260,12 @@ function EnquiryForm() {
         setMobile(data.data.mobile || '');
         setEmail(data.data.email || '');
         if (data.data.gender) setGender(data.data.gender.toLowerCase());
-        setCountry(data.data.city || 'India'); // city column stores country
+        setCountry(data.data.city || 'India');
         setDynamicAnswers(data.data.dynamicAnswers || {});
       } else {
         setSearchError('No past submission found with this detail.');
       }
-    } catch (err) {
+    } catch {
       setSearchError('Failed to search.');
     } finally {
       setSearching(false);
@@ -204,7 +311,6 @@ function EnquiryForm() {
     setSubmitting(true);
     setError('');
 
-    // Calculate Total Amount
     let totalAmount = 0;
     let currency = 'INR';
     dynamicQuestions.forEach(q => {
@@ -225,7 +331,7 @@ function EnquiryForm() {
     const finalName = isGoogleForm ? getAns(['name', 'first']) : name;
     const finalEmail = isGoogleForm ? getAns(['email', 'mail']) : email;
     const finalMobile = isGoogleForm ? getAns(['mobile', 'phone', 'whatsapp']) : ((COUNTRY_PHONE_CODES[country]?.code || '+91') + mobile);
-    const finalGender = isGoogleForm ? getAns(['gender', 'sex']) : gender;
+    const finalGender = isGoogleForm ? getAns(['gender', 'sex']) : (gender || 'Other');
     const finalCity = isGoogleForm ? getAns(['city', 'town', 'location']) : '';
 
     const utmSource = searchParams.get('utm_source') || '';
@@ -242,14 +348,15 @@ function EnquiryForm() {
           gender: finalGender,
           country,
           city: finalCity,
-          workshopId: formDetails.formId,
+          workshopId: formDetails.formId || selectedWorkshopId || 'universal_enquiry',
           workshopName: formDetails.workshopName,
           dynamicAnswers: {
             ...dynamicAnswers,
+            isAllInOneForm: isAllInOneMode,
             ...(utmSource ? { utm_source: utmSource } : {}),
             ...(accountId ? { ad_account_id: accountId } : {}),
           },
-          source: utmSource.toLowerCase().includes('linkedin') ? 'linkedin' : 'enquiry_form',
+          source: utmSource.toLowerCase().includes('linkedin') ? 'linkedin' : 'all_in_one_enquiry',
           utm_source: utmSource,
           account_id: accountId,
           amount: totalAmount,
@@ -264,7 +371,6 @@ function EnquiryForm() {
       }
       
       if (data.paymentSessionId) {
-        // Load Cashfree SDK dynamically and trigger payment
         const script = document.createElement('script');
         script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
         script.async = true;
@@ -291,10 +397,13 @@ function EnquiryForm() {
     }
   };
 
-  if (loadingForm) {
+  if (loadingForm && !formDetails) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8]">
-        <Loader className="animate-spin text-[#2d6a4f]" size={40} />
+        <div className="text-center">
+          <Loader className="animate-spin text-[#2d6a4f] mx-auto mb-3" size={40} />
+          <p className="text-sm text-gray-600 font-medium">Loading workshop enquiry form...</p>
+        </div>
       </div>
     );
   }
@@ -303,9 +412,15 @@ function EnquiryForm() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] px-4">
         <div className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
-          <div className="text-4xl mb-4">😕</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops!</h1>
-          <p className="text-red-500 font-medium">{error}</p>
+          <div className="text-4xl mb-4">🌿</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Workshop Enquiry</h1>
+          <p className="text-red-500 font-medium mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 bg-[#2d6a4f] text-white rounded-xl text-sm font-semibold hover:bg-[#1b4332] transition"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -319,38 +434,98 @@ function EnquiryForm() {
             <CheckCircle className="text-green-600" size={40} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">Thank You, {name.split(' ')[0]}!</h1>
-          <p className="text-gray-600 mb-2">Form submitted for <strong>{formDetails?.workshopName}</strong>.</p>
+          <p className="text-gray-600 mb-2">Your enquiry has been received for <strong>{formDetails?.workshopName}</strong>.</p>
           {submittedLeadNumber && (
             <div className="bg-gray-100 p-4 rounded-xl mt-4 mb-4 border border-gray-200">
               <p className="text-sm text-gray-500 mb-1">Your unique reference code is:</p>
               <p className="text-xl font-mono font-bold text-[#2d6a4f]">{submittedLeadNumber}</p>
             </div>
           )}
-          <p className="text-gray-500 text-sm">You will get an email with all these details shortly.</p>
+          <p className="text-gray-500 text-sm">Our Swar Yoga team will contact you shortly on WhatsApp / Phone.</p>
+          <button
+            onClick={() => {
+              setSubmitted(false);
+              setName('');
+              setEmail('');
+              setMobile('');
+            }}
+            className="mt-6 px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl text-sm font-semibold hover:bg-[#1b4332] transition"
+          >
+            Enquire for Another Workshop
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] flex items-center justify-center px-4 py-10">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] flex flex-col items-center justify-center px-4 py-8">
+      {/* Top Banner: One-In-All Link Sharing */}
+      <div className="w-full max-w-lg mb-4 flex items-center justify-between bg-white/80 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-emerald-200/60 shadow-sm text-xs text-gray-700">
+        <div className="flex items-center gap-2">
+          <Sparkles className="text-emerald-600 w-4 h-4 shrink-0" />
+          <span className="font-semibold text-emerald-900">All-in-One Workshop Enquiry Form</span>
+        </div>
+        <button
+          onClick={handleCopyLink}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm shrink-0"
+          title="Copy universal enquiry link that includes all added workshops"
+        >
+          {copiedLink ? <Check size={13} className="text-white" /> : <Copy size={13} />}
+          <span>{copiedLink ? 'Link Copied!' : 'Copy Form Link'}</span>
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden border border-emerald-50">
         {/* Header Section */}
         {formDetails?.workshopImage ? (
           <div className="w-full h-48 bg-gray-100 relative">
             <img src={formDetails.workshopImage} alt="Header" className="w-full h-full object-cover" />
           </div>
         ) : (
-          <div className="bg-[#2d6a4f] h-32 flex items-end px-8 pb-6 text-white">
-            <h1 className="text-2xl font-bold">{formDetails?.workshopName}</h1>
+          <div className="bg-gradient-to-r from-[#2d6a4f] to-[#1b4332] h-32 flex items-end px-8 pb-6 text-white">
+            <div>
+              <span className="text-xs uppercase tracking-wider text-emerald-200 font-semibold block mb-1">Swar Yoga Enquiry</span>
+              <h1 className="text-2xl font-bold">{formDetails?.workshopName || 'Universal Workshop Enquiry'}</h1>
+            </div>
           </div>
         )}
 
         <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+          {/* Universal Workshop Dropdown - Always visible in All-in-One Mode */}
+          {isAllInOneMode && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200/80 rounded-2xl shadow-sm">
+              <label className="block text-xs font-bold uppercase tracking-wider text-emerald-900 mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <BookOpen size={14} className="text-emerald-600" />
+                  Select Workshop / Course *
+                </span>
+                <span className="text-[11px] font-normal text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  {workshopsList.length} Workshops Available
+                </span>
+              </label>
+              <select
+                value={selectedWorkshopId}
+                onChange={e => handleWorkshopChange(e.target.value)}
+                className="w-full h-11 px-3.5 bg-white border border-emerald-300 rounded-xl text-sm font-semibold text-gray-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 transition-all cursor-pointer shadow-inner"
+              >
+                {workshopsList.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} {w.mode ? `— ${w.mode}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-emerald-700 mt-2">
+                All newly created workshops & courses automatically appear in this enquiry form.
+              </p>
+            </div>
+          )}
+
+          {/* Quick autofill search */}
           <div className="mb-6 bg-white p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col gap-3">
             <div>
-              <p className="text-sm font-semibold text-gray-800 mb-1">I have filled this already</p>
-              <p className="text-xs text-gray-500 mb-2">Enter your email, mobile number, or reference code to autofill.</p>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Returning student?</p>
+              <p className="text-xs text-gray-500 mb-2">Enter your email or mobile to autofill your details.</p>
             </div>
             <div className="flex gap-2">
               <input 
@@ -364,7 +539,7 @@ function EnquiryForm() {
                 type="button" 
                 onClick={handleSearch} 
                 disabled={searching || !searchQuery.trim()}
-                className="px-4 h-10 bg-[#2d6a4f] text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                className="px-4 h-10 bg-[#2d6a4f] text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition"
               >
                 {searching ? '...' : 'Search'}
               </button>
@@ -373,60 +548,79 @@ function EnquiryForm() {
           </div>
 
           {formDetails?.workshopImage && (
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{formDetails?.workshopName}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{formDetails?.workshopName}</h1>
           )}
           {formDetails?.description && (
             <p className="text-gray-600 text-sm whitespace-pre-wrap mt-2 leading-relaxed">{formDetails.description}</p>
           )}
 
-          <div className="flex flex-wrap gap-3 mt-5">
+          <div className="flex flex-wrap gap-2.5 mt-4">
             {formDetails?.workshopDate && (
-              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 shadow-2xs">
                 📅 {formDetails.workshopDate} {formDetails.workshopEndDate ? `- ${formDetails.workshopEndDate}` : ''}
               </div>
             )}
             {formDetails?.workshopTime && (
-              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 shadow-2xs">
                 🕐 {formDetails.workshopTime}
               </div>
             )}
             {formDetails?.duration && (
-              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 shadow-2xs">
                 ⏳ {formDetails.duration}
               </div>
             )}
-            {formDetails?.holidays && (
-              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
-                🏖️ Holidays: {formDetails.holidays}
+            {formDetails?.workshopMode && (
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 capitalize shadow-2xs">
+                🌐 {formDetails.workshopMode}
               </div>
             )}
           </div>
         </div>
 
-        {/* Form */}
+        {/* Form Fields */}
         <form onSubmit={handleSubmit} className="px-8 py-7 space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
           )}
 
-          {/* Standard Fields (Hidden for Google Forms) */}
+          {/* Standard Fields */}
           {!isGoogleForm && (
             <>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                <input 
+                  type="text" 
+                  value={name} 
+                  onChange={e => setName(e.target.value)} 
+                  placeholder="Your full name" 
+                  required 
+                  className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} 
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  placeholder="your.email@example.com" 
+                  required 
+                  className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} 
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
                 <div className="grid grid-cols-3 gap-3">
                   {['Male', 'Female', 'Other'].map(g => (
-                    <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}>
+                    <button 
+                      key={g} 
+                      type="button" 
+                      onClick={() => setGender(g.toLowerCase())} 
+                      className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}
+                    >
                       {g}
                     </button>
                   ))}
@@ -435,7 +629,12 @@ function EnquiryForm() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
-                <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+                <select 
+                  value={country} 
+                  onChange={e => setCountry(e.target.value)} 
+                  required 
+                  className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}
+                >
                   {Object.keys(COUNTRY_PHONE_CODES).map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -448,7 +647,14 @@ function EnquiryForm() {
                   <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
                     {COUNTRY_PHONE_CODES[country]?.code || '+91'}
                   </div>
-                  <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                  <input 
+                    type="tel" 
+                    value={mobile} 
+                    onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} 
+                    placeholder="Enter phone/mobile number" 
+                    required 
+                    className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} 
+                  />
                 </div>
               </div>
             </>
@@ -482,7 +688,7 @@ function EnquiryForm() {
               )}
 
               {q.questionType === 'paragraph' && (
-                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your message or question'} required={q.required} rows={3} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               )}
 
               {q.questionType === 'dropdown' && (
@@ -556,10 +762,14 @@ function EnquiryForm() {
           ))}
 
           <div className="pt-4 border-t border-gray-100">
-            <button type="submit" disabled={submitting} className="w-full h-12 bg-[#2d6a4f] text-white rounded-xl font-bold text-base hover:bg-[#1b4332] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md">
-              {submitting ? <Loader className="animate-spin" size={20} /> : 'Submit'}
+            <button 
+              type="submit" 
+              disabled={submitting} 
+              className="w-full h-12 bg-[#2d6a4f] text-white rounded-xl font-bold text-base hover:bg-[#1b4332] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+            >
+              {submitting ? <Loader className="animate-spin" size={20} /> : 'Submit Enquiry'}
             </button>
-            <p className="text-center text-xs text-gray-400 mt-4">Never submit passwords through this form.</p>
+            <p className="text-center text-xs text-gray-400 mt-4">We respect your privacy. No spam ever.</p>
           </div>
         </form>
       </div>
@@ -569,7 +779,7 @@ function EnquiryForm() {
 
 export default function EnquiryPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-[#2d6a4f]" size={40} /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#f0f7ee]"><Loader className="animate-spin text-[#2d6a4f]" size={40} /></div>}>
       <EnquiryForm />
     </Suspense>
   );

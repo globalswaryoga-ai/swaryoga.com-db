@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     const section = await saveSection({
       courseId,
-      order: Number(order || 1),
+      order: order !== undefined && order !== null ? Number(order) : 1,
       content: content || {},
     });
 

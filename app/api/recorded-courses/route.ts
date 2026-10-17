@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     if (slug) {
       const course = await getCourseBySlug(slug);
 
-      if (!course || !course.isActive || !course.isPublished) {
+      if (!course || !course.isActive) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
 
@@ -119,15 +119,28 @@ export async function GET(request: NextRequest) {
         content: undefined,
       }));
 
-      const localizedVideos = videos.map((v) => ({
-        ...v,
-        ...getLocalizedContent(v.content, lang),
-        content: undefined,
-        videoUrl: (v.isFree || canAccessPaidContent) ? v.videoUrl : undefined,
-        bunnyVideoId: (v.isFree || canAccessPaidContent) ? v.bunnyVideoId : undefined,
-        canWatch: v.isFree || canAccessPaidContent,
-        isLocked: !v.isFree && !canAccessPaidContent,
-      }));
+      const disabledVideoIds = Array.isArray(enrollment?.data?.disabledVideoIds)
+        ? enrollment.data.disabledVideoIds
+        : Array.isArray((enrollment as any)?.disabledVideoIds)
+        ? (enrollment as any).disabledVideoIds
+        : [];
+      const videoGiftTimes = enrollment?.data?.videoGiftTimes || (enrollment as any)?.videoGiftTimes || {};
+
+      const localizedVideos = videos.map((v) => {
+        const isDisabledByAdmin = disabledVideoIds.includes(v.id);
+        const hasAccess = (v.isFree || canAccessPaidContent) && !isDisabledByAdmin;
+        return {
+          ...v,
+          ...getLocalizedContent(v.content, lang),
+          content: undefined,
+          videoUrl: hasAccess ? v.videoUrl : undefined,
+          bunnyVideoId: hasAccess ? v.bunnyVideoId : undefined,
+          canWatch: hasAccess,
+          isLocked: !hasAccess,
+          disabledByAdmin: isDisabledByAdmin,
+          giftMinutes: Number(videoGiftTimes[v.id] || 0),
+        };
+      });
 
       const localizedMaterials = materials.map((m) => ({
         ...m,
@@ -141,6 +154,13 @@ export async function GET(request: NextRequest) {
         return {
           ...a,
           ...getLocalizedContent(c, lang),
+          subType: (a as any).subType || c.subType || 'assignment',
+          taskType: c.taskType || ((a as any).subType === 'task' ? 'todo_checklist' : undefined),
+          checklist: c.checklist || [],
+          countdownHours: c.countdownHours ?? null,
+          reminderType: c.reminderType || null,
+          reminderNote: c.reminderNote || '',
+          isRecurring: Boolean(c.isRecurring),
           questions: c.questions || [],
           level: c.level || 'Level 1: Beginner',
           passingPoints: c.passingPoints || 60,
@@ -173,7 +193,6 @@ export async function GET(request: NextRequest) {
     const folderId = request.nextUrl.searchParams.get('folderId');
     const courses = await listCourses({
       folderId: folderId || undefined,
-      isPublished: true,
       isActive: true,
     });
 

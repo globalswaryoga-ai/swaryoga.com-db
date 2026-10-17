@@ -148,6 +148,9 @@ export async function POST(request: NextRequest) {
       body.slug = `${body.slug}-${Date.now().toString(36)}`;
     }
 
+    if (body.isActive === undefined) body.isActive = true;
+    if (body.isPublished === undefined) body.isPublished = true;
+
     const course = await saveCourse(body);
 
     return NextResponse.json({

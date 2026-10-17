@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon, Zap } from 'lucide-react';
+import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon, Zap, Scissors, Download, Layers, AlertTriangle } from 'lucide-react';
 import Mp4ToMp3Converter from './_components/Mp4ToMp3Converter';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
 
@@ -103,6 +103,23 @@ export default function RagAndVideoPage() {
   const [isAutoCompressing, setIsAutoCompressing] = useState(false);
   const [compressProgress, setCompressProgress] = useState(0);
   const [compressedInfo, setCompressedInfo] = useState<{ originalMB: number; newMB: number } | null>(null);
+  
+  // Audio split state (for audio > 24MB)
+  const [splitBatchId, setSplitBatchId] = useState<string | null>(null);
+  const [splitParts, setSplitParts] = useState<Array<{
+    partNumber: number;
+    topicTitle: string;
+    fileName: string;
+    sizeBytes: number;
+    sizeMB: number;
+    durationSeconds: number;
+    downloadUrl: string;
+  }>>([]);
+  const [isSplitting, setIsSplitting] = useState(false);
+  const [activePartNumber, setActivePartNumber] = useState<number | null>(null);
+  const [isBatchCreating, setIsBatchCreating] = useState(false);
+  const [batchCreateSuccess, setBatchCreateSuccess] = useState<string | null>(null);
+
   const [sourceText, setSourceText] = useState('');
   const [referenceLink, setReferenceLink] = useState('');
   const [topicTitle, setTopicTitle] = useState('');
@@ -267,6 +284,117 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
       setCreateError(`Audio compression failed: ${err?.message || err}. Please try using the converter modal above.`);
     } finally {
       setIsAutoCompressing(false);
+    }
+  };
+
+  const handleSplitCurrentAudio = async () => {
+    if (!audioFile || !token) return;
+    setIsSplitting(true);
+    setCreateError('');
+    setBatchCreateSuccess(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      formData.append('topicTitle', topicTitle.trim());
+      formData.append('targetPartMB', '22'); // 64MB / 22MB = 3 parts of ~21.4MB (< 24MB Whisper limit)
+
+      const res = await fetch('/api/admin/e-learning/ai-video/split-audio', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.success) {
+        throw new Error(parsed.error || parsed.data?.error || 'Failed to split audio');
+      }
+
+      setSplitBatchId(parsed.data.batchId);
+      setSplitParts(parsed.data.parts || []);
+      setCreateError('');
+    } catch (err: any) {
+      console.error('Audio split error:', err);
+      setCreateError(err.message || 'Failed to split audio file');
+    } finally {
+      setIsSplitting(false);
+    }
+  };
+
+  const selectPartToWorkOn = async (part: { partNumber: number; topicTitle: string; fileName: string }) => {
+    if (!splitBatchId) return;
+    setIsSplitting(true);
+    setCreateError('');
+    try {
+      const res = await fetch(`/api/admin/e-learning/ai-video/split-audio?batchId=${splitBatchId}&part=${part.partNumber}`);
+      if (!res.ok) throw new Error('Failed to load audio part');
+      const blob = await res.blob();
+      const partFile = new File([blob], part.fileName, { type: 'audio/mp4' });
+      setAudioFile(partFile);
+      setActivePartNumber(part.partNumber);
+      const baseTitle = topicTitle.replace(/ - Part \d+$/i, '').trim();
+      const newTitle = baseTitle ? `${baseTitle} - Part ${part.partNumber}` : `Part ${part.partNumber}`;
+      setTopicTitle(newTitle);
+      setCompressedInfo(null);
+    } catch (e: any) {
+      setCreateError(`Failed to load part: ${e.message}`);
+    } finally {
+      setIsSplitting(false);
+    }
+  };
+
+  const handleCreateAllJobs = async () => {
+    if (!splitBatchId || !token) return;
+    if (!topicTitle.trim()) {
+      setCreateError('Please enter a Topic title before creating jobs');
+      return;
+    }
+    if (!selectedLanguages.length) {
+      setCreateError('Please select at least one target language');
+      return;
+    }
+
+    setIsBatchCreating(true);
+    setCreateError('');
+    setBatchCreateSuccess(null);
+    try {
+      const res = await fetch('/api/admin/e-learning/ai-video/jobs/batch-create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          batchId: splitBatchId,
+          topicTitle: topicTitle.replace(/ - Part \d+$/i, '').trim(),
+          sourceLanguage,
+          targetLanguages: selectedLanguages,
+          workshopName: workshopName.trim() || undefined,
+          dayOrder: dayOrder.trim() ? Number(dayOrder.trim()) : undefined,
+        }),
+      });
+
+      const parsed = await safeJson(res);
+      if (!parsed.ok || !parsed.data?.success) {
+        throw new Error(parsed.error || parsed.data?.error || 'Batch creation failed');
+      }
+
+      setBatchCreateSuccess(
+        `Successfully created and transcribed ${parsed.data.createdCount} jobs (${splitParts.map(p => `Part-${p.partNumber}`).join(', ')})! Select each one from the jobs list below to work on them one by one.`
+      );
+      setAudioFile(null);
+      setSplitParts([]);
+      setSplitBatchId(null);
+      setActivePartNumber(null);
+      setTopicTitle('');
+      fetchJobs();
+      if (parsed.data.jobs?.[0]) {
+        setSelectedJob(parsed.data.jobs[0]);
+        setCorrectedDraft(parsed.data.jobs[0].correctedTranscript || '');
+      }
+    } catch (err: any) {
+      setCreateError(err.message || 'Batch job creation failed');
+    } finally {
+      setIsBatchCreating(false);
     }
   };
 
@@ -717,36 +845,68 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                 />
 
                 {audioFile && audioFile.size > 24 * 1024 * 1024 && (
-                  <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="flex-1 min-w-[200px]">
-                        <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
-                          <span>⚠️ File is {(audioFile.size / (1024 * 1024)).toFixed(1)}MB</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Whisper Limit: 24MB</span>
-                        </div>
-                        <p className="text-[11px] text-gray-300 mt-1 leading-relaxed">
-                          Click below to compress locally in your browser into a lightweight speech MP3 (16kHz mono, ~{((audioFile.size / (1024 * 1024)) * 0.22).toFixed(1)}MB) without losing audio quality.
-                        </p>
+                  <div className="mb-4 p-4 bg-gradient-to-b from-amber-500/15 to-purple-500/10 border border-amber-500/40 rounded-2xl shadow-xl">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        <span>File is {(audioFile.size / (1024 * 1024)).toFixed(1)}MB</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30">
+                          Whisper Limit: 24MB
+                        </span>
                       </div>
+                    </div>
+
+                    <p className="text-xs text-gray-300 mb-3 leading-relaxed">
+                      This recording exceeds Whisper’s 24MB limit. Split this <span className="text-white font-semibold">{(audioFile.size / (1024 * 1024)).toFixed(1)}MB</span> file into{' '}
+                      <span className="text-emerald-400 font-bold">
+                        {Math.max(2, Math.ceil((audioFile.size / (1024 * 1024)) / 21))} parts (~{((audioFile.size / (1024 * 1024)) / Math.max(2, Math.ceil((audioFile.size / (1024 * 1024)) / 21))).toFixed(1)}MB each)
+                      </span>{' '}
+                      to work on them one by one with added subjects (<span className="text-purple-300 font-mono text-[11px]">Part-1, Part-2, Part-3</span>).
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      {/* Split Button */}
                       <button
                         type="button"
-                        disabled={isAutoCompressing}
+                        disabled={isSplitting || isAutoCompressing}
+                        onClick={handleSplitCurrentAudio}
+                        className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+                      >
+                        {isSplitting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Splitting into {Math.max(2, Math.ceil((audioFile.size / (1024 * 1024)) / 21))} Parts (FFmpeg)...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Scissors className="w-3.5 h-3.5" />
+                            <span>Split into {Math.max(2, Math.ceil((audioFile.size / (1024 * 1024)) / 21))} Parts (~{((audioFile.size / (1024 * 1024)) / Math.max(2, Math.ceil((audioFile.size / (1024 * 1024)) / 21))).toFixed(1)}MB each)</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Compress as 1 single file button */}
+                      <button
+                        type="button"
+                        disabled={isAutoCompressing || isSplitting}
                         onClick={handleCompressCurrentAudio}
-                        className="px-3.5 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-1.5 whitespace-nowrap hover:scale-105"
+                        className="px-3.5 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+                        title="Alternatively compress to a single lightweight 32kbps MP3"
                       >
                         {isAutoCompressing ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            {compressProgress > 0 ? `Compressing (${compressProgress}%)...` : 'Initializing...'}
+                            <span>{compressProgress > 0 ? `${compressProgress}%` : 'Compressing...'}</span>
                           </>
                         ) : (
                           <>
-                            <Zap className="w-3.5 h-3.5 fill-current" />
-                            ⚡ Auto-Compress (~12MB)
+                            <Zap className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Compress to 1 File</span>
                           </>
                         )}
                       </button>
                     </div>
+
                     {isAutoCompressing && compressProgress > 0 && (
                       <div className="w-full bg-gray-800 rounded-full h-1.5 mt-3 overflow-hidden">
                         <div className="bg-emerald-500 h-1.5 transition-all duration-200" style={{ width: `${compressProgress}%` }} />
@@ -755,7 +915,125 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                   </div>
                 )}
 
-                {compressedInfo && audioFile && audioFile.size <= 24 * 1024 * 1024 && (
+                {/* Display Split Parts if available */}
+                {splitParts.length > 0 && (
+                  <div className="mb-4 p-4 bg-purple-950/25 border border-purple-500/40 rounded-2xl shadow-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-purple-400" />
+                        <h4 className="text-xs font-bold text-white">
+                          Split into {splitParts.length} Parts (<span className="text-emerald-400 font-mono">All &lt; 24MB</span>)
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/30">
+                        Whisper Ready
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mb-3">
+                      Select each part to work on one by one, or click &ldquo;Create All {splitParts.length} Jobs&rdquo; to auto-create and transcribe:
+                    </p>
+
+                    <div className="space-y-2 mb-3">
+                      {splitParts.map((part) => {
+                        const isCurrent = activePartNumber === part.partNumber;
+                        const subjectName = topicTitle.replace(/ - Part \d+$/i, '').trim() || 'Subject';
+                        const displayPartTitle = `${subjectName} - Part ${part.partNumber}`;
+
+                        return (
+                          <div
+                            key={part.partNumber}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                              isCurrent
+                                ? 'bg-purple-600/25 border-purple-500 text-white shadow-md'
+                                : 'bg-black/40 border-gray-800 text-gray-300 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0 ${
+                                isCurrent ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'
+                              }`}>
+                                {part.partNumber}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-white truncate max-w-[170px] sm:max-w-xs">
+                                  {displayPartTitle}
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-mono">
+                                  {part.sizeMB}MB • {Math.floor(part.durationSeconds / 60)}m {part.durationSeconds % 60}s
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => selectPartToWorkOn(part)}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors ${
+                                  isCurrent
+                                    ? 'bg-emerald-500 text-black shadow-sm'
+                                    : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40'
+                                }`}
+                              >
+                                {isCurrent ? 'Active Part' : `Work on Part ${part.partNumber}`}
+                              </button>
+                              <a
+                                href={part.downloadUrl}
+                                download={part.fileName}
+                                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                                title={`Download Part ${part.partNumber}`}
+                              >
+                                <Download size={14} />
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Batch create all jobs in one shot */}
+                    <button
+                      type="button"
+                      disabled={isBatchCreating}
+                      onClick={handleCreateAllJobs}
+                      className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      {isBatchCreating ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Creating & Transcribing All {splitParts.length} Jobs...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="w-3.5 h-3.5" />
+                          <span>Create All {splitParts.length} Jobs ({splitParts.map(p => `Part-${p.partNumber}`).join(', ')})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {activePartNumber && (
+                  <div className="mb-3 px-3 py-2 bg-purple-500/15 border border-purple-500/30 rounded-xl flex items-center justify-between text-xs text-purple-200">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Active: Part {activePartNumber} ({audioFile ? (audioFile.size / (1024 * 1024)).toFixed(1) : ''}MB &lt; 24MB)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePartNumber(null);
+                        setAudioFile(null);
+                        setSplitParts([]);
+                        setSplitBatchId(null);
+                      }}
+                      className="text-[11px] text-gray-400 hover:text-white underline"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+
+                {compressedInfo && audioFile && audioFile.size <= 24 * 1024 * 1024 && !activePartNumber && (
                   <div className="mb-3 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between text-xs text-emerald-400">
                     <span className="flex items-center gap-1.5 font-medium">
                       <CheckCircle2 className="w-4 h-4" /> Compressed: {compressedInfo.originalMB.toFixed(1)}MB ➔ {(audioFile.size / (1024 * 1024)).toFixed(1)}MB
@@ -832,6 +1110,12 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                 </button>
               ))}
             </div>
+            {batchCreateSuccess && (
+              <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start gap-2 text-xs text-emerald-400">
+                <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-400" />
+                <span>{batchCreateSuccess}</span>
+              </div>
+            )}
             {createError && <p className="text-xs text-red-400 mb-3">{createError}</p>}
             <button
               onClick={handleCreateJob}
