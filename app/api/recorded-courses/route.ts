@@ -148,10 +148,19 @@ export async function GET(request: NextRequest) {
         const isFree = Boolean(v.isFree || course.isFree);
         const hasAccess = (isFree || canAccessPaidContent) && !isDisabledByAdmin;
         const localized = getLocalizedContent(v.content, lang);
+        const thumbnail =
+          (v as any).thumbnail ||
+          (localized as any).thumbnail ||
+          (v.content as any)?.thumbnail ||
+          (v.bunnyVideoId ? `/api/recorded-courses/thumbnail?vid=${v.bunnyVideoId}` : undefined) ||
+          course.thumbnail ||
+          '';
+
         return {
           ...v,
           title: localized.title || v.title || '',
           description: (localized.description && localized.description.trim()) ? localized.description : (v.description || ''),
+          thumbnail,
           content: undefined,
           isFree,
           videoUrl: hasAccess ? v.videoUrl : undefined,
