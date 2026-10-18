@@ -88,11 +88,16 @@ export async function GET(request: NextRequest) {
           sql: 'SELECT id, title, display_order, is_active, is_free FROM course_videos_sql WHERE course_id = ?',
           args: [course.id],
         });
+        const activeRes = await bunnyExecute({
+          sql: 'SELECT id, title, display_order, is_active, is_free FROM course_videos_sql WHERE course_id = ? AND is_active = 1 ORDER BY display_order ASC',
+          args: [course.id],
+        });
         return NextResponse.json({
           debug: true,
           courseId: course.id,
           rawRowsCount: rawRes.rows.length,
-          rawRows: rawRes.rows,
+          activeRowsCount: activeRes.rows.length,
+          activeRows: activeRes.rows,
           videosLength: videos.length,
           videos,
         });
@@ -254,6 +259,7 @@ export async function GET(request: NextRequest) {
           description: localized.description || c.data?.description || '',
           content: undefined,
           videoCount,
+          totalVideos: videoCount,
           isEnrolled: enrolledCourseIds.has(c.id),
         };
       })
