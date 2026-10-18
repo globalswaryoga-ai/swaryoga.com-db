@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3, Award, Check, Link as LinkIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3, Award, Check, Link as LinkIcon, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 
 // All 19 language options
 const languageOptions = [
@@ -47,6 +47,7 @@ interface Course {
   totalDuration: number;
   videoCount: number;
   enrollmentCount: number;
+  order?: number;
 }
 
 export default function ELearningPage() {
@@ -66,6 +67,7 @@ export default function ELearningPage() {
   const [languageFolderToEdit, setLanguageFolderToEdit] = useState<any | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [copiedFormLink, setCopiedFormLink] = useState(false);
+  const [reorderingCourseId, setReorderingCourseId] = useState<string | null>(null);
 
   // Check superadmin status
   useEffect(() => {
@@ -252,6 +254,56 @@ export default function ELearningPage() {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const moveCourse = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= courses.length) return;
+
+    const movingCourse = courses[index];
+    const newCourses = [...courses];
+    const [moved] = newCourses.splice(index, 1);
+    newCourses.splice(targetIndex, 0, moved);
+
+    // Reassign normalized display orders (10, 20, 30...)
+    const reorderedCourses = newCourses.map((c, idx) => ({
+      ...c,
+      order: (idx + 1) * 10,
+    }));
+
+    setCourses(reorderedCourses);
+    setReorderingCourseId(movingCourse._id);
+
+    try {
+      const changed = reorderedCourses.filter(
+        (c, idx) => courses[idx]?._id !== c._id || courses[idx]?.order !== c.order
+      );
+
+      await Promise.all(
+        changed.map(async (c) => {
+          await fetch('/api/admin/recorded-courses', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              courseId: c._id,
+              order: c.order,
+            }),
+          });
+        })
+      );
+    } catch (err) {
+      console.error('Failed to reorder workshops:', err);
+      if (selectedFolder) {
+        fetchCourses(selectedFolder._id);
+      } else {
+        fetchCourses();
+      }
+    } finally {
+      setReorderingCourseId(null);
+    }
   };
 
   if (!token || !authChecked) {
@@ -503,7 +555,7 @@ export default function ELearningPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {courses.map((course) => (
+              {courses.map((course, index) => (
                 <tr key={course._id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -564,6 +616,34 @@ export default function ELearningPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Move Up */}
+                      <button
+                        onClick={() => moveCourse(index, 'up')}
+                        disabled={index === 0 || reorderingCourseId === course._id}
+                        className="p-2 hover:bg-gray-800 text-gray-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed rounded-lg transition-colors border border-transparent hover:border-gray-700"
+                        title="Move Up"
+                      >
+                        {reorderingCourseId === course._id ? (
+                          <Loader2 size={16} className="animate-spin text-green-400" />
+                        ) : (
+                          <ArrowUp size={16} />
+                        )}
+                      </button>
+
+                      {/* Move Down */}
+                      <button
+                        onClick={() => moveCourse(index, 'down')}
+                        disabled={index === courses.length - 1 || reorderingCourseId === course._id}
+                        className="p-2 hover:bg-gray-800 text-gray-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed rounded-lg transition-colors border border-transparent hover:border-gray-700"
+                        title="Move Down"
+                      >
+                        {reorderingCourseId === course._id ? (
+                          <Loader2 size={16} className="animate-spin text-green-400" />
+                        ) : (
+                          <ArrowDown size={16} />
+                        )}
+                      </button>
+
                       <Link
                         href={`/admin/crm/e-learning/${course._id}/videos`}
                         className="p-2 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors"
