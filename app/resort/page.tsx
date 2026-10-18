@@ -216,7 +216,7 @@ export default function ResortPage() {
               <span className="text-xl sm:text-2xl">🎉</span>
               <div className="text-center sm:text-left">
                 <p className="text-swar-text font-semibold text-sm sm:text-lg">
-                  Resort Opening <span className="text-purple-700 font-bold">22 December 2026</span>
+                  Resort Opening <span className="text-purple-700 font-bold">6th June 2027</span>
                 </p>
                 <p className="text-swar-text text-xs sm:text-sm mt-1">Limited Early Bird Memberships Available</p>
               </div>
