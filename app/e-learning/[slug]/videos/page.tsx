@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Play, Lock, BookOpen } from 'lucide-react';
+import { ArrowLeft, Play, Lock, BookOpen, Sparkles, CheckCircle2 } from 'lucide-react';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
+import CourseLeadUnlockModal from '@/components/CourseLeadUnlockModal';
 
 interface Video {
   _id: string;
@@ -45,19 +46,25 @@ export default function CourseVideosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [targetVideoForUnlock, setTargetVideoForUnlock] = useState<Video | null>(null);
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [token, setToken] = useState('');
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token') || '';
     setToken(storedToken);
 
+    // Check if user has already unlocked this course or any course
+    const unlocked =
+      localStorage.getItem(`swar_course_unlocked_${slug}`) === 'true' ||
+      localStorage.getItem('swar_course_unlocked_all') === 'true' ||
+      Boolean(storedToken);
+    setIsUnlocked(unlocked);
+
     const fetchCourse = async () => {
       try {
         setLoading(true);
-        // Send the auth token so the API can tell us which videos this
-        // specific viewer can actually watch (canWatch is computed
-        // server-side from real enrollment/payment status, not just
-        // whether they happen to be logged in — see the fix below).
         const headers: Record<string, string> = storedToken ? { Authorization: `Bearer ${storedToken}` } : {};
         const res = await fetch(`/api/recorded-courses?slug=${slug}&_t=${Date.now()}`, { headers, cache: 'no-store' });
         const data = await res.json();
@@ -65,6 +72,9 @@ export default function CourseVideosPage() {
         if (data.success && data.course) {
           setCourse(data.course);
           setVideos(data.videos || []);
+          if (data.canAccessPaidContent || data.enrollment) {
+            setIsUnlocked(true);
+          }
         } else {
           setError('Course not found');
         }
@@ -100,14 +110,21 @@ export default function CourseVideosPage() {
   }
 
   const handleVideoClick = (video: Video, index: number) => {
-    const isFree = video.isFree === true || course?.isFree === true;
-    const canPlay = video.canWatch || isFree;
-    if (canPlay) {
-      router.push(`/e-learning/${slug}/learn?video=${video._id || (video as any).id}`);
+    const videoId = video._id || (video as any).id;
+
+    // Video 1 (index === 0) is completely free and instantly playable for anyone
+    if (index === 0) {
+      router.push(`/e-learning/${slug}/learn?video=${videoId}`);
+      return;
+    }
+
+    // Videos 2 to 6: check if viewer has unlocked or filled form
+    const unlocked = isUnlocked || token || video.canWatch;
+    if (unlocked) {
+      router.push(`/e-learning/${slug}/learn?video=${videoId}`);
     } else {
-      // Paid video and this viewer doesn't have access — being logged in
-      // isn't enough, they need to actually be enrolled/paid.
-      setShowEnrollmentModal(true);
+      setTargetVideoForUnlock(video);
+      setShowUnlockModal(true);
     }
   };
 
@@ -134,8 +151,9 @@ export default function CourseVideosPage() {
         {videos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video, index) => {
-              const isFree = video.isFree === true || course?.isFree === true;
-              const isLocked = !video.canWatch && !isFree;
+              const isVideo1 = index === 0;
+              const isUnlockedForUser = isVideo1 || isUnlocked || Boolean(token);
+              const isLocked = !isUnlockedForUser;
               const videoId = video._id || (video as any).id;
 
               return (
@@ -144,75 +162,79 @@ export default function CourseVideosPage() {
                   onClick={() => handleVideoClick(video, index)}
                   className={`rounded-xl overflow-hidden border-2 transition-all ${
                     isLocked
-                      ? 'border-gray-300 cursor-not-allowed'
-                      : 'border-gray-200 hover:border-green-400 cursor-pointer'
+                      ? 'border-amber-200 hover:border-amber-400 bg-amber-50/20 cursor-pointer shadow-sm'
+                      : 'border-gray-200 hover:border-green-400 cursor-pointer shadow-sm'
                   }`}
                 >
                   {/* Video Thumbnail */}
-                  <div className="relative h-48 bg-gradient-to-br from-gray-300 to-gray-400 overflow-hidden group">
+                  <div className="relative h-48 bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden group">
                     {video.thumbnail && video.thumbnail.trim() ? (
                       <img
                         src={video.thumbnail}
                         alt={video.title}
-                        className={`w-full h-full object-cover transition-transform ${
-                          isLocked ? '' : 'group-hover:scale-105'
+                        className={`w-full h-full object-cover transition-transform duration-300 ${
+                          isLocked ? 'brightness-90 group-hover:scale-105' : 'group-hover:scale-105'
                         }`}
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
                       />
                     ) : null}
-                    {!video.thumbnail || !video.thumbnail.trim() ? (
-                      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-400 to-gray-500">
-                        <Play size={48} className="text-white" />
+                    {(!video.thumbnail || !video.thumbnail.trim()) && (
+                      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                        <Play size={48} className="text-white/60" />
                       </div>
-                    ) : null}
+                    )}
 
                     {/* Overlay */}
-                    <div className={`absolute inset-0 flex items-center justify-center transition-all ${
-                      isLocked ? 'bg-black/40' : 'bg-black/0 group-hover:bg-black/20'
-                    }`}>
-                      {!isLocked && (
-                        <div className="bg-green-500 rounded-full p-3">
-                          <Play size={24} className="text-white fill-white" />
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center transition-all ${
+                        isLocked ? 'bg-black/35 group-hover:bg-black/20' : 'bg-black/0 group-hover:bg-black/25'
+                      }`}
+                    >
+                      {!isLocked ? (
+                        <div className="bg-green-500 rounded-full p-3 shadow-lg group-hover:scale-110 transition-transform">
+                          <Play size={24} className="text-white fill-white ml-0.5" />
                         </div>
-                      )}
-                      {isLocked && (
-                        <div className="bg-gray-700 rounded-full p-3">
-                          <Lock size={24} className="text-white" />
+                      ) : (
+                        <div className="bg-amber-500 rounded-full p-3 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center">
+                          <Lock size={22} className="text-white" />
                         </div>
                       )}
                     </div>
 
                     {/* Badges */}
                     <div className="absolute top-3 right-3 flex gap-2">
-                      {isFree && (
-                        <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                          FREE
+                      {isVideo1 ? (
+                        <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                          <Sparkles size={12} /> FREE • INSTANT PLAY
                         </span>
-                      )}
-                      {isLocked && (
-                        <span className="bg-gray-700 text-white text-xs font-bold px-3 py-1 rounded-full">
-                          LOCKED
+                      ) : isUnlockedForUser ? (
+                        <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                          <CheckCircle2 size={12} /> UNLOCKED
+                        </span>
+                      ) : (
+                        <span className="bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                          <Lock size={12} /> FREE • 1-STEP UNLOCK
                         </span>
                       )}
                     </div>
 
                     {/* Duration */}
-                    {video.duration && (
-                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded">
+                    {video.duration ? (
+                      <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded shadow">
                         {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Video Info */}
-                  <div className="p-4">
-                    <h3 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2">
+                  <div className="p-4 bg-white">
+                    <h3 className="font-bold text-gray-900 text-sm sm:text-base mb-1 line-clamp-2">
                       Video {index + 1}: {video.title}
                     </h3>
                     {video.description && (
-                      <p className="text-gray-600 text-xs line-clamp-2">
+                      <p className="text-gray-600 text-xs line-clamp-2 mb-2">
                         {video.description}
                       </p>
                     )}
@@ -224,19 +246,20 @@ export default function CourseVideosPage() {
                           e.stopPropagation();
                           router.push(`/e-learning/${slug}/learn?video=${videoId}`);
                         }}
-                        className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        className="w-full mt-3 bg-green-600 hover:bg-green-700 active:scale-[0.99] text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm text-sm"
                       >
-                        <Play size={16} /> Play Video
+                        <Play size={16} className="fill-white" /> Play Video
                       </button>
                     ) : (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowEnrollmentModal(true);
+                          setTargetVideoForUnlock(video);
+                          setShowUnlockModal(true);
                         }}
-                        className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        className="w-full mt-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-[0.99] text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm text-sm"
                       >
-                        <BookOpen size={16} /> Enroll to Watch
+                        <Sparkles size={16} /> Unlock & Watch Free
                       </button>
                     )}
                   </div>
@@ -279,6 +302,29 @@ export default function CourseVideosPage() {
           )}
         </div>
       </div>
+
+      {/* Free Unlock Modal for Videos 2-6 */}
+      <CourseLeadUnlockModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setTargetVideoForUnlock(null);
+        }}
+        onSuccess={() => {
+          setShowUnlockModal(false);
+          setIsUnlocked(true);
+          const target = targetVideoForUnlock;
+          setTargetVideoForUnlock(null);
+          if (target) {
+            const vId = target._id || (target as any).id;
+            router.push(`/e-learning/${slug}/learn?video=${vId}`);
+          }
+        }}
+        courseTitle={course?.title}
+        courseId={course?._id}
+        courseSlug={slug}
+        targetVideoTitle={targetVideoForUnlock?.title}
+      />
 
       {/* Enrollment Modal */}
       {showEnrollmentModal && course && (

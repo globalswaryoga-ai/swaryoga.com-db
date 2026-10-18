@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import AppInitializer from '@/components/AppInitializer';
+import VisitorTracker from '@/components/VisitorTracker';
 import ErrorCatcher from '@/components/ErrorCatcher';
 import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { PerformanceMonitor } from '@/components/PerformanceMonitor';
@@ -224,6 +225,7 @@ export default function RootLayout({
             <ErrorCatcher />
             <PerformanceMonitor />
             <AppInitializer />
+            <VisitorTracker />
             {children}
             <WhatsAppWidget />
           </CartProvider>

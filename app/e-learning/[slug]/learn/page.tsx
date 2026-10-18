@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
+import CourseLeadUnlockModal from '@/components/CourseLeadUnlockModal';
 import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle } from 'lucide-react';
 
 // Global video control hiding - only for direct HTML5 videos, not iframes
@@ -268,6 +269,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [canAccessPaidContent, setCanAccessPaidContent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingTargetVideo, setPendingTargetVideo] = useState<Video | null>(null);
   const [videoStream, setVideoStream] = useState<VideoStreamData | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -377,12 +381,27 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           setExpandedSections(new Set(data.sections.map((s: Section) => s._id)));
         }
 
-        // Auto-select video from URL param, last watched, or first watchable
+        // Check whether user has unlocked this course
+        const userIsUnlocked =
+          typeof window !== 'undefined' &&
+          (localStorage.getItem(`swar_course_unlocked_${slug}`) === 'true' ||
+            localStorage.getItem('swar_course_unlocked_all') === 'true' ||
+            Boolean(token));
+        setIsUnlocked(userIsUnlocked);
+
+        // Auto-select video from URL param, last watched, or first video
         if (videoIdParam) {
-          // URL parameter takes priority
-          const selectedVideo = data.videos?.find((v: Video) => v._id === videoIdParam);
-          if (selectedVideo && selectedVideo.canWatch) {
-            setCurrentVideo(selectedVideo);
+          const selectedIndex = data.videos?.findIndex((v: Video) => v._id === videoIdParam);
+          const selectedVideo = selectedIndex >= 0 ? data.videos[selectedIndex] : null;
+          if (selectedVideo) {
+            if (selectedIndex === 0 || userIsUnlocked) {
+              setCurrentVideo(selectedVideo);
+            } else {
+              // Video 2+ selected without filling form: load video 1 and show unlock modal
+              setCurrentVideo(data.videos[0] || selectedVideo);
+              setPendingTargetVideo(selectedVideo);
+              setShowUnlockModal(true);
+            }
           }
         } else if (data.enrollment?.lastWatchedVideoId || data.enrollment?.lastVideoId) {
           const lastVideoId = String(data.enrollment.lastWatchedVideoId || data.enrollment.lastVideoId);
@@ -391,8 +410,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             setCurrentVideo(lastVideo);
           }
         } else if (data.videos?.length > 0) {
-          // Find first watchable video (free videos are always watchable)
-          const firstWatchable = data.videos.find((v: Video) => v.canWatch);
+          // Always default to Video 1 (which is 100% free for everyone)
+          const firstWatchable = data.videos[0] || data.videos.find((v: Video) => v.canWatch);
           if (firstWatchable) {
             setCurrentVideo(firstWatchable);
           }
@@ -585,12 +604,35 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const handleVideoEnded = async () => {
     await updateProgress(true);
 
+    const currentIndex = videos.findIndex((v) => v._id === currentVideo?._id);
+    const userIsUnlocked =
+      isUnlocked ||
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem(`swar_course_unlocked_${slug}`) === 'true' ||
+          localStorage.getItem('swar_course_unlocked_all') === 'true' ||
+          Boolean(localStorage.getItem('token'))));
+
+    if (currentIndex === 0 && !userIsUnlocked) {
+      // User just finished Video 1! Open the unlock modal so they can continue to Video 2-6
+      const nextVid = videos[1];
+      if (nextVid) {
+        setPendingTargetVideo(nextVid);
+        setShowUnlockModal(true);
+      }
+      return;
+    }
+
     // Auto-play next video
     if (autoplay) {
-      const currentIndex = videos.findIndex((v) => v._id === currentVideo?._id);
       const nextVideo = videos.find((v, i) => i > currentIndex && v.canWatch);
       if (nextVideo) {
-        setCurrentVideo(nextVideo);
+        const nextIndex = videos.findIndex((v) => v._id === nextVideo._id);
+        if (nextIndex > 0 && !userIsUnlocked) {
+          setPendingTargetVideo(nextVideo);
+          setShowUnlockModal(true);
+        } else {
+          setCurrentVideo(nextVideo);
+        }
       }
     }
   };
@@ -626,6 +668,31 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       }
     }
   };
+
+  const handleSelectVideo = useCallback(
+    (video: Video) => {
+      const vIndex = videos.findIndex((v) => v._id === video._id);
+      const isFirstVideo = vIndex === 0;
+      const userIsUnlocked =
+        isFirstVideo ||
+        isUnlocked ||
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem(`swar_course_unlocked_${slug}`) === 'true' ||
+            localStorage.getItem('swar_course_unlocked_all') === 'true' ||
+            Boolean(localStorage.getItem('token'))));
+
+      if (userIsUnlocked) {
+        setCurrentVideo(video);
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          setSidebarOpen(false);
+        }
+      } else {
+        setPendingTargetVideo(video);
+        setShowUnlockModal(true);
+      }
+    },
+    [videos, isUnlocked, slug]
+  );
 
   const getVideosBySection = (sectionId: string) => {
     return videos.filter((v) => v.sectionId === sectionId);
@@ -1296,106 +1363,113 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
                 {expandedSections.has(section._id) && (
                   <div className="mt-1 space-y-1">
-                    {getVideosBySection(section._id).map((video) => (
-                      <button
-                        key={video._id}
-                        onClick={() => {
-                          if (video.canWatch) {
-                            setCurrentVideo(video);
-                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                              setSidebarOpen(false);
-                            }
-                          }
-                        }}
-                        disabled={!video.canWatch}
-                        className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all ${
-                          currentVideo?._id === video._id
-                            ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
-                            : video.canWatch
-                            ? 'hover:bg-gray-700/60'
-                            : 'opacity-50 cursor-not-allowed'
-                        }`}
-                      >
-                        {/* Video Thumbnail */}
-                        <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
-                          {video.thumbnail ? (
-                            <img
-                              src={video.thumbnail}
-                              alt={video.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              loading="lazy"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : null}
+                    {getVideosBySection(section._id).map((video) => {
+                      const vIndex = videos.findIndex((v) => v._id === video._id);
+                      const isFirst = vIndex === 0;
+                      const userUnlocked = isFirst || isUnlocked || Boolean(typeof window !== 'undefined' && localStorage.getItem('token'));
 
-                          {/* Fallback gradient if no thumbnail or loading */}
-                          <div className="absolute inset-0 -z-10 bg-gradient-to-br from-gray-800 to-gray-950 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-orange-500/60" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
-                          </div>
+                      return (
+                        <button
+                          key={video._id}
+                          onClick={() => handleSelectVideo(video)}
+                          className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                            currentVideo?._id === video._id
+                              ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
+                              : userUnlocked
+                              ? 'hover:bg-gray-700/60'
+                              : 'hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30'
+                          }`}
+                        >
+                          {/* Video Thumbnail */}
+                          <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
+                            {video.thumbnail ? (
+                              <img
+                                src={video.thumbnail}
+                                alt={video.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : null}
 
-                          {/* Duration Badge */}
-                          <span className="absolute bottom-1 right-1 bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/95 px-1 py-0.5 rounded leading-none shadow-sm">
-                            {formatDuration(video.duration)}
-                          </span>
-
-                          {/* Status Overlay */}
-                          {isVideoCompleted(video._id) ? (
-                            <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
-                              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            {/* Fallback gradient if no thumbnail or loading */}
+                            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-gray-800 to-gray-950 flex items-center justify-center">
+                              <svg className="w-6 h-6 text-orange-500/60" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
                               </svg>
                             </div>
-                          ) : currentVideo?._id === video._id ? (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
-                                <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
-                                  <path d="M8 5v14l11-7z" />
+
+                            {/* Duration Badge */}
+                            <span className="absolute bottom-1 right-1 bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/95 px-1 py-0.5 rounded leading-none shadow-sm">
+                              {formatDuration(video.duration)}
+                            </span>
+
+                            {/* Status Overlay */}
+                            {isVideoCompleted(video._id) ? (
+                              <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
+                                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                               </div>
-                            </div>
-                          ) : video.isLocked ? (
-                            <div className="absolute top-1 left-1 w-5 h-5 bg-black/80 rounded-full flex items-center justify-center shadow">
-                              <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                              </svg>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {/* Title, Topic Description, Badges */}
-                        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                          <p
-                            className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
-                              currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
-                            }`}
-                          >
-                            {video.title}
-                          </p>
-                          {video.description ? (
-                            <p className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
-                              {video.description}
-                            </p>
-                          ) : null}
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            {video.isFree && (
-                              <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                                {t.free}
-                              </span>
-                            )}
-                            {currentVideo?._id === video._id && (
-                              <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
-                                Playing
-                              </span>
-                            )}
+                            ) : currentVideo?._id === video._id ? (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
+                                  <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            ) : !userUnlocked ? (
+                              <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-amber-500/90 text-white rounded text-[9px] font-bold flex items-center gap-1 shadow">
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                <span>Unlock</span>
+                              </div>
+                            ) : null}
                           </div>
-                        </div>
-                      </button>
-                    ))}
+
+                          {/* Title, Topic Description, Badges */}
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                            <p
+                              className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
+                                currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
+                              }`}
+                            >
+                              {video.title}
+                            </p>
+                            {video.description ? (
+                              <p className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
+                                {video.description}
+                              </p>
+                            ) : null}
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {isFirst ? (
+                                <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                                  Free
+                                </span>
+                              ) : userUnlocked ? (
+                                <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.2 rounded border border-green-500/30">
+                                  Unlocked
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40">
+                                  Free Unlock
+                                </span>
+                              )}
+                              {currentVideo?._id === video._id && (
+                                <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
+                                  Playing
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1404,106 +1478,113 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             {/* Uncategorized Videos */}
             {uncategorizedVideos.length > 0 && (
               <div className="space-y-1">
-                {uncategorizedVideos.map((video) => (
-                  <button
-                    key={video._id}
-                    onClick={() => {
-                      if (video.canWatch) {
-                        setCurrentVideo(video);
-                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                          setSidebarOpen(false);
-                        }
-                      }
-                    }}
-                    disabled={!video.canWatch}
-                    className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all ${
-                      currentVideo?._id === video._id
-                        ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
-                        : video.canWatch
-                        ? 'hover:bg-gray-700/60'
-                        : 'opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    {/* Video Thumbnail */}
-                    <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
-                      {video.thumbnail ? (
-                        <img
-                          src={video.thumbnail}
-                          alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : null}
+                {uncategorizedVideos.map((video) => {
+                  const vIndex = videos.findIndex((v) => v._id === video._id);
+                  const isFirst = vIndex === 0;
+                  const userUnlocked = isFirst || isUnlocked || Boolean(typeof window !== 'undefined' && localStorage.getItem('token'));
 
-                      {/* Fallback gradient if no thumbnail or loading */}
-                      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-gray-800 to-gray-950 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-orange-500/60" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      </div>
+                  return (
+                    <button
+                      key={video._id}
+                      onClick={() => handleSelectVideo(video)}
+                      className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                        currentVideo?._id === video._id
+                          ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
+                          : userUnlocked
+                          ? 'hover:bg-gray-700/60'
+                          : 'hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30'
+                      }`}
+                    >
+                      {/* Video Thumbnail */}
+                      <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
+                        {video.thumbnail ? (
+                          <img
+                            src={video.thumbnail}
+                            alt={video.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : null}
 
-                      {/* Duration Badge */}
-                      <span className="absolute bottom-1 right-1 bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/95 px-1 py-0.5 rounded leading-none shadow-sm">
-                        {formatDuration(video.duration)}
-                      </span>
-
-                      {/* Status Overlay */}
-                      {isVideoCompleted(video._id) ? (
-                        <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        {/* Fallback gradient if no thumbnail or loading */}
+                        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-gray-800 to-gray-950 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-orange-500/60" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
-                      ) : currentVideo?._id === video._id ? (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
-                            <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
-                              <path d="M8 5v14l11-7z" />
+
+                        {/* Duration Badge */}
+                        <span className="absolute bottom-1 right-1 bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/95 px-1 py-0.5 rounded leading-none shadow-sm">
+                          {formatDuration(video.duration)}
+                        </span>
+
+                        {/* Status Overlay */}
+                        {isVideoCompleted(video._id) ? (
+                          <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                             </svg>
                           </div>
-                        </div>
-                      ) : video.isLocked ? (
-                        <div className="absolute top-1 left-1 w-5 h-5 bg-black/80 rounded-full flex items-center justify-center shadow">
-                          <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {/* Title, Topic Description, Badges */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                      <p
-                        className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
-                          currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
-                        }`}
-                      >
-                        {video.title}
-                      </p>
-                      {video.description ? (
-                        <p className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
-                          {video.description}
-                        </p>
-                      ) : null}
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        {video.isFree && (
-                          <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                            {t.free}
-                          </span>
-                        )}
-                        {currentVideo?._id === video._id && (
-                          <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
-                            Playing
-                          </span>
-                        )}
+                        ) : currentVideo?._id === video._id ? (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
+                              <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+                        ) : !userUnlocked ? (
+                          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-amber-500/90 text-white rounded text-[9px] font-bold flex items-center gap-1 shadow">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            <span>Unlock</span>
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                  </button>
-                ))}
+
+                      {/* Title, Topic Description, Badges */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                        <p
+                          className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
+                            currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
+                          }`}
+                        >
+                          {video.title}
+                        </p>
+                        {video.description ? (
+                          <p className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
+                            {video.description}
+                          </p>
+                        ) : null}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {isFirst ? (
+                            <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                              Free
+                            </span>
+                          ) : userUnlocked ? (
+                            <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.2 rounded border border-green-500/30">
+                              Unlocked
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40">
+                              Free Unlock
+                            </span>
+                          )}
+                          {currentVideo?._id === video._id && (
+                            <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
+                              Playing
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2501,10 +2582,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                 <button
                   onClick={() => {
                     const currentIndex = videos.findIndex((v) => v._id === currentVideo._id);
-                    const nextVideo = videos.find((v, i) => i > currentIndex && v.canWatch);
-                    if (nextVideo) setCurrentVideo(nextVideo);
+                    const nextVideo = videos[currentIndex + 1];
+                    if (nextVideo) {
+                      handleSelectVideo(nextVideo);
+                    }
                   }}
-                  disabled={!videos.slice(videos.findIndex((v) => v._id === currentVideo._id) + 1).some((v) => v.canWatch)}
+                  disabled={videos.findIndex((v) => v._id === currentVideo._id) >= videos.length - 1}
                   className="flex items-center gap-1 sm:gap-2 text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs sm:text-sm p-1.5 sm:p-2 rounded-lg hover:bg-gray-700/50"
                   title="Next video"
                 >
@@ -2572,6 +2655,31 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           )}
         </div>
       </div>
+
+      {/* Lead Unlock Modal for Gated Videos (Video 2-6) */}
+      <CourseLeadUnlockModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setPendingTargetVideo(null);
+        }}
+        onSuccess={() => {
+          setShowUnlockModal(false);
+          setIsUnlocked(true);
+          const target = pendingTargetVideo;
+          setPendingTargetVideo(null);
+          if (target) {
+            setCurrentVideo(target);
+            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+              setSidebarOpen(false);
+            }
+          }
+        }}
+        courseTitle={course?.title}
+        courseId={course?._id || course?.id}
+        courseSlug={slug}
+        targetVideoTitle={pendingTargetVideo?.title}
+      />
     </div>
   );
 }
