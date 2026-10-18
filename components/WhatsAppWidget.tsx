@@ -2,12 +2,33 @@
 
 import { MessageCircle, Sparkles } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function WhatsAppWidget() {
   const pathname = usePathname();
+  const [isCrmDomain, setIsCrmDomain] = useState(false);
 
-  // Hide on admin/CRM routes and mobile-chat.
-  if (pathname?.startsWith('/admin') || pathname?.startsWith('/mobile-chat')) return null;
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsCrmDomain(window.location.hostname.startsWith('crm.'));
+    }
+  }, []);
+
+  // Hide on admin/CRM routes, CRM domain, workshops, e-learning courses/video players, sadhana, and mobile-chat
+  if (
+    isCrmDomain ||
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/super-admin') ||
+    pathname?.startsWith('/e-learning') ||
+    pathname?.startsWith('/workshop') ||
+    pathname?.startsWith('/workshops') ||
+    pathname?.startsWith('/sadhana') ||
+    pathname?.startsWith('/mobile-chat') ||
+    pathname?.includes('/learn') ||
+    pathname?.includes('/videos')
+  ) {
+    return null;
+  }
 
   const whatsappNumber = '919779006820';
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hello%20Swar%20Yoga!%20I%20would%20like%20to%20inquire%20about%20your%20services.`;

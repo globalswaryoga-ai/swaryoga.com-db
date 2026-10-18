@@ -176,11 +176,21 @@ export default function CourseVideosPage() {
                           isLocked ? 'brightness-90 group-hover:scale-105' : 'group-hover:scale-105'
                         }`}
                         onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
+                          const target = e.target as HTMLImageElement;
+                          if (course.thumbnail && target.src !== course.thumbnail) {
+                            target.src = course.thumbnail;
+                          } else {
+                            target.style.display = 'none';
+                          }
                         }}
                       />
-                    ) : null}
-                    {(!video.thumbnail || !video.thumbnail.trim()) && (
+                    ) : course.thumbnail ? (
+                      <img
+                        src={course.thumbnail}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
                       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
                         <Play size={48} className="text-white/60" />
                       </div>

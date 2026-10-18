@@ -37,50 +37,69 @@ async function resolveThumbnailUrl(vid: string): Promise<string | null> {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const rawUrl = searchParams.get('url');
   const vid = searchParams.get('vid') || searchParams.get('videoId');
+  const fallback = searchParams.get('fallback');
 
-  if (!vid) {
-    return new NextResponse('Missing video id', { status: 400 });
+  if (!rawUrl && !vid && !fallback) {
+    return new NextResponse('Missing thumbnail url or video id', { status: 400 });
   }
 
-  try {
-    // 1. Resolve actual thumbnail URL from Bunny Stream metadata
-    const cdnUrl = await resolveThumbnailUrl(vid) || `https://${BUNNY_STREAM_HOST}/${vid}/thumbnail.jpg`;
+  const urlsToTry: string[] = [];
 
-    // 2. Fetch the image using the allowed Referer header
-    const res = await fetch(cdnUrl, {
-      headers: {
-        Referer: 'https://swaryoga.com',
-      },
-      next: { revalidate: 86400 },
-    });
+  if (rawUrl) {
+    urlsToTry.push(rawUrl);
+  }
 
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      return new NextResponse(arrayBuffer, {
+  if (vid) {
+    const resolved = await resolveThumbnailUrl(vid);
+    if (resolved) {
+      urlsToTry.push(resolved);
+    }
+    urlsToTry.push(`https://${BUNNY_STREAM_HOST}/${vid}/thumbnail.jpg`);
+  }
+
+  if (fallback) {
+    urlsToTry.push(fallback);
+  }
+
+  for (const cdnUrl of urlsToTry) {
+    try {
+      const res = await fetch(cdnUrl, {
         headers: {
-          'Content-Type': res.headers.get('content-type') || 'image/jpeg',
-          'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
+          Referer: 'https://swaryoga.com',
+          'User-Agent': 'Mozilla/5.0 (compatible; SwarYogaProxy/1.0)',
         },
+        next: { revalidate: 86400 },
       });
-    }
 
-    if (searchParams.get('inspect') === '1') {
-      return NextResponse.json({
-        error: 'Thumbnail fetch failed',
-        cdnUrl,
-        resStatus: res.status,
-      });
-    }
-  } catch (error: any) {
-    console.error('[Thumbnail Proxy] Error fetching thumbnail:', error);
-    if (searchParams.get('inspect') === '1') {
-      return NextResponse.json({
-        error: 'Exception thrown',
-        message: error?.message,
-      });
+      if (res.ok) {
+        const arrayBuffer = await res.arrayBuffer();
+        const contentType = res.headers.get('content-type') || 'image/jpeg';
+        return new NextResponse(arrayBuffer, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('[Thumbnail Proxy] Failed fetching:', cdnUrl, err);
     }
   }
 
-  return new NextResponse('Thumbnail not found', { status: 404 });
+  // Fallback to SVG placeholder if all else fails
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" fill="none">
+    <rect width="640" height="360" fill="#111827"/>
+    <circle cx="320" cy="180" r="40" fill="#16A34A"/>
+    <polygon points="312,165 336,180 312,195" fill="#FFFFFF"/>
+    <text x="320" y="245" fill="#9CA3AF" font-family="sans-serif" font-size="14" text-anchor="middle">Swar Yoga</text>
+  </svg>`;
+
+  return new NextResponse(svg, {
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
 }

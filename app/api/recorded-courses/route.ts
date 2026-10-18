@@ -135,13 +135,22 @@ export async function GET(request: NextRequest) {
         const isFree = Boolean(v.isFree || course.isFree);
         const hasAccess = (isFree || canAccessPaidContent) && !isDisabledByAdmin;
         const localized = getLocalizedContent(v.content, lang);
-        const thumbnail =
+        const rawThumbnail =
           (v as any).thumbnail ||
           (localized as any).thumbnail ||
           (v.content as any)?.thumbnail ||
-          (v.bunnyVideoId ? `/api/recorded-courses/thumbnail?vid=${v.bunnyVideoId}` : undefined) ||
-          course.thumbnail ||
           '';
+
+        let thumbnail = '';
+        if (rawThumbnail && (rawThumbnail.includes('vz-') || rawThumbnail.includes('video.bunnycdn'))) {
+          thumbnail = `/api/recorded-courses/thumbnail?url=${encodeURIComponent(rawThumbnail)}&fallback=${encodeURIComponent(course.thumbnail || '')}`;
+        } else if (rawThumbnail) {
+          thumbnail = rawThumbnail;
+        } else if (v.bunnyVideoId) {
+          thumbnail = `/api/recorded-courses/thumbnail?vid=${v.bunnyVideoId}&fallback=${encodeURIComponent(course.thumbnail || '')}`;
+        } else {
+          thumbnail = course.thumbnail || '';
+        }
 
         return {
           ...v,

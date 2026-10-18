@@ -1389,7 +1389,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 loading="lazy"
                                 onError={(e) => {
-                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  if (course?.thumbnail && target.src !== course.thumbnail) {
+                                    target.src = course.thumbnail;
+                                  } else {
+                                    target.style.display = 'none';
+                                  }
                                 }}
                               />
                             ) : null}
@@ -1504,7 +1509,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
                             onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
+                              const target = e.currentTarget as HTMLImageElement;
+                              if (course?.thumbnail && target.src !== course.thumbnail) {
+                                target.src = course.thumbnail;
+                              } else {
+                                target.style.display = 'none';
+                              }
                             }}
                           />
                         ) : null}

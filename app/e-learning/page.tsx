@@ -672,11 +672,11 @@ export default function CoursesPage() {
                     {/* Thumbnail */}
                     <div className="relative aspect-video bg-gradient-to-br from-green-800 to-green-900">
                       {course.thumbnail && !course.thumbnail.includes('placehold') ? (
-                        <Image
+                        <img
                           src={course.thumbnail}
                           alt={course.title}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-white">

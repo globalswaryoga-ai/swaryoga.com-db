@@ -67,6 +67,7 @@ export type BunnyCourseVideo = {
   accessType: string;
   order: number;
   isActive: boolean;
+  thumbnail?: string;
   content: Record<string, any>;
   createdAt: string;
   updatedAt: string;
@@ -227,6 +228,8 @@ function sectionRowToObj(row: any): BunnyCourseSection {
 }
 
 function videoRowToObj(row: any): BunnyCourseVideo {
+  const content = parse<Record<string, any>>(row.content_json, {});
+  const thumbnail = content.thumbnail || content.en?.thumbnail || '';
   return {
     id: String(row.id),
     _id: String(row.id),
@@ -241,7 +244,8 @@ function videoRowToObj(row: any): BunnyCourseVideo {
     accessType: row.access_type || 'paid',
     order: Number(row.display_order !== null && row.display_order !== undefined ? row.display_order : 1),
     isActive: Boolean(row.is_active),
-    content: parse(row.content_json, {}),
+    thumbnail,
+    content,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
