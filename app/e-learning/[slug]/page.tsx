@@ -266,7 +266,7 @@ export default function CourseDetailPage() {
             <div className="flex flex-wrap gap-3 sm:gap-6 text-gray-600 mb-8">
               <div className="flex items-center gap-2">
                 <Video size={20} />
-                <span>{course.totalVideos || 0} videos</span>
+                <span>{videos.length || course.totalVideos || 0} videos</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar size={20} />

@@ -125,6 +125,7 @@ export async function GET(request: NextRequest) {
 
       const localizedCourse = {
         ...course,
+        totalVideos: videos.length,
         ...getLocalizedContent(course.content, lang),
         content: undefined,
       };
