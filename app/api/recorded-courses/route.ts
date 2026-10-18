@@ -21,6 +21,8 @@ import { getOrdersByUser } from '@/lib/bunnyWebsiteRepository';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 function getPreferredLanguage(request: NextRequest): string {
   const langParam = request.nextUrl.searchParams.get('lang');
@@ -82,26 +84,6 @@ export async function GET(request: NextRequest) {
         listMaterialsByCourse(course.id, true),
         listAssignmentsByCourse(course.id, true),
       ]);
-
-      if (request.nextUrl.searchParams.get('debug') === '1') {
-        const rawRes = await bunnyExecute({
-          sql: 'SELECT id, title, display_order, is_active, is_free FROM course_videos_sql WHERE course_id = ?',
-          args: [course.id],
-        });
-        const activeRes = await bunnyExecute({
-          sql: 'SELECT id, title, display_order, is_active, is_free FROM course_videos_sql WHERE course_id = ? AND is_active = 1 ORDER BY display_order ASC',
-          args: [course.id],
-        });
-        return NextResponse.json({
-          debug: true,
-          courseId: course.id,
-          rawRowsCount: rawRes.rows.length,
-          activeRowsCount: activeRes.rows.length,
-          activeRows: activeRes.rows,
-          videosLength: videos.length,
-          videos,
-        });
-      }
 
       let enrollment: any = null;
       let canAccessPaidContent = course.isFree;
@@ -206,20 +188,29 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      return NextResponse.json({
-        success: true,
-        course: localizedCourse,
-        sections: localizedSections,
-        videos: localizedVideos,
-        materials: localizedMaterials,
-        assignments: localizedAssignments,
-        reviews: [],
-        enrollment,
-        canAccessPaidContent,
-        giftHoursAvailable,
-        isLoggedIn: !!decoded,
-        language: lang,
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          course: localizedCourse,
+          sections: localizedSections,
+          videos: localizedVideos,
+          materials: localizedMaterials,
+          assignments: localizedAssignments,
+          reviews: [],
+          enrollment,
+          canAccessPaidContent,
+          giftHoursAvailable,
+          isLoggedIn: !!decoded,
+          language: lang,
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        }
+      );
     }
 
     // ============================================

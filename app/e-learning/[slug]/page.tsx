@@ -115,7 +115,7 @@ export default function CourseDetailPage() {
         // enrolled student through the payment flow again.
         const storedToken = localStorage.getItem('token') || '';
         const headers: Record<string, string> = storedToken ? { Authorization: `Bearer ${storedToken}` } : {};
-        const res = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`, { headers });
+        const res = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}&_t=${Date.now()}`, { headers, cache: 'no-store' });
         const data = await res.json();
 
         if (data.success && data.course) {

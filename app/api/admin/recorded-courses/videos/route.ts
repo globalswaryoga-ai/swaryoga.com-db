@@ -59,7 +59,10 @@ export async function GET(request: NextRequest) {
         order: v.order,
         isFree: v.isFree,
         isActive: v.isActive,
-        thumbnail: '',
+        thumbnail:
+          (v.content as any)?.thumbnail ||
+          (v.content as any)?.en?.thumbnail ||
+          (v.bunnyVideoId ? `/api/recorded-courses/thumbnail?vid=${v.bunnyVideoId}` : ''),
         transcript: '',
         aiSummary: '',
         ragEnabled: false,

@@ -357,8 +357,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`, {
+      const response = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}&_t=${Date.now()}`, {
         headers,
+        cache: 'no-store',
       });
       const data = await response.json();
 
