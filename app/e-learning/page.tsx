@@ -165,6 +165,7 @@ interface Course {
   discount?: number;
   promoCode?: string;
   isFree: boolean;
+  isPublished?: boolean;
   giftHours?: {
     enabled: boolean;
     hours: number;
@@ -183,6 +184,7 @@ type Language = string;
 
 interface LanguageFolder {
   _id: string;
+  id?: string;
   code: string;
   name: string;
   flag: string;
@@ -263,7 +265,7 @@ export default function CoursesPage() {
 
       let url = '/api/recorded-courses';
       if (selectedFolder) {
-        url += `?folderId=${selectedFolder._id}`;
+        url += `?folderId=${selectedFolder._id || selectedFolder.id}`;
       } else {
         url += `?lang=${language}`;
       }
@@ -296,13 +298,14 @@ export default function CoursesPage() {
 
   // Filter courses by language, search, and level
   const filteredCourses = courses.filter((course) => {
-    // Show all languages if selected language is 'all', otherwise filter by videoLanguage
-    const matchesLanguage = language === 'all' || course.videoLanguage === language || !course.videoLanguage;
+    // When inside a folder, all courses belonging to that folder match
+    const matchesLanguage = selectedFolder ? true : (language === 'all' || course.videoLanguage === language || !course.videoLanguage);
     const matchesSearch = searchQuery === '' ||
       course.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = selectedLevel === 'all' || course.level === selectedLevel;
-    return matchesLanguage && matchesSearch && matchesLevel;
+    const matchesPublished = course.isPublished !== false;
+    return matchesLanguage && matchesSearch && matchesLevel && matchesPublished;
   });
 
   // Format duration (in days)
@@ -519,7 +522,11 @@ export default function CoursesPage() {
                       {filteredFolders.map((folder) => (
                     <button
                       key={folder._id}
-                      onClick={() => setSelectedFolder(folder)}
+                      onClick={() => {
+                        setSelectedFolder(folder);
+                        setSelectedLevel('all');
+                        setSearchQuery('');
+                      }}
                       className="group relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 h-full flex flex-col"
                     >
                       {/* Folder Thumbnail */}
@@ -576,6 +583,8 @@ export default function CoursesPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               setSelectedFolder(folder);
+                              setSelectedLevel('all');
+                              setSearchQuery('');
                             }}
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

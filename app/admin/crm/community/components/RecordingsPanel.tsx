@@ -51,8 +51,9 @@ export const RecordingsPanel: React.FC<RecordingsPanelProps> = ({
 
   const folders = useMemo(() => {
     const folderMap: Record<string, Record<string, Recording[]>> = {};
-    recordings.forEach(rec => {
-      const parts = rec.title?.split(' > ') || [];
+    (recordings || []).forEach(rec => {
+      if (!rec) return;
+      const parts = (rec.title || 'Uncategorized > Default Batch').split(' > ');
       const folder = parts[0] || 'Uncategorized';
       const playlist = parts[1] || 'Default Batch';
 
@@ -63,12 +64,12 @@ export const RecordingsPanel: React.FC<RecordingsPanelProps> = ({
     return folderMap;
   }, [recordings]);
 
-  const folderNames = Object.keys(folders);
-  const currentFolder = selectedFolder || folderNames[0];
-  const playlists = folders[currentFolder] || {};
-  const playlistNames = Object.keys(playlists);
+  const folderNames = Object.keys(folders || {});
+  const currentFolder = selectedFolder || folderNames[0] || '';
+  const playlists = (currentFolder && folders[currentFolder]) ? folders[currentFolder] : {};
+  const playlistNames = Object.keys(playlists || {});
   const firstPlaylist = playlistNames[0];
-  const heroVideo = firstPlaylist ? playlists[firstPlaylist]?.[0] : null;
+  const heroVideo = firstPlaylist && playlists[firstPlaylist] ? playlists[firstPlaylist][0] : null;
 
   if (activeTab !== 'recordings') return null;
 

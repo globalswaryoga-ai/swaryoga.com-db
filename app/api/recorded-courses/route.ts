@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     if (slug) {
       const course = await getCourseBySlug(slug);
 
-      if (!course || !course.isActive) {
+      if (!course || !course.isActive || !course.isPublished) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
 
@@ -193,6 +193,7 @@ export async function GET(request: NextRequest) {
     const folderId = request.nextUrl.searchParams.get('folderId');
     const courses = await listCourses({
       folderId: folderId || undefined,
+      isPublished: true,
       isActive: true,
     });
 

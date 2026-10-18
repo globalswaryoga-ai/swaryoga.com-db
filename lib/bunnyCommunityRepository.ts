@@ -118,6 +118,7 @@ export function initCommunitySchema() {
   }
   return communitySchemaPromise;
 }
+export const initBunnyCommunitySchema = initCommunitySchema;
 
 async function initializeCommunitySchema() {
   await bunnyBatch([
@@ -1163,18 +1164,20 @@ export async function listBunnyCommunities(filter?: any): Promise<any[]> {
   sql += ' ORDER BY name ASC';
   const res = await bunnyExecute({ sql, args });
   return res.rows.map((row: any) => {
-    const rawDoc = parse(row.raw_doc_json, {});
+    const rawDoc = cleanMongoJson(parse(row.raw_doc_json || row.data_json, {}));
+    const communityName = row.name && row.name !== 'null' ? String(row.name) : (rawDoc.name && rawDoc.name !== 'null' ? String(rawDoc.name) : String(row.id));
+    const communitySlug = row.slug && row.slug !== 'null' ? String(row.slug) : (rawDoc.slug && rawDoc.slug !== 'null' ? String(rawDoc.slug) : String(row.id));
     return {
+      ...rawDoc,
       id: String(row.id),
       _id: String(row.id),
-      slug: String(row.slug),
-      name: String(row.name),
-      description: row.description ? String(row.description) : '',
-      type: String(row.type),
-      isArchived: Boolean(row.is_archived),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-      ...rawDoc,
+      slug: communitySlug,
+      name: communityName,
+      description: row.description ? String(row.description) : (rawDoc.description || ''),
+      type: String(row.type || rawDoc.type || 'global'),
+      isArchived: Boolean(row.is_archived ?? rawDoc.isArchived),
+      createdAt: String(row.created_at || rawDoc.createdAt || now()),
+      updatedAt: String(row.updated_at || rawDoc.updatedAt || now()),
     };
   });
 }
@@ -1182,8 +1185,9 @@ export async function listBunnyCommunities(filter?: any): Promise<any[]> {
 export async function getBunnyCommunity(idOrSlug: string): Promise<any> {
   const c = await getCommunity(idOrSlug);
   if (!c) return null;
+  const rawDoc = cleanMongoJson(c.rawDoc || {});
   return {
-    ...c.rawDoc,
+    ...rawDoc,
     id: c.id,
     _id: c.id,
     slug: c.slug,
@@ -1204,15 +1208,15 @@ export async function getBunnyCommunityByName(name: string): Promise<any> {
   });
   if (!res.rows[0]) return null;
   const row = res.rows[0];
-  const rawDoc = parse(row.raw_doc_json, {});
+  const rawDoc = cleanMongoJson(parse(row.raw_doc_json, {}));
   return {
     ...rawDoc,
     id: String(row.id),
     _id: String(row.id),
-    slug: String(row.slug),
-    name: String(row.name),
+    slug: String(row.slug || row.id),
+    name: String(row.name || row.id),
     description: row.description ? String(row.description) : '',
-    type: String(row.type),
+    type: String(row.type || 'global'),
     isArchived: Boolean(row.is_archived),
   };
 }
@@ -1348,21 +1352,23 @@ export async function listBunnyCommunityMembers(filter?: {
 
   const res = await bunnyExecute({ sql, args });
   const members = res.rows.map((row: any) => {
-    const rawDoc = parse(row.raw_doc_json, {});
+    const rawDoc = cleanMongoJson(parse(row.raw_doc_json, {}));
     return {
+      ...rawDoc,
       id: String(row.id),
       _id: String(row.id),
-      userId: row.user_id ? String(row.user_id) : String(row.id),
+      userId: row.user_id ? String(row.user_id) : (rawDoc.userId ? String(rawDoc.userId) : String(row.id)),
       communityId: String(row.community_id),
-      name: String(row.name),
-      mobile: String(row.mobile),
-      email: row.email ? String(row.email) : '',
-      role: String(row.role || 'member'),
-      status: String(row.status || 'active'),
-      approved: Boolean(row.approved),
-      joinedAt: String(row.joined_at),
-      updatedAt: String(row.updated_at),
-      ...rawDoc,
+      name: row.name && row.name !== 'null' ? String(row.name) : (rawDoc.name && rawDoc.name !== 'null' ? String(rawDoc.name) : 'Member'),
+      mobile: row.mobile && row.mobile !== 'null' ? String(row.mobile) : (rawDoc.mobile || ''),
+      email: row.email ? String(row.email) : (rawDoc.email || ''),
+      role: String(row.role || rawDoc.role || 'member'),
+      status: String(row.status || rawDoc.status || 'active'),
+      approved: Boolean(row.approved ?? rawDoc.approved),
+      joinedAt: String(row.joined_at || rawDoc.joinedAt || now()),
+      updatedAt: String(row.updated_at || rawDoc.updatedAt || now()),
+      messageCount: typeof rawDoc.messageCount === 'number' ? rawDoc.messageCount : parseMongoNumber(rawDoc.messageCount, 0),
+      reactions: typeof rawDoc.reactions === 'number' ? rawDoc.reactions : parseMongoNumber(rawDoc.reactions, 0),
     };
   });
 

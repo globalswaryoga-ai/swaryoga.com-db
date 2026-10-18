@@ -51,21 +51,21 @@ export const PostsPanel: React.FC<PostsPanelProps> = ({
 
   // Memoize filtered posts
   const filteredPosts = useMemo(() => {
-    let filtered = posts;
+    let filtered = posts || [];
 
     // Filter by search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(post =>
-        post.content?.toLowerCase().includes(query) ||
-        post.userId?.toLowerCase().includes(query)
+        (post?.content || '').toLowerCase().includes(query) ||
+        (post?.userId || '').toLowerCase().includes(query)
       );
     }
 
     // Filter by category
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(post => {
-        const postCategory = post.category?.toLowerCase() || 'general';
+        const postCategory = (post?.category || 'general').toLowerCase();
         return postCategory.includes(categoryFilter) ||
                (categoryFilter === 'tips' && postCategory.includes('tip')) ||
                (categoryFilter === 'experiences' && postCategory.includes('experience')) ||

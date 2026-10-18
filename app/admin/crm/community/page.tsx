@@ -862,13 +862,13 @@ export default function AdminCommunityPage() {
           const cid = c.id || c._id;
           return {
             id: cid,
-            _id: c._id,
-            name: c.name,
+            _id: c._id || cid,
+            name: c.name && c.name !== 'null' ? c.name : (cid || 'Community'),
             icon: COMMUNITY_ICONS[c.type] || COMMUNITY_ICONS.default,
             memberCount: c.memberCount || 0,
             // ALWAYS use the canonical /join/ form link (ignore stale DB joinLink values)
             joinLink: `https://swaryoga.com/join/${cid}`,
-            type: c.type
+            type: c.type || 'global'
           };
         });
         
@@ -877,7 +877,12 @@ export default function AdminCommunityPage() {
         DEFAULT_COMMUNITIES.forEach(c => mergedMap.set(c.id, c));
         dbCommunities.forEach((c: Community) => {
           const existing = mergedMap.get(c.id);
-          mergedMap.set(c.id, { ...existing, ...c, icon: existing?.icon || c.icon });
+          mergedMap.set(c.id, {
+            ...existing,
+            ...c,
+            name: c.name && c.name !== 'null' ? c.name : (existing?.name || c.id || 'Community'),
+            icon: existing?.icon || c.icon || '🌟'
+          });
         });
         
         setCommunities(Array.from(mergedMap.values()));
@@ -1798,19 +1803,24 @@ export default function AdminCommunityPage() {
 
         // Calculate last activity time
         if (membersList.length > 0) {
-          const recentMember = membersList.sort((a: any, b: any) =>
-            new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()
-          )[0];
-          if (recentMember?.joinedAt) {
+          const sorted = [...membersList].sort((a: any, b: any) => {
+            const timeA = typeof a?.joinedAt === 'string' ? new Date(a.joinedAt).getTime() : 0;
+            const timeB = typeof b?.joinedAt === 'string' ? new Date(b.joinedAt).getTime() : 0;
+            return timeB - timeA;
+          });
+          const recentMember = sorted[0];
+          if (recentMember?.joinedAt && typeof recentMember.joinedAt === 'string') {
             const timeAgo = new Date(recentMember.joinedAt);
             const now = new Date();
             const diffMinutes = Math.floor((now.getTime() - timeAgo.getTime()) / 60000);
-            if (diffMinutes < 60) {
-              setLastActivityTime(`${diffMinutes}m ago`);
-            } else if (diffMinutes < 1440) {
-              setLastActivityTime(`${Math.floor(diffMinutes / 60)}h ago`);
-            } else {
-              setLastActivityTime(`${Math.floor(diffMinutes / 1440)}d ago`);
+            if (!isNaN(diffMinutes) && diffMinutes >= 0) {
+              if (diffMinutes < 60) {
+                setLastActivityTime(`${diffMinutes}m ago`);
+              } else if (diffMinutes < 1440) {
+                setLastActivityTime(`${Math.floor(diffMinutes / 60)}h ago`);
+              } else {
+                setLastActivityTime(`${Math.floor(diffMinutes / 1440)}d ago`);
+              }
             }
           }
         }
@@ -2136,7 +2146,7 @@ export default function AdminCommunityPage() {
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              📝 Submissions ({submissionsCounts.pending + submissionsCounts.approved + submissionsCounts.rejected + submissionsCounts.posted})
+              📝 Submissions ({((submissionsCounts?.pending || 0) + (submissionsCounts?.approved || 0) + (submissionsCounts?.rejected || 0) + (submissionsCounts?.posted || 0))})
             </button>
             <button
               onClick={() => setActiveTab('analytics')}

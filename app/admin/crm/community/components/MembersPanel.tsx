@@ -5,6 +5,7 @@ import { Download, Mail, Shield, Send, Loader, CheckCircle, AlertCircle, Trash2,
 
 interface CommunityMember {
   _id: string;
+  id?: string;
   userId?: string;
   name: string;
   email?: string;
@@ -76,14 +77,14 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
 
   // Memoize filtered members - only recalculate when members or filters change
   const filteredMembers = useMemo(() => {
-    let filtered = members;
+    let filtered = members || [];
 
     // Filter by status
     if (statusFilter !== 'all') {
       if (statusFilter === 'pending') {
-        filtered = filtered.filter(m => !m.approved);
+        filtered = filtered.filter(m => !m?.approved);
       } else {
-        filtered = filtered.filter(m => m.status === statusFilter);
+        filtered = filtered.filter(m => m?.status === statusFilter);
       }
     }
 
@@ -91,10 +92,10 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(m =>
-        m.name.toLowerCase().includes(query) ||
-        m.email?.toLowerCase().includes(query) ||
-        m.mobile.includes(query) ||
-        m.userId?.toLowerCase().includes(query)
+        (m?.name || '').toLowerCase().includes(query) ||
+        (m?.email || '').toLowerCase().includes(query) ||
+        (m?.mobile || '').includes(query) ||
+        (m?.userId || '').toLowerCase().includes(query)
       );
     }
 
@@ -236,19 +237,23 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredMembers.map((member) => (
-                  <tr key={member._id} className="hover:bg-indigo-50/[0.15] group transition-all">
+                {filteredMembers.map((member, idx) => {
+                  const memberId = typeof member?._id === 'string' ? member._id : (typeof member?.id === 'string' ? member.id : `member-${idx}`);
+                  const memberName = member?.name && member.name !== 'null' ? member.name : 'Unknown Member';
+                  const initial = (memberName || '?').charAt(0).toUpperCase();
+                  return (
+                  <tr key={memberId} className="hover:bg-indigo-50/[0.15] group transition-all">
                     <td className="pl-10 px-4 py-3">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
-                          {member.name.charAt(0)}
+                          {initial}
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-none">
-                            {member.name}
+                            {memberName}
                           </p>
                           <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
-                            ID: {member.userId}
+                            ID: {member.userId || memberId}
                           </p>
                         </div>
                       </div>
@@ -320,7 +325,13 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                     <td className="px-4 py-3">
                       <div className="flex gap-4">
                         <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 text-center min-w-[40px]">
-                          <p className="text-xs font-bold text-slate-800">{member.messageCount}</p>
+                          <p className="text-xs font-bold text-slate-800">
+                            {typeof member.messageCount === 'number'
+                              ? member.messageCount
+                              : typeof member.messageCount === 'object' && member.messageCount
+                              ? (member.messageCount as any).$numberInt || 0
+                              : 0}
+                          </p>
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Posts</p>
                         </div>
                       </div>
@@ -360,13 +371,13 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                         {member.status === 'banned' ? (
                           <button
                             onClick={() =>
-                              handleUnblockMember(member._id, member.userId || '', member.name)
+                              handleUnblockMember(memberId, member.userId || '', memberName)
                             }
-                            disabled={blockingMemberId === member._id}
+                            disabled={blockingMemberId === memberId}
                             className="p-2 hover:bg-emerald-500 hover:text-white rounded-lg transition-all text-emerald-600 border border-emerald-100 bg-emerald-50 disabled:opacity-50"
                             title="Unblock Member"
                           >
-                            {blockingMemberId === member._id ? (
+                            {blockingMemberId === memberId ? (
                               <Loader size={16} className="animate-spin" />
                             ) : (
                               <CheckCircle size={16} />
@@ -375,13 +386,13 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                         ) : (
                           <button
                             onClick={() =>
-                              handleBlockMember(member._id, member.userId || '', member.name)
+                              handleBlockMember(memberId, member.userId || '', memberName)
                             }
-                            disabled={blockingMemberId === member._id}
+                            disabled={blockingMemberId === memberId}
                             className="p-2 hover:bg-red-500 hover:text-white rounded-lg transition-all text-red-400 border border-red-100 disabled:opacity-50"
                             title="Block Member"
                           >
-                            {blockingMemberId === member._id ? (
+                            {blockingMemberId === memberId ? (
                               <Loader size={16} className="animate-spin" />
                             ) : (
                               <AlertCircle size={16} />
@@ -397,7 +408,8 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
