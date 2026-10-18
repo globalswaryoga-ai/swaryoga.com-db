@@ -28,10 +28,16 @@ export type BunnyRecordedCourse = {
   order: number;
   thumbnail?: string;
   totalDuration: number;
+  totalVideos?: number;
   pricing: Record<string, any>;
   content: Record<string, any>;
   accessSettings: Record<string, any>;
   giftHours: Record<string, any>;
+  defaultStudents?: number;
+  likes?: number;
+  rating?: number;
+  discount?: number;
+  promoCode?: string | null;
   data: Record<string, any>;
   createdAt: string;
   updatedAt: string;
@@ -191,11 +197,17 @@ function courseRowToObj(row: any): BunnyRecordedCourse {
     isActive: Boolean(row.is_active),
     order: Number(row.display_order || 1),
     thumbnail: row.thumbnail || data.thumbnail || '',
-    totalDuration: Number(row.total_duration || 0),
-    pricing: parse(row.pricing_json, { INR: { price: 0 } }),
-    content: parse(row.content_json, {}),
-    accessSettings: parse(row.access_settings_json, {}),
-    giftHours: parse(row.gift_hours_json, {}),
+    totalDuration: Number(row.total_duration || data.totalDuration || 0),
+    totalVideos: parseMongoNumber(data.totalVideos, 0),
+    pricing: parse(row.pricing_json, data.pricing || { INR: { price: 0 } }),
+    content: parse(row.content_json, data.content || {}),
+    accessSettings: parse(row.access_settings_json, data.accessSettings || {}),
+    giftHours: parse(row.gift_hours_json, data.giftHours || {}),
+    defaultStudents: parseMongoNumber(data.defaultStudents, 15),
+    likes: parseMongoNumber(data.likes, 10),
+    rating: parseMongoNumber(data.rating, 5.0),
+    discount: parseMongoNumber(data.discount, 0),
+    promoCode: data.promoCode || null,
     data,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -869,7 +881,16 @@ export async function saveCourse(
       json(data.content, {}),
       json(data.accessSettings, {}),
       json(data.giftHours, {}),
-      json(data.data, {}),
+      json({
+        totalVideos: parseMongoNumber(data.totalVideos, 0),
+        defaultStudents: parseMongoNumber(data.defaultStudents, 15),
+        likes: parseMongoNumber(data.likes, 10),
+        rating: parseMongoNumber(data.rating, 5.0),
+        discount: parseMongoNumber(data.discount, 0),
+        promoCode: data.promoCode || null,
+        folderId: data.folderId || null,
+        ...(data.data || {}),
+      }, {}),
       timestamp,
       timestamp,
     ],
@@ -949,6 +970,30 @@ export async function updateCourse(id: string, updates: Record<string, any>): Pr
     setClauses.push('gift_hours_json = ?');
     args.push(json(updates.giftHours, existing.giftHours));
   }
+
+  // Merge and persist custom fields in data_json
+  const existingData = existing.data || {};
+  const mergedData: Record<string, any> = {
+    ...existingData,
+    ...(updates.data || {}),
+  };
+  if (updates.totalVideos !== undefined) mergedData.totalVideos = Number(updates.totalVideos);
+  if (updates.defaultStudents !== undefined) mergedData.defaultStudents = Number(updates.defaultStudents);
+  if (updates.likes !== undefined) mergedData.likes = Number(updates.likes);
+  if (updates.rating !== undefined) mergedData.rating = Number(updates.rating);
+  if (updates.discount !== undefined) mergedData.discount = Number(updates.discount);
+  if (updates.promoCode !== undefined) mergedData.promoCode = updates.promoCode;
+  if (updates.folderId !== undefined) mergedData.folderId = updates.folderId;
+  if (updates.videoLanguage !== undefined) mergedData.videoLanguage = updates.videoLanguage;
+  if (updates.thumbnail !== undefined) mergedData.thumbnail = updates.thumbnail;
+  if (updates.totalDuration !== undefined) mergedData.totalDuration = Number(updates.totalDuration);
+  if (updates.level !== undefined) mergedData.level = updates.level;
+  if (updates.content !== undefined) mergedData.content = updates.content;
+  if (updates.pricing !== undefined) mergedData.pricing = updates.pricing;
+  if (updates.isFree !== undefined) mergedData.isFree = updates.isFree;
+
+  setClauses.push('data_json = ?');
+  args.push(json(mergedData, {}));
 
   setClauses.push('updated_at = ?');
   args.push(timestamp);

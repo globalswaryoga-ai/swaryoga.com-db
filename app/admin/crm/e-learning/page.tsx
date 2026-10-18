@@ -46,6 +46,7 @@ interface Course {
   isActive: boolean;
   totalDuration: number;
   videoCount: number;
+  totalVideos?: number;
   enrollmentCount: number;
   order?: number;
 }
@@ -586,7 +587,7 @@ export default function ELearningPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-white">
-                    <span className="text-yellow-400 font-semibold">{course.videoCount || 0}</span>
+                    <span className="text-yellow-400 font-semibold">{course.totalVideos !== undefined && course.totalVideos > 0 ? course.totalVideos : (course.videoCount || 0)}</span>
                     <span className="text-gray-500 text-sm ml-1">
                       ({formatDuration(course.totalDuration || 0)})
                     </span>

@@ -136,7 +136,7 @@ export default function EditCoursePage() {
           setLevel(c.level || 'beginner');
           setVideoLanguage(c.videoLanguage || 'en');
           setThumbnail(c.thumbnail || '');
-          setTotalVideos(String(c.totalVideos || 0));
+          setTotalVideos(String(c.totalVideos ?? (c as any).data?.totalVideos ?? 0));
           setDuration(String(c.totalDuration || 0));
           setPriceINR(String(c.pricing?.INR?.price || 0));
           setPriceNPR(String(c.pricing?.NPR?.price || 0));
@@ -163,8 +163,18 @@ export default function EditCoursePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !content.en.title) {
-      setError('Workshop name (English) is required');
+    const effectiveContent = { ...content };
+    if (!effectiveContent.en?.title && effectiveContent[activeLanguage]?.title) {
+      effectiveContent.en = {
+        ...effectiveContent.en,
+        title: effectiveContent[activeLanguage].title,
+        subtitle: effectiveContent.en?.subtitle || effectiveContent[activeLanguage].subtitle,
+        description: effectiveContent.en?.description || effectiveContent[activeLanguage].description,
+      };
+    }
+
+    if (!token || !effectiveContent.en?.title) {
+      setError('Workshop name is required');
       return;
     }
 
@@ -180,7 +190,7 @@ export default function EditCoursePage() {
         },
         body: JSON.stringify({
           courseId,
-          content,
+          content: effectiveContent,
           level,
           videoLanguage,
           thumbnail,
@@ -413,7 +423,18 @@ export default function EditCoursePage() {
           </div>
 
           {/* Row 4 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Total Videos</label>
+              <input
+                type="number"
+                value={totalVideos}
+                onChange={(e) => setTotalVideos(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+                min="0"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (days)</label>
               <input

@@ -72,7 +72,14 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        course,
+        course: {
+          ...course,
+          totalVideos: course.totalVideos !== undefined && course.totalVideos > 0
+            ? course.totalVideos
+            : (course.data?.totalVideos !== undefined && course.data.totalVideos > 0
+                ? course.data.totalVideos
+                : videos.length),
+        },
         sections,
         videos,
         materials,
@@ -91,10 +98,16 @@ export async function GET(request: NextRequest) {
       courses.map(async (course) => {
         const enrollmentCount = await countEnrollmentsByCourse(course.id);
         const videoCount = await countVideosByCourse(course.id);
+        const totalVideos = course.totalVideos !== undefined && course.totalVideos > 0
+          ? course.totalVideos
+          : (course.data?.totalVideos !== undefined && course.data.totalVideos > 0
+              ? course.data.totalVideos
+              : videoCount);
         return {
           ...course,
           enrollmentCount,
           videoCount,
+          totalVideos,
         };
       })
     );
