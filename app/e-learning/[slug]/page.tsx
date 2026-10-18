@@ -164,20 +164,20 @@ export default function CourseDetailPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="bg-gray-50 border-b p-6 flex items-center justify-between">
-        <Link href="/e-learning" className="flex items-center gap-2 text-green-600 hover:text-green-700">
-          <ArrowLeft size={20} /> Back to Courses
+      <div className="bg-gray-50 border-b px-4 py-3 sm:p-6 flex items-center justify-between gap-2">
+        <Link href="/e-learning" className="flex items-center gap-1.5 text-green-600 hover:text-green-700 text-sm font-medium">
+          <ArrowLeft size={18} /> <span className="hidden xs:inline">Back to </span>Courses
         </Link>
         {/* Language Selector - All 19 Languages Modal */}
         <div ref={langDropdownRef}>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors hover:border-gray-400"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-xs sm:text-sm font-medium hover:bg-gray-50 transition-colors hover:border-gray-400 shadow-xs"
           >
-            <span className="text-lg">{currentLangInfo.flag}</span>
-            <span>{currentLangInfo.name}</span>
+            <span className="text-base sm:text-lg">{currentLangInfo.flag}</span>
+            <span className="truncate max-w-[100px] sm:max-w-none">{currentLangInfo.name}</span>
             <svg
-              className={`w-4 h-4 transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`}
+              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -190,25 +190,25 @@ export default function CourseDetailPage() {
             <>
               {/* Backdrop */}
               <div
-                className="fixed inset-0 z-40 bg-black/30"
+                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs"
                 onClick={() => setLangDropdownOpen(false)}
               />
               {/* Modal */}
-              <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Select Language</h2>
+              <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-[92vw] max-w-sm max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Select Language</h2>
                   <button
                     onClick={() => setLangDropdownOpen(false)}
-                    className="text-gray-500 hover:text-gray-700 transition"
+                    className="p-1 text-gray-400 hover:text-gray-700 rounded-lg"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
 
                 {/* Language List - Single Column */}
-                <div className="max-w-xs mx-auto max-h-96 overflow-y-auto bg-white rounded-lg border border-gray-200">
+                <div className="max-h-80 overflow-y-auto bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
                   {languageOptions.map((lang) => (
                     <button
                       key={lang.code}
@@ -217,14 +217,14 @@ export default function CourseDetailPage() {
                         localStorage.setItem('preferred_language', lang.code);
                         setLangDropdownOpen(false);
                       }}
-                      className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-100 last:border-b-0 ${
+                      className={`w-full px-3.5 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all ${
                         language === lang.code
-                          ? 'bg-green-600 text-white'
-                          : 'bg-white text-gray-900 hover:bg-gray-100'
+                          ? 'bg-green-600 text-white font-semibold'
+                          : 'bg-white text-gray-800 hover:bg-gray-100'
                       }`}
                     >
-                      <span className="text-lg">{lang.flag}</span>
-                      <span className="flex-1">{lang.name}</span>
+                      <span className="text-base">{lang.flag}</span>
+                      <span className="flex-1 truncate">{lang.name}</span>
                       {language === lang.code && (
                         <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -244,7 +244,7 @@ export default function CourseDetailPage() {
           <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full" />
         </div>
       ) : (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:p-6 md:p-8">
         {course.thumbnail && (
           <div className="mb-8 rounded-2xl overflow-hidden">
             <img src={course.thumbnail} alt={course.title} className="w-full h-48 sm:h-64 md:h-96 object-cover" />
@@ -371,11 +371,11 @@ export default function CourseDetailPage() {
               </Link>
 
               <button
-                onClick={() => canAccessPaidContent ? router.push(`/e-learning/${slug}/learn`) : setShowEnrollmentModal(true)}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                onClick={() => (canAccessPaidContent || course.isFree) ? router.push(`/e-learning/${slug}/learn`) : setShowEnrollmentModal(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md active:scale-98"
               >
                 <Play size={20} />
-                Start Learning
+                {course.isFree ? 'Start Watching Free' : 'Start Learning'}
               </button>
 
               <div className="mt-6 space-y-3 text-sm text-gray-600">

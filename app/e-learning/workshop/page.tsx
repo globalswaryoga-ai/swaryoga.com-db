@@ -281,8 +281,8 @@ export default function WorkshopPage() {
             </div>
 
             {/* Videos List */}
-            <div className="border-2 border-green-500 rounded-lg p-6 bg-gray-900/50">
-              <h3 className="text-xl font-bold text-yellow-400 mb-4">Course Videos ({selectedCourse.videos.length})</h3>
+            <div className="border-2 border-green-500 rounded-lg p-3.5 sm:p-6 bg-gray-900/50">
+              <h3 className="text-lg sm:text-xl font-bold text-yellow-400 mb-4">Course Videos ({selectedCourse.videos.length})</h3>
               <div className="space-y-2">
                 {selectedCourse.videos.map((video, index) => {
                   const isUnlocked = canPlayVideo(index);
