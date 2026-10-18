@@ -8,12 +8,17 @@ import { createClient, type Client, type InStatement, type ResultSet } from '@li
  */
 let client: Client | null = null;
 
+function cleanEnv(val?: string): string {
+  if (!val) return '';
+  return val.replace(/\\r/g, '').replace(/\\n/g, '').replace(/^["']|["']$/g, '').trim();
+}
+
 function getConfig(): { url: string; authToken: string } {
   // Read environment variables when the client is created rather than at module
   // import time. Next.js dev workers can load this module before a refreshed
   // environment is visible, which otherwise leaves a stale empty configuration.
-  const databaseUrl = process.env.BUNNY_DATABASE_URL?.trim();
-  const databaseToken = process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim();
+  const databaseUrl = cleanEnv(process.env.BUNNY_DATABASE_URL);
+  const databaseToken = cleanEnv(process.env.BUNNY_DATABASE_AUTH_TOKEN);
 
   if (!databaseUrl || !databaseToken) {
     throw new Error(

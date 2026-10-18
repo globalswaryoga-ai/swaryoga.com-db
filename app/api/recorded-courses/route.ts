@@ -128,11 +128,15 @@ export async function GET(request: NextRequest) {
 
       const localizedVideos = videos.map((v) => {
         const isDisabledByAdmin = disabledVideoIds.includes(v.id);
-        const hasAccess = (v.isFree || canAccessPaidContent) && !isDisabledByAdmin;
+        const isFree = Boolean(v.isFree || course.isFree);
+        const hasAccess = (isFree || canAccessPaidContent) && !isDisabledByAdmin;
+        const localized = getLocalizedContent(v.content, lang);
         return {
           ...v,
-          ...getLocalizedContent(v.content, lang),
+          title: localized.title || v.title || '',
+          description: (localized.description && localized.description.trim()) ? localized.description : (v.description || ''),
           content: undefined,
+          isFree,
           videoUrl: hasAccess ? v.videoUrl : undefined,
           bunnyVideoId: hasAccess ? v.bunnyVideoId : undefined,
           canWatch: hasAccess,

@@ -100,8 +100,10 @@ export default function CourseVideosPage() {
   }
 
   const handleVideoClick = (video: Video, index: number) => {
-    if (video.canWatch) {
-      return;
+    const isFree = video.isFree === true || course?.isFree === true;
+    const canPlay = video.canWatch || isFree;
+    if (canPlay) {
+      router.push(`/e-learning/${slug}/learn?video=${video._id || (video as any).id}`);
     } else {
       // Paid video and this viewer doesn't have access — being logged in
       // isn't enough, they need to actually be enrolled/paid.
@@ -132,12 +134,13 @@ export default function CourseVideosPage() {
         {videos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video, index) => {
-              const isFree = video.isFree === true;
-              const isLocked = !video.canWatch;
+              const isFree = video.isFree === true || course?.isFree === true;
+              const isLocked = !video.canWatch && !isFree;
+              const videoId = video._id || (video as any).id;
 
               return (
                 <div
-                  key={video._id}
+                  key={videoId}
                   onClick={() => handleVideoClick(video, index)}
                   className={`rounded-xl overflow-hidden border-2 transition-all ${
                     isLocked
@@ -215,16 +218,22 @@ export default function CourseVideosPage() {
                     )}
 
                     {/* Action Button */}
-                    {video.canWatch ? (
+                    {!isLocked ? (
                       <button
-                        onClick={() => router.push(`/e-learning/${slug}/learn?video=${video._id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/e-learning/${slug}/learn?video=${videoId}`);
+                        }}
                         className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                       >
                         <Play size={16} /> Play Video
                       </button>
                     ) : (
                       <button
-                        onClick={() => setShowEnrollmentModal(true)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowEnrollmentModal(true);
+                        }}
                         className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                       >
                         <BookOpen size={16} /> Enroll to Watch
@@ -244,14 +253,30 @@ export default function CourseVideosPage() {
 
         {/* Call to Action */}
         <div className="mt-12 p-4 sm:p-8 bg-green-50 rounded-2xl border-2 border-green-200 text-center">
-          <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Ready to Learn?</h3>
-          <p className="text-gray-600 mb-6">Enroll now to access all course videos and start your learning journey</p>
-          <button
-            onClick={() => setShowEnrollmentModal(true)}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
-          >
-            Enroll Now
-          </button>
+          <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+            {course.isFree ? 'Start Learning Today' : 'Ready to Learn?'}
+          </h3>
+          <p className="text-gray-600 mb-6">
+            {course.isFree
+              ? 'All course videos are completely free. Start your learning journey now!'
+              : 'Enroll now to access all course videos and start your learning journey'}
+          </p>
+          {course.isFree ? (
+            <Link
+              href={`/e-learning/${slug}/learn`}
+              className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
+            >
+              <Play size={18} />
+              Start Watching Free
+            </Link>
+          ) : (
+            <button
+              onClick={() => setShowEnrollmentModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
+            >
+              Enroll Now
+            </button>
+          )}
         </div>
       </div>
 
