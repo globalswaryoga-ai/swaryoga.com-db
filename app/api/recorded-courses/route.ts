@@ -18,6 +18,7 @@ import {
   countVideosByCourse,
 } from '@/lib/bunnyCourseRepository';
 import { getOrdersByUser } from '@/lib/bunnyWebsiteRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +82,21 @@ export async function GET(request: NextRequest) {
         listMaterialsByCourse(course.id, true),
         listAssignmentsByCourse(course.id, true),
       ]);
+
+      if (request.nextUrl.searchParams.get('debug') === '1') {
+        const rawRes = await bunnyExecute({
+          sql: 'SELECT id, title, display_order, is_active, is_free FROM course_videos_sql WHERE course_id = ?',
+          args: [course.id],
+        });
+        return NextResponse.json({
+          debug: true,
+          courseId: course.id,
+          rawRowsCount: rawRes.rows.length,
+          rawRows: rawRes.rows,
+          videosLength: videos.length,
+          videos,
+        });
+      }
 
       let enrollment: any = null;
       let canAccessPaidContent = course.isFree;
