@@ -38,6 +38,7 @@ export type BunnyRecordedCourse = {
   rating?: number;
   discount?: number;
   promoCode?: string | null;
+  promoDiscount?: number;
   data: Record<string, any>;
   createdAt: string;
   updatedAt: string;
@@ -209,6 +210,7 @@ function courseRowToObj(row: any): BunnyRecordedCourse {
     rating: parseMongoNumber(data.rating, 5.0),
     discount: parseMongoNumber(data.discount, 0),
     promoCode: data.promoCode || null,
+    promoDiscount: parseMongoNumber(data.promoDiscount, 0),
     data,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -892,6 +894,7 @@ export async function saveCourse(
         rating: parseMongoNumber(data.rating, 5.0),
         discount: parseMongoNumber(data.discount, 0),
         promoCode: data.promoCode || null,
+        promoDiscount: parseMongoNumber(data.promoDiscount, 0),
         folderId: data.folderId || null,
         ...(data.data || {}),
       }, {}),
@@ -987,6 +990,7 @@ export async function updateCourse(id: string, updates: Record<string, any>): Pr
   if (updates.rating !== undefined) mergedData.rating = Number(updates.rating);
   if (updates.discount !== undefined) mergedData.discount = Number(updates.discount);
   if (updates.promoCode !== undefined) mergedData.promoCode = updates.promoCode;
+  if (updates.promoDiscount !== undefined) mergedData.promoDiscount = Number(updates.promoDiscount);
   if (updates.folderId !== undefined) mergedData.folderId = updates.folderId;
   if (updates.videoLanguage !== undefined) mergedData.videoLanguage = updates.videoLanguage;
   if (updates.thumbnail !== undefined) mergedData.thumbnail = updates.thumbnail;

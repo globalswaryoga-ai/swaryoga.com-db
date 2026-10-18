@@ -39,8 +39,13 @@ interface Course {
   level: string;
   category?: string;
   pricing: {
-    INR: { price: number; originalPrice?: number };
+    INR?: { price: number; originalPrice?: number };
+    NPR?: { price: number; originalPrice?: number };
+    USD?: { price: number; originalPrice?: number };
   };
+  discount?: number;
+  promoCode?: string | null;
+  promoDiscount?: number;
   isFree: boolean;
   isPublished: boolean;
   isActive: boolean;
@@ -750,10 +755,11 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
   const [duration, setDuration] = useState(String(course.totalDuration || 0));
   const [thumbnail, setThumbnail] = useState(course.thumbnail || '');
   const [priceINR, setPriceINR] = useState(String(course.pricing?.INR?.price || 0));
-  const [priceNPR, setPriceNPR] = useState('0');
-  const [priceUSD, setPriceUSD] = useState('0');
-  const [discount, setDiscount] = useState('0');
-  const [promoCode, setPromoCode] = useState('');
+  const [priceNPR, setPriceNPR] = useState(String(course.pricing?.NPR?.price || 0));
+  const [priceUSD, setPriceUSD] = useState(String(course.pricing?.USD?.price || 0));
+  const [discount, setDiscount] = useState(String(course.discount || 0));
+  const [promoCode, setPromoCode] = useState(course.promoCode || '');
+  const [promoDiscount, setPromoDiscount] = useState(String((course as any).promoDiscount || 0));
   const [isFree, setIsFree] = useState(course.isFree || false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -794,7 +800,8 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
             USD: { price: isFree ? 0 : parseInt(priceUSD) || 0 },
           },
           discount: parseInt(discount) || 0,
-          promoCode: promoCode || null,
+          promoCode: promoCode ? promoCode.trim().toUpperCase() : null,
+          promoDiscount: parseInt(promoDiscount) || 0,
           isFree,
           isPublished: false,
           isActive: true,
@@ -1017,94 +1024,231 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                   </div>
                 </div>
 
-                {/* Quick Discount Presets */}
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    Quick Discount Presets
-                  </label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { pct: 10, label: '10% OFF', code: 'SWAR10' },
-                      { pct: 25, label: '25% OFF', code: 'SAVE25' },
-                      { pct: 50, label: '50% OFF', code: 'HALF50' },
-                      { pct: 75, label: '75% OFF', code: 'SPECIAL75' },
-                      { pct: 100, label: '100% FREE', code: 'FREE100' },
-                    ].map(({ pct, label, code }) => (
-                      <button
-                        key={pct}
-                        type="button"
-                        onClick={() => {
-                          setDiscount(String(pct));
-                          if (!promoCode || ['SWAR10','SAVE25','HALF50','SPECIAL75','FREE100'].includes(promoCode)) {
-                            setPromoCode(code);
-                          }
-                        }}
-                        className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
-                          parseInt(discount) === pct
-                            ? pct === 100
-                              ? 'bg-green-500/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
-                              : 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
-                            : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                {/* ───────────────────────────────────────────────────────────── */}
+                {/* WAY 1: DIRECT FRONTEND DISCOUNT */}
+                {/* ───────────────────────────────────────────────────────────── */}
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800/90 rounded-xl p-4 border border-red-500/30 mb-5 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                        Way 1
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Direct Frontend Discount (%)</h4>
+                    </div>
+                    <span className="text-xs text-red-300/80">Affects website catalog & course page directly</span>
                   </div>
-                </div>
 
-                {/* Row 6 - Discount & Promo */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
-                    <input
-                      type="number"
-                      value={discount}
-                      onChange={(e) => setDiscount(e.target.value)}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                      placeholder="0"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code</label>
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none uppercase font-mono tracking-wider"
-                      placeholder="SUMMER2024"
-                    />
-                  </div>
-                </div>
-
-                {/* Price Preview */}
-                {parseInt(priceINR) > 0 && (
-                  <div className="bg-gray-800 rounded-lg p-4 mt-6 border border-gray-700">
-                    <p className="text-gray-400 text-sm mb-3">Final Price Preview (INR):</p>
-                    <div className="flex items-center gap-4 justify-center">
-                      {parseInt(discount) > 0 ? (
-                        <>
-                          <span className="text-gray-400 line-through text-lg">
-                            ₹{parseInt(priceINR).toLocaleString()}
-                          </span>
-                          <span className="text-gray-600">→</span>
-                          <span className="text-3xl font-bold text-red-500">
-                            ₹{Math.round(parseInt(priceINR) * (1 - parseInt(discount) / 100)).toLocaleString()}
-                          </span>
-                          <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded text-sm font-semibold">
-                            {discount}% OFF
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-3xl font-bold text-green-500">
-                          ₹{parseInt(priceINR).toLocaleString()}
-                        </span>
-                      )}
+                  {/* Quick Presets for Frontend Discount */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      Quick Discount Presets
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { pct: 10, label: '10% OFF' },
+                        { pct: 25, label: '25% OFF' },
+                        { pct: 33, label: '33% OFF' },
+                        { pct: 50, label: '50% OFF' },
+                        { pct: 75, label: '75% OFF' },
+                      ].map(({ pct, label }) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDiscount(String(pct))}
+                          className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                            parseInt(discount) === pct
+                              ? 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
+                              : 'bg-black/60 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
+
+                  {/* Discount % Input & Direct Preview */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Website Discount (%)</label>
+                        <span className="text-xs text-gray-500">0 - 100%</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={discount}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setDiscount(String(val));
+                          }}
+                          className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-red-500 focus:outline-none"
+                          placeholder="0"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-4 top-2.5 text-gray-500 text-sm font-bold">%</span>
+                      </div>
+                    </div>
+
+                    {/* Live Website Price Preview */}
+                    {parseInt(priceINR) > 0 && (
+                      <div className="bg-black/50 border border-gray-700/80 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-400 mb-1">Public Website Price (All Visitors):</p>
+                        <div className="flex items-center gap-2 justify-center flex-wrap">
+                          {parseInt(discount) > 0 ? (
+                            <>
+                              <span className="text-gray-400 line-through text-sm">
+                                ₹{parseInt(priceINR).toLocaleString()}
+                              </span>
+                              <span className="text-gray-500 text-xs">→</span>
+                              <span className="text-2xl font-black text-red-400">
+                                ₹{Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)).toLocaleString()}
+                              </span>
+                              <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-xs font-bold">
+                                {discount}% OFF
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xl font-black text-green-400">
+                              ₹{parseInt(priceINR).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ───────────────────────────────────────────────────────────── */}
+                {/* WAY 2: SECRET / CIRCULATED PROMO CODE */}
+                {/* ───────────────────────────────────────────────────────────── */}
+                <div className="bg-gradient-to-br from-gray-900 to-blue-950/40 rounded-xl p-4 border border-blue-500/40 mb-5 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                        Way 2
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
+                    </div>
+                    <span className="text-xs text-blue-300">Circulate to people • Applied at payment option</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+                    {/* Promo Code Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Promo Code to Circulate</label>
+                        <button
+                          type="button"
+                          onClick={() => setPromoCode('SWAR010')}
+                          className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        >
+                          Use SWAR010
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                        className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none uppercase font-mono tracking-wider text-sm"
+                        placeholder="e.g. SWAR010"
+                      />
+                    </div>
+
+                    {/* Promo Discount (%) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Promo Discount (%)</label>
+                        <span className="text-xs text-gray-500">Auto less at payment</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={promoDiscount}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setPromoDiscount(String(val));
+                          }}
+                          className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="20"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-4 top-2.5 text-gray-500 text-sm font-bold">%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Presets for Promo Code Discount */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                      Quick Promo % Presets
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[10, 15, 20, 25, 50].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setPromoDiscount(String(pct))}
+                          className={`py-1.5 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                            parseInt(promoDiscount) === pct
+                              ? 'bg-blue-500/30 border-blue-500 text-blue-300 ring-2 ring-blue-500/50'
+                              : 'bg-black/60 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                          }`}
+                        >
+                          {pct}% OFF
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Promo Live Preview */}
+                  {parseInt(priceINR) > 0 && (
+                    <div className="bg-black/50 border border-blue-800/60 rounded-lg p-3 text-center">
+                      {promoCode.trim() && parseInt(promoDiscount) > 0 ? (
+                        <>
+                          <p className="text-xs text-blue-300 mb-1">
+                            When student enters <span className="font-mono font-bold text-white px-1.5 py-0.5 bg-blue-900/60 rounded border border-blue-700">{promoCode}</span> in payment option:
+                          </p>
+                          <div className="flex items-center gap-2 justify-center flex-wrap">
+                            <span className="text-gray-400 line-through text-sm">
+                              ₹{Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)).toLocaleString()}
+                            </span>
+                            <span className="text-blue-400 text-xs">→</span>
+                            <span className="text-2xl font-black text-emerald-400">
+                              ₹{Math.max(
+                                0,
+                                Math.round(
+                                  Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) *
+                                    (1 - (parseInt(promoDiscount) || 0) / 100)
+                                )
+                              ).toLocaleString()}
+                            </span>
+                            <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-xs font-bold">
+                              {promoDiscount}% Promo OFF (Saves extra ₹{(
+                                Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) -
+                                Math.max(
+                                0,
+                                Math.round(
+                                  Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) *
+                                    (1 - (parseInt(promoDiscount) || 0) / 100)
+                                )
+                              )
+                            ).toLocaleString()})
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400">
+                          {promoCode.trim()
+                            ? 'Set a Promo Discount % above to activate promo savings at checkout.'
+                            : 'Enter a promo code and % above to provide secret discounts at payment option.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1147,6 +1291,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
   const [priceUSD, setPriceUSD] = useState('0');
   const [discount, setDiscount] = useState('0');
   const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState('0');
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1187,7 +1332,8 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
             USD: { price: isFree ? 0 : parseInt(priceUSD) || 0 },
           },
           discount: parseInt(discount) || 0,
-          promoCode: promoCode || null,
+          promoCode: promoCode ? promoCode.trim().toUpperCase() : null,
+          promoDiscount: parseInt(promoDiscount) || 0,
           isFree,
           isPublished: false,
           isActive: true,
@@ -1410,119 +1556,231 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                   </div>
                 </div>
 
-                {/* Quick Discount Presets */}
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    Quick Discount Presets
-                  </label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { pct: 10, label: '10% OFF', code: 'SWAR10' },
-                      { pct: 25, label: '25% OFF', code: 'SAVE25' },
-                      { pct: 50, label: '50% OFF', code: 'HALF50' },
-                      { pct: 75, label: '75% OFF', code: 'SPECIAL75' },
-                      { pct: 100, label: '100% FREE', code: 'FREE100' },
-                    ].map(({ pct, label, code }) => (
-                      <button
-                        key={pct}
-                        type="button"
-                        onClick={() => {
-                          setDiscount(String(pct));
-                          if (!promoCode || ['SWAR10','SAVE25','HALF50','SPECIAL75','FREE100'].includes(promoCode)) {
-                            setPromoCode(code);
-                          }
-                        }}
-                        className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
-                          parseInt(discount) === pct
-                            ? pct === 100
-                              ? 'bg-green-500/30 border-green-500 text-green-300 ring-2 ring-green-500/50'
-                              : 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
-                            : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                {/* ───────────────────────────────────────────────────────────── */}
+                {/* WAY 1: DIRECT FRONTEND DISCOUNT */}
+                {/* ───────────────────────────────────────────────────────────── */}
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800/90 rounded-xl p-4 border border-red-500/30 mb-5 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                        Way 1
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Direct Frontend Discount (%)</h4>
+                    </div>
+                    <span className="text-xs text-red-300/80">Affects website catalog & course page directly</span>
+                  </div>
+
+                  {/* Quick Presets for Frontend Discount */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      Quick Discount Presets
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { pct: 10, label: '10% OFF' },
+                        { pct: 25, label: '25% OFF' },
+                        { pct: 33, label: '33% OFF' },
+                        { pct: 50, label: '50% OFF' },
+                        { pct: 75, label: '75% OFF' },
+                      ].map(({ pct, label }) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDiscount(String(pct))}
+                          className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                            parseInt(discount) === pct
+                              ? 'bg-red-500/30 border-red-500 text-red-300 ring-2 ring-red-500/50'
+                              : 'bg-black/60 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Discount % Input & Direct Preview */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Website Discount (%)</label>
+                        <span className="text-xs text-gray-500">0 - 100%</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={discount}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setDiscount(String(val));
+                          }}
+                          className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-red-500 focus:outline-none"
+                          placeholder="0"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-4 top-2.5 text-gray-500 text-sm font-bold">%</span>
+                      </div>
+                    </div>
+
+                    {/* Live Website Price Preview */}
+                    {parseInt(priceINR) > 0 && (
+                      <div className="bg-black/50 border border-gray-700/80 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-400 mb-1">Public Website Price (All Visitors):</p>
+                        <div className="flex items-center gap-2 justify-center flex-wrap">
+                          {parseInt(discount) > 0 ? (
+                            <>
+                              <span className="text-gray-400 line-through text-sm">
+                                ₹{parseInt(priceINR).toLocaleString()}
+                              </span>
+                              <span className="text-gray-500 text-xs">→</span>
+                              <span className="text-2xl font-black text-red-400">
+                                ₹{Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)).toLocaleString()}
+                              </span>
+                              <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded text-xs font-bold">
+                                {discount}% OFF
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xl font-black text-green-400">
+                              ₹{parseInt(priceINR).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Row 6 - Custom Discount & Promo */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-gray-300">Discount (%)</label>
-                      <span className="text-xs text-gray-500">0 - 100%</span>
+                {/* ───────────────────────────────────────────────────────────── */}
+                {/* WAY 2: SECRET / CIRCULATED PROMO CODE */}
+                {/* ───────────────────────────────────────────────────────────── */}
+                <div className="bg-gradient-to-br from-gray-900 to-blue-950/40 rounded-xl p-4 border border-blue-500/40 mb-5 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                        Way 2
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
                     </div>
-                    <div className="relative">
+                    <span className="text-xs text-blue-300">Circulate to people • Applied at payment option</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+                    {/* Promo Code Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Promo Code to Circulate</label>
+                        <button
+                          type="button"
+                          onClick={() => setPromoCode('SWAR010')}
+                          className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        >
+                          Use SWAR010
+                        </button>
+                      </div>
                       <input
-                        type="number"
-                        value={discount}
-                        onChange={(e) => {
-                          const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                          setDiscount(String(val));
-                        }}
-                        className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                        placeholder="0"
-                        min="0"
-                        max="100"
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                        className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none uppercase font-mono tracking-wider text-sm"
+                        placeholder="e.g. SWAR010"
                       />
-                      <span className="absolute right-4 top-3.5 text-gray-500 text-sm font-bold">%</span>
                     </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-gray-300">Promo Code</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pct = parseInt(discount) || 0;
-                          setPromoCode(pct === 100 ? 'FREE100' : pct > 0 ? `SAVE${pct}` : 'SWARYOGA');
-                        }}
-                        className="text-xs text-green-400 hover:text-green-300"
-                      >
-                        Auto-generate
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none uppercase font-mono tracking-wider"
-                      placeholder="e.g. FREE100, SAVE75"
-                    />
-                  </div>
-                </div>
 
-                {/* Price Preview */}
-                {parseInt(priceINR) > 0 && (
-                  <div className="bg-gray-800 rounded-lg p-4 mt-6 border border-gray-700">
-                    <p className="text-gray-400 text-sm mb-3">Final Price Preview (INR):</p>
-                    <div className="flex items-center gap-4 justify-center">
-                      {parseInt(discount) > 0 ? (
+                    {/* Promo Discount (%) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-gray-300">Promo Discount (%)</label>
+                        <span className="text-xs text-gray-500">Auto less at payment</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={promoDiscount}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setPromoDiscount(String(val));
+                          }}
+                          className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="20"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-4 top-2.5 text-gray-500 text-sm font-bold">%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Presets for Promo Code Discount */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                      Quick Promo % Presets
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[10, 15, 20, 25, 50].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setPromoDiscount(String(pct))}
+                          className={`py-1.5 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
+                            parseInt(promoDiscount) === pct
+                              ? 'bg-blue-500/30 border-blue-500 text-blue-300 ring-2 ring-blue-500/50'
+                              : 'bg-black/60 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                          }`}
+                        >
+                          {pct}% OFF
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Promo Live Preview */}
+                  {parseInt(priceINR) > 0 && (
+                    <div className="bg-black/50 border border-blue-800/60 rounded-lg p-3 text-center">
+                      {promoCode.trim() && parseInt(promoDiscount) > 0 ? (
                         <>
-                          {/* Original Price - Strikethrough */}
-                          <span className="text-gray-400 line-through text-lg">
-                            ₹{parseInt(priceINR).toLocaleString()}
-                          </span>
-                          {/* Separator */}
-                          <span className="text-gray-600">→</span>
-                          {/* Final Price - Red & Bold */}
-                          <span className="text-3xl font-bold text-red-500">
-                            ₹{Math.round(parseInt(priceINR) * (1 - parseInt(discount) / 100)).toLocaleString()}
-                          </span>
-                          {/* Discount Badge */}
-                          <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded text-sm font-semibold">
-                            {discount}% OFF
-                          </span>
+                          <p className="text-xs text-blue-300 mb-1">
+                            When student enters <span className="font-mono font-bold text-white px-1.5 py-0.5 bg-blue-900/60 rounded border border-blue-700">{promoCode}</span> in payment option:
+                          </p>
+                          <div className="flex items-center gap-2 justify-center flex-wrap">
+                            <span className="text-gray-400 line-through text-sm">
+                              ₹{Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)).toLocaleString()}
+                            </span>
+                            <span className="text-blue-400 text-xs">→</span>
+                            <span className="text-2xl font-black text-emerald-400">
+                              ₹{Math.max(
+                                0,
+                                Math.round(
+                                  Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) *
+                                    (1 - (parseInt(promoDiscount) || 0) / 100)
+                                )
+                              ).toLocaleString()}
+                            </span>
+                            <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-xs font-bold">
+                              {promoDiscount}% Promo OFF (Saves extra ₹{(
+                                Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) -
+                                Math.max(
+                                0,
+                                Math.round(
+                                  Math.round(parseInt(priceINR) * (1 - (parseInt(discount) || 0) / 100)) *
+                                    (1 - (parseInt(promoDiscount) || 0) / 100)
+                                )
+                              )
+                            ).toLocaleString()})
+                            </span>
+                          </div>
                         </>
                       ) : (
-                        <span className="text-3xl font-bold text-green-500">
-                          ₹{parseInt(priceINR).toLocaleString()}
-                        </span>
+                        <p className="text-xs text-gray-400">
+                          {promoCode.trim()
+                            ? 'Set a Promo Discount % above to activate promo savings at checkout.'
+                            : 'Enter a promo code and % above to provide secret discounts at payment option.'}
+                        </p>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </>
           )}

@@ -30,6 +30,8 @@ interface Course {
     USD?: { price: number; originalPrice?: number };
   };
   discount?: number;
+  promoCode?: string | null;
+  promoDiscount?: number;
   giftHours?: { enabled: boolean; hours: number };
   enrolledCount?: number;
   defaultStudents?: number;
@@ -346,6 +348,8 @@ export default function CourseVideosPage() {
             title: course.title,
             pricing: course.pricing,
             discount: course.discount,
+            promoCode: course.promoCode,
+            promoDiscount: course.promoDiscount,
           }}
           token={token}
           enrollmentCount={(course.defaultStudents ?? 15) + (course.enrolledCount || 0)}

@@ -22,6 +22,8 @@ interface CourseEnrollmentModalProps {
       INR?: { price: number };
     };
     discount?: number;
+    promoCode?: string | null;
+    promoDiscount?: number;
   };
   token?: string;
   enrolledStudents?: EnrolledStudent[];
@@ -50,6 +52,12 @@ export default function CourseEnrollmentModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Promo code state
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPct: number } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -58,11 +66,56 @@ export default function CourseEnrollmentModal({
     }));
   };
 
-  // Calculate price
+  // Base price
   const basePrice = course.pricing?.INR?.price || 0;
-  const finalPrice = course.discount && course.discount > 0
-    ? Math.round(basePrice * (1 - course.discount / 100))
+
+  // Way 1: Direct Frontend Discount (%)
+  const directDiscountPct = Math.min(100, Math.max(0, Number(course.discount) || 0));
+  const directDiscountedPrice = directDiscountPct > 0
+    ? Math.round(basePrice * (1 - directDiscountPct / 100))
     : basePrice;
+  const directSavings = basePrice - directDiscountedPrice;
+
+  // Way 2: Secret / Circulated Promo Code Discount (%)
+  const promoDiscountPct = appliedPromo ? appliedPromo.discountPct : 0;
+  const promoSavings = appliedPromo && promoDiscountPct > 0
+    ? Math.round(directDiscountedPrice * (promoDiscountPct / 100))
+    : 0;
+
+  const finalPrice = Math.max(0, directDiscountedPrice - promoSavings);
+
+  const handleApplyPromo = () => {
+    const entered = promoInput.trim().toUpperCase();
+    if (!entered) {
+      setPromoError('Please enter a promo code');
+      setPromoSuccess(null);
+      return;
+    }
+
+    const configuredCode = (course.promoCode || '').trim().toUpperCase();
+    const configuredDiscount = Number(course.promoDiscount) || 0;
+
+    if (configuredCode && entered === configuredCode) {
+      if (configuredDiscount > 0) {
+        setAppliedPromo({ code: entered, discountPct: configuredDiscount });
+        setPromoError(null);
+        setPromoSuccess(`Promo code "${entered}" applied! ${configuredDiscount}% discount.`);
+      } else {
+        setPromoError('This promo code is valid but has no discount configured.');
+        setPromoSuccess(null);
+      }
+    } else {
+      setPromoError('Invalid promo code. Please check and try again.');
+      setPromoSuccess(null);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError(null);
+    setPromoSuccess(null);
+  };
 
   const isFormValid = formData.firstName && formData.email && formData.phone && formData.city;
 
@@ -86,28 +139,53 @@ export default function CourseEnrollmentModal({
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           {/* Left Side - Enrollment Form */}
           <div className="w-full lg:w-3/5 p-4 sm:p-6 overflow-y-auto lg:border-r border-gray-200">
-          {/* Course Info */}
-          <div className="mb-6 p-4 bg-green-50 rounded-lg">
-            <p className="text-sm text-gray-600">Course</p>
-            <p className="font-semibold text-gray-900 mb-2">{course.title}</p>
-            <div className="flex items-baseline gap-2">
-              {course.discount && course.discount > 0 ? (
-                <>
-                  <span className="text-sm text-gray-400 line-through">
-                    ₹{basePrice.toLocaleString()}
+          {/* Course Info & Pricing Breakdown */}
+          <div className="mb-6 p-4 bg-gradient-to-br from-green-50 to-emerald-50/50 border border-green-200/80 rounded-xl space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-green-800">Workshop</p>
+                <p className="font-bold text-gray-900 text-base">{course.title}</p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-green-200/60 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between text-gray-600">
+                <span>Original Price:</span>
+                <span className={directDiscountPct > 0 ? "line-through text-gray-400" : "font-semibold text-gray-900"}>
+                  ₹{basePrice.toLocaleString()}
+                </span>
+              </div>
+
+              {directDiscountPct > 0 && (
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="flex items-center gap-1.5">
+                    <span>Website Discount:</span>
+                    <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                      {directDiscountPct}% OFF
+                    </span>
                   </span>
-                  <span className="text-2xl font-bold text-green-600">
-                    ₹{finalPrice.toLocaleString()}
+                  <span className="text-red-600 font-semibold">-₹{directSavings.toLocaleString()}</span>
+                </div>
+              )}
+
+              {appliedPromo && promoSavings > 0 && (
+                <div className="flex items-center justify-between text-emerald-800 bg-emerald-100/70 px-2 py-1 rounded">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span>Promo Code ({appliedPromo.code}):</span>
+                    <span className="text-xs bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">
+                      {appliedPromo.discountPct}% OFF
+                    </span>
                   </span>
-                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-                    {course.discount}% OFF
-                  </span>
-                </>
-              ) : (
-                <span className="text-2xl font-bold text-green-600">
+                  <span className="text-emerald-800 font-bold">-₹{promoSavings.toLocaleString()}</span>
+                </div>
+              )}
+
+              <div className="flex items-baseline justify-between pt-2 border-t border-green-200 text-gray-900">
+                <span className="font-bold">Total Payable:</span>
+                <span className="text-2xl font-black text-green-700">
                   ₹{finalPrice.toLocaleString()}
                 </span>
-              )}
+              </div>
             </div>
           </div>
 
@@ -233,6 +311,59 @@ export default function CourseEnrollmentModal({
               </div>
             </div>
           </div>
+
+            {/* Promo Code Input Section */}
+            <div className="mt-5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Have a Promo Code?
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoInput}
+                  onChange={(e) => {
+                    setPromoInput(e.target.value.toUpperCase().replace(/\s+/g, ''));
+                    if (promoError) setPromoError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!appliedPromo) handleApplyPromo();
+                    }
+                  }}
+                  disabled={!!appliedPromo}
+                  placeholder="Enter code (e.g. SWAR010)"
+                  className="flex-1 px-3 py-2 text-sm uppercase font-mono tracking-wider border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                {appliedPromo ? (
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="px-3.5 py-2 text-xs font-bold text-red-600 border border-red-300 bg-red-50 hover:bg-red-100 rounded-lg transition"
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    className="px-4 py-2 text-xs font-bold text-white bg-gray-900 hover:bg-black rounded-lg transition shadow-sm"
+                  >
+                    Apply Code
+                  </button>
+                )}
+              </div>
+              {promoError && (
+                <p className="text-xs text-red-600 mt-2 font-medium">
+                  {promoError}
+                </p>
+              )}
+              {promoSuccess && (
+                <p className="text-xs text-emerald-700 mt-2 font-medium">
+                  ✓ {promoSuccess}
+                </p>
+              )}
+            </div>
 
             {/* Payment Button */}
             <div className="mt-6">

@@ -112,7 +112,12 @@ export async function GET(request: NextRequest) {
 
       const localizedCourse = {
         ...course,
-        totalVideos: videos.length,
+        totalVideos:
+          course.totalVideos !== undefined && course.totalVideos > 0
+            ? course.totalVideos
+            : (course.data?.totalVideos !== undefined && course.data.totalVideos > 0
+                ? course.data.totalVideos
+                : videos.length),
         ...getLocalizedContent(course.content, lang),
         content: undefined,
       };
@@ -259,7 +264,12 @@ export async function GET(request: NextRequest) {
           description: localized.description || c.data?.description || '',
           content: undefined,
           videoCount,
-          totalVideos: videoCount,
+          totalVideos:
+            c.totalVideos !== undefined && c.totalVideos > 0
+              ? c.totalVideos
+              : (c.data?.totalVideos !== undefined && c.data.totalVideos > 0
+                  ? c.data.totalVideos
+                  : videoCount),
           isEnrolled: enrolledCourseIds.has(c.id),
         };
       })

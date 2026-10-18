@@ -53,6 +53,7 @@ interface Course {
   };
   discount?: number;
   promoCode?: string;
+  promoDiscount?: number;
   isFree: boolean;
   enrolledCount?: number;
   averageRating?: number;
@@ -313,14 +314,13 @@ export default function CourseDetailPage() {
                           ₹{discountedPrice.toLocaleString()}
                         </p>
                         {/* Discount Badge */}
-                        <div className="bg-red-100 text-red-700 rounded-lg py-2 px-3 text-sm font-semibold mb-4">
+                        <div className="bg-red-100 text-red-700 rounded-lg py-2 px-3 text-sm font-semibold mb-2">
                           Save ₹{discountAmount.toLocaleString()} ({course.discount}% OFF)
                         </div>
-                        {/* Promo Code */}
+                        {/* Promo Code Note */}
                         {course.promoCode && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <p className="text-xs text-gray-600 mb-1">Promo Code</p>
-                            <p className="text-lg font-bold text-blue-600">{course.promoCode}</p>
+                          <div className="bg-amber-50 border border-amber-200/80 rounded-lg py-1.5 px-3 text-xs text-amber-800 font-medium">
+                            🏷️ Have a promo code? Enter it at checkout
                           </div>
                         )}
                       </>
@@ -404,6 +404,8 @@ export default function CourseDetailPage() {
             title: course.title,
             pricing: course.pricing,
             discount: course.discount,
+            promoCode: course.promoCode,
+            promoDiscount: course.promoDiscount,
           }}
           token={token}
           enrollmentCount={displayedStudentCount}

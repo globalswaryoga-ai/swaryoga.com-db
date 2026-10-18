@@ -164,6 +164,7 @@ interface Course {
   id?: string;
   slug: string;
   title: string;
+  thumbnail?: string;
   totalVideos: number;
   accessSettings?: {
     allowDownload: boolean;
