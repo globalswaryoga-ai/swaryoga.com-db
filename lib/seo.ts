@@ -3,27 +3,41 @@ import { Metadata } from 'next';
 // Site Configuration
 export const siteConfig = {
   name: 'Swar Yoga',
-  title: 'Swar Yoga - Ancient Breathing Science for Modern Life',
-  description: 'Learn the ancient science of Swar Yoga (Swara Yoga) - breath-based healing, pranayama techniques, and yogic lifestyle for health, wellness, and spiritual growth.',
+  title: 'Swar Yoga - Ancient Breathing Science & Official Swara Yoga Portal',
+  description: 'Official portal for Swar Yoga (Swara Yoga) - ancient Vedic breath science, Shiva Swarodaya, pranayama healing, workshops, and certified courses by Mohan Kalburgi.',
   url: 'https://swaryoga.com',
   ogImage: 'https://swaryoga.com/og-image.jpg',
   author: 'Swar Yoga Foundation',
   keywords: [
     'swar yoga',
     'swara yoga',
+    'swaryoga',
+    'swaryoga.com',
+    'swar yoga foundation',
+    'swara yoga classes',
+    'swar yoga workshop',
+    'swar yoga online',
+    'swar yoga mohan kalburgi',
+    'mohan kalburgi',
+    'shiva swarodaya',
+    'swar vigyan',
+    'swarodaya vigyan',
     'pranayama',
     'breathing techniques',
-    'yoga classes',
-    'meditation',
-    'wellness',
-    'health',
-    'spiritual growth',
-    'yoga india',
-    'online yoga classes',
     'breath healing',
     'nostril breathing',
-    'ida pingala',
+    'ida pingala sushumna',
     'nadi shodhana',
+    'yoga classes india',
+    'online yoga workshops',
+    'swara yoga meditation',
+    'ritucharya',
+    'panchang swar yoga',
+    'स्वर योग',
+    'स्वरोदय विज्ञान',
+    'स्वर साधना',
+    'शिव स्वरोदय',
+    'प्राणायाम',
   ],
   locale: 'en_IN',
   type: 'website',
@@ -117,7 +131,7 @@ export interface WebsiteSchema {
   '@context': 'https://schema.org';
   '@type': 'WebSite';
   name: string;
-  alternateName?: string;
+  alternateName?: string | string[];
   url: string;
   description: string;
   potentialAction: {
@@ -198,16 +212,17 @@ export function generateOrganizationSchema(): OrganizationSchema {
     logo: `${siteConfig.url}/logo.png`,
     description: siteConfig.description,
     sameAs: [
-      'https://www.facebook.com/swaryoga',
-      'https://www.instagram.com/swaryoga',
-      'https://www.youtube.com/@swaryoga',
+      'https://www.youtube.com/@SwarYogaScience',
+      'https://www.instagram.com/swar.yoga',
+      'https://www.facebook.com/people/Swar-Yoga-International/61559147565482/',
+      'https://www.linkedin.com/in/swar-yoga-65b8081a5/',
       'https://twitter.com/swaryoga',
     ],
     contactPoint: {
       '@type': 'ContactPoint',
-      telephone: '+91-XXXXXXXXXX',
+      telephone: '+91-9779006820',
       contactType: 'customer service',
-      availableLanguage: ['English', 'Hindi'],
+      availableLanguage: ['English', 'Hindi', 'Marathi'],
     },
   };
 }
@@ -217,12 +232,12 @@ export function generateWebsiteSchema(): WebsiteSchema {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: siteConfig.name,
-    alternateName: siteConfig.name,
+    alternateName: ['swaryoga.com', 'Swara Yoga', 'Swar Yoga Foundation', 'SwarYoga', 'स्वर योग'],
     url: siteConfig.url,
     description: siteConfig.description,
     potentialAction: {
       '@type': 'SearchAction',
-      target: `${siteConfig.url}/search?q={search_term_string}`,
+      target: `${siteConfig.url}/workshops?search={search_term_string}`,
       'query-input': 'required name=search_term_string',
     },
   };
