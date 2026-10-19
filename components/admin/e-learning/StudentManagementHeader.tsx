@@ -76,12 +76,9 @@ export default function StudentManagementHeader({
 
   return (
     <div className="w-full mb-6 space-y-4">
-      {/* ============================================================ */}
-      {/* 2ND ROW HEADER BAR (DIRECTLY BELOW TOP E-LEARNING MENU BAR) */}
-      {/* ============================================================ */}
-      <div className="bg-[#0b1019] border border-gray-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        {/* Left: Student Back Button, Name, Badges, Contact info */}
-        <div className="flex items-start sm:items-center gap-3 min-w-0">
+      {/* 1. Student / Workshop Details Header Card */}
+      <div className="bg-[#0b1019] border border-gray-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl">
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
           <Link
             href="/admin/crm/e-learning/users"
             className="p-2.5 bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl transition-all shadow-sm shrink-0 border border-gray-700/60"
@@ -89,7 +86,7 @@ export default function StudentManagementHeader({
           >
             <ArrowLeft size={18} />
           </Link>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {activePage === 'videos' ? (
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -141,9 +138,11 @@ export default function StudentManagementHeader({
             )}
           </div>
         </div>
+      </div>
 
-        {/* Right: THE THREE PAGES (+ PROFILE) BUTTONS IN 2ND ROW */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
+      {/* 2. Dedicated Navigation Action Buttons Bar (Separated) */}
+      <div className="bg-[#0b1019] border border-gray-800/90 rounded-2xl p-3 sm:p-3.5 shadow-xl flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           {/* Button: Profile */}
           <Link
             href={`/admin/crm/e-learning/users/${userId}?enrollmentId=${currentEnrollmentId}`}
@@ -220,20 +219,20 @@ export default function StudentManagementHeader({
               </span>
             )}
           </Link>
-
-          {/* Optional: Save All Changes Button if provided */}
-          {onSaveAll && (
-            <button
-              type="button"
-              onClick={onSaveAll}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
-            >
-              {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-              <span>{saving ? 'Saving...' : 'Save All Changes'}</span>
-            </button>
-          )}
         </div>
+
+        {/* Optional: Save All Changes Button if provided */}
+        {onSaveAll && (
+          <button
+            type="button"
+            onClick={onSaveAll}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+            <span>{saving ? 'Saving...' : 'Save All Changes'}</span>
+          </button>
+        )}
       </div>
 
       {/* ============================================================ */}
