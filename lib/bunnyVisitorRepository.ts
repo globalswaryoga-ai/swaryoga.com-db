@@ -233,7 +233,7 @@ export async function getVisitorAnalytics(): Promise<{
       args: [fifteenMinsAgo],
     }),
     bunnyExecute({
-      sql: 'SELECT COUNT(DISTINCT session_id) as cnt FROM website_visitors_sql WHERE visitor_email IS NOT NULL AND visitor_email != ""',
+      sql: `SELECT COUNT(DISTINCT session_id) as cnt FROM website_visitors_sql WHERE visitor_email IS NOT NULL AND visitor_email != ''`,
       args: [],
     }),
     bunnyExecute({

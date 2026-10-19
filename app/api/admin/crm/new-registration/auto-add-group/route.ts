@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     let connectedPhone = '';
     try {
       const sessionRow = await bunnyExecute({
-        sql: 'SELECT connected_phone FROM qr_sessions_sql WHERE connected_phone != "" AND connected_phone IS NOT NULL ORDER BY updated_at DESC LIMIT 1',
+        sql: `SELECT connected_phone FROM qr_sessions_sql WHERE connected_phone != '' AND connected_phone IS NOT NULL ORDER BY updated_at DESC LIMIT 1`,
         args: [],
       });
       if (sessionRow.rows.length > 0) {
