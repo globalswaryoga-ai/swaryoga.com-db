@@ -251,6 +251,7 @@ export default function UserDetailPage() {
   const [primaryDevice, setPrimaryDevice] = useState<string>('');
   const [primaryLastUsed, setPrimaryLastUsed] = useState<string>('');
   const [payments, setPayments] = useState<any[]>([]);
+  const [takenWorkshops, setTakenWorkshops] = useState<any[]>([]);
   const [activeMainTab, setActiveMainTab] = useState<'videos' | 'devices' | 'usage'>('videos');
   const [showProfileCard, setShowProfileCard] = useState<boolean>(true);
   const [showAllReceipts, setShowAllReceipts] = useState<boolean>(false);
@@ -407,6 +408,7 @@ export default function UserDetailPage() {
           setPrimaryLastUsed(data.primaryLastUsed || (enr as any).lastAccessedAt || '');
           setManualDeviceIp(detectedIp);
           setPayments(data.payments || []);
+          setTakenWorkshops(data.takenWorkshops || []);
 
           // Also fetch student submissions
           fetchStudentSubmissions(enr.userId?._id || (params?.userId as string), enr.courseId?._id);
@@ -1008,19 +1010,27 @@ export default function UserDetailPage() {
               <span>• Course: <span className="text-green-400 font-medium">{courseTitle}</span></span>
             </p>
 
-            {/* Quick Profile Toggle Button */}
-            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+            {/* Header Action Buttons */}
+            <div className="flex items-center gap-2.5 mt-2.5 flex-wrap">
+              <Link
+                href={`/admin/crm/e-learning/users/${userId}/profile?enrollmentId=${enrollmentId || enrollment._id}`}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-indigo-500 transition-all border border-blue-400/30 ring-1 ring-blue-400/20"
+              >
+                <User size={13} className="text-white" />
+                <span>View Full Profile Page ↗</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => setShowProfileCard(!showProfileCard)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   showProfileCard
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    ? 'bg-gray-800 text-blue-300 border border-blue-500/30'
                     : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 border border-gray-700/60'
                 }`}
               >
-                <User size={13} className={showProfileCard ? 'text-white' : 'text-blue-400'} />
-                <span>Student Profile & Account Details {showProfileCard ? '(Visible)' : '(Collapsed)'}</span>
+                <User size={13} className="text-blue-400" />
+                <span>Inline Profile {showProfileCard ? '(Visible)' : '(Collapsed)'}</span>
                 {showProfileCard ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
             </div>
@@ -1094,6 +1104,81 @@ export default function UserDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Taken Workshops in Header with Individual Progress Bars */}
+      {takenWorkshops.length > 0 && (
+        <div className="max-w-7xl mx-auto mb-6 bg-gradient-to-r from-gray-900/90 via-gray-900/80 to-gray-950/90 border border-gray-800/80 p-4 sm:p-5 rounded-2xl backdrop-blur-md shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-800">
+            <div className="flex items-center gap-2">
+              <Award size={18} className="text-amber-400 shrink-0" />
+              <h2 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                Taken Workshops ({takenWorkshops.length})
+              </h2>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              Click any workshop to switch videos, tools & watching controls
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {takenWorkshops.map((w: any) => {
+              const isSelected = w.enrollmentId === enrollment._id || w.courseId === enrollment.courseId?._id;
+              return (
+                <button
+                  key={w.enrollmentId}
+                  type="button"
+                  onClick={() => {
+                    if (w.enrollmentId !== enrollment._id) {
+                      window.location.href = `/admin/crm/e-learning/users/${userId}?enrollmentId=${w.enrollmentId}`;
+                    }
+                  }}
+                  className={`p-3.5 rounded-xl border text-left transition-all ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-emerald-950/50 via-gray-900 to-gray-950 border-emerald-500/60 shadow-lg shadow-emerald-500/15 ring-2 ring-emerald-500/30'
+                      : 'bg-black/40 border-gray-800 hover:border-gray-700 hover:bg-black/60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className={`text-xs font-bold truncate ${isSelected ? 'text-emerald-300 font-extrabold' : 'text-white'}`}>
+                      {w.courseTitle}
+                    </p>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-extrabold shrink-0 ${
+                        isSelected
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-gray-800 text-gray-400'
+                      }`}
+                    >
+                      {w.progressPercent}%
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden p-0.5 border border-gray-700/60 mb-2">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        w.progressPercent >= 100
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                          : w.progressPercent > 0
+                          ? 'bg-gradient-to-r from-blue-500 to-emerald-400'
+                          : 'bg-gray-700'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, w.progressPercent))}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+                    <span>{w.completedVideos || 0}/{w.totalVideos || 6} videos seen</span>
+                    <span className={isSelected ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                      {isSelected ? 'Active Workshop' : 'Click to Switch →'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
@@ -1496,7 +1581,7 @@ export default function UserDetailPage() {
           }`}
         >
           <Activity size={17} />
-          <span>3) All Uses (Day, Week, Month, Years)</span>
+          <span>3) User Updates Dashboard (Daily, Weekly, Monthly, Total)</span>
           <span
             className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
               activeMainTab === 'usage' ? 'bg-white/20 text-white' : 'bg-gray-800 text-cyan-300 border border-gray-700'

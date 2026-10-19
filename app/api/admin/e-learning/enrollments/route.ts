@@ -705,7 +705,68 @@ export async function GET(request: NextRequest) {
         studentUser.lastActiveAt ||
         row.enrolled_at;
 
-      studentUser.lastUsedAt = primaryLastUsed;
+      // Fetch all taken workshops by this student
+      let takenWorkshops: any[] = [];
+      try {
+        const workshopsRes = await bunnyExecute({
+          sql: 'SELECT * FROM course_enrollments_sql WHERE user_id = ? ORDER BY enrolled_at DESC',
+          args: [userId],
+        }).catch(() => ({ rows: [] }));
+
+        if (workshopsRes.rows?.length) {
+          takenWorkshops = await Promise.all(
+            workshopsRes.rows.map(async (wRow: any) => {
+              const wCourse = await getCourseById(String(wRow.course_id)).catch(() => null);
+              let wJson: any = {};
+              try {
+                wJson = wRow.data_json ? JSON.parse(String(wRow.data_json)) : {};
+              } catch {}
+              const wCompleted = Array.isArray(wJson.completedVideoIds)
+                ? wJson.completedVideoIds.length
+                : Array.isArray(wJson.completedVideos)
+                ? wJson.completedVideos.length
+                : 0;
+              const wVideos = await listVideosByCourse(String(wRow.course_id), false).catch(() => []);
+              const wTotal = wVideos.length || 6;
+              const wProgress = Math.min(100, Math.round((wCompleted / wTotal) * 100));
+
+              return {
+                enrollmentId: String(wRow.id),
+                courseId: String(wRow.course_id),
+                courseTitle: wCourse?.content?.en?.title || (wCourse as any)?.title || wCourse?.slug || 'Swar Yoga Workshop',
+                slug: wCourse?.slug || String(wRow.course_id),
+                level: wCourse?.level || 'Beginner',
+                progressPercent: wProgress,
+                totalVideos: wTotal,
+                completedVideos: wCompleted,
+                status: wRow.status || 'active',
+                purchaseType: wJson.purchaseType || 'paid',
+                enrolledAt: wRow.enrolled_at || wRow.created_at,
+                totalWatchTime: Number(wRow.total_watch_time || 0),
+              };
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Error fetching taken workshops:', err);
+      }
+
+      if (takenWorkshops.length === 0) {
+        takenWorkshops.push({
+          enrollmentId: String(row.id),
+          courseId: courseId,
+          courseTitle: course?.content?.en?.title || (course as any)?.title || course?.slug || 'Swar Yoga Level-1 Introduction',
+          slug: course?.slug || courseId,
+          level: course?.level || 'Beginner',
+          progressPercent: progressPercent,
+          totalVideos: totalVideosCount,
+          completedVideos: completedCount,
+          status: row.status || 'active',
+          purchaseType: dataJson.purchaseType || 'paid',
+          enrolledAt: row.enrolled_at || row.created_at,
+          totalWatchTime: totalWatchSeconds,
+        });
+      }
 
       return NextResponse.json({
         success: true,
@@ -722,6 +783,7 @@ export async function GET(request: NextRequest) {
         videos,
         devices,
         payments,
+        takenWorkshops,
         watchLogs: watchLogsFormatted,
         recentActivity: allEvents,
         dailyActivity,
