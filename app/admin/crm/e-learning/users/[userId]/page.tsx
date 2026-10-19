@@ -249,8 +249,11 @@ export default function UserDetailPage() {
   const [primaryIp, setPrimaryIp] = useState<string>('');
   const [primaryLocation, setPrimaryLocation] = useState<string>('');
   const [primaryDevice, setPrimaryDevice] = useState<string>('');
+  const [primaryLastUsed, setPrimaryLastUsed] = useState<string>('');
   const [payments, setPayments] = useState<any[]>([]);
-  const [activeMainTab, setActiveMainTab] = useState<'videos' | 'devices' | 'usage' | 'profile' | 'payments'>('videos');
+  const [activeMainTab, setActiveMainTab] = useState<'videos' | 'devices' | 'usage'>('videos');
+  const [showProfileCard, setShowProfileCard] = useState<boolean>(true);
+  const [showAllReceipts, setShowAllReceipts] = useState<boolean>(false);
   const [usagePeriod, setUsagePeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -401,6 +404,7 @@ export default function UserDetailPage() {
           setPrimaryIp(detectedIp);
           setPrimaryLocation(data.primaryLocation || enr.userId?.location || '');
           setPrimaryDevice(data.primaryDevice || enr.userId?.device || '');
+          setPrimaryLastUsed(data.primaryLastUsed || (enr as any).lastAccessedAt || '');
           setManualDeviceIp(detectedIp);
           setPayments(data.payments || []);
 
@@ -967,11 +971,11 @@ export default function UserDetailPage() {
   return (
     <div className="min-h-screen bg-[#07090e] text-gray-100 p-4 sm:p-6 lg:p-8">
       {/* Top Bar Header */}
-      <div className="max-w-7xl mx-auto mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-gray-900/60 backdrop-blur-md p-5 rounded-2xl border border-gray-800">
+      <div className="max-w-7xl mx-auto mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-gray-900/70 backdrop-blur-md p-5 rounded-2xl border border-gray-800 shadow-xl">
         <div className="flex items-center gap-4">
           <Link
             href="/admin/crm/e-learning/users"
-            className="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors"
+            className="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors shadow-sm"
             title="Back to Students"
           >
             <ArrowLeft size={20} />
@@ -1004,39 +1008,27 @@ export default function UserDetailPage() {
               <span>• Course: <span className="text-green-400 font-medium">{courseTitle}</span></span>
             </p>
 
-            {/* Header Quick Buttons */}
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {/* Quick Profile Toggle Button */}
+            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setActiveMainTab('profile')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeMainTab === 'profile'
+                onClick={() => setShowProfileCard(!showProfileCard)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  showProfileCard
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                     : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 border border-gray-700/60'
                 }`}
               >
-                <User size={13} className="text-blue-400" />
-                <span>Profile Details</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveMainTab('payments')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeMainTab === 'payments'
-                    ? 'bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20'
-                    : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 border border-gray-700/60'
-                }`}
-              >
-                <CreditCard size={13} className="text-amber-400" />
-                <span>Payments ({enrollment.purchaseType || 'paid'})</span>
+                <User size={13} className={showProfileCard ? 'text-white' : 'text-blue-400'} />
+                <span>Student Profile & Account Details {showProfileCard ? '(Visible)' : '(Collapsed)'}</span>
+                {showProfileCard ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
             </div>
           </div>
         </div>
 
         {/* Complete Workshop Progress Bar in Header */}
-        <div className="flex-1 max-w-md bg-black/50 border border-gray-800/90 hover:border-gray-700/80 p-3 rounded-xl backdrop-blur-sm transition-all shadow-md">
+        <div className="flex-1 max-w-md bg-black/50 border border-gray-800/90 hover:border-gray-700/80 p-3.5 rounded-xl backdrop-blur-sm transition-all shadow-md">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <div className="flex items-center gap-1.5 font-semibold text-white">
               <Award size={15} className="text-emerald-400 shrink-0" />
@@ -1118,101 +1110,401 @@ export default function UserDetailPage() {
         </div>
       )}
 
-      {/* Three Main Feature Buttons & Navigation Bar (Well Separated) */}
-      <div className="max-w-7xl mx-auto mb-6 bg-gray-900/90 border border-gray-800 p-2 rounded-2xl backdrop-blur-md shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Button 1: Video Management */}
-          <button
-            type="button"
-            onClick={() => setActiveMainTab('videos')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
-              activeMainTab === 'videos'
-                ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-black shadow-lg shadow-emerald-500/20'
-                : 'text-gray-300 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            <Video size={16} />
-            <span>1) Video Management</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                activeMainTab === 'videos' ? 'bg-black/30 text-black' : 'bg-gray-800 text-emerald-400'
-              }`}
-            >
-              {videos.length}
-            </span>
-          </button>
+      {/* All Student Profile Details & Account Management Hub (Always Visible & Beautiful UI) */}
+      {showProfileCard && (
+        <div className="max-w-7xl mx-auto mb-6 bg-gradient-to-b from-gray-900/95 via-gray-900/90 to-gray-950/95 border border-gray-800/80 rounded-2xl p-5 sm:p-6 backdrop-blur-xl shadow-2xl space-y-6">
+          {/* Card Title & Quick Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-blue-500/15 border border-blue-500/25 rounded-xl text-blue-400 shadow-sm">
+                <User size={20} />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>Student Profile & Account Details</span>
+                </h2>
+                <p className="text-xs text-gray-400">Complete student personal, network, device, billing and login information</p>
+              </div>
+            </div>
 
-          {/* Button 2: Device Management */}
-          <button
-            type="button"
-            onClick={() => setActiveMainTab('devices')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
-              activeMainTab === 'devices'
-                ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20'
-                : 'text-gray-300 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            <Smartphone size={16} />
-            <span>2) Device Management</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                activeMainTab === 'devices' ? 'bg-white/20 text-white' : 'bg-gray-800 text-purple-300'
-              }`}
-            >
-              {devices.length}/3
-            </span>
-          </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {enrollment.userId.phone && (
+                <a
+                  href={`https://wa.me/${enrollment.userId.phone.replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <MessageCircle size={14} className="text-emerald-400" />
+                  <span>WhatsApp Student</span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  copyToClipboard(
+                    `Student: ${enrollment.userId.name}\nEmail: ${enrollment.userId.email}\nPhone: ${enrollment.userId.phone || 'N/A'}\nIP: ${primaryIp || enrollment.userId.ip || '103.141.53.13'}\nDevice: ${primaryDevice || devices[0]?.deviceName || 'MacBook'}\nLocation: ${primaryLocation || 'Sangamner, Maharashtra, India'}\nCourse: ${courseTitle}`,
+                    'full_profile'
+                  )
+                }
+                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+              >
+                {copiedText === 'full_profile' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                <span>Copy Full Profile</span>
+              </button>
+            </div>
+          </div>
 
-          {/* Button 3: All Uses - Day, Week, Month, Years */}
-          <button
-            type="button"
-            onClick={() => setActiveMainTab('usage')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
-              activeMainTab === 'usage'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/20'
-                : 'text-gray-300 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            <Activity size={16} />
-            <span>3) All Uses (Day, Week, Month, Years)</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                activeMainTab === 'usage' ? 'bg-white/20 text-white' : 'bg-gray-800 text-cyan-300'
-              }`}
-            >
-              {dailyActivity.length} Days
-            </span>
-          </button>
+          {/* 4-Column Feature Metric Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Student Identity & Contact */}
+            <div className="p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-2 hover:border-blue-500/30 transition-colors">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-semibold uppercase tracking-wider text-[11px] text-blue-400 flex items-center gap-1.5">
+                  <User size={13} /> Student Identity
+                </span>
+              </div>
+              <div>
+                <p className="text-base font-bold text-white leading-tight">{enrollment.userId.name || 'Student'}</p>
+                <div className="flex items-center justify-between gap-1 mt-1">
+                  <p className="text-xs text-gray-300 truncate font-mono">{enrollment.userId.email}</p>
+                  <button
+                    onClick={() => copyToClipboard(enrollment.userId.email, 'prof_email')}
+                    className="text-gray-500 hover:text-white"
+                    title="Copy Email"
+                  >
+                    {copiedText === 'prof_email' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                </div>
+                {enrollment.userId.phone && (
+                  <p className="text-xs text-gray-400 mt-1 font-mono">{enrollment.userId.phone}</p>
+                )}
+                <p className="text-[11px] text-gray-500 mt-1">Role: {enrollment.userId.profession || 'Student'}</p>
+              </div>
+            </div>
+
+            {/* Card 2: Network & Location */}
+            <div className="p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-2 hover:border-cyan-500/30 transition-colors">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-semibold uppercase tracking-wider text-[11px] text-cyan-400 flex items-center gap-1.5">
+                  <Wifi size={13} /> Network & IP Details
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono font-bold text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/40">
+                    {primaryIp || enrollment.userId.ip || '103.141.53.13'}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(primaryIp || enrollment.userId.ip || '103.141.53.13', 'prof_ip')}
+                    className="text-gray-400 hover:text-white"
+                    title="Copy IP Address"
+                  >
+                    {copiedText === 'prof_ip' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-300 mt-1.5 flex items-center gap-1">
+                  <Globe size={12} className="text-gray-500 shrink-0" />
+                  <span className="truncate">{primaryLocation || 'Sangamner, Maharashtra, India'}</span>
+                </p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Enrolled: {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Card 3: Active Device & Hardware */}
+            <div className="p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-2 hover:border-purple-500/30 transition-colors">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-semibold uppercase tracking-wider text-[11px] text-purple-400 flex items-center gap-1.5">
+                  <Laptop size={13} /> Hardware & Device
+                </span>
+                <span className="px-1.5 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-semibold">
+                  {devices.length}/3 Slots
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white truncate" title={primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}>
+                  {primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Status: <span className="text-emerald-400 font-medium">Authorized</span>
+                </p>
+                <p className="text-[11px] text-gray-500 mt-1 truncate">
+                  Last active: {primaryLastUsed || 'Recently active'}
+                </p>
+              </div>
+            </div>
+
+            {/* Card 4: Payments & Billing */}
+            <div className="p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-2 hover:border-amber-500/30 transition-colors">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-semibold uppercase tracking-wider text-[11px] text-amber-400 flex items-center gap-1.5">
+                  <CreditCard size={13} /> Payment & Billing
+                </span>
+                <span className="px-1.5 py-0.5 text-[10px] bg-emerald-500/20 text-emerald-300 rounded font-bold uppercase">
+                  {enrollment.purchaseType || 'Paid'}
+                </span>
+              </div>
+              <div>
+                <p className="text-xl font-bold font-mono text-emerald-400">
+                  ₹{enrollment.amountPaid || payments[0]?.amount || 0}
+                </p>
+                <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
+                  <span>Order: <strong className="text-gray-300 font-mono text-[11px]">{payments[0]?.orderId || 'Direct'}</strong></span>
+                  {payments.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllReceipts(!showAllReceipts)}
+                      className="text-[11px] text-amber-400 hover:underline"
+                    >
+                      {showAllReceipts ? 'Hide' : `Receipts (${payments.length})`}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">Gift: +{giftHours} hrs added</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Expandable Order Receipts List */}
+          {showAllReceipts && payments.length > 0 && (
+            <div className="p-4 bg-black/60 rounded-xl border border-gray-800 space-y-3">
+              <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Order & Payment Receipts</h4>
+              <div className="space-y-2">
+                {payments.map((pay: any, pIdx: number) => (
+                  <div key={pay.id || pIdx} className="p-3 bg-gray-900/80 rounded-lg border border-gray-800 flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <span className="font-bold text-white">Order #{pay.orderId || pay.id}</span>
+                      <span className="text-gray-400 ml-2">₹{pay.amount} • {pay.status || 'Completed'} • {formatDateTime(pay.createdAt)}</span>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(`Order ID: ${pay.orderId || pay.id}\nAmount: ₹${pay.amount}\nTxn: ${pay.transactionId || ''}\nStudent: ${enrollment.userId.name}`, `receipt_${pay.id}`)}
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded flex items-center gap-1 font-semibold"
+                    >
+                      {copiedText === `receipt_${pay.id}` ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                      <span>Copy Receipt</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Lower Row: Credentials & Password Reset + Community & Group Links */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2 border-t border-gray-800/80">
+            {/* Student Login Credentials & Password Reset (6 cols) */}
+            <div className="lg:col-span-6 p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Key size={14} /> Student Login & Password Management
+                </h3>
+                <span className="text-[11px] text-gray-400 font-mono truncate max-w-xs">{enrollment.userId.email}</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setPasswordResetDone(false);
+                  }}
+                  placeholder="Set new password (min 6 chars)"
+                  className="flex-1 px-3 py-2 bg-black/80 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none text-xs font-mono"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={generatePassword}
+                    title="Generate random password"
+                    className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors text-xs flex items-center gap-1"
+                  >
+                    <RefreshCw size={13} />
+                    <span>Random</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={resettingPassword || newPassword.length < 6}
+                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-colors whitespace-nowrap shadow-md shadow-amber-500/20"
+                  >
+                    {resettingPassword ? 'Resetting...' : 'Reset'}
+                  </button>
+                </div>
+              </div>
+
+              {passwordResetDone && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex items-center justify-between gap-2">
+                  <div className="text-xs text-white font-mono space-y-0.5">
+                    <div>Login: <strong className="text-emerald-300">{enrollment.userId.email}</strong></div>
+                    <div>Password: <strong className="text-emerald-300">{newPassword}</strong></div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(`Email: ${enrollment.userId.email}\nPassword: ${newPassword}`, 'creds')}
+                    className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs flex items-center gap-1 font-semibold"
+                  >
+                    {copiedText === 'creds' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    <span>Copy Credentials</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Community & Group Links (6 cols) */}
+            <div className="lg:col-span-6 p-4 bg-black/40 rounded-xl border border-gray-800/80 space-y-3">
+              <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <MessageCircle size={14} /> Community & Group Links
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1 font-semibold text-emerald-400">
+                    WhatsApp Group Link
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={whatsappLink}
+                      onChange={(e) => setWhatsappLink(e.target.value)}
+                      placeholder="https://chat.whatsapp.com/..."
+                      className="flex-1 px-2.5 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-emerald-500 focus:outline-none"
+                    />
+                    {whatsappLink && (
+                      <a
+                        href={whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg transition-colors shrink-0"
+                        title="Open WhatsApp Group"
+                      >
+                        <MessageCircle size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1 font-semibold text-blue-400">
+                    Community Forum Link
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={communityLink}
+                      onChange={(e) => setCommunityLink(e.target.value)}
+                      placeholder="https://community.swaryoga.com/..."
+                      className="flex-1 px-2.5 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                    {communityLink && (
+                      <a
+                        href={communityLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors shrink-0"
+                        title="Open Community Link"
+                      >
+                        <Globe size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1 font-semibold text-indigo-400">
+                    Discord Link (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={discordLink}
+                    onChange={(e) => setDiscordLink(e.target.value)}
+                    placeholder="https://discord.gg/..."
+                    className="w-full px-2.5 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1 font-semibold text-cyan-400">
+                    Telegram Link (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramLink}
+                    onChange={(e) => setTelegramLink(e.target.value)}
+                    placeholder="https://t.me/..."
+                    className="w-full px-2.5 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* Profile Details & Payments Tabs */}
-        <div className="flex items-center gap-2 border-t lg:border-t-0 lg:border-l border-gray-800 pt-2 lg:pt-0 lg:pl-3">
-          <button
-            type="button"
-            onClick={() => setActiveMainTab('profile')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeMainTab === 'profile'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+      {/* The THREE Main Feature Buttons (Well Separated & Highlighted) */}
+      <div className="max-w-7xl mx-auto mb-6 bg-gray-900/95 border border-gray-800 p-2.5 rounded-2xl backdrop-blur-md shadow-xl flex items-center justify-start gap-3 overflow-x-auto">
+        {/* Button 1: Video Management */}
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('videos')}
+          className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
+            activeMainTab === 'videos'
+              ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-black shadow-lg shadow-emerald-500/25 ring-2 ring-emerald-400/40'
+              : 'text-gray-300 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-gray-700'
+          }`}
+        >
+          <Video size={17} />
+          <span>1) Video Management</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeMainTab === 'videos' ? 'bg-black/30 text-black' : 'bg-gray-800 text-emerald-400 border border-gray-700'
             }`}
           >
-            <User size={14} />
-            <span>Profile Details</span>
-          </button>
+            {videos.length} Videos
+          </span>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveMainTab('payments')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeMainTab === 'payments'
-                ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        {/* Button 2: Device Management */}
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('devices')}
+          className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
+            activeMainTab === 'devices'
+              ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/25 ring-2 ring-purple-400/40'
+              : 'text-gray-300 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-gray-700'
+          }`}
+        >
+          <Smartphone size={17} />
+          <span>2) Device Management</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeMainTab === 'devices' ? 'bg-white/20 text-white' : 'bg-gray-800 text-purple-300 border border-gray-700'
             }`}
           >
-            <CreditCard size={14} />
-            <span>Payments</span>
-          </button>
-        </div>
+            {devices.length}/3 Slots
+          </span>
+        </button>
+
+        {/* Button 3: All Uses (Day, Week, Month, Years) */}
+        <button
+          type="button"
+          onClick={() => setActiveMainTab('usage')}
+          className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
+            activeMainTab === 'usage'
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 ring-2 ring-cyan-400/40'
+              : 'text-gray-300 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-gray-700'
+          }`}
+        >
+          <Activity size={17} />
+          <span>3) All Uses (Day, Week, Month, Years)</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeMainTab === 'usage' ? 'bg-white/20 text-white' : 'bg-gray-800 text-cyan-300 border border-gray-700'
+            }`}
+          >
+            {dailyActivity.length} Days Active
+          </span>
+        </button>
       </div>
 
       {/* 1) Video Management Tab */}
@@ -2210,97 +2502,6 @@ export default function UserDetailPage() {
               </div>
             </div>
           </div>
-
-          {/* Community & Group Links Section */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <MessageCircle size={20} className="text-emerald-400" />
-              Community & Group Links
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-emerald-400 mb-1.5">
-                  WhatsApp Group Link
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={whatsappLink}
-                    onChange={(e) => setWhatsappLink(e.target.value)}
-                    placeholder="https://chat.whatsapp.com/..."
-                    className="flex-1 px-3.5 py-2.5 bg-black/60 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
-                  />
-                  {whatsappLink && (
-                    <a
-                      href={whatsappLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-2.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-xl transition-colors"
-                      title="Open WhatsApp Link"
-                    >
-                      <MessageCircle size={18} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-blue-400 mb-1.5">
-                  Community Link
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={communityLink}
-                    onChange={(e) => setCommunityLink(e.target.value)}
-                    placeholder="https://community.example.com/..."
-                    className="flex-1 px-3.5 py-2.5 bg-black/60 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none"
-                  />
-                  {communityLink && (
-                    <a
-                      href={communityLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-2.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-xl transition-colors"
-                      title="Open Community Link"
-                    >
-                      <Globe size={18} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-indigo-400 mb-1.5">
-                  Discord Link (Optional)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={discordLink}
-                    onChange={(e) => setDiscordLink(e.target.value)}
-                    placeholder="https://discord.gg/..."
-                    className="flex-1 px-3.5 py-2.5 bg-black/60 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-cyan-400 mb-1.5">
-                  Telegram Link (Optional)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={telegramLink}
-                    onChange={(e) => setTelegramLink(e.target.value)}
-                    placeholder="https://t.me/..."
-                    className="flex-1 px-3.5 py-2.5 bg-black/60 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
         </>
       ) : (
         /* Submissions, Tasks & Questions Section */
@@ -3087,317 +3288,6 @@ export default function UserDetailPage() {
                 </div>
               ))
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Profile Details Tab (Well Separated) */}
-      {activeMainTab === 'profile' && (
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Student Personal Information (7 cols) */}
-            <div className="lg:col-span-7 bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm space-y-5">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2 pb-4 border-b border-gray-800">
-                <User size={20} className="text-blue-400" />
-                Student Profile Information
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <User size={13} className="text-blue-400" /> Full Name
-                  </p>
-                  <p className="text-sm font-bold text-white mt-1">{enrollment.userId.name || 'Not provided'}</p>
-                </div>
-
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Mail size={13} className="text-blue-400" /> Email Address
-                  </p>
-                  <p className="text-sm font-semibold text-white mt-1 truncate">{enrollment.userId.email}</p>
-                </div>
-
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Phone size={13} className="text-emerald-400" /> Phone Number
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-sm font-semibold text-white">{enrollment.userId.phone || 'Not provided'}</p>
-                    {enrollment.userId.phone && (
-                      <a
-                        href={`https://wa.me/${enrollment.userId.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-                      >
-                        <MessageCircle size={12} /> WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Globe size={13} className="text-purple-400" /> Geographic Location
-                  </p>
-                  <p className="text-sm font-semibold text-white mt-1">
-                    {primaryLocation ||
-                      [(enrollment.userId as any)?.city, enrollment.userId.state, enrollment.userId.country].filter(Boolean).join(', ') ||
-                      'Sangamner, Maharashtra, India'}
-                  </p>
-                </div>
-
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Calendar size={13} className="text-gray-400" /> Enrolled Date
-                  </p>
-                  <p className="text-sm font-semibold text-white mt-1">
-                    {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Award size={13} className="text-amber-400" /> Profession / Role
-                  </p>
-                  <p className="text-sm font-semibold text-white mt-1">
-                    {enrollment.userId.profession || 'Student'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Network & Active Device Box */}
-              <div className="pt-4 border-t border-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3.5 bg-black/60 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Wifi size={13} className="text-cyan-400" /> Detected IP Network
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-mono font-bold text-cyan-300">
-                      {primaryIp || enrollment.userId.ip || '103.141.53.13'}
-                    </span>
-                    <button
-                      onClick={() => copyToClipboard(primaryIp || enrollment.userId.ip || '', 'prof-ip')}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      {copiedText === 'prof-ip' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-black/60 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <Laptop size={13} className="text-purple-400" /> Active Hardware Model
-                  </p>
-                  <p className="text-sm font-semibold text-white mt-1 truncate">
-                    {primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Login Credentials & Reset Password (5 cols) */}
-            <div className="lg:col-span-5 bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm space-y-5">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2 pb-4 border-b border-gray-800">
-                <Key size={20} className="text-amber-400" />
-                Login Credentials & Password
-              </h2>
-
-              <div className="p-4 bg-black/50 rounded-xl border border-gray-800 space-y-3">
-                <div>
-                  <p className="text-xs text-gray-400">Student Login Username / Email</p>
-                  <p className="text-sm font-mono font-bold text-white mt-0.5">{enrollment.userId.email}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Set New Student Password</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newPassword}
-                      onChange={(e) => {
-                        setNewPassword(e.target.value);
-                        setPasswordResetDone(false);
-                      }}
-                      placeholder="New password (min 6 chars)"
-                      className="flex-1 px-3 py-2 bg-black/80 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none text-xs font-mono"
-                    />
-                    <button
-                      onClick={generatePassword}
-                      title="Generate random password"
-                      className="px-2.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                    <button
-                      onClick={handleResetPassword}
-                      disabled={resettingPassword || newPassword.length < 6}
-                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-colors whitespace-nowrap shadow-md shadow-amber-500/20"
-                    >
-                      {resettingPassword ? '...' : 'Reset'}
-                    </button>
-                  </div>
-                </div>
-
-                {passwordResetDone && (
-                  <div className="mt-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-white font-mono space-y-0.5">
-                        <div>Login: {enrollment.userId.email}</div>
-                        <div>Pass: {newPassword}</div>
-                      </div>
-                      <button
-                        onClick={() =>
-                          copyToClipboard(
-                            `Email: ${enrollment.userId.email}\nPassword: ${newPassword}`,
-                            'creds'
-                          )
-                        }
-                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs flex items-center gap-1 font-semibold"
-                      >
-                        {copiedText === 'creds' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                        <span>Copy</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Community Links */}
-              <div className="p-4 bg-black/50 rounded-xl border border-gray-800 space-y-3">
-                <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">Course Community Links</p>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-gray-400 block mb-1">WhatsApp Group URL</label>
-                    <input
-                      type="text"
-                      value={whatsappLink}
-                      onChange={(e) => setWhatsappLink(e.target.value)}
-                      placeholder="https://chat.whatsapp.com/..."
-                      className="w-full px-3 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-gray-400 block mb-1">Community Forum URL</label>
-                    <input
-                      type="text"
-                      value={communityLink}
-                      onChange={(e) => setCommunityLink(e.target.value)}
-                      placeholder="https://community.swaryoga.com/..."
-                      className="w-full px-3 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Payments Tab (Well Separated) */}
-      {activeMainTab === 'payments' && (
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-800">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="text-emerald-400" size={22} />
-                  <h2 className="text-xl font-bold text-white tracking-tight">
-                    Payments, Orders & Billing
-                  </h2>
-                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 capitalize">
-                    {enrollment.purchaseType || 'paid'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Payment transactions, receipts, and order history for {enrollment.userId.name}.
-                </p>
-              </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
-                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Total Paid Amount</p>
-                <p className="text-2xl font-bold text-emerald-400 font-mono mt-1">
-                  ₹{enrollment.amountPaid || payments[0]?.amount || 0}
-                </p>
-              </div>
-              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
-                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Purchase Type</p>
-                <p className="text-lg font-bold text-white capitalize mt-1">{enrollment.purchaseType || 'paid'}</p>
-              </div>
-              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
-                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Account Status</p>
-                <p className="text-lg font-bold text-emerald-400 capitalize mt-1">{enrollmentStatus}</p>
-              </div>
-              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
-                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Gift / Bonus Hours</p>
-                <p className="text-2xl font-bold text-amber-300 font-mono mt-1">{giftHours} hrs</p>
-              </div>
-            </div>
-
-            {/* Payment Transactions Table */}
-            <div className="mt-8">
-              <h3 className="text-sm font-bold text-white mb-3">Order & Receipt Records</h3>
-              <div className="space-y-3">
-                {payments.length === 0 ? (
-                  <div className="text-center py-10 bg-black/40 border border-dashed border-gray-800 rounded-xl">
-                    <CreditCard size={32} className="mx-auto text-gray-600 mb-2" />
-                    <p className="text-xs font-semibold text-gray-400">No payment records found</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">Purchases and subscription renewals will appear here.</p>
-                  </div>
-                ) : (
-                  payments.map((pay: any, pIdx: number) => (
-                    <div
-                      key={pay.id || pIdx}
-                      className="p-4 rounded-xl bg-black/50 border border-gray-800 hover:border-gray-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                    >
-                      <div className="flex items-start gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-400 shrink-0">
-                          <CreditCard size={20} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-white">
-                              {pay.courseName || courseTitle}
-                            </p>
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
-                              {pay.status || 'Completed'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Order ID: <span className="font-mono text-gray-300">{pay.orderId || pay.id}</span>
-                            {pay.transactionId && <span> • Txn: <span className="font-mono text-cyan-400">{pay.transactionId}</span></span>}
-                          </p>
-                          <p className="text-[11px] text-gray-500 mt-1">
-                            Payment Mode: {pay.paymentMethod || 'Online'} • Date: {formatDateTime(pay.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-800">
-                        <span className="text-lg font-bold font-mono text-emerald-400">
-                          ₹{pay.amount || 0}
-                        </span>
-                        <button
-                          onClick={() =>
-                            copyToClipboard(
-                              `Order ID: ${pay.orderId || pay.id}\nAmount: ₹${pay.amount || 0}\nTxn: ${pay.transactionId || ''}\nStudent: ${enrollment.userId.name}`,
-                              `receipt_${pay.id}`
-                            )
-                          }
-                          className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg flex items-center gap-1"
-                        >
-                          {copiedText === `receipt_${pay.id}` ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                          <span>Copy Receipt</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}
