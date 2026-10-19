@@ -4,7 +4,25 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon, Calendar, Globe, Sparkles } from 'lucide-react';
+import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, ChevronDown, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon, Calendar, Globe, Sparkles } from 'lucide-react';
+
+const MONTH_OPTIONS = [
+  { value: '2026-10', label: 'Oct 2026' },
+  { value: '2026-11', label: 'Nov 2026' },
+  { value: '2026-12', label: 'Dec 2026' },
+  { value: '2027-01', label: 'Jan 2027' },
+  { value: '2027-02', label: 'Feb 2027' },
+  { value: '2027-03', label: 'Mar 2027' },
+  { value: '2027-04', label: 'Apr 2027' },
+  { value: '2027-05', label: 'May 2027' },
+  { value: '2027-06', label: 'Jun 2027' },
+  { value: '2027-07', label: 'Jul 2027' },
+  { value: '2027-08', label: 'Aug 2027' },
+  { value: '2027-09', label: 'Sep 2027' },
+  { value: '2027-10', label: 'Oct 2027' },
+  { value: '2027-11', label: 'Nov 2027' },
+  { value: '2027-12', label: 'Dec 2027' },
+];
 
 interface Enrollment {
   _id: string;
@@ -63,6 +81,7 @@ export default function ELearningUsersPage() {
 
   // Timeframe filter state (All Students, Today, Week, Month)
   const [timeframe, setTimeframe] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [selectedMonth, setSelectedMonth] = useState('2026-10');
   const [stats, setStats] = useState({
     all: 0,
     today: 0,
@@ -171,6 +190,7 @@ export default function ELearningUsersPage() {
       if (selectedFolderId && !selectedCourseId) params.append('folderId', selectedFolderId);
       if (selectedCourseId) params.append('courseId', selectedCourseId);
       if (timeframe && timeframe !== 'all') params.append('timeframe', timeframe);
+      if (selectedMonth) params.append('month', selectedMonth);
 
       const res = await fetch(`/api/admin/e-learning/enrollments?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -191,7 +211,7 @@ export default function ELearningUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, page, search, selectedFolderId, selectedCourseId, timeframe]);
+  }, [token, page, search, selectedFolderId, selectedCourseId, timeframe, selectedMonth]);
 
   // Load folders on mount
   useEffect(() => {
@@ -684,7 +704,7 @@ export default function ELearningUsersPage() {
           </div>
         </div>
 
-        {/* Card 4: This Month */}
+        {/* Card 4: Month Selector Card */}
         <div
           onClick={() => {
             setTimeframe('month');
@@ -697,20 +717,49 @@ export default function ELearningUsersPage() {
           }`}
         >
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">This Month</p>
-              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-mono">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                  {selectedMonth === '2026-10' ? 'This Month' : 'Month'}
+                </p>
+                {/* Month Selector Dropdown starting from Oct 2026 */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative inline-block"
+                >
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value);
+                      setTimeframe('month');
+                      setPage(1);
+                    }}
+                    className="bg-[#141c2a] hover:bg-[#1b2538] text-amber-400 text-xs font-bold pl-2.5 pr-7 py-1 rounded-lg border border-amber-500/40 hover:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer transition-all shadow-sm appearance-none"
+                    title="Select Month (starts from Oct 2026)"
+                  >
+                    {MONTH_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-[#0b1019] text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={13} className="text-amber-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1 font-mono">
                 {stats.month}
               </p>
-              <p className="text-[11px] text-gray-400 mt-1">Current month enrollments</p>
+              <p className="text-[11px] text-gray-400 mt-1 truncate">
+                {MONTH_OPTIONS.find((m) => m.value === selectedMonth)?.label || 'Oct 2026'} enrollments
+              </p>
             </div>
-            <div className={`p-3 rounded-xl border ${timeframe === 'month' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-amber-400'}`}>
+            <div className={`p-3 rounded-xl border shrink-0 ${timeframe === 'month' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-amber-400'}`}>
               <TrendingUp className="w-6 h-6" />
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-800/60 flex items-center justify-between">
             <span className="text-[11px] font-medium text-gray-400">
-              {timeframe === 'month' ? 'Active view' : 'Filter current month'}
+              {timeframe === 'month' ? 'Active view' : `Filter ${MONTH_OPTIONS.find((m) => m.value === selectedMonth)?.label || 'Month'}`}
             </span>
             <button
               type="button"

@@ -834,10 +834,19 @@ export async function GET(request: NextRequest) {
     const baseArgs = [...args];
     const baseWhere = baseConditions.length > 0 ? `WHERE ${baseConditions.join(' AND ')}` : '';
 
+    const month = request.nextUrl.searchParams.get('month'); // e.g. '2026-10'
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOfWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const targetMonthStr = month && /^\d{4}-\d{2}$/.test(month)
+      ? month
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const [yStr, mStr] = targetMonthStr.split('-');
+    const targetYear = parseInt(yStr, 10);
+    const targetMonth = parseInt(mStr, 10) - 1; // 0-indexed month
+    const startOfSelectedMonth = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0)).toISOString();
+    const startOfNextMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 1, 0, 0, 0)).toISOString();
 
     if (timeframe === 'today') {
       conditions.push('enrolled_at >= ?');
@@ -846,8 +855,8 @@ export async function GET(request: NextRequest) {
       conditions.push('enrolled_at >= ?');
       args.push(startOfWeek);
     } else if (timeframe === 'month') {
-      conditions.push('enrolled_at >= ?');
-      args.push(startOfMonth);
+      conditions.push('enrolled_at >= ? AND enrolled_at < ?');
+      args.push(startOfSelectedMonth, startOfNextMonth);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -858,13 +867,13 @@ export async function GET(request: NextRequest) {
         COUNT(*) as all_cnt,
         COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as today_cnt,
         COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as week_cnt,
-        COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as month_cnt
+        COALESCE(SUM(CASE WHEN enrolled_at >= ? AND enrolled_at < ? THEN 1 ELSE 0 END), 0) as month_cnt
       FROM course_enrollments_sql ${baseWhere}
     `;
 
     const statsRes = await bunnyExecute({
       sql: statsSql,
-      args: [startOfToday, startOfWeek, startOfMonth, ...baseArgs],
+      args: [startOfToday, startOfWeek, startOfSelectedMonth, startOfNextMonth, ...baseArgs],
     }).catch(() => ({ rows: [{ all_cnt: 0, today_cnt: 0, week_cnt: 0, month_cnt: 0 }] }));
 
     const statsRow: any = statsRes.rows[0] || {};
