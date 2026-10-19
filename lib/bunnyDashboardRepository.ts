@@ -69,10 +69,41 @@ export async function getBunnyAnalyticsOverview(input: { visibleUserIds: string[
   });
   const statusCounts: Record<string, number> = {};
   for (const lead of leads) { const status = String(lead.status || 'unknown'); statusCounts[status] = (statusCounts[status] || 0) + 1; }
+
+  // Query actual Bunny Database SQL tables for sales & message volumes
+  let totalSales = 0;
+  try {
+    const salesRes = await bunnyExecute('SELECT COUNT(*) as count, SUM(sale_amount) as total FROM sales_reports_sql');
+    totalSales = Number(salesRes.rows[0]?.total || salesRes.rows[0]?.count || 0);
+  } catch {}
+
+  let metaMessagesSent = 0;
+  try {
+    const metaRes = await bunnyExecute("SELECT COUNT(*) as count FROM meta_messages_sql WHERE direction = 'outbound'");
+    metaMessagesSent = Number(metaRes.rows[0]?.count || 0);
+  } catch {}
+
+  let qrWhatsappMessagesSent = 0;
+  try {
+    const qrRes = await bunnyExecute('SELECT COUNT(*) as count FROM qr_whatsapp_messages_sql');
+    qrWhatsappMessagesSent = Number(qrRes.rows[0]?.count || 0);
+  } catch {}
+
   const [messages, broadcasts] = await Promise.all([preferred('Message', 'messages'), archived('whatsapp_messages')]);
-  const messageCount = input.superAdmin ? messages.length + broadcasts.length : messages.filter((m: any) => String(m.senderId || m.sentByUserId || '') === input.viewerUserId).length;
+  const baseMessageCount = input.superAdmin ? messages.length + broadcasts.length : messages.filter((m: any) => String(m.senderId || m.sentByUserId || '') === input.viewerUserId).length;
+  const totalMessages = (baseMessageCount || 0) + metaMessagesSent + qrWhatsappMessagesSent;
   const runs = await archived('broadcast_runs');
-  return { totalLeads: leads.length, leadsByStatus: statusCounts, totalSales: 0, totalMessages: messageCount, metaMessagesSent: 0, qrWhatsappMessagesSent: 0, avgResponseTime: 0, broadcast: { byStatus: { completed: runs.length }, byReason: {} } };
+
+  return {
+    totalLeads: leads.length,
+    leadsByStatus: statusCounts,
+    totalSales,
+    totalMessages,
+    metaMessagesSent,
+    qrWhatsappMessagesSent,
+    avgResponseTime: 0,
+    broadcast: { byStatus: { completed: runs.length }, byReason: {} }
+  };
 }
 
 export async function getBunnyAdminDashboard() {
@@ -82,6 +113,27 @@ export async function getBunnyAdminDashboard() {
   const completed = orders.filter((order: any) => order.paymentStatus === 'completed');
   const currencyBreakdown = { INR: 0, USD: 0, NPR: 0 };
   let totalAmountUSD = 0;
-  for (const order of completed) { const amount = Number(order.total || 0); const currency = order.currency || 'INR'; if (currency in currencyBreakdown) (currencyBreakdown as any)[currency] += amount; totalAmountUSD += currency === 'USD' ? amount : currency === 'NPR' ? amount / 137 : amount / 86; }
-  return { totalUsers: users.length, totalSignins: signins.length, totalMessages: messages.length, totalOrders: orders.length, pendingOrders: orders.length - completed.length, completedOrders: completed.length, totalAmountUSD: Math.round(totalAmountUSD * 100) / 100, currencyBreakdown: { INR: Math.round(currencyBreakdown.INR * 100) / 100, USD: Math.round(currencyBreakdown.USD * 100) / 100, NPR: Math.round(currencyBreakdown.NPR * 100) / 100 }, orders: completed.map((order: any) => ({ id: String(order._id?.$oid || order._id || ''), amount: order.total, currency: order.currency || 'INR', status: order.paymentStatus, transactionId: order.transactionId, createdAt: order.createdAt })) };
+  const safeTotalUSD = Number.isFinite(totalAmountUSD) ? Math.round(totalAmountUSD * 100) / 100 : 0;
+  return {
+    totalUsers: Number(users?.length || 0),
+    totalSignins: Number(signins?.length || 0),
+    totalMessages: Number(messages?.length || 0),
+    totalOrders: Number(orders?.length || 0),
+    pendingOrders: Math.max(0, Number(orders?.length || 0) - Number(completed?.length || 0)),
+    completedOrders: Number(completed?.length || 0),
+    totalAmountUSD: safeTotalUSD,
+    currencyBreakdown: {
+      INR: Number.isFinite(currencyBreakdown.INR) ? Math.round(currencyBreakdown.INR * 100) / 100 : 0,
+      USD: Number.isFinite(currencyBreakdown.USD) ? Math.round(currencyBreakdown.USD * 100) / 100 : 0,
+      NPR: Number.isFinite(currencyBreakdown.NPR) ? Math.round(currencyBreakdown.NPR * 100) / 100 : 0,
+    },
+    orders: completed.map((order: any) => ({
+      id: String(order._id?.$oid || order._id || ''),
+      amount: Number(order.total || 0),
+      currency: order.currency || 'INR',
+      status: order.paymentStatus || 'completed',
+      transactionId: order.transactionId,
+      createdAt: order.createdAt,
+    })),
+  };
 }

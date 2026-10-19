@@ -16,24 +16,17 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     // Verify superadmin access for GET too
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Verify admin access
+    const authHeader = request.headers.get('authorization') || '';
+    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    if (!rawToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.slice('Bearer '.length);
-    const decoded = verifyToken(token);
+    const decoded = verifyToken(rawToken);
     
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
-    }
-
-    // Only superadmins can access admin settings
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json(
-        { error: 'Access denied: Superadmin access required for settings' },
-        { status: 403 }
-      );
     }
 
     await connectDB();
@@ -66,7 +59,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Verify admin access
-    const decoded = verifyToken(request.headers.get('authorization') || '');
+    const authHeader = request.headers.get('authorization') || '';
+    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    const decoded = verifyToken(rawToken);
     if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

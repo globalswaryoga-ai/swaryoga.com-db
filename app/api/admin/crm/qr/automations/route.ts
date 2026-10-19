@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import {
   verifyAdminAccess,
   parsePagination,
@@ -7,32 +6,27 @@ import {
   formatCrmSuccess,
   buildMetadata,
 } from '@/lib/crm-handlers';
-import { WhatsAppAutomationRule } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnyAutomationRules, saveBunnyAutomationRule } from '@/lib/bunnyAutomationRepository';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    const owner = String(verifyAdminAccess(request));
     const { limit, skip } = parsePagination(request);
-    const url = new URL(request.url);
-    const triggerType = url.searchParams.get('triggerType')?.trim();
+    const triggerType = request.nextUrl.searchParams.get('triggerType')?.trim();
 
-    await connectDB();
+    const all = (await listBunnyAutomationRules(owner)).filter((rule: any) => {
+      const isQr = rule.provider === 'qr' || !rule.provider;
+      const matchesTrigger = !triggerType || triggerType === 'all' || rule.triggerType === triggerType;
+      return isQr && matchesTrigger;
+    });
 
-    const filter: any = { createdByUserId: String(userId), provider: 'qr' };
-    if (triggerType && triggerType !== 'all') filter.triggerType = triggerType;
-
-    const rules = await WhatsAppAutomationRule.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await WhatsAppAutomationRule.countDocuments(filter);
-    const meta = buildMetadata(total, limit, skip);
-
-    return NextResponse.json({ success: true, rules, total, meta }, { status: 200 });
+    const rules = all.slice(skip, skip + limit);
+    return NextResponse.json(
+      { success: true, rules, total: all.length, data: { rules, total: all.length }, meta: buildMetadata(all.length, limit, skip) },
+      { status: 200 }
+    );
   } catch (error) {
     return handleCrmError(error, 'GET qr/automations');
   }
@@ -40,28 +34,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    const owner = String(verifyAdminAccess(request));
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
-    const { name, enabled, triggerType, keywords, throttleMinutesPerLead, actionType, actionText } = body;
-    if (!name || !String(name).trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 });
-
-    await connectDB();
-
-    const rule = await WhatsAppAutomationRule.create({
-      name: String(name).trim(),
-      enabled: typeof enabled === 'boolean' ? enabled : true,
-      createdByUserId: String(userId),
-      provider: 'qr',
-      triggerType: String(triggerType || 'welcome'),
-      keywords: Array.isArray(keywords) ? keywords.map((k: any) => String(k).trim()).filter(Boolean) : [],
-      throttleMinutesPerLead: typeof throttleMinutesPerLead === 'number' ? Math.max(0, throttleMinutesPerLead) : 5,
-      actionType: String(actionType || 'send_text'),
-      actionText: typeof actionText === 'string' ? actionText : undefined,
-    });
-
-    return formatCrmSuccess(rule);
+    try {
+      const rule = await saveBunnyAutomationRule({ ...body, provider: 'qr' }, owner);
+      return formatCrmSuccess(rule);
+    } catch (error) {
+      if (error instanceof Error && /required|Unsupported|Keywords|Invalid/.test(error.message)) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
   } catch (error) {
     return handleCrmError(error, 'POST qr/automations');
   }

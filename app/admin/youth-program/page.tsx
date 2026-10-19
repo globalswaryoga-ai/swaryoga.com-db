@@ -38,7 +38,14 @@ export default function YouthProgramPage() {
     duration: '',
   });
 
-  const getToken = () => localStorage.getItem('adminToken');
+  const getToken = () =>
+    typeof window !== 'undefined'
+      ? localStorage.getItem('crm_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('token') ||
+        ''
+      : '';
 
   const fetchData = async () => {
     try {
@@ -274,20 +281,59 @@ export default function YouthProgramPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 mb-2">
-            <Link href="/admin" className="text-gray-600 hover:text-gray-900">
-              ← Admin
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
+
+      <header className="bg-white shadow-xs border-b border-slate-200 px-4 py-4 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+            >
+              ← Admin Console
             </Link>
+            <div>
+              <h1 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                🧘 Youth Program Community
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">Meeting ID: 833 7691 7306</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">🧘 Youth Program Community</h1>
-          <p className="text-gray-600">Meeting ID: 833 7691 7306</p>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+            Kids & Youth Cohort
+          </span>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Hero Header & 4 Metric Cards */}
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border border-amber-200/60 rounded-2xl p-6 shadow-xs relative overflow-hidden">
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Youth Program Hub</h2>
+          <p className="text-slate-600 text-sm mt-1 max-w-2xl">
+            Manage youth meditation & yoga workshops, student communities, automated cloud Zoom recordings, and session libraries.
+          </p>
+
+          <div className="mt-5 pt-4 border-t border-amber-200/50 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-amber-100 shadow-2xs">
+              <span className="text-amber-700 font-semibold block uppercase tracking-wider text-[11px]">Enrolled Members</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{community?.memberCount || 0} Students</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-orange-100 shadow-2xs">
+              <span className="text-orange-700 font-semibold block uppercase tracking-wider text-[11px]">Class Recordings</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{recordings.length} Vault</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-rose-100 shadow-2xs">
+              <span className="text-rose-700 font-semibold block uppercase tracking-wider text-[11px]">Zoom Meeting ID</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">833 7691 7306</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-teal-100 shadow-2xs">
+              <span className="text-teal-700 font-semibold block uppercase tracking-wider text-[11px]">Sync Pipeline</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Automated S3</span>
+            </div>
+          </div>
+        </div>
         {/* Messages */}
         {message && (
           <div className="mb-6 p-4 bg-green-50 text-green-800 rounded-lg whitespace-pre-wrap">

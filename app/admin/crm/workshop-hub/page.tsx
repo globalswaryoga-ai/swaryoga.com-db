@@ -167,7 +167,11 @@ function WorkshopHubContent() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token');
+    const token =
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('admin_token') ||
+      localStorage.getItem('token');
     if (!token) {
       router.push(getLoginPath());
       return;
@@ -209,41 +213,65 @@ function WorkshopHubContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 flex-shrink-0">
-              <GraduationCap className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Workshop Management</h1>
-                <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  Cohorts & Curriculums
-                </span>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-500" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 flex-shrink-0">
+                <GraduationCap className="w-7 h-7" />
               </div>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-                Central hub for Swar Yoga workshop cohorts, student attendance, batch registrations across languages, landing funnels, and pricing offers.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Workshop Management</h1>
+                  <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Cohorts & Curriculums
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-1 max-w-2xl">
+                  Central hub for Swar Yoga workshop cohorts, student attendance, batch registrations across languages, landing funnels, and pricing offers.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Search */}
+            <div className="relative w-full md:w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search workshop modules..."
+                className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-xs"
+              />
             </div>
           </div>
 
-          {/* Quick Search */}
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search workshop modules..."
-              className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-xs"
-            />
+          {/* 4 Metric Cards */}
+          <div className="mt-6 pt-5 border-t border-emerald-200/50 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-emerald-100 shadow-2xs">
+              <span className="text-emerald-700 font-semibold block uppercase tracking-wider text-[11px]">Workshop Modules</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{workshopPages.length} Tools</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-teal-100 shadow-2xs">
+              <span className="text-teal-700 font-semibold block uppercase tracking-wider text-[11px]">Languages Supported</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">EN, HI, MR</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-cyan-100 shadow-2xs">
+              <span className="text-cyan-700 font-semibold block uppercase tracking-wider text-[11px]">Cohort Manager</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Full Roster</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-blue-100 shadow-2xs">
+              <span className="text-blue-700 font-semibold block uppercase tracking-wider text-[11px]">Intake Pipelines</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Automated</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b border-gray-200">
@@ -327,6 +355,7 @@ function WorkshopHubContent() {
           <strong>{tabFilters.find((t) => t.key === activeTab)?.label}</strong>
         </div>
         <div className="text-gray-400">Total: {workshopPages.length} Workshop Management Modules</div>
+      </div>
       </div>
     </div>
   );

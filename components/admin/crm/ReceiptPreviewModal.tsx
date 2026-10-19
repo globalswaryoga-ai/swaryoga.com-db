@@ -60,7 +60,7 @@ const PAYMENT_MODE_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  leadId: string;
+  leadId?: string;
   leadName?: string;
   leadPhone?: string;
   leadEmail?: string;
@@ -87,7 +87,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const res = await fetch('/api/admin/crm/receipts', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, saleId }),
+        body: JSON.stringify({ leadId: leadId || undefined, saleId: saleId || undefined }),
       });
       const json = await res.json();
       if (res.ok && json.data) {
@@ -111,8 +111,10 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     setLoading(true);
     setError('');
     try {
-      const query = saleId ? `leadId=${leadId}&saleId=${saleId}` : `leadId=${leadId}`;
-      const res = await fetch(`/api/admin/crm/receipts?${query}`, {
+      const params = new URLSearchParams();
+      if (leadId) params.set('leadId', leadId);
+      if (saleId) params.set('saleId', saleId);
+      const res = await fetch(`/api/admin/crm/receipts?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -145,7 +147,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const res = await fetch('/api/admin/crm/receipts', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, saleId, force: true }),
+        body: JSON.stringify({ leadId: leadId || undefined, saleId: saleId || undefined, force: true }),
       });
       const json = await res.json();
       if (res.ok && json.data) {
@@ -163,15 +165,17 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
 
   // Opens PDF in a new browser tab (most reliable approach — no iframe CSP issues)
   const openPdf = () => {
-    if (!activeReceipt) return;
-    const url = `/api/admin/crm/receipts/pdf?id=${activeReceipt._id}&token=${encodeURIComponent(token)}`;
+    if (!activeReceipt && !saleId) return;
+    const param = activeReceipt?._id && !activeReceipt._id.startsWith('synth-') ? `id=${activeReceipt._id}` : `saleId=${saleId}`;
+    const url = `/api/admin/crm/receipts/pdf?${param}&token=${encodeURIComponent(token)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const downloadPdf = async () => {
-    if (!activeReceipt) return;
+    if (!activeReceipt && !saleId) return;
     try {
-      const res = await fetch(`/api/admin/crm/receipts/pdf?id=${activeReceipt._id}`, {
+      const param = activeReceipt?._id && !activeReceipt._id.startsWith('synth-') ? `id=${activeReceipt._id}` : `saleId=${saleId}`;
+      const res = await fetch(`/api/admin/crm/receipts/pdf?${param}&download=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Download failed');
@@ -179,8 +183,10 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Receipt-${activeReceipt.receiptNumber || activeReceipt._id}.pdf`;
+      a.download = `Receipt-${activeReceipt?.receiptNumber || saleId || 'receipt'}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
       setError('Download failed');

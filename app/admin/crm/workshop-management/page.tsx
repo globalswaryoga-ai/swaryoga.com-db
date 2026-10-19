@@ -6,7 +6,7 @@ import {
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
   PlayCircle, Eye, Calendar, Plus, X, Trash2, Edit2, 
   Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode, ExternalLink,
-  Info, LayoutDashboard, Folder, Link as LinkIcon, KeyRound
+  Info, LayoutDashboard, Folder, Link as LinkIcon, KeyRound, Clock, Sparkles, ChevronRight, ChevronDown, Check, Layers, Filter
 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import RegistrationNewBatch from '@/components/admin/crm/RegistrationNewBatch';
@@ -16,7 +16,7 @@ import { DEFAULT_RECORDING_ACCESS } from '@/lib/workshopRecordingPolicy';
 import { buildWorkshopAttendanceReport, attendanceReportTable, reportCsv } from '@/lib/workshopAttendanceReport';
 
 interface Cohort { _id: string; name: string; startDate: string; timezone?: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoSyncZoomAttendance?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
-interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
+interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active?: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
 interface Recording { 
@@ -66,6 +66,26 @@ function toDateKey(value: unknown): string | null {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const date = value instanceof Date ? value : new Date(String(value || ''));
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function getAvatarGradient(name: string) {
+  const gradients = [
+    'from-indigo-500 to-purple-600',
+    'from-emerald-500 to-teal-600',
+    'from-cyan-500 to-blue-600',
+    'from-rose-500 to-pink-600',
+    'from-amber-500 to-orange-600',
+    'from-violet-500 to-fuchsia-600',
+  ];
+  const charCode = (name || 'S').charCodeAt(0) || 0;
+  return gradients[charCode % gradients.length];
+}
+
+function getInitials(name: string) {
+  if (!name) return 'S';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export default function WorkshopManagementPage() {
@@ -122,6 +142,18 @@ export default function WorkshopManagementPage() {
   const [quickBroadcastSending, setQuickBroadcastSending] = useState(false);
   const [analyticsSearch, setAnalyticsSearch] = useState('');
   const [studentsSearch, setStudentsSearch] = useState('');
+  const [cohortSearchQuery, setCohortSearchQuery] = useState('');
+  const [showMobileCohortList, setShowMobileCohortList] = useState(false);
+
+  const filteredCohorts = useMemo(() => {
+    if (!cohortSearchQuery.trim()) return cohorts;
+    const q = cohortSearchQuery.toLowerCase();
+    return cohorts.filter(c => 
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.startDate || '').toLowerCase().includes(q) ||
+      (c.zoomMeetingId || '').toLowerCase().includes(q)
+    );
+  }, [cohorts, cohortSearchQuery]);
   
   // Import State
   const [importingStudents, setImportingStudents] = useState(false);
@@ -191,7 +223,14 @@ export default function WorkshopManagementPage() {
   }, [form.startDate, form.holidayDates]);
 
   const [savingEditCohort, setSavingEditCohort] = useState(false);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('crm_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('token') ||
+        ''
+      : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const loadSequenceRef = useRef(0);
@@ -714,7 +753,7 @@ export default function WorkshopManagementPage() {
       email: current.email || '',
       phone: current.phone || '',
       whatsappNumber: current.whatsappNumber || '',
-      active: current.active,
+      active: current.active ?? true,
     };
     studentEditDraftRef.current = values;
     studentEditBaselineRef.current = {
@@ -1475,102 +1514,252 @@ export default function WorkshopManagementPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 via-indigo-600 to-violet-600 shrink-0" />
       
-      {/* Global Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-100 p-2 rounded-xl">
-            <GraduationCap className="h-6 w-6 text-indigo-700" />
+      {/* Global Header & Hero Ribbon */}
+      <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-900/50 px-4 sm:px-6 py-4 sm:py-5 text-white shadow-lg relative overflow-hidden flex-shrink-0 z-10">
+        {/* Ambient Glow Orbs */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 bg-gradient-to-br from-indigo-500/20 to-teal-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-gradient-to-tr from-violet-600/20 to-pink-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="bg-gradient-to-tr from-indigo-500 to-teal-400 p-2.5 sm:p-3 rounded-2xl shadow-lg shadow-indigo-500/25 ring-2 ring-white/10 text-white shrink-0">
+              <GraduationCap className="h-6 w-6 sm:h-7 sm:w-7" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Workshop Management</h1>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 flex items-center gap-1">
+                  <Sparkles size={11} className="text-teal-300" />
+                  SaaS Cohorts
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-indigo-200/80 font-medium mt-0.5">
+                Cohorts, students admissions, Zoom attendance auto-sync & video recordings
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Workshop Management</h1>
-            <p className="text-sm text-slate-500 font-medium">Manage cohorts, students, attendance, and recordings</p>
+
+          {/* Quick KPI stats strip in header */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">Batches</span>
+              <span className="text-sm font-black text-white">{cohorts.length}</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">Students</span>
+              <span className="text-sm font-black text-emerald-300">{students.length}</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200">Zoom Ready</span>
+              <span className="text-sm font-black text-cyan-300">{cohorts.filter(c => c.zoomMeetingId).length}</span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <a
-            href="/admin/crm/workshop-management"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+
+        {/* Action Buttons Row */}
+        <div className="relative z-10 flex items-center justify-between gap-2.5 flex-wrap mt-4 pt-3.5 border-t border-white/10">
+          {/* Mobile Cohort Switcher Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowMobileCohortList(true)}
+            className="md:hidden flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600/60 hover:bg-indigo-600 text-white border border-indigo-400/40 shadow-xs"
           >
-            <Users className="h-4 w-4" />
-            Workshop Students
-          </a>
-          <a
-            href="/admin/crm/new-registration/english"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Register New Batch
-          </a>
-          <a
-            href="/admin/crm/workshop-offer"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Workshop Offer
-          </a>
-          <button 
-            onClick={() => setShowMetaFormModal(true)}
-            className="bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
-          >
-            <LinkIcon size={16} /> Connect Meta Form
+            <Layers size={14} className="text-teal-300" />
+            <span>{selected ? selected.name : 'Select Workshop'}</span>
+            <ChevronDown size={14} />
           </button>
-          <button 
-            onClick={() => setShowCreateForm(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
-          >
-            <Plus size={18} /> Add Workshop
-          </button>
+
+          <div className="flex items-center gap-2 flex-wrap ml-auto">
+            <a
+              href="/admin/crm/workshop-management"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm hover:shadow-emerald-500/20"
+            >
+              <Users className="h-4 w-4" />
+              Workshop Students
+            </a>
+            <a
+              href="/admin/crm/new-registration/english"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-teal-600 hover:bg-teal-500 text-white shadow-sm hover:shadow-teal-500/20"
+            >
+              <Plus className="h-4 w-4" />
+              Register New Batch
+            </a>
+            <a
+              href="/admin/crm/workshop-offer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-sm hover:shadow-fuchsia-500/20"
+            >
+              <Plus className="h-4 w-4" />
+              Workshop Offer
+            </a>
+            <button 
+              onClick={() => setShowMetaFormModal(true)}
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-1.5 backdrop-blur-sm"
+            >
+              <LinkIcon size={15} /> Connect Meta Form
+            </button>
+            <button 
+              onClick={() => setShowCreateForm(true)}
+              className="bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center gap-2 hover:scale-105"
+            >
+              <Plus size={16} /> Add Workshop
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* Mobile Workshops Selector Drawer */}
+      {showMobileCohortList && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col md:hidden animate-in fade-in">
+          <div className="bg-white m-3 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-base">Select Workshop</h3>
+                <span className="bg-indigo-100 text-indigo-700 text-xs font-black px-2 py-0.5 rounded-full">{cohorts.length}</span>
+              </div>
+              <button 
+                onClick={() => setShowMobileCohortList(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-3 border-b border-slate-100 bg-white">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search workshops..."
+                  value={cohortSearchQuery}
+                  onChange={(e) => setCohortSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {filteredCohorts.map((c) => (
+                <div
+                  key={c._id}
+                  onClick={() => {
+                    void selectWorkshop(c);
+                    setShowMobileCohortList(false);
+                  }}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    selected?._id === c._id
+                      ? 'bg-gradient-to-r from-indigo-50 to-teal-50/40 border-indigo-400 shadow-sm ring-1 ring-indigo-400/20'
+                      : 'bg-white border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  <p className={`font-black text-sm ${selected?._id === c._id ? 'text-indigo-950' : 'text-slate-800'}`}>
+                    {c.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Calendar size={10} /> {new Date(c.startDate).toLocaleDateString()}
+                    </span>
+                    {c.zoomMeetingId && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-100">
+                        <Video size={10} /> Zoom Ready
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         
         {/* Sidebar: Workshops List */}
-        <aside className="w-80 bg-white border-r border-slate-200 flex flex-col z-10 flex-shrink-0">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Workshops</span>
-            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{cohorts.length}</span>
+        <aside className="hidden md:flex md:w-80 lg:w-88 xl:w-96 bg-white border-r border-slate-200 flex-col z-10 flex-shrink-0 shadow-xs">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers size={14} className="text-indigo-600" />
+                Workshops
+              </span>
+              <span className="bg-indigo-100 text-indigo-700 text-xs font-black px-2.5 py-0.5 rounded-full border border-indigo-200/60">
+                {cohorts.length} Batches
+              </span>
+            </div>
+            {/* Search Cohorts Input */}
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search workshops..."
+                value={cohortSearchQuery}
+                onChange={(e) => setCohortSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
+              />
+              {cohortSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setCohortSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {cohorts.length === 0 ? (
-              <div className="text-center py-10">
-                <p className="text-sm text-slate-500">No workshops created yet.</p>
+            {filteredCohorts.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <GraduationCap className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-700">No workshops found</p>
+                <p className="text-xs text-slate-400 mt-1">{cohortSearchQuery ? 'Try another search term' : 'Click "Add Workshop" to create your first batch.'}</p>
               </div>
             ) : (
-              cohorts.map((c) => (
-                <div key={c._id} className={`group relative w-full text-left p-4 rounded-xl border transition-all cursor-pointer ${
-                  selected?._id === c._id
-                    ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10'
-                    : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
-                }`}
+              filteredCohorts.map((c) => (
+                <div 
+                  key={c._id} 
+                  className={`group relative w-full text-left p-4 rounded-2xl border transition-all cursor-pointer ${
+                    selected?._id === c._id
+                      ? 'bg-gradient-to-r from-indigo-50/95 via-teal-50/30 to-white border-indigo-500 shadow-md ring-2 ring-indigo-500/20'
+                      : 'bg-white border-slate-200/80 hover:border-indigo-200 hover:bg-slate-50/80 shadow-xs'
+                  }`}
                   onClick={() => { void selectWorkshop(c); }}
                 >
-                  <p className={`font-bold truncate pr-14 ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>{c.name}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md flex items-center gap-1">
-                      <Calendar size={10}/> {new Date(c.startDate).toLocaleDateString()}
+                  <div className="flex items-start justify-between gap-2 pr-12">
+                    <p className={`font-black text-sm tracking-tight leading-snug ${selected?._id === c._id ? 'text-indigo-950 font-black' : 'text-slate-800'}`}>
+                      {c.name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-slate-200/60">
+                      <Calendar size={10} className="text-slate-500"/> {new Date(c.startDate).toLocaleDateString()}
                     </span>
+                    {c.classStartTime && (
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-indigo-100">
+                        <Clock size={10}/> {c.classStartTime}
+                      </span>
+                    )}
                     {c.zoomMeetingId && (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md flex items-center gap-1">
-                        <Video size={10}/> Zoom Ready
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg flex items-center gap-1 border border-emerald-200">
+                        <Video size={10}/> Zoom
                       </span>
                     )}
                   </div>
                   {/* Edit / Delete buttons */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       title="Edit workshop"
                       onClick={(e) => handleEditCohort(c, e)}
-                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 shadow-sm transition-colors"
+                      className="p-1.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 shadow-xs transition-colors"
                     >
                       <Edit2 size={12} />
                     </button>
                     <button
                       title="Delete workshop"
                       onClick={(e) => handleDeleteCohort(c, e)}
-                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 shadow-sm transition-colors"
+                      className="p-1.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-300 shadow-xs transition-colors"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -1593,89 +1782,106 @@ export default function WorkshopManagementPage() {
 
           {!selected ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
-              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-                <GraduationCap className="h-10 w-10 text-indigo-300" />
+              <div className="w-24 h-24 bg-gradient-to-tr from-indigo-100 to-teal-100 rounded-3xl flex items-center justify-center mb-6 shadow-md shadow-indigo-100 ring-4 ring-white">
+                <GraduationCap className="h-12 w-12 text-indigo-600" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-700 mb-2">Select a Workshop</h2>
-              <p className="max-w-md">Choose a workshop from the sidebar to manage students, record attendance, and send out class recordings.</p>
+              <h2 className="text-2xl font-black text-slate-800 mb-2">Select a Workshop</h2>
+              <p className="max-w-md text-sm text-slate-500">Choose a workshop batch from the sidebar or tap the batch switcher to manage admitted students, sync Zoom attendance, and dispatch class recordings.</p>
+              <button
+                type="button"
+                onClick={() => setShowMobileCohortList(true)}
+                className="mt-6 md:hidden px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-sm flex items-center gap-2"
+              >
+                <Layers size={16} /> Choose Workshop
+              </button>
             </div>
           ) : (
             <>
               {/* Workspace Header & Tabs */}
-              <div className="bg-white px-8 pt-8 border-b border-slate-200 flex-shrink-0">
-                <div className="flex items-start justify-between mb-8">
+              <div className="bg-white px-4 sm:px-8 pt-6 sm:pt-8 border-b border-slate-200 flex-shrink-0 shadow-xs">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
                   <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{selected.name}</h2>
-                    <div className="flex items-center gap-4 mt-3 text-sm font-medium text-slate-500">
-                      <span className="flex items-center gap-1.5"><Calendar size={16} className="text-slate-400"/> {selected.classStartTime || '—'} – {selected.classEndTime || '—'}</span>
-                      <span className="text-slate-300">|</span>
-                      <span className="flex items-center gap-1.5"><Users size={16} className="text-slate-400"/> {students.length} Students Enrolled</span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{selected.name}</h2>
+                      <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Active Cohort
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 sm:gap-3 mt-3 text-xs sm:text-sm font-semibold text-slate-600 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded-xl text-slate-700 border border-slate-200/80">
+                        <Clock size={14} className="text-indigo-600" /> {selected.classStartTime || '—'} – {selected.classEndTime || '—'}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-xl text-emerald-800 border border-emerald-200/80">
+                        <Users size={14} className="text-emerald-600" /> {students.length} Students Enrolled
+                      </span>
                       {selected.zoomMeetingId && (
-                        <>
-                          <span className="text-slate-300">|</span>
-                          <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-                            <Video size={16} /> ID: <span className="font-mono text-slate-800 font-bold">{selected.zoomMeetingId}</span>
-                          </span>
+                        <span className="inline-flex items-center gap-1.5 bg-sky-50 px-3 py-1 rounded-xl text-sky-800 border border-sky-200/80 font-mono font-bold">
+                          <Video size={14} className="text-sky-600" /> ID: {selected.zoomMeetingId}
                           <button
                             type="button"
                             onClick={() => {
                               navigator.clipboard.writeText(selected.zoomMeetingId || '');
                               alert('Meeting ID copied!');
                             }}
-                            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                            className="p-0.5 text-sky-500 hover:text-sky-800 hover:bg-sky-100 rounded transition-colors cursor-pointer"
                             title="Copy Meeting ID"
                           >
-                            <Copy size={13} />
+                            <Copy size={12} />
                           </button>
-                        </>
+                        </span>
                       )}
                       {selected.zoomJoinUrl && (
-                        <>
-                          <span className="text-slate-300">|</span>
-                          <a
-                            href={selected.zoomJoinUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold transition-colors"
-                            title="Join Zoom Meeting"
-                          >
-                            Join Meeting <ExternalLink size={13} />
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(selected.zoomJoinUrl || '');
-                              alert('Zoom link copied!');
-                            }}
-                            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
-                            title="Copy Zoom Link"
-                          >
-                            <Copy size={13} />
-                          </button>
-                        </>
+                        <a
+                          href={selected.zoomJoinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-3 py-1 rounded-xl text-xs shadow-xs transition-all cursor-pointer"
+                          title="Join Zoom Meeting"
+                        >
+                          Join Meeting <ExternalLink size={12} />
+                        </a>
+                      )}
+                      {selected.whatsappGroupLink && (
+                        <a
+                          href={selected.whatsappGroupLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded-xl text-xs shadow-xs transition-all cursor-pointer"
+                          title="Open WhatsApp Group"
+                        >
+                          <MessageCircle size={12} /> WA Group
+                        </a>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-8">
+                {/* Segmented Pill Tabs */}
+                <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-4 scrollbar-none">
                   {[
-                    { id: 'students', label: 'Students & Attendance', icon: Users },
-                    { id: 'recordings', label: 'Recordings', icon: Video },
+                    { id: 'students', label: 'Students & Attendance', icon: Users, count: students.length },
+                    { id: 'recordings', label: 'Recordings', icon: Video, count: recordings.length },
                     { id: 'settings', label: 'Workshop Settings', icon: Settings },
                     { id: 'analytics', label: 'Attendance Analytics', icon: BarChart2 }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                      className={`px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
                         activeTab === tab.id 
-                          ? 'border-indigo-600 text-indigo-700' 
-                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' 
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <tab.icon size={16} />
-                      {tab.label}
+                      <tab.icon size={15} />
+                      <span>{tab.label}</span>
+                      {typeof (tab as any).count === 'number' && (
+                        <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                          {(tab as any).count}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1688,20 +1894,31 @@ export default function WorkshopManagementPage() {
                 {activeTab === 'students' && (
                   <div className="space-y-6 max-w-6xl mx-auto">
                     {/* Action Bar */}
-                    <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                      <button onClick={() => { setAddStudentTab('manual'); setShowAddStudent(true); }} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-slate-200">
+                      <button 
+                        onClick={() => { setAddStudentTab('manual'); setShowAddStudent(true); }} 
+                        className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-sm shadow-indigo-600/20 hover:scale-105"
+                      >
                         <UserPlus size={16} /> Add Students
                       </button>
 
-                      <button onClick={() => setSelectedStudentIds(students.length > 0 && selectedStudentIds.length === students.length ? [] : students.map(s => s._id))} className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-slate-200">
-                        <CheckCircle2 size={16} /> {students.length > 0 && selectedStudentIds.length === students.length ? 'Deselect All' : 'Select All'}
+                      <button 
+                        onClick={() => setSelectedStudentIds(students.length > 0 && selectedStudentIds.length === students.length ? [] : students.map(s => s._id))} 
+                        className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors border border-slate-200/80"
+                      >
+                        <CheckCircle2 size={16} className={selectedStudentIds.length > 0 ? "text-indigo-600" : "text-slate-400"} /> 
+                        {students.length > 0 && selectedStudentIds.length === students.length ? 'Deselect All' : 'Select All'}
                       </button>
                       
-                      <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
+                      <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
                       
                       {selected.zoomMeetingId && (
-                        <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="inline-flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-sky-100 disabled:opacity-50">
-                          <RefreshCw size={16} className={syncingZoomAttendance ? 'animate-spin' : ''} />
+                        <button 
+                          onClick={syncZoomAttendance} 
+                          disabled={syncingZoomAttendance} 
+                          className="inline-flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-700 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors border border-sky-200/80 disabled:opacity-50"
+                        >
+                          <RefreshCw size={15} className={syncingZoomAttendance ? 'animate-spin' : ''} />
                           {syncingZoomAttendance ? 'Syncing Zoom...' : 'Sync Zoom Data'}
                         </button>
                       )}
@@ -1729,42 +1946,42 @@ export default function WorkshopManagementPage() {
                           await load(selected._id);
                           setLoading(false);
                         }}
-                        className="inline-flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-rose-100"
+                        className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors border border-rose-200/80"
                         title="Remove all duplicate rows and merge records"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
                         Delete Duplicates
                       </button>
 
                       {selectedStudentIds.length > 0 && (
-                        <>
-                          <button onClick={() => handleBroadcast('qr')} className="inline-flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-emerald-100">
-                            <Phone size={16} /> QR Broadcast
+                        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                          <button onClick={() => handleBroadcast('qr')} className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-2 rounded-xl font-bold text-xs transition-colors border border-emerald-200">
+                            <QrCode size={14} /> QR Broadcast
                           </button>
-                          <button onClick={() => handleBroadcast('meta')} className="inline-flex items-center gap-2 bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-teal-100">
-                            <Phone size={16} /> Meta Broadcast
+                          <button onClick={() => handleBroadcast('meta')} className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl font-bold text-xs transition-colors border border-blue-200">
+                            <MessageCircle size={14} /> Meta Broadcast
                           </button>
-                          <button onClick={() => handleBroadcast('email')} className="inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-blue-100">
-                            <Mail size={16} /> Email
+                          <button onClick={() => handleBroadcast('email')} className="inline-flex items-center gap-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 px-3 py-2 rounded-xl font-bold text-xs transition-colors border border-violet-200">
+                            <Mail size={14} /> Email
                           </button>
-                          <button onClick={removeSelectedStudents} className="ml-auto inline-flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-red-100">
-                            <Trash2 size={16} /> Remove ({selectedStudentIds.length})
+                          <button onClick={removeSelectedStudents} className="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded-xl font-bold text-xs transition-colors border border-red-200">
+                            <Trash2 size={14} /> Remove ({selectedStudentIds.length})
                           </button>
-                        </>
+                        </div>
                       )}
                     </div>
 
                     {/* Search bar */}
                     {students.length > 0 && (
-                      <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-2xl shadow-sm border border-slate-200">
+                      <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-2xl shadow-xs border border-slate-200">
                         <div className="flex-1 relative">
                           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                           <input
                             type="text"
                             value={studentsSearch}
                             onChange={e => setStudentsSearch(e.target.value)}
-                            placeholder="Search by name, mobile number or email…"
-                            className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
+                            placeholder="Search student by name, mobile number, or email…"
+                            className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
                           />
                           {studentsSearch && (
                             <button onClick={() => setStudentsSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -1773,7 +1990,7 @@ export default function WorkshopManagementPage() {
                           )}
                         </div>
                         {studentsSearch ? (
-                          <span className="text-xs text-slate-500 whitespace-nowrap">
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full whitespace-nowrap border border-indigo-200">
                             {students.filter(s => {
                               const q = studentsSearch.trim().toLowerCase();
                               const qd = q.replace(/\D/g, '');
@@ -1782,7 +1999,9 @@ export default function WorkshopManagementPage() {
                             }).length} of {students.length} students
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400 whitespace-nowrap">{students.length} students</span>
+                          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full whitespace-nowrap">
+                            {students.length} students
+                          </span>
                         )}
                       </div>
                     )}
@@ -1790,29 +2009,36 @@ export default function WorkshopManagementPage() {
                     {/* Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       {students.length === 0 ? (
-                        <div className="text-center py-20">
-                          <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                          <h3 className="text-lg font-bold text-slate-700">No students yet</h3>
-                          <p className="text-sm text-slate-500 mt-1">Import from Google Forms or add manually to get started.</p>
+                        <div className="text-center py-20 px-4">
+                          <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-indigo-400">
+                            <Users size={32} />
+                          </div>
+                          <h3 className="text-lg font-bold text-slate-800">No students enrolled yet</h3>
+                          <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">Import from Google Forms, sync CRM leads, or add students manually to build this batch roster.</p>
+                          <button
+                            onClick={() => { setAddStudentTab('manual'); setShowAddStudent(true); }}
+                            className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-sm hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <UserPlus size={14} /> Add First Student
+                          </button>
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 border-b border-slate-200">
+                            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider">
                               <tr>
-                                <th className="p-4 w-12">
+                                <th className="p-4 w-12 text-center">
                                   <input type="checkbox" checked={students.length > 0 && selectedStudentIds.length === students.length} onChange={(e) => setSelectedStudentIds(e.target.checked ? students.map((s) => s._id) : [])} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                                 </th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">#</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Code</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Name</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">WhatsApp</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Email</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">City</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Country</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Attendance</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Status</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Actions</th>
+                                <th className="p-4 w-12 text-center">#</th>
+                                <th className="p-4">Code</th>
+                                <th className="p-4">Student</th>
+                                <th className="p-4">WhatsApp / Phone</th>
+                                <th className="p-4">Email</th>
+                                <th className="p-4">City / Country</th>
+                                <th className="p-4 text-center">Attendance</th>
+                                <th className="p-4 text-center">Status</th>
+                                <th className="p-4 text-center">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -1826,57 +2052,89 @@ export default function WorkshopManagementPage() {
                                 const rows = attendance.filter((a) => String(a.studentId) === s._id && !cohortHolidaySet.has(toDateKey(a.classDate) || a.classDate)); 
                                 const joinedCount = rows.filter((a) => a.joined).length;
                                 const mins = Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60);
+                                const initials = getInitials(s.name);
+                                const avatarBg = getAvatarGradient(s.name);
+
                                 return (
                                   <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="p-4">
+                                    <td className="p-4 text-center">
                                       <input type="checkbox" checked={selectedStudentIds.includes(s._id)} onChange={(e) => setSelectedStudentIds((prev) => e.target.checked ? [...prev, s._id] : prev.filter((id) => id !== s._id))} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                                     </td>
-                                    <td className="p-4 text-slate-400 font-semibold">{idx + 1}</td>
-                                    <td className="p-4 font-mono text-slate-500 text-xs">{s.leadNumber || s.leadId?.slice(-6) || '—'}</td>
-                                    <td className="p-4">
-                                      <button type="button" onClick={() => openStudentChart(s)} className="text-left font-bold text-indigo-700 hover:text-indigo-900 group flex items-center gap-2">
-                                        {s.name} <BarChart2 size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </button>
+                                    <td className="p-4 text-slate-400 font-semibold text-xs text-center">{idx + 1}</td>
+                                    <td className="p-4 font-mono text-slate-500 text-xs">
+                                      <span className="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
+                                        {s.leadNumber || s.leadId?.slice(-6) || '—'}
+                                      </span>
                                     </td>
-                                    <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{s.whatsappNumber || s.phone || '—'}</td>
-                                    <td className="p-4 text-slate-500 text-xs truncate max-w-[150px]" title={s.email}>{s.email || '—'}</td>
-                                    <td className="p-4 text-slate-600">{s.metadata?.city || '—'}</td>
-                                    <td className="p-4 text-slate-600">{s.metadata?.country || '—'}</td>
+                                    <td className="p-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${avatarBg} text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs`}>
+                                          {initials}
+                                        </div>
+                                        <button 
+                                          type="button" 
+                                          onClick={() => openStudentChart(s)} 
+                                          className="text-left font-bold text-slate-900 hover:text-indigo-700 group flex items-center gap-1.5 transition-colors"
+                                          title="View detailed attendance chart"
+                                        >
+                                          <span>{s.name}</span>
+                                          <BarChart2 size={13} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                    <td className="p-4 text-slate-700 font-medium whitespace-nowrap text-xs">
+                                      {s.whatsappNumber || s.phone || <span className="text-slate-300">—</span>}
+                                    </td>
+                                    <td className="p-4 text-slate-500 text-xs truncate max-w-[160px]" title={s.email}>
+                                      {s.email || <span className="text-slate-300">—</span>}
+                                    </td>
+                                    <td className="p-4 text-xs text-slate-600">
+                                      {s.metadata?.city || s.metadata?.country ? (
+                                        <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                                          {[s.metadata?.city, s.metadata?.country].filter(Boolean).join(', ')}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300">—</span>
+                                      )}
+                                    </td>
                                     <td className="p-4 text-center">
-                                      <div className="font-bold text-slate-800">{joinedCount} <span className="font-normal text-slate-500 text-xs">days</span></div>
-                                      <div className="text-xs text-slate-400 mt-0.5">{mins} min total</div>
+                                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border ${joinedCount > 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                        <span>{joinedCount} days</span>
+                                        <span className="text-slate-400">·</span>
+                                        <span className="font-normal text-[11px] text-slate-500">{mins}m</span>
+                                      </div>
                                     </td>
-                                    <td className="p-4">
-                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${s.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                    <td className="p-4 text-center">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black border ${s.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                                         {s.active ? 'Active' : 'Inactive'}
                                       </span>
                                     </td>
-                                    <td className="p-4 whitespace-nowrap">
-                                      <div className="flex items-center gap-1.5">
+                                    <td className="p-4 whitespace-nowrap text-center">
+                                      <div className="flex items-center justify-center gap-1.5">
                                         <button
                                           onClick={() => openStudentEditor(s)}
-                                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer border border-slate-200"
                                           title="Edit student details"
                                         >
                                           <Edit2 size={12} /> Edit
                                         </button>
                                         <button 
                                           onClick={() => openStudentInbox(s, 'qr')} 
-                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors cursor-pointer" 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer shadow-2xs" 
                                           title="Auto connect to WhatsApp QR Inbox"
                                         >
                                           <QrCode size={12} /> QR
                                         </button>
                                         <button 
                                           onClick={() => openStudentInbox(s, 'meta')} 
-                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors cursor-pointer" 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-2xs" 
                                           title="Auto connect to WhatsApp Meta Inbox"
                                         >
                                           <MessageCircle size={12} /> Meta
                                         </button>
                                         <button 
                                           onClick={() => openStudentInbox(s, 'email')} 
-                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors cursor-pointer" 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200 transition-colors cursor-pointer shadow-2xs" 
                                           title="Auto connect to Email Inbox"
                                         >
                                           <Mail size={12} /> Email
@@ -1898,21 +2156,23 @@ export default function WorkshopManagementPage() {
                 {activeTab === 'recordings' && (
                   <div className="max-w-5xl mx-auto space-y-6">
                     {/* Zoom Automation & Settings */}
-                    <div className="bg-gradient-to-r from-blue-50 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-2xl p-5 shadow-xs space-y-4">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 border border-indigo-800/80 rounded-3xl p-5 sm:p-6 shadow-md text-white space-y-4 relative overflow-hidden">
+                      <div className="absolute -top-16 -right-16 w-56 h-56 bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
-                          <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-xs flex-shrink-0">
-                            <Video size={22} />
+                          <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 text-white p-3 rounded-2xl shadow-md flex-shrink-0">
+                            <Video size={24} />
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-slate-900 text-base">Zoom Automation & Settings</h3>
-                              <span className="text-[11px] font-bold bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
-                                Auto-syncs every 2 hours
+                              <h3 className="font-black text-white text-base sm:text-lg">Zoom Cloud Recordings Automation</h3>
+                              <span className="text-[10px] font-extrabold bg-blue-500/20 text-cyan-300 px-2.5 py-0.5 rounded-full border border-blue-400/30 flex items-center gap-1">
+                                <Sparkles size={11} /> Auto-syncs every 2 hours
                               </span>
                             </div>
-                            <p className="text-xs text-slate-600 mt-1">
-                              Recordings will automatically go to <strong className="text-slate-800">YouTube</strong> (Speaker + Gallery) and <strong className="text-slate-800">Bunny</strong> (Speaker video + MP3 audio). Links appear below after the external upload worker saves them.
+                            <p className="text-xs text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">
+                              Uploaded Zoom recordings automatically distribute to <strong className="text-white">YouTube</strong> (Speaker + Gallery) and <strong className="text-white">Bunny CDN</strong> (Speaker video + MP3 audio).
                             </p>
                           </div>
                         </div>
@@ -1922,7 +2182,7 @@ export default function WorkshopManagementPage() {
                             type="button"
                             onClick={syncRecordingsNow}
                             disabled={syncingRecordings || !selected.zoomMeetingId}
-                            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer backdrop-blur-sm"
                             title="Trigger immediate sync from Zoom Cloud"
                           >
                             <RefreshCw size={14} className={syncingRecordings ? 'animate-spin' : ''} />
@@ -1933,7 +2193,7 @@ export default function WorkshopManagementPage() {
                               href={selected.zoomJoinUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
                               title="Launch Zoom Meeting"
                             >
                               Join Meeting <ExternalLink size={13} />
@@ -1943,9 +2203,9 @@ export default function WorkshopManagementPage() {
                       </div>
 
                       {/* Quick Input Fields for Meeting ID and Link */}
-                      <div className="bg-white/90 rounded-xl p-4 border border-blue-100 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                      <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div className="md:col-span-4">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                          <label className="block text-xs font-bold text-indigo-200 uppercase tracking-wider mb-1.5">
                             Zoom Meeting ID
                           </label>
                           <input
@@ -1953,12 +2213,12 @@ export default function WorkshopManagementPage() {
                             placeholder="e.g. 85155446286"
                             value={recordingSetup.zoomMeetingId}
                             onChange={(e) => updateRecordingSetup({ zoomMeetingId: e.target.value })}
-                            className="w-full font-mono text-sm rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full font-mono text-sm rounded-xl border border-white/20 px-3.5 py-2 bg-slate-900/60 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                           />
                         </div>
 
                         <div className="md:col-span-6">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                          <label className="block text-xs font-bold text-indigo-200 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                             <span>Zoom Join Link</span>
                             {recordingSetup.zoomJoinUrl && (
                               <button
@@ -1967,7 +2227,7 @@ export default function WorkshopManagementPage() {
                                   navigator.clipboard.writeText(recordingSetup.zoomJoinUrl);
                                   alert('Zoom Join Link copied!');
                                 }}
-                                className="text-[11px] font-semibold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                                className="text-[11px] font-bold text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
                               >
                                 <Copy size={11} /> Copy Link
                               </button>
@@ -1978,7 +2238,7 @@ export default function WorkshopManagementPage() {
                             placeholder="https://us06web.zoom.us/j/85155446286?pwd=..."
                             value={recordingSetup.zoomJoinUrl}
                             onChange={(e) => updateRecordingSetup({ zoomJoinUrl: e.target.value })}
-                            className="w-full text-sm rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full text-sm rounded-xl border border-white/20 px-3.5 py-2 bg-slate-900/60 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                           />
                         </div>
 
@@ -1988,7 +2248,7 @@ export default function WorkshopManagementPage() {
                             type="button"
                             onClick={saveZoomConfig}
                             disabled={savingZoomConfig}
-                            className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
                           >
                             <Save size={13} />
                             {savingZoomConfig ? 'Saving...' : 'Save Now'}
@@ -1997,33 +2257,40 @@ export default function WorkshopManagementPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                       <div className="lg:col-span-1">
-                        <form onSubmit={saveRecording} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-0">
-                          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                            <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><PlayCircle size={20}/></div>
-                            <h3 className="font-bold text-slate-800">New Delivery</h3>
+                        <form onSubmit={saveRecording} className="bg-gradient-to-b from-white to-indigo-50/20 rounded-3xl shadow-sm border border-slate-200/90 p-5 sm:p-6 sticky top-4">
+                          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                            <div className="bg-gradient-to-tr from-indigo-500 to-violet-500 text-white p-2.5 rounded-2xl shadow-xs"><PlayCircle size={20}/></div>
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-base">New Delivery</h3>
+                              <p className="text-xs text-slate-500">Record a session's video links</p>
+                            </div>
                           </div>
                           
                           <div className="space-y-4">
                             <div>
-                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Class Date</label>
-                              <input required type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white" />
+                              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Class Date *</label>
+                              <input required type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 bg-slate-50 focus:bg-white text-sm focus:ring-2 focus:ring-indigo-300" />
                             </div>
                             
                             <div>
-                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">YouTube Links (Optional)</label>
-                              <input placeholder="Speaker Video ID or URL" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
-                              <input placeholder="Gallery Video ID or URL" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-red-500" /> YouTube Links
+                              </label>
+                              <input placeholder="Speaker Video ID or URL" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white mb-2 text-xs focus:ring-2 focus:ring-indigo-300" />
+                              <input placeholder="Gallery Video ID or URL" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white text-xs focus:ring-2 focus:ring-indigo-300" />
                             </div>
                             
                             <div>
-                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Bunny URLs (Optional)</label>
-                              <input placeholder="Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
-                              <input placeholder="Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" /> Bunny CDN URLs
+                              </label>
+                              <input placeholder="Bunny Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white mb-2 text-xs focus:ring-2 focus:ring-indigo-300" />
+                              <input placeholder="Bunny Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white text-xs focus:ring-2 focus:ring-indigo-300" />
                             </div>
                             
-                            <button className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 font-bold text-white shadow-sm transition-colors mt-4 cursor-pointer">
+                            <button className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 py-3 font-bold text-white shadow-md shadow-indigo-600/20 transition-all mt-4 cursor-pointer text-sm hover:scale-105">
                               Save Delivery
                             </button>
                           </div>
@@ -2032,19 +2299,21 @@ export default function WorkshopManagementPage() {
                       
                       <div className="lg:col-span-2 space-y-4">
                         {recordings.length === 0 ? (
-                          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
-                            <Video size={32} className="mx-auto mb-4 text-slate-300" />
-                            <h4 className="font-bold text-slate-700 mb-1">No recordings yet</h4>
-                            <p className="text-sm">Click &quot;Sync Zoom Recordings&quot; above to import cloud recordings or use the form to manually log deliveries.</p>
+                          <div className="bg-white rounded-3xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
+                            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-blue-500">
+                              <Video size={32} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-base mb-1">No recordings logged yet</h4>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto">Click &quot;Sync Zoom Recordings&quot; above to auto-import cloud recordings or use the form on the left to manually save daily deliveries.</p>
                           </div>
                         ) : (
                           recordings.map((recording) => (
-                            <div key={recording._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-start gap-4 hover:border-indigo-200 transition-colors">
-                              <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px] flex flex-col justify-center">
-                                <p className="text-xs font-bold text-indigo-400 uppercase mb-1">Day</p>
+                            <div key={recording._id} className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs flex items-start gap-4 hover:border-indigo-300 hover:shadow-md transition-all">
+                              <div className="bg-gradient-to-b from-indigo-50 to-indigo-100/60 px-3 sm:px-4 py-3 rounded-2xl text-center min-w-[76px] sm:min-w-[84px] flex flex-col justify-center border border-indigo-200/60 shrink-0">
+                                <p className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-wider mb-0.5">Day</p>
                                 <input 
                                   type="text" 
-                                  className="w-12 text-center text-2xl font-black text-indigo-700 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none transition-colors mx-auto"
+                                  className="w-12 text-center text-xl sm:text-2xl font-black text-indigo-700 bg-transparent border-b-2 border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none transition-colors mx-auto"
                                   defaultValue={recording.dayNumber || ''}
                                   placeholder="-"
                                   onBlur={async (e) => {
@@ -2061,9 +2330,11 @@ export default function WorkshopManagementPage() {
                                   }}
                                 />
                               </div>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                  <h4 className="font-bold text-slate-800 text-lg">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                                  <h4 className="font-black text-slate-900 text-base sm:text-lg">
+                                    {new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                  </h4>
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
@@ -2085,8 +2356,8 @@ export default function WorkshopManagementPage() {
                                 </div>
                                 <input 
                                   type="text"
-                                  className="w-full text-sm font-medium text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors pb-1"
-                                  placeholder="Enter subject name..."
+                                  className="w-full text-xs sm:text-sm font-semibold text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors pb-1"
+                                  placeholder="Enter session subject or topic..."
                                   defaultValue={recording.metadata?.subject || (selected.daySubjects?.find((d: any) => d.day === recording.dayNumber)?.subject) || ''}
                                   onBlur={async (e) => {
                                     const val = e.target.value;
@@ -2102,14 +2373,14 @@ export default function WorkshopManagementPage() {
                                   }}
                                 />
                                 
-                                <div className="grid grid-cols-2 gap-4 mt-4">
-                                  <div className="space-y-2">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Speaker View</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-100">
+                                  <div className="space-y-1.5">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Speaker View</p>
                                     <div className="flex flex-wrap items-center gap-2">
                                       {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) ? (
                                         <div className="flex items-center gap-1">
                                           <a 
-                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-100 transition-colors shadow-xs" 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-xl border border-red-200 hover:bg-red-100 transition-colors shadow-2xs" 
                                             href={getYoutubeUrl(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId)} 
                                             target="_blank" 
                                             rel="noreferrer"
@@ -2126,14 +2397,14 @@ export default function WorkshopManagementPage() {
                                             className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer" 
                                             title="Copy YouTube URL"
                                           >
-                                            <Copy size={13}/>
+                                            <Copy size={12}/>
                                           </button>
                                         </div>
                                       ) : (
                                         <button
                                           type="button"
                                           onClick={() => openEditUrlsModal(recording)}
-                                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50/60 hover:bg-red-50 px-2.5 py-1.5 rounded-lg border border-dashed border-red-200 hover:border-red-300 transition-colors cursor-pointer"
+                                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50/60 hover:bg-red-50 px-2.5 py-1.5 rounded-xl border border-dashed border-red-200 hover:border-red-300 transition-colors cursor-pointer"
                                           title="Add YouTube Speaker URL"
                                         >
                                           <Plus size={12}/> YouTube
@@ -2143,7 +2414,7 @@ export default function WorkshopManagementPage() {
                                       {recording.bunnySpeakerUrl ? (
                                         <div className="flex items-center gap-1">
                                           <a 
-                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors shadow-xs" 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors shadow-2xs" 
                                             href={recording.bunnySpeakerUrl} 
                                             target="_blank" 
                                             rel="noreferrer"
@@ -2160,34 +2431,34 @@ export default function WorkshopManagementPage() {
                                             className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer" 
                                             title="Copy Bunny URL"
                                           >
-                                            <Copy size={13}/>
+                                            <Copy size={12}/>
                                           </button>
                                         </div>
                                       ) : (
                                         <button
                                           type="button"
                                           onClick={() => openEditUrlsModal(recording)}
-                                          className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50/60 hover:bg-orange-50 px-2.5 py-1.5 rounded-lg border border-dashed border-orange-200 hover:border-orange-300 transition-colors cursor-pointer"
+                                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50/60 hover:bg-amber-50 px-2.5 py-1.5 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-colors cursor-pointer"
                                           title="Add Bunny Speaker URL"
                                         >
                                           <Plus size={12}/> Bunny
                                         </button>
                                       )}
                                       {recording.metadata?.bunnyAudioUrl && (
-                                        <a href={recording.metadata.bunnyAudioUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-700 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200">
+                                        <a href={recording.metadata.bunnyAudioUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 shadow-2xs">
                                           <Download size={13}/> MP3 Audio
                                         </a>
                                       )}
                                     </div>
                                   </div>
 
-                                  <div className="space-y-2">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gallery View</p>
+                                  <div className="space-y-1.5">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Gallery View</p>
                                     <div className="flex flex-wrap items-center gap-2">
                                       {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) ? (
                                         <div className="flex items-center gap-1">
                                           <a 
-                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-100 transition-colors shadow-xs" 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-xl border border-red-200 hover:bg-red-100 transition-colors shadow-2xs" 
                                             href={getYoutubeUrl(recording.youtubeGalleryUrl || recording.youtubeGalleryId)} 
                                             target="_blank" 
                                             rel="noreferrer"
@@ -2204,14 +2475,14 @@ export default function WorkshopManagementPage() {
                                             className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer" 
                                             title="Copy YouTube URL"
                                           >
-                                            <Copy size={13}/>
+                                            <Copy size={12}/>
                                           </button>
                                         </div>
                                       ) : (
                                         <button
                                           type="button"
                                           onClick={() => openEditUrlsModal(recording)}
-                                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50/60 hover:bg-red-50 px-2.5 py-1.5 rounded-lg border border-dashed border-red-200 hover:border-red-300 transition-colors cursor-pointer"
+                                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50/60 hover:bg-red-50 px-2.5 py-1.5 rounded-xl border border-dashed border-red-200 hover:border-red-300 transition-colors cursor-pointer"
                                           title="Add YouTube Gallery URL"
                                         >
                                           <Plus size={12}/> YouTube
@@ -2235,9 +2506,9 @@ export default function WorkshopManagementPage() {
                                   </div>
                                 )}
                               </div>
-                              <div className="text-right">
-                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-slate-200">
-                                  <Users size={14}/> {(recording.deliveredStudentIds || []).length || 0}
+                              <div className="text-right shrink-0">
+                                <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 font-bold px-3 py-1.5 rounded-xl text-xs border border-indigo-200/60">
+                                  <Users size={13}/> {(recording.deliveredStudentIds || []).length || 0}
                                 </span>
                               </div>
                             </div>
@@ -2250,88 +2521,240 @@ export default function WorkshopManagementPage() {
 
                 {/* === SETTINGS TAB === */}
                 {activeTab === 'settings' && (
-                  <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-200">
                     
                     {/* Google Form Settings */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                        <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><Link size={20}/></div>
-                        <h3 className="font-bold text-slate-800">Google Form Integration</h3>
+                    <div className="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/20 to-white p-6 shadow-sm hover:shadow-md transition-all group">
+                      <div className="absolute -top-12 -right-12 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-400/20 transition-colors" />
+                      
+                      <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-emerald-100/60">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                          <Link size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-base">Google Form Integration</h3>
+                          <p className="text-xs text-slate-500">Public student enquiry & registration URL</p>
+                        </div>
                       </div>
+
                       <div className="space-y-4">
-                        <label className="block text-sm font-bold text-slate-700">CRM Form URL</label>
-                        <input type="url" placeholder="https://swaryoga.com/enquiry?w=..." value={googleFormLink} onChange={(e) => updateGoogleFormLink(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                            CRM Public Form URL
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="url" 
+                              placeholder="https://swaryoga.com/enquiry?w=..." 
+                              value={googleFormLink} 
+                              onChange={(e) => updateGoogleFormLink(e.target.value)} 
+                              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50/80 focus:bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-500 transition-all" 
+                            />
+                            {googleFormLink && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(googleFormLink);
+                                  toast.success('Form URL copied to clipboard');
+                                }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                title="Copy link"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         <AutosaveIndicator status={googleFormAutosaveStatus} error={googleFormAutosaveError} onRetry={() => { void googleFormAutosaveRef.current?.retry().catch(() => undefined); }} />
-                        <div className="flex gap-3">
-                          <button type="button" onClick={saveGoogleFormLink} className="flex-1 rounded-xl bg-slate-800 text-white font-bold py-2.5 hover:bg-slate-900 transition-colors text-sm">Save Now</button>
-                          <button type="button" onClick={() => { if (googleFormLink) window.open(googleFormLink, '_blank'); }} className="flex-1 rounded-xl border border-slate-200 text-slate-700 font-bold py-2.5 hover:bg-slate-50 transition-colors text-sm">Open Form</button>
+                        
+                        <div className="flex items-center gap-3 pt-2">
+                          <button 
+                            type="button" 
+                            onClick={saveGoogleFormLink} 
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-2.5 px-4 shadow-sm shadow-emerald-600/20 text-sm transition-all cursor-pointer"
+                          >
+                            <Save size={15} /> Save Now
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => { if (googleFormLink) window.open(googleFormLink, '_blank'); }} 
+                            disabled={!googleFormLink}
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold py-2.5 px-4 hover:bg-slate-50 hover:border-slate-300 text-sm transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
+                          >
+                            <ExternalLink size={14} /> Open Form
+                          </button>
                         </div>
                       </div>
                     </div>
                     
                     {/* Automations */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                        <div className="bg-violet-100 p-2 rounded-xl text-violet-600"><Settings size={20}/></div>
-                        <h3 className="font-bold text-slate-800">Automations</h3>
+                    <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-violet-50/20 to-white p-6 shadow-sm hover:shadow-md transition-all group">
+                      <div className="absolute -top-12 -right-12 w-32 h-32 bg-violet-400/10 rounded-full blur-2xl pointer-events-none group-hover:bg-violet-400/20 transition-colors" />
+
+                      <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-violet-100/60">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+                          <Settings size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-base">Workshop Automations</h3>
+                          <p className="text-xs text-slate-500">Autonomous Zoom recording sync & AI workflows</p>
+                        </div>
                       </div>
-                      <div className="space-y-4">
-                        <button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-colors text-left ${runningWorker ? "border-yellow-200 bg-yellow-50" : "border-violet-200 bg-violet-50 hover:bg-violet-100 disabled:opacity-50"}`}>
+
+                      <div className="space-y-3.5">
+                        <button 
+                          type="button" 
+                          onClick={() => void runWorkshopWorker(true)} 
+                          disabled={runningWorker} 
+                          className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left cursor-pointer ${
+                            runningWorker 
+                              ? "border-amber-300 bg-amber-50/90 text-amber-900" 
+                              : "border-violet-200/80 bg-violet-50/70 hover:bg-violet-100/80 hover:border-violet-300 text-violet-950 shadow-2xs"
+                          }`}
+                        >
                           <div>
                             {runningWorker ? (
-                            <>
-                              <p className="font-bold text-yellow-900">Processing...</p>
-                              <p className="text-xs text-yellow-700 mt-1">Please wait, this may take a few minutes</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="font-bold text-violet-900">Preview AI Worker</p>
-                              <p className="text-xs text-violet-700 mt-1">Simulate tasks without sending messages</p>
-                            </>
-                          )}
+                              <>
+                                <p className="font-bold text-sm text-amber-900 flex items-center gap-2">
+                                  <RefreshCw size={14} className="animate-spin text-amber-600" />
+                                  Simulating Tasks...
+                                </p>
+                                <p className="text-xs text-amber-700 mt-1">Please wait, inspecting queue...</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-bold text-sm text-violet-950 flex items-center gap-2">
+                                  <Eye size={15} className="text-violet-600" />
+                                  Preview AI Worker
+                                </p>
+                                <p className="text-xs text-violet-600 mt-0.5">Dry-run tasks without sending real messages</p>
+                              </>
+                            )}
                           </div>
-                          {runningWorker ? <RefreshCw className="text-yellow-600 animate-spin" /> : <Eye className="text-violet-500" />}
+                          <span className="p-2 rounded-xl bg-white/70 text-violet-600">
+                            {runningWorker ? <RefreshCw size={16} className="animate-spin text-amber-600" /> : <ChevronRight size={16} className="text-violet-500" />}
+                          </span>
                         </button>
-                        <button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className={`w-full flex items-center justify-between p-4 rounded-xl shadow-sm transition-colors text-left text-white ${runningWorker ? "bg-yellow-500" : "bg-violet-600 hover:bg-violet-700 disabled:opacity-50"}`}>
+
+                        <button 
+                          type="button" 
+                          onClick={() => void runWorkshopWorker(false)} 
+                          disabled={runningWorker} 
+                          className={`w-full flex items-center justify-between p-4 rounded-2xl shadow-sm transition-all text-left text-white cursor-pointer ${
+                            runningWorker 
+                              ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/20" 
+                              : "bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-700 hover:from-violet-700 hover:to-indigo-800 shadow-violet-600/25 hover:shadow-md"
+                          }`}
+                        >
                           <div>
-                            <p className="font-bold">{runningWorker ? "Uploading & Syncing..." : "Run AI Worker Now"}</p>
-                            <p className="text-xs mt-1 text-white/80">{runningWorker ? "Processing Zoom recordings (this takes a few mins)" : "Execute pending tasks and messages immediately"}</p>
+                            <p className="font-extrabold text-sm flex items-center gap-2">
+                              {runningWorker ? <RefreshCw size={14} className="animate-spin" /> : <PlayCircle size={15} className="text-violet-200" />}
+                              {runningWorker ? "Uploading & Syncing..." : "Run AI Worker Now"}
+                            </p>
+                            <p className="text-xs mt-0.5 text-white/80">
+                              {runningWorker ? "Processing recordings & Zoom cloud files (2-3 mins)" : "Execute pending tasks, auto-recordings & WhatsApp broadcasts"}
+                            </p>
                           </div>
-                          {runningWorker ? <RefreshCw className="text-white animate-spin" /> : <PlayCircle className="text-violet-200" />}
+                          <span className="p-2 rounded-xl bg-white/15 text-white">
+                            {runningWorker ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} className="text-amber-300" />}
+                          </span>
                         </button>
                       </div>
                     </div>
+
                     {/* Zoom Recording Setup */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm md:col-span-2">
-                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                        <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><Video size={20}/></div>
-                        <h3 className="font-bold text-slate-800">Zoom Recording Setup</h3>
+                    <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-sky-50/20 to-white p-6 shadow-sm hover:shadow-md transition-all md:col-span-2 group">
+                      <div className="absolute -top-16 -right-16 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none group-hover:bg-blue-400/20 transition-colors" />
+
+                      <div className="flex items-center gap-3.5 mb-6 pb-4 border-b border-blue-100/60">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                          <Video size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-base">Zoom Recording &amp; Community Config</h3>
+                          <p className="text-xs text-slate-500">Configure meeting ID, target WhatsApp community, and YouTube playlist</p>
+                        </div>
                       </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                          <label className="block text-sm font-bold text-slate-700">Zoom Meeting ID</label>
-                          <input type="text" placeholder="123456789" value={recordingSetup.zoomMeetingId} onChange={(e) => updateRecordingSetup({ zoomMeetingId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <Video size={13} className="text-blue-600" /> Zoom Meeting ID
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. 84592019482" 
+                              value={recordingSetup.zoomMeetingId} 
+                              onChange={(e) => updateRecordingSetup({ zoomMeetingId: e.target.value })} 
+                              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50/80 focus:bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-500 transition-all font-mono" 
+                            />
+                          </div>
                           
-                          <label className="block text-sm font-bold text-slate-700 mt-4">Community</label>
-                          <select value={recordingSetup.communityId} onChange={(e) => updateRecordingSetup({ communityId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm">
-                            <option value="">-- Select Community --</option>
-                            {communities.map((c: any) => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <Users size={13} className="text-blue-600" /> Target Community
+                            </label>
+                            <select 
+                              value={recordingSetup.communityId} 
+                              onChange={(e) => updateRecordingSetup({ communityId: e.target.value })} 
+                              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50/80 focus:bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-500 transition-all"
+                            >
+                              <option value="">-- Select Community --</option>
+                              {communities.map((c: any) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
-                        <div className="space-y-4">
-                          <label className="block text-sm font-bold text-slate-700">YouTube Playlist Name (Optional)</label>
-                          <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={recordingSetup.youtubePlaylistName} onChange={(e) => updateRecordingSetup({ youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
 
-                          <label className="block text-sm font-bold text-slate-700 mt-4">Thumbnail URL (Optional)</label>
-                          <input type="url" placeholder="https://..." value={recordingSetup.thumbnailUrl} onChange={(e) => updateRecordingSetup({ thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <PlayCircle size={13} className="text-red-500" /> YouTube Playlist Name <span className="text-[10px] text-slate-400 font-normal lowercase">(optional)</span>
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" 
+                              value={recordingSetup.youtubePlaylistName} 
+                              onChange={(e) => updateRecordingSetup({ youtubePlaylistName: e.target.value })} 
+                              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50/80 focus:bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-500 transition-all" 
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <Link size={13} className="text-slate-400" /> Custom Thumbnail URL <span className="text-[10px] text-slate-400 font-normal lowercase">(optional)</span>
+                            </label>
+                            <input 
+                              type="url" 
+                              placeholder="https://..." 
+                              value={recordingSetup.thumbnailUrl} 
+                              onChange={(e) => updateRecordingSetup({ thumbnailUrl: e.target.value })} 
+                              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50/80 focus:bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-500 transition-all" 
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-6 flex justify-end">
+
+                      <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <AutosaveIndicator status={recordingSetupAutosaveStatus} error={recordingSetupAutosaveError} onRetry={() => { void recordingSetupAutosaveRef.current?.retry().catch(() => undefined); }} />
-                        <button type="button" onClick={saveRecordingSetup} disabled={savingRecordingSetup} className="rounded-xl bg-blue-600 text-white font-bold px-6 py-2.5 hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
-                          {savingRecordingSetup ? 'Saving...' : 'Save Now'}
+                        <button 
+                          type="button" 
+                          onClick={saveRecordingSetup} 
+                          disabled={savingRecordingSetup} 
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-6 py-2.5 text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 cursor-pointer"
+                        >
+                          {savingRecordingSetup ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" /> Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={15} /> Save Settings Now
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -2373,12 +2796,36 @@ export default function WorkshopManagementPage() {
                           <p className="mt-2 text-xs text-slate-500">Generated {new Date().toLocaleString()} · {analyticsSearch ? `Filtered students: ${analyticsSearch}` : 'All students'}</p>
                           <p className="mt-3 text-xs text-amber-800">Pending = no saved attendance record. Upcoming = future session. Neither is counted as absent. Percentages and grades are provisional, based only on confirmed records.</p>
                         </div>
-                        <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 gap-4 no-print">
+                        <div className="px-6 py-5 border-b border-slate-200/80 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black tracking-wider uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                              <BarChart2 size={12} className="text-indigo-400" /> Swar Yoga · Attendance Master Report
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">
+                              {selected.timezone || 'Asia/Kolkata'}
+                            </span>
+                          </div>
+                          <h2 className="mt-2 text-2xl font-black text-white tracking-tight">{selected.name}</h2>
+                          <p className="mt-1 text-xs text-slate-300 flex items-center gap-2 flex-wrap">
+                            <span>{selected.startDate} – {report.sessions.at(-1)?.classDate}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-indigo-300">{report.sessions.length} sessions</span>
+                            <span>•</span>
+                            <span className="text-slate-400">Generated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </p>
+                          <p className="mt-2 text-[11px] text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-1.5 max-w-3xl">
+                            💡 Pending = no saved attendance record. Upcoming = future session. Neither is counted as absent. Percentages and grades are provisional based on confirmed records.
+                          </p>
+                        </div>
+
+                        <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white gap-4 no-print">
                           <div className="flex flex-wrap items-center gap-3">
-                            <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><BarChart2 size={20}/></div>
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                              <BarChart2 size={20}/>
+                            </div>
                             <div>
-                              <h3 className="font-bold text-slate-800 text-lg">Daily Attendance Analytics</h3>
-                              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-slate-800 text-base">Daily Attendance Matrix</h3>
+                              <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Overview of student attendance durations across all classes.</span>
                                 {cohortHolidaySet.size > 0 && (
                                   <span className="relative inline-block">
@@ -2420,83 +2867,147 @@ export default function WorkshopManagementPage() {
                                     )}
                                   </span>
                                 )}
-                              </p>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          
+                          <div className="flex items-center gap-2.5 flex-wrap">
                             {selected.zoomMeetingId && (
-                              <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50">
-                                <RefreshCw size={16} className={syncingZoomAttendance ? 'animate-spin' : ''} />
+                              <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-sky-500/20 disabled:opacity-50 cursor-pointer">
+                                <RefreshCw size={14} className={syncingZoomAttendance ? 'animate-spin' : ''} />
                                 {syncingZoomAttendance ? 'Syncing...' : 'Sync Zoom Data'}
                               </button>
                             )}
-                            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
-                              <Printer size={16} />
-                              Print / Save PDF
+                            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-white text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-2xs cursor-pointer">
+                              <Printer size={14} />
+                              Print PDF
                             </button>
-                            <button onClick={() => void downloadAttendanceExcel()} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white text-sm font-bold rounded-xl hover:bg-emerald-800">
-                              <FileSpreadsheet size={16} /> Download Excel
+                            <button onClick={() => void downloadAttendanceExcel()} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-emerald-600/20 cursor-pointer">
+                              <FileSpreadsheet size={14} /> Download Excel
                             </button>
-                            <button onClick={downloadAnalyticsCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-slate-900 transition-colors">
-                              <Download size={16} />
+                            <button onClick={downloadAnalyticsCSV} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-900 hover:to-black text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer">
+                              <Download size={14} />
                               Download CSV
                             </button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6 bg-white border-b border-slate-100">
-                          {[
-                            ['Students', visibleStudents.length, 'text-indigo-700 bg-indigo-50'],
-                            ['Scheduled sessions', uniqueDates.length, 'text-blue-700 bg-blue-50'],
-                            ['Present records', totalPresent, 'text-emerald-700 bg-emerald-50'],
-                            ['Confirmed attendance', averageAttendance, 'text-violet-700 bg-violet-50'],
-                            ['Pending records', report.rows.reduce((sum, row) => sum + row.pending, 0), 'text-amber-700 bg-amber-50'],
-                          ].map(([label, value, classes]) => (
-                            <div key={String(label)} className={`rounded-xl px-4 py-3 ${classes}`}>
-                              <div className="text-2xl font-black">{value}</div>
-                              <div className="text-[11px] font-bold uppercase tracking-wide opacity-75">{label}</div>
+
+                        {/* 5 KPI Stat Cards with Gradient Glass Aesthetics */}
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6 bg-slate-50/50 border-b border-slate-100">
+                          <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-50/90 via-indigo-50/40 to-white border border-indigo-200/70 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700">Students</span>
+                              <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                <Users size={14} />
+                              </div>
                             </div>
-                          ))}
+                            <div className="text-2xl font-black text-indigo-950">{visibleStudents.length}</div>
+                            <div className="text-[10px] text-indigo-600/80 font-medium mt-0.5">Enrolled cohort batch</div>
+                          </div>
+
+                          <div className="rounded-2xl p-4 bg-gradient-to-br from-sky-50/90 via-blue-50/40 to-white border border-blue-200/70 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700">Scheduled Sessions</span>
+                              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                                <Calendar size={14} />
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black text-blue-950">{uniqueDates.length}</div>
+                            <div className="text-[10px] text-blue-600/80 font-medium mt-0.5">Total class days</div>
+                          </div>
+
+                          <div className="rounded-2xl p-4 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border border-emerald-200/70 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">Present Records</span>
+                              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                <CheckCircle2 size={14} />
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black text-emerald-950">{totalPresent}</div>
+                            <div className="text-[10px] text-emerald-600/80 font-medium mt-0.5">Joined attendances</div>
+                          </div>
+
+                          <div className="rounded-2xl p-4 bg-gradient-to-br from-purple-50/90 via-violet-50/40 to-white border border-purple-200/70 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-700">Avg Attendance</span>
+                              <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                                <GraduationCap size={14} />
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black text-purple-950">{averageAttendance}</div>
+                            <div className="text-[10px] text-purple-600/80 font-medium mt-0.5">Confirmed rate</div>
+                          </div>
+
+                          <div className="rounded-2xl p-4 bg-gradient-to-br from-amber-50/90 via-yellow-50/40 to-white border border-amber-200/70 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">Pending Records</span>
+                              <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                                <Clock size={14} />
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black text-amber-950">{report.rows.reduce((sum, row) => sum + row.pending, 0)}</div>
+                            <div className="text-[10px] text-amber-600/80 font-medium mt-0.5">Awaiting sync</div>
+                          </div>
                         </div>
-                        <div className="px-6 pb-5 flex flex-wrap items-center gap-2 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-500 uppercase mr-2">Provisional grades</span>
+
+                        {/* Provisional Grades */}
+                        <div className="px-6 py-4 flex flex-wrap items-center gap-2.5 border-b border-slate-100 bg-white">
+                          <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mr-2 flex items-center gap-1.5">
+                            <Sparkles size={13} className="text-amber-500" /> Provisional Grades:
+                          </span>
                           {(['A', 'B', 'C', 'D', 'E'] as const).map((grade) => (
-                            <span key={grade} className={`px-3 py-1 rounded-full text-xs font-black ${grade === 'A' ? 'bg-emerald-100 text-emerald-700' : grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'C' ? 'bg-amber-100 text-amber-700' : grade === 'D' ? 'bg-orange-100 text-orange-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {grade}: {gradeDistribution[grade] || 0}
+                            <span 
+                              key={grade} 
+                              className={`px-3 py-1 rounded-xl text-xs font-black border transition-all ${
+                                grade === 'A' ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs' : 
+                                grade === 'B' ? 'bg-blue-50 text-blue-800 border-blue-200 shadow-2xs' : 
+                                grade === 'C' ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-2xs' : 
+                                grade === 'D' ? 'bg-orange-50 text-orange-800 border-orange-200 shadow-2xs' : 
+                                'bg-rose-50 text-rose-800 border-rose-200 shadow-2xs'
+                              }`}
+                            >
+                              Grade {grade}: {gradeDistribution[grade] || 0}
                             </span>
                           ))}
-                          <span className="text-xs text-slate-500">Not graded: {gradeDistribution.Pending || 0}</span>
+                          <span className="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Not graded: {gradeDistribution.Pending || 0}
+                          </span>
                         </div>
+
                         {/* Search bar — no-print */}
-                        <div className="no-print px-6 py-3 border-b border-slate-100 flex items-center gap-3">
+                        <div className="no-print px-6 py-3.5 border-b border-slate-100 flex items-center gap-3 bg-slate-50/60">
                           <div className="flex-1 relative">
-                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             <input
                               type="text"
                               value={analyticsSearch}
                               onChange={e => setAnalyticsSearch(e.target.value)}
-                              placeholder="Search by name, mobile number or email…"
-                              className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-slate-400"
+                              placeholder="Search by student name, mobile number or email…"
+                              className="w-full pl-10 pr-9 py-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 placeholder-slate-400 text-slate-800 transition-all shadow-2xs"
                             />
                             {analyticsSearch && (
-                              <button onClick={() => setAnalyticsSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                <X size={13} />
+                              <button onClick={() => setAnalyticsSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100">
+                                <X size={14} />
                               </button>
                             )}
                           </div>
                           {analyticsSearch ? (
-                            <span className="text-xs text-slate-500 whitespace-nowrap">
-                              {report.rows.length} of {students.length} students
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                              {report.rows.length} of {students.length} matched
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-400 whitespace-nowrap">{students.length} students</span>
+                            <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                              {students.length} students total
+                            </span>
                           )}
                         </div>
+
                         <div className="overflow-x-auto print:overflow-visible">
                           <table className="w-full text-left text-sm text-slate-600">
-                            <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                            <thead className="bg-slate-50/80 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                               <tr>
-                                <th className="px-4 py-4 w-12 text-center">#</th>
-                                <th className="report-student sticky left-0 z-10 bg-slate-50 px-6 py-4 min-w-[210px]">Student / Summary</th>
+                                <th className="px-4 py-4 w-12 text-center text-slate-400">#</th>
+                                <th className="report-student sticky left-0 z-10 bg-slate-50/95 backdrop-blur-xs px-6 py-4 min-w-[240px]">Student / Summary</th>
                                 <th className="px-6 py-4">Phone / WA</th>
                                 <th className="px-6 py-4">Email</th>
                                 {uniqueDates.map(date => {
@@ -2536,17 +3047,36 @@ export default function WorkshopManagementPage() {
                               {report.rows.map((row, idx) => {
                                 const s = row.student;
                                 return (
-                                <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="px-4 py-4 text-slate-400 font-semibold text-xs">{idx + 1}</td>
-                                  <td className="report-student sticky left-0 bg-white px-6 py-4 whitespace-nowrap">
-                                    <p className="font-bold text-slate-800">{s.name}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">{row.attended}/{row.confirmed} confirmed · {row.totalMinutes} min · {row.percent === null ? 'Not graded' : `${row.percent}% (${row.grade})`}</p>
+                                <tr key={s._id} className="hover:bg-indigo-50/20 transition-colors group">
+                                  <td className="px-4 py-4 text-slate-400 font-semibold text-xs text-center">{idx + 1}</td>
+                                  <td className="report-student sticky left-0 bg-white group-hover:bg-slate-50/90 px-6 py-4 whitespace-nowrap transition-colors">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${getAvatarGradient(s.name)} text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0`}>
+                                        {getInitials(s.name)}
+                                      </div>
+                                      <div>
+                                        <button 
+                                          type="button"
+                                          onClick={() => openStudentChart(s)}
+                                          className="font-extrabold text-slate-800 hover:text-indigo-600 text-left transition-colors flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                          {s.name}
+                                          <BarChart2 size={12} className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-medium">
+                                          <span className="font-bold text-indigo-700">{row.attended}/{row.confirmed}</span> confirmed · {row.totalMinutes}m · 
+                                          <span className={`ml-1 font-bold ${row.grade === 'A' ? 'text-emerald-600' : row.grade === 'B' ? 'text-blue-600' : row.grade === 'C' ? 'text-amber-600' : 'text-slate-600'}`}>
+                                            {row.percent === null ? 'Not graded' : `${row.percent}% (${row.grade})`}
+                                          </span>
+                                        </p>
+                                      </div>
+                                    </div>
                                   </td>
                                   <td className="px-4 py-4 whitespace-nowrap">
-                                    <p className="text-xs text-slate-600 font-medium">{s.whatsappNumber || s.phone || <span className="text-slate-300">—</span>}</p>
+                                    <p className="text-xs text-slate-700 font-medium font-mono">{s.whatsappNumber || s.phone || <span className="text-slate-300 font-sans">—</span>}</p>
                                   </td>
                                   <td className="px-4 py-4 whitespace-nowrap">
-                                    <p className="text-xs text-slate-400">{s.email || <span className="text-slate-300">—</span>}</p>
+                                    <p className="text-xs text-slate-500">{s.email || <span className="text-slate-300">—</span>}</p>
                                   </td>
                                   {uniqueDates.map(date => {
                                     const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
@@ -2556,17 +3086,22 @@ export default function WorkshopManagementPage() {
                                     if (record && row.cells.find(cell => cell.classDate === date)?.status === 'Present') {
                                       const mins = Math.round(record.durationSeconds / 60);
                                       return (
-                                        <td key={date} className="px-4 py-4">
-                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-100">
-                                            <span className="whitespace-nowrap">{mins} min</span>
+                                        <td key={date} className="px-3 py-3 text-center">
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-extrabold text-xs border border-emerald-200/80 shadow-2xs">
+                                            <CheckCircle2 size={11} className="text-emerald-500" />
+                                            <span>{mins}m</span>
                                           </span>
                                         </td>
                                       );
                                     }
                                     return (
-                                      <td key={date} className="px-4 py-4">
-                                        <div className="flex flex-col gap-1">
-                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-xs border ${row.cells.find(cell => cell.classDate === date)?.status === 'Absent' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                      <td key={date} className="px-3 py-3 text-center">
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold text-xs border ${
+                                            row.cells.find(cell => cell.classDate === date)?.status === 'Absent' 
+                                              ? 'bg-rose-50 text-rose-700 border-rose-200/80' 
+                                              : 'bg-slate-50 text-slate-500 border-slate-200'
+                                          }`}>
                                             {row.cells.find(cell => cell.classDate === date)?.status}
                                           </span>
                                           {hasRecording && record && !record.joined && (
@@ -2582,20 +3117,20 @@ export default function WorkshopManagementPage() {
                                                   alert('No mobile number found for this student. Please edit and add their number first.');
                                                 }
                                               }}
-                                              className="no-print inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 font-semibold text-xs border border-sky-100 hover:bg-sky-100 transition-colors"
+                                              className="no-print inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 font-semibold text-[10px] border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
                                             >
-                                              <Send size={10} /> Send
+                                              <Send size={9} /> Send
                                             </button>
                                           )}
                                         </div>
                                       </td>
                                     );
                                   })}
-                                  <td className="px-4 py-4 whitespace-nowrap no-print">
-                                    <div className="flex items-center gap-1.5">
+                                  <td className="px-4 py-4 whitespace-nowrap no-print text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
                                       <button
                                         onClick={() => openStudentEditor(s)}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
                                         title="Edit student details"
                                       >
                                         <Edit2 size={12} /> Edit
@@ -2603,7 +3138,7 @@ export default function WorkshopManagementPage() {
                                       
                                       <button 
                                         onClick={() => openStudentInbox(s, 'qr')} 
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors cursor-pointer" 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer shadow-2xs" 
                                         title="Auto connect to WhatsApp QR Inbox"
                                       >
                                         <QrCode size={12} /> QR
@@ -2611,7 +3146,7 @@ export default function WorkshopManagementPage() {
                                       
                                       <button 
                                         onClick={() => openStudentInbox(s, 'meta')} 
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors cursor-pointer" 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-2xs" 
                                         title="Auto connect to WhatsApp Meta Inbox"
                                       >
                                         <MessageCircle size={12} /> Meta
@@ -2619,7 +3154,7 @@ export default function WorkshopManagementPage() {
                                       
                                       <button 
                                         onClick={() => openStudentInbox(s, 'email')} 
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors cursor-pointer" 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200 transition-colors cursor-pointer shadow-2xs" 
                                         title="Auto connect to Email Inbox"
                                       >
                                         <Mail size={12} /> Email
@@ -2627,10 +3162,10 @@ export default function WorkshopManagementPage() {
 
                                       <button 
                                         onClick={() => { setMessageModal({ student: s, channel: 'qr' }); setMessageText(''); }} 
-                                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer" 
+                                        className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer" 
                                         title="Quick message modal"
                                       >
-                                        <Send size={12} />
+                                        <Send size={13} />
                                       </button>
                                     </div>
                                   </td>

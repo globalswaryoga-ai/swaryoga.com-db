@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import crypto, { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { randomBytes } from 'crypto';
 import { sendWelcomeEmail } from '@/lib/crm-site/emailService';
-import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
-import { getCRMUserSettings, getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
-import { createDefaultSetup } from '@/lib/crm-site/tenantSetupConfig';
+import { logError } from '@/lib/api-error';
+import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
+import { setTenantKey } from '@/lib/tenant/apiKeyVault';
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -20,7 +19,6 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
 
-// Helper to return JSON with CORS headers
 function jsonResponse(data: any, status = 200) {
   return NextResponse.json(data, { status, headers: corsHeaders });
 }
@@ -44,36 +42,83 @@ function resolveStoragePlan(plan: string) {
   return 'starter';
 }
 
-async function generatePermanentTenantId(CRMUserSettings: ReturnType<typeof getCRMUserSettings>) {
-  const latest = await CRMUserSettings.findOne({
-    permanentTenantId: { $regex: '^[0-9]{7}$' },
-  })
-    .sort({ permanentTenantId: -1 })
-    .select({ permanentTenantId: 1 })
-    .lean() as { permanentTenantId?: string } | null;
+async function ensureAllSignupTables() {
+  await bunnyBatch([
+    {
+      sql: `CREATE TABLE IF NOT EXISTS admin_users_sql (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 1,
+        role TEXT DEFAULT 'admin',
+        permissions_json TEXT NOT NULL DEFAULT '[]',
+        permissions_v2_json TEXT,
+        managed_user_ids_json TEXT NOT NULL DEFAULT '[]',
+        tenant_slug TEXT,
+        name TEXT,
+        phone TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT,
+        updated_at TEXT,
+        last_login_at TEXT,
+        migrated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id),
+        UNIQUE(email)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS crm_tenants_sql (
+        tenant_slug TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        created_at TEXT,
+        updated_at TEXT,
+        migrated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS crm_user_settings_sql (
+        user_id TEXT PRIMARY KEY,
+        permanent_tenant_id TEXT,
+        data_json TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS user_compartments_sql (
+        user_id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+      args: [],
+    },
+  ]);
+}
 
-  let nextCode = latest?.permanentTenantId && /^\d{7}$/.test(latest.permanentTenantId)
-    ? parseInt(latest.permanentTenantId, 10) + 1
-    : STARTING_TENANT_CODE;
-
-  while (await CRMUserSettings.exists({ permanentTenantId: String(nextCode).padStart(7, '0') })) {
-    nextCode += 1;
+async function generatePermanentTenantId(): Promise<string> {
+  try {
+    const res = await bunnyExecute('SELECT permanent_tenant_id FROM crm_user_settings_sql WHERE permanent_tenant_id IS NOT NULL ORDER BY permanent_tenant_id DESC LIMIT 1');
+    if (res.rows.length > 0 && res.rows[0].permanent_tenant_id) {
+      const parsed = parseInt(String(res.rows[0].permanent_tenant_id), 10);
+      if (!isNaN(parsed) && parsed >= STARTING_TENANT_CODE) {
+        return String(parsed + 1).padStart(7, '0');
+      }
+    }
+  } catch {
+    // fallback if table is fresh
   }
-
-  return String(nextCode).padStart(7, '0');
+  return String(STARTING_TENANT_CODE).padStart(7, '0');
 }
 
 /**
  * POST /api/crm-site/signup
- *
- * Creates a new CRM tenant account:
- * 1. Validates input
- * 2. Creates admin user in the main database
- * 3. Creates a tenant record
- * 4. Optionally stores encrypted API keys (WhatsApp, Cashfree, Retell)
- * 5. Returns JWT for immediate login
- *
- * Does NOT disturb existing site or CRM — uses separate collections.
+ * Pure Bunny Database tenant provisioning.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -112,22 +157,20 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'Validation failed', fieldErrors, success: false }, 400);
     }
 
-    await connectDB();
+    await ensureAllSignupTables();
 
-    const mongoose = (await import('mongoose')).default;
-    const mainDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const CRMUserSettings = getCRMUserSettings();
-    const UserCompartment = getUserCompartment();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
+    const cleanName = fullName.trim();
+    const cleanBusiness = businessName.trim();
 
-    /* ─── Check duplicate email ─── */
-    const existingUser = await mainDb.collection('admin_users').findOne({
-      $or: [
-        { email: email.trim().toLowerCase() },
-        { userId: email.trim().toLowerCase() },
-      ],
+    /* ─── Check duplicate email in BunnyDB ─── */
+    const existing = await bunnyExecute({
+      sql: 'SELECT id, email FROM admin_users_sql WHERE LOWER(email) = ? OR LOWER(user_id) = ? LIMIT 1',
+      args: [cleanEmail, cleanEmail],
     });
 
-    if (existingUser) {
+    if (existing.rows.length > 0) {
       return jsonResponse(
         {
           error: 'An account with this email already exists. Please log in instead.',
@@ -139,223 +182,164 @@ export async function POST(request: NextRequest) {
     }
 
     /* ─── Create slug from business name ─── */
-    const slug = businessName
-      .trim()
+    const baseSlug = cleanBusiness
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .slice(0, 40);
+      .slice(0, 40) || 'tenant';
 
-    // Check slug uniqueness
-    const existingTenant = await mainDb.collection('tenants').findOne({ slug });
-    const finalSlug = existingTenant ? `${slug}-${Date.now().toString(36)}` : slug;
+    // Ensure slug uniqueness
+    const slugCheck = await bunnyExecute({
+      sql: 'SELECT tenant_slug FROM crm_tenants_sql WHERE tenant_slug = ? LIMIT 1',
+      args: [baseSlug],
+    });
+    const finalSlug = slugCheck.rows.length > 0 ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
 
     /* ─── Hash password ─── */
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    /* ─── Create tenant record ─── */
-    const validPlans = ['free', 'basic', 'starter', 'growth', 'professional'];
-    const selectedPlan = validPlans.includes(plan) ? plan : 'free';
-    const permanentTenantId = await generatePermanentTenantId(CRMUserSettings);
+    /* ─── Plan selection ─── */
+    const validPlans = ['free', 'basic', 'starter', 'copper', 'growth', 'silver', 'professional', 'golden', 'diamond'];
+    const selectedPlan = validPlans.includes(plan.toLowerCase()) ? plan.toLowerCase() : 'free';
+    const permanentTenantId = await generatePermanentTenantId();
     const qrBridgeSecret = randomBytes(16).toString('hex');
-
-    /* ─── Create admin user ─── */
-    const now = new Date();
-    const userId = email.trim().toLowerCase();
     const folderName = sanitizeFolderName(finalSlug);
     const compartmentId = `comp_${randomBytes(8).toString('hex')}`;
+    const now = new Date().toISOString();
+    const docId = `tenant_${randomBytes(12).toString('hex')}`;
+    const userRowId = `user_${randomBytes(12).toString('hex')}`;
 
-    await mainDb.collection('admin_users').insertOne({
-      userId,
-      email: userId,
-      password: hashedPassword,
-      name: fullName.trim(),
-      phone: phone.trim(),
-      role: 'admin',
-      isAdmin: true,
-      tenantSlug: finalSlug,
-      planId: selectedPlan,
-      planName: selectedPlan,
-      setupComplete: false,
-      loginCount: 0,
-      storageLimitMB: 500,
-      storageUsedMB: 0,
-      createdAt: now,
-      updatedAt: now,
+    /* ─── 1. Insert into admin_users_sql ─── */
+    await bunnyExecute({
+      sql: `
+        INSERT INTO admin_users_sql (
+          id, user_id, email, password_hash, is_admin, role,
+          tenant_slug, name, phone, metadata_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, 'admin', ?, ?, ?, ?, ?, ?)
+      `,
+      args: [
+        userRowId,
+        cleanEmail,
+        cleanEmail,
+        hashedPassword,
+        finalSlug,
+        cleanName,
+        cleanPhone,
+        JSON.stringify({ plan: selectedPlan, storageLimitMB: 500, storageUsedMB: 0 }),
+        now,
+        now,
+      ],
     });
 
-    await mainDb.collection('tenants').insertOne({
+    /* ─── 2. Insert into crm_tenants_sql ─── */
+    const tenantPayload = {
+      _id: docId,
       slug: finalSlug,
       tenantSlug: finalSlug,
-      name: businessName.trim(),
-      plan: selectedPlan,
-      ownerEmail: userId,
-      ownerUserId: userId,
-      ownerName: fullName.trim(),
-      ownerPhone: phone.trim(),
-      status: 'active',
-      enabledModules: ['crm'], // base module
-      customLimits: {},
-      subscription: {
-        plan: selectedPlan,
-        status: selectedPlan === 'free' ? 'trial' : 'active',
-        startDate: now,
-      },
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    /* ─── Create CRM-site SaaS records for QR-first onboarding ─── */
-    await CRMUserSettings.updateOne(
-      { userId },
-      {
-        $setOnInsert: {
-          userId,
-          email: userId,
-          permanentTenantId,
-          qrBridgeSecret,
-          qrWhatsappEnabled: false,
-          createdAt: now,
-        },
-        $set: {
-          updatedAt: now,
-        },
-      },
-      { upsert: true }
-    );
-
-    await UserCompartment.updateOne(
-      { userId },
-      {
-        $setOnInsert: {
-          userId,
-          email: userId,
-          compartmentId,
-          folderName,
-          bunny: {
-            folderPath: `users/${folderName}/`,
-            folderCreated: false,
-            cdnUrl: '',
-          },
-          storage: {
-            quotaMB: 500,
-            usedMB: 0,
-            plan: resolveStoragePlan(selectedPlan),
-          },
-          mongodb: {
-            setupComplete: false,
-            indexesCreated: false,
-          },
-          setup: {
-            isComplete: false,
-            steps: {
-              folderNameChosen: true,
-              storagePurchased: false,
-              bunnyFolderCreated: false,
-              mongodbConfigured: false,
-              connectionVerified: false,
-            },
-          },
-          subscription: {
-            plan: selectedPlan,
-            billing: 'monthly',
-            status: 'active',
-            startDate: now,
-            ...(selectedPlan !== 'free' ? {
-              trialStartDate: now,
-              trialEndDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
-              trialUsed: false,
-            } : {}),
-          },
-          isActive: true,
-          metadata: {
-            provisionedBy: 'crm-site-signup',
-            tenantSlug: finalSlug,
-          },
-          createdAt: now,
-        },
-        $set: {
-          updatedAt: now,
-          lastActivityAt: now,
-        },
-      },
-      { upsert: true }
-    );
-
-    const crmTenantDoc = {
-      slug: finalSlug,
-      tenantSlug: finalSlug,
-      name: businessName.trim(),
-      ownerEmail: userId,
-      ownerUserId: userId,
-      ownerName: fullName.trim(),
-      ownerPhone: phone.trim(),
-      adminEmail: userId,
-      adminUserId: userId,
+      name: cleanBusiness,
+      ownerEmail: cleanEmail,
+      ownerUserId: cleanEmail,
+      ownerName: cleanName,
+      ownerPhone: cleanPhone,
+      adminEmail: cleanEmail,
+      adminUserId: cleanEmail,
       plan: selectedPlan,
       status: 'active',
-      branding: {
-        primaryColor: '#3B82F6',
-      },
-      subscription: {
-        plan: selectedPlan,
-        status: selectedPlan === 'free' ? 'trial' : 'active',
-        startDate: now,
-      },
-      enabledModules: ['crm'],
-      createdAt: now,
-    };
-
-    const crmTenantUpsert = await mainDb.collection('crm_tenants').updateOne(
-      { slug: finalSlug },
-      { $setOnInsert: crmTenantDoc, $set: { updatedAt: now } },
-      { upsert: true }
-    );
-
-    const crmTenantId = crmTenantUpsert.upsertedId
-      ? crmTenantUpsert.upsertedId.toString()
-      : (await mainDb.collection('crm_tenants').findOne(
-          { slug: finalSlug },
-          { projection: { _id: 1 } }
-        ))?._id?.toString() || finalSlug;
-
-    const setupTemplate = createDefaultSetup(finalSlug, selectedPlan);
-    setupTemplate.tenantId = crmTenantId;
-    setupTemplate.business = {
-      ...setupTemplate.business,
-      businessName: businessName.trim(),
-      adminName: fullName.trim(),
-      adminEmail: userId,
-      adminPhone: phone.trim(),
-    };
-    setupTemplate.domain = {
-      ...setupTemplate.domain,
+      dbName: `tenant_${finalSlug.replace(/[^a-z0-9_]/g, '_')}`,
       subdomain: finalSlug,
+      enabledModules: ['crm'],
+      branding: { primaryColor: '#10B981' },
+      subscription: {
+        plan: selectedPlan,
+        status: selectedPlan === 'free' ? 'trial' : 'active',
+        startDate: now,
+      },
+      currentLeadCount: 0,
+      currentUserCount: 1,
+      currentStorageMB: 0,
+      createdAt: now,
+      updatedAt: now,
     };
-    if (whatsappPhoneId?.trim()) setupTemplate.whatsapp.phoneNumberId = whatsappPhoneId.trim();
-    if (whatsappAccessToken?.trim()) setupTemplate.whatsapp.accessToken = whatsappAccessToken.trim();
-    setupTemplate.setupProgress.business = {
-      ...setupTemplate.setupProgress.business,
-      completed: true,
-      completedAt: now,
-    };
-    setupTemplate.setupProgress.domain = {
-      ...setupTemplate.setupProgress.domain,
-      completed: true,
-      completedAt: now,
-    };
-    setupTemplate.createdAt = now;
-    delete (setupTemplate as any).updatedAt;
 
-    await mainDb.collection('tenant_setup').updateOne(
-      { tenantSlug: finalSlug },
-      { $setOnInsert: setupTemplate, $set: { updatedAt: now } },
-      { upsert: true }
-    );
+    await bunnyExecute({
+      sql: `
+        INSERT INTO crm_tenants_sql (tenant_slug, document_id, data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      args: [finalSlug, docId, JSON.stringify(tenantPayload), now, now],
+    });
 
-    /* ─── Store API keys (encrypted) if provided ─── */
+    /* ─── 3. Insert into crm_user_settings_sql ─── */
+    const settingsPayload = {
+      userId: cleanEmail,
+      email: cleanEmail,
+      permanentTenantId,
+      qrBridgeSecret,
+      qrWhatsappEnabled: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await bunnyExecute({
+      sql: `
+        INSERT INTO crm_user_settings_sql (user_id, permanent_tenant_id, data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
+      `,
+      args: [cleanEmail, permanentTenantId, JSON.stringify(settingsPayload), now, now],
+    });
+
+    /* ─── 4. Insert into user_compartments_sql ─── */
+    const compartmentPayload = {
+      userId: cleanEmail,
+      email: cleanEmail,
+      compartmentId,
+      folderName,
+      bunny: {
+        folderPath: `users/${folderName}/`,
+        folderCreated: false,
+        cdnUrl: '',
+      },
+      storage: {
+        quotaMB: 500,
+        usedMB: 0,
+        plan: resolveStoragePlan(selectedPlan),
+      },
+      setup: {
+        isComplete: false,
+        steps: {
+          folderNameChosen: true,
+          storagePurchased: false,
+          bunnyFolderCreated: false,
+          connectionVerified: false,
+        },
+      },
+      subscription: {
+        plan: selectedPlan,
+        billing: 'monthly',
+        status: 'active',
+        startDate: now,
+      },
+      isActive: true,
+      metadata: {
+        provisionedBy: 'crm-site-signup',
+        tenantSlug: finalSlug,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await bunnyExecute({
+      sql: `
+        INSERT INTO user_compartments_sql (user_id, data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
+      `,
+      args: [cleanEmail, JSON.stringify(compartmentPayload), now, now],
+    });
+
+    /* ─── 5. Store API keys encrypted in BunnyDB if provided ─── */
     const keysToStore: { keyName: string; keyValue: string }[] = [];
-
     if (whatsappPhoneId?.trim()) keysToStore.push({ keyName: 'WHATSAPP_PHONE_NUMBER_ID', keyValue: whatsappPhoneId.trim() });
     if (whatsappAccessToken?.trim()) keysToStore.push({ keyName: 'WHATSAPP_ACCESS_TOKEN', keyValue: whatsappAccessToken.trim() });
     if (cashfreeClientId?.trim()) keysToStore.push({ keyName: 'CASHFREE_CLIENT_ID', keyValue: cashfreeClientId.trim() });
@@ -364,24 +348,21 @@ export async function POST(request: NextRequest) {
 
     if (keysToStore.length > 0) {
       try {
-        // Use the apiKeyVault for encrypted storage
-        const { setTenantKey } = await import('@/lib/tenant/apiKeyVault');
         for (const k of keysToStore) {
           await setTenantKey(finalSlug, k.keyName, k.keyValue);
         }
       } catch (vaultErr) {
-        // Non-fatal — keys can be added later from Settings
-        console.warn('Failed to store some API keys (non-fatal):', vaultErr);
+        console.warn('[crm-signup] Failed to store some API keys (non-fatal):', vaultErr);
       }
     }
 
-    /* ─── Generate JWT ─── */
+    /* ─── 6. Generate JWT ─── */
     const jwtSecret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET || 'swar-yoga-default-secret';
     const token = jwt.sign(
       {
-        userId,
-        email: userId,
-        name: fullName.trim(),
+        userId: cleanEmail,
+        email: cleanEmail,
+        name: cleanName,
         role: 'admin',
         isAdmin: true,
         tenantSlug: finalSlug,
@@ -390,21 +371,21 @@ export async function POST(request: NextRequest) {
       { expiresIn: '7d' }
     );
 
-    /* ─── Send welcome email (async, non-blocking) ─── */
+    /* ─── 7. Async welcome email ─── */
     sendWelcomeEmail({
-      customerName: fullName.trim(),
-      customerEmail: userId,
+      customerName: cleanName,
+      customerEmail: cleanEmail,
       tenantSlug: finalSlug,
-    }).catch(err => console.error('Failed to send welcome email:', err));
+    }).catch((err) => console.error('[crm-signup] Failed to send welcome email:', err));
 
     return jsonResponse({
       success: true,
       token,
-      userId,
+      userId: cleanEmail,
       user: {
-        userId,
-        email: userId,
-        name: fullName.trim(),
+        userId: cleanEmail,
+        email: cleanEmail,
+        name: cleanName,
         role: 'admin',
         isAdmin: true,
         tenantSlug: finalSlug,
@@ -415,7 +396,7 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     logError('crm-signup/main', err);
     return jsonResponse(
-      { error: 'Failed to create account. Please try again.', success: false },
+      { error: err.message || 'Failed to create account. Please try again.', success: false },
       500
     );
   }

@@ -1,7 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Edit2, CheckCircle2, Circle, Calendar, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  CheckCircle2,
+  Circle,
+  Calendar,
+  DollarSign,
+  Sparkles,
+  Target,
+  ListTodo,
+  CheckSquare,
+  Bell,
+  BookOpen,
+  Eye,
+  Flag,
+  ArrowRight,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
 import type { Vision, ActionPlan, Goal, Task, Todo, Reminder, Word } from '@/lib/types/lifePlanner';
@@ -73,16 +90,16 @@ export default function ComprehensiveDashboardPage() {
 
       // Pre-cache all related data for vision expansion
       const dataMap = new Map<string, ExpandedVisionData>();
-      newData.visions.forEach(vision => {
+      newData.visions.forEach((vision) => {
         dataMap.set(vision.id, {
           visionId: vision.id,
           vision,
-          actionPlans: newData.actionPlans.filter(ap => ap.visionId === vision.id),
-          goals: newData.goals.filter(g => g.visionId === vision.id),
-          tasks: newData.tasks.filter(t => t.visionId === vision.id),
+          actionPlans: newData.actionPlans.filter((ap) => ap.visionId === vision.id),
+          goals: newData.goals.filter((g) => g.visionId === vision.id),
+          tasks: newData.tasks.filter((t) => t.visionId === vision.id),
           todos: newData.todos,
-          reminders: newData.reminders.filter(r => r.visionId === vision.id),
-          words: newData.words.filter(w => w.visionId === vision.id),
+          reminders: newData.reminders.filter((r) => r.visionId === vision.id),
+          words: newData.words.filter((w) => w.visionId === vision.id),
         });
       });
 
@@ -91,11 +108,11 @@ export default function ComprehensiveDashboardPage() {
   }, []);
 
   const handleVisionToggleCompleted = async (visionId: string) => {
-    const vision = data.visions.find(v => v.id === visionId);
+    const vision = data.visions.find((v) => v.id === visionId);
     if (vision) {
       const updated = { ...vision, completed: !vision.completed };
-      const newVisions = data.visions.map(v => v.id === visionId ? updated : v);
-      setData(prev => ({ ...prev, visions: newVisions }));
+      const newVisions = data.visions.map((v) => (v.id === visionId ? updated : v));
+      setData((prev) => ({ ...prev, visions: newVisions }));
       await crmPlannerStorage.saveVisions(newVisions);
     }
   };
@@ -119,43 +136,60 @@ export default function ComprehensiveDashboardPage() {
   const getDailyStats = () => {
     const today = new Date().toISOString().split('T')[0];
     return {
-      words: data.words.filter(w => w.createdAt?.includes(today)).length,
-      reminders: data.reminders.filter(r => r.createdAt?.includes(today)).length,
-      todos: data.todos.filter(t => t.createdAt?.includes(today)).length,
-      tasks: data.tasks.filter(t => t.createdAt?.includes(today)).length,
-      goals: data.goals.filter(g => g.createdAt?.includes(today)).length,
+      words: data.words.filter((w) => w.createdAt?.includes(today)).length,
+      reminders: data.reminders.filter((r) => r.createdAt?.includes(today)).length,
+      todos: data.todos.filter((t) => t.createdAt?.includes(today)).length,
+      tasks: data.tasks.filter((t) => t.createdAt?.includes(today)).length,
+      goals: data.goals.filter((g) => g.createdAt?.includes(today)).length,
     };
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: '#000000' }}>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2" style={{ color: '#00FF00' }}>Life Planner Dashboard</h1>
-          <p style={{ color: '#FFFFFF' }}>Track your progress across different time periods</p>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-emerald-50 border border-rose-200/60 rounded-3xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-rose-400/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                  Life Planner Studio
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Ayurvedic Ritucharya & Goal Alignment</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Life Planner Dashboard
+              </h1>
+              <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                Track your personal Sadhana intentions, active habits, daily tasks, reminders, and long-term vision goals.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Time Period Buttons */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          {(['daily', 'weekly', 'monthly', 'yearly', 'vision'] as TimePeriod[]).map(period => (
-            <button
-              key={period}
-              onClick={() => setTimePeriod(period)}
-              className="px-6 py-3 rounded-lg font-semibold transition-all capitalize"
-              style={{
-                backgroundColor: timePeriod === period ? '#FFFF00' : '#333333',
-                color: timePeriod === period ? '#000000' : '#FFFF00',
-                border: '2px solid #FFFF00',
-              }}
-            >
-              {period}
-            </button>
-          ))}
+        {/* Time Period Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(['daily', 'weekly', 'monthly', 'yearly', 'vision'] as TimePeriod[]).map((period) => {
+            const active = timePeriod === period;
+            return (
+              <button
+                key={period}
+                onClick={() => setTimePeriod(period)}
+                className={`px-4 py-2 rounded-xl font-bold text-xs capitalize transition-all cursor-pointer shadow-xs ${
+                  active
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-950/20'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {period} View
+              </button>
+            );
+          })}
         </div>
 
         {/* Daily View */}
-        {timePeriod === 'daily' && <DailyView data={data} stats={getDailyStats()} />}
+        {timePeriod === 'daily' && <DailyView stats={getDailyStats()} />}
 
         {/* Weekly View */}
         {timePeriod === 'weekly' && <WeeklyView data={data} />}
@@ -182,77 +216,93 @@ export default function ComprehensiveDashboardPage() {
   );
 }
 
-function DailyView({ data, stats }: { data: DashboardData; stats: Record<string, number> }) {
+function StatCard({
+  label,
+  count,
+  icon: Icon,
+  gradient,
+  badge,
+}: {
+  label: string;
+  count: number;
+  icon: React.ElementType;
+  gradient: string;
+  badge: string;
+}) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      <StatCard label="Words" count={stats.words} icon="✨" />
-      <StatCard label="Reminders" count={stats.reminders} icon="🔔" />
-      <StatCard label="Todos" count={stats.todos} icon="☐" />
-      <StatCard label="Tasks" count={stats.tasks} icon="✓" />
-      <StatCard label="Goals" count={stats.goals} icon="🎯" />
+    <div className="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div
+            className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center text-white shadow-md shadow-slate-200 group-hover:scale-105 transition-transform`}
+          >
+            <Icon className="w-6 h-6" />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200">
+            {badge}
+          </span>
+        </div>
+        <p className="text-3xl font-black text-slate-900 tracking-tight">{count}</p>
+        <p className="text-xs text-slate-500 mt-1 font-semibold">{label}</p>
+      </div>
+      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+        <span>Active records</span>
+        <ArrowRight className="w-3.5 h-3.5" />
+      </div>
+    </div>
+  );
+}
+
+function DailyView({ stats }: { stats: Record<string, number> }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <StatCard label="Inspiring Words" count={stats.words} icon={BookOpen} gradient="from-purple-500 to-indigo-600" badge="Words" />
+      <StatCard label="Reminders Today" count={stats.reminders} icon={Bell} gradient="from-amber-500 to-orange-600" badge="Alerts" />
+      <StatCard label="To-Dos Today" count={stats.todos} icon={CheckSquare} gradient="from-blue-500 to-cyan-600" badge="To-Dos" />
+      <StatCard label="Priority Tasks" count={stats.tasks} icon={ListTodo} gradient="from-emerald-500 to-teal-600" badge="Tasks" />
+      <StatCard label="Active Goals" count={stats.goals} icon={Target} gradient="from-rose-500 to-pink-600" badge="Goals" />
     </div>
   );
 }
 
 function WeeklyView({ data }: { data: DashboardData }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="Words" count={data.words.length} icon="✨" />
-      <StatCard label="Reminders" count={data.reminders.length} icon="🔔" />
-      <StatCard label="Todos" count={data.todos.length} icon="☐" />
-      <StatCard label="Tasks" count={data.tasks.length} icon="✓" />
-      <StatCard label="Goals" count={data.goals.length} icon="🎯" />
-      <StatCard label="Actions" count={data.actionPlans.length} icon="📋" />
-      <StatCard label="Visions" count={data.visions.length} icon="🎪" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="Inspiring Words" count={data.words.length} icon={BookOpen} gradient="from-purple-500 to-indigo-600" badge="Words" />
+      <StatCard label="Weekly Reminders" count={data.reminders.length} icon={Bell} gradient="from-amber-500 to-orange-600" badge="Alerts" />
+      <StatCard label="Weekly To-Dos" count={data.todos.length} icon={CheckSquare} gradient="from-blue-500 to-cyan-600" badge="To-Dos" />
+      <StatCard label="Weekly Tasks" count={data.tasks.length} icon={ListTodo} gradient="from-emerald-500 to-teal-600" badge="Tasks" />
+      <StatCard label="Weekly Goals" count={data.goals.length} icon={Target} gradient="from-rose-500 to-pink-600" badge="Goals" />
+      <StatCard label="Action Plans" count={data.actionPlans.length} icon={Flag} gradient="from-teal-600 to-cyan-600" badge="Actions" />
+      <StatCard label="Visions Set" count={data.visions.length} icon={Eye} gradient="from-indigo-600 to-blue-700" badge="Visions" />
     </div>
   );
 }
 
 function MonthlyView({ data }: { data: DashboardData }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="Words" count={data.words.length} icon="✨" />
-      <StatCard label="Reminders" count={data.reminders.length} icon="🔔" />
-      <StatCard label="Todos" count={data.todos.length} icon="☐" />
-      <StatCard label="Tasks" count={data.tasks.length} icon="✓" />
-      <StatCard label="Goals" count={data.goals.length} icon="🎯" />
-      <StatCard label="Actions" count={data.actionPlans.length} icon="📋" />
-      <StatCard label="Visions" count={data.visions.length} icon="🎪" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="Total Words" count={data.words.length} icon={BookOpen} gradient="from-purple-500 to-indigo-600" badge="Words" />
+      <StatCard label="Monthly Reminders" count={data.reminders.length} icon={Bell} gradient="from-amber-500 to-orange-600" badge="Alerts" />
+      <StatCard label="Monthly To-Dos" count={data.todos.length} icon={CheckSquare} gradient="from-blue-500 to-cyan-600" badge="To-Dos" />
+      <StatCard label="Monthly Tasks" count={data.tasks.length} icon={ListTodo} gradient="from-emerald-500 to-teal-600" badge="Tasks" />
+      <StatCard label="Monthly Goals" count={data.goals.length} icon={Target} gradient="from-rose-500 to-pink-600" badge="Goals" />
+      <StatCard label="Action Plans" count={data.actionPlans.length} icon={Flag} gradient="from-teal-600 to-cyan-600" badge="Actions" />
+      <StatCard label="Active Visions" count={data.visions.length} icon={Eye} gradient="from-indigo-600 to-blue-700" badge="Visions" />
     </div>
   );
 }
 
 function YearlyView({ data }: { data: DashboardData }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="Words" count={data.words.length} icon="✨" />
-      <StatCard label="Reminders" count={data.reminders.length} icon="🔔" />
-      <StatCard label="Todos" count={data.todos.length} icon="☐" />
-      <StatCard label="Tasks" count={data.tasks.length} icon="✓" />
-      <StatCard label="Goals" count={data.goals.length} icon="🎯" />
-      <StatCard label="Actions" count={data.actionPlans.length} icon="📋" />
-      <StatCard label="Visions" count={data.visions.length} icon="🎪" />
-    </div>
-  );
-}
-
-function StatCard({ label, count, icon }: { label: string; count: number; icon: string }) {
-  return (
-    <div
-      className="rounded-lg p-6 flex flex-col items-center justify-center"
-      style={{
-        backgroundColor: '#1a1a1a',
-        borderColor: '#FFFF00',
-        border: '2px solid',
-      }}
-    >
-      <div className="text-4xl mb-3">{icon}</div>
-      <div style={{ color: '#FFFFFF' }} className="text-sm font-semibold mb-2">
-        {label}
-      </div>
-      <div style={{ color: '#00FF00' }} className="text-3xl font-bold">
-        {count}
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="Annual Words" count={data.words.length} icon={BookOpen} gradient="from-purple-500 to-indigo-600" badge="Words" />
+      <StatCard label="Annual Reminders" count={data.reminders.length} icon={Bell} gradient="from-amber-500 to-orange-600" badge="Alerts" />
+      <StatCard label="Annual To-Dos" count={data.todos.length} icon={CheckSquare} gradient="from-blue-500 to-cyan-600" badge="To-Dos" />
+      <StatCard label="Annual Tasks" count={data.tasks.length} icon={ListTodo} gradient="from-emerald-500 to-teal-600" badge="Tasks" />
+      <StatCard label="Annual Goals" count={data.goals.length} icon={Target} gradient="from-rose-500 to-pink-600" badge="Goals" />
+      <StatCard label="Action Plans" count={data.actionPlans.length} icon={Flag} gradient="from-teal-600 to-cyan-600" badge="Actions" />
+      <StatCard label="Visions Board" count={data.visions.length} icon={Eye} gradient="from-indigo-600 to-blue-700" badge="Visions" />
     </div>
   );
 }
@@ -277,111 +327,112 @@ function VisionView({
   return (
     <div>
       {visions.length === 0 ? (
-        <div
-          className="text-center py-12 rounded-lg"
-          style={{ borderColor: '#FFFF00', border: '2px solid', backgroundColor: '#1a1a1a' }}
-        >
-          <p style={{ color: '#FFFFFF' }} className="text-lg mb-4">
-            No visions created yet
-          </p>
+        <div className="text-center py-12 rounded-2xl bg-white border border-slate-200">
+          <Eye className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p className="text-base font-bold text-slate-800">No visions created yet</p>
+          <p className="text-xs text-slate-500 mt-1">Set your first long-term life vision in the Planner.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visions.map(vision => (
+          {visions.map((vision) => (
             <div
               key={vision.id}
-              className="rounded-lg overflow-hidden transition-all duration-200"
-              style={{
-                borderColor: '#FFFF00',
-                border: '3px solid',
-                backgroundColor: '#1a1a1a',
-              }}
+              className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xl transition-all duration-200 overflow-hidden flex flex-col justify-between"
             >
               {/* Card Header with Image */}
-              <div className="relative h-32 bg-gray-800 overflow-hidden">
-                {vision.imageUrl && (
+              <div className="relative h-36 bg-slate-900 overflow-hidden">
+                {vision.imageUrl ? (
                   <img
                     src={vision.imageUrl}
                     alt={vision.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover opacity-90"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=Vision';
                     }}
                   />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-tr from-indigo-700 to-purple-800 flex items-center justify-center text-white/50">
+                    <Sparkles className="w-10 h-10" />
+                  </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/60" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs">
+                  Vision Board
+                </span>
               </div>
 
               {/* Card Content */}
-              <div className="p-4">
-                {/* Title and Completed Checkbox */}
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-xl font-bold flex-1" style={{ color: '#00FF00' }}>
-                    {vision.title}
-                  </h3>
-                  <button onClick={() => onToggleCompleted(vision.id)} className="ml-2 transition-all">
-                    {vision.completed ? (
-                      <CheckCircle2 size={24} style={{ color: '#00FF00' }} />
-                    ) : (
-                      <Circle size={24} style={{ color: '#FFFFFF' }} />
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className="text-base font-bold text-slate-900 flex-1">{vision.title}</h3>
+                    <button
+                      onClick={() => onToggleCompleted(vision.id)}
+                      className="cursor-pointer transition-transform active:scale-90"
+                      title={vision.completed ? 'Mark pending' : 'Mark completed'}
+                    >
+                      {vision.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-slate-300 hover:text-slate-500" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Date & Budget Chips */}
+                  <div className="flex items-center gap-3 text-xs text-slate-500 mb-3 flex-wrap">
+                    {vision.endDate && (
+                      <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-medium">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        Due: {new Date(vision.endDate).toLocaleDateString()}
+                      </span>
                     )}
-                  </button>
-                </div>
+                    {vision.budget && (
+                      <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        ₹{vision.budget.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Date and Budget */}
-                <div className="space-y-2 mb-4">
-                  {vision.endDate && (
-                    <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
-                      <Calendar size={16} />
-                      <span className="text-sm">Due: {new Date(vision.endDate).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                  {vision.budget && (
-                    <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
-                      <DollarSign size={16} />
-                      <span className="text-sm">₹{vision.budget.toLocaleString()}</span>
-                    </div>
-                  )}
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    {vision.description || 'No detailed description provided.'}
+                  </p>
                 </div>
-
-                {/* Description Preview */}
-                <p style={{ color: '#CCCCCC' }} className="text-sm line-clamp-2 mb-4">
-                  {vision.description}
-                </p>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => onEdit(vision.id)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-all font-semibold"
-                    style={{ backgroundColor: '#FFFF00', color: '#000000', borderColor: '#FFFF00', border: '1px solid' }}
-                  >
-                    <Edit2 size={16} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => onToggleExpanded(vision.id)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-all font-semibold"
-                    style={{ backgroundColor: '#333333', color: '#FFFF00', borderColor: '#FFFF00', border: '2px solid' }}
-                  >
-                    {expandedVisions.has(vision.id) ? (
-                      <>
-                        <ChevronUp size={16} />
-                        Hide Details
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown size={16} />
-                        Show Details
-                      </>
-                    )}
-                  </button>
-                </div>
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onEdit(vision.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => onToggleExpanded(vision.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      {expandedVisions.has(vision.id) ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          <span>Hide Details</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          <span>View Details</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-                {/* Expanded Details */}
-                {expandedVisions.has(vision.id) && expandedData.has(vision.id) && (
-                  <ExpandedVisionDetails data={expandedData.get(vision.id)!} />
-                )}
+                  {/* Expanded Details */}
+                  {expandedVisions.has(vision.id) && expandedData.has(vision.id) && (
+                    <ExpandedVisionDetails data={expandedData.get(vision.id)!} />
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -419,25 +470,23 @@ function ExpandedVisionDetails({ data }: ExpandedVisionDetailsProps) {
     } else {
       newCompletedSet.add(key);
     }
-
     setCompletedItems(newCompletedSet);
 
-    // Save to database
     try {
       const updatedItem = { ...item, completed: !isCompleted, updatedAt: new Date().toISOString() };
 
       if (itemType === 'actionPlans') {
-        await crmPlannerStorage.saveActionPlans(data.actionPlans.map(ap => ap.id === itemId ? updatedItem : ap));
+        await crmPlannerStorage.saveActionPlans(data.actionPlans.map((ap) => (ap.id === itemId ? updatedItem : ap)));
       } else if (itemType === 'goals') {
-        await crmPlannerStorage.saveGoals(data.goals.map(g => g.id === itemId ? updatedItem : g));
+        await crmPlannerStorage.saveGoals(data.goals.map((g) => (g.id === itemId ? updatedItem : g)));
       } else if (itemType === 'tasks') {
-        await crmPlannerStorage.saveTasks(data.tasks.map(t => t.id === itemId ? updatedItem : t));
+        await crmPlannerStorage.saveTasks(data.tasks.map((t) => (t.id === itemId ? updatedItem : t)));
       } else if (itemType === 'todos') {
-        await crmPlannerStorage.saveTodos(data.todos.map(t => t.id === itemId ? updatedItem : t));
+        await crmPlannerStorage.saveTodos(data.todos.map((t) => (t.id === itemId ? updatedItem : t)));
       } else if (itemType === 'reminders') {
-        await crmPlannerStorage.saveReminders(data.reminders.map(r => r.id === itemId ? updatedItem : r));
+        await crmPlannerStorage.saveReminders(data.reminders.map((r) => (r.id === itemId ? updatedItem : r)));
       } else if (itemType === 'words') {
-        await crmPlannerStorage.saveWords(data.words.map(w => w.id === itemId ? updatedItem : w));
+        await crmPlannerStorage.saveWords(data.words.map((w) => (w.id === itemId ? updatedItem : w)));
       }
     } catch (error) {
       console.error('Error updating item completion:', error);
@@ -445,64 +494,56 @@ function ExpandedVisionDetails({ data }: ExpandedVisionDetailsProps) {
   };
 
   const sections = [
-    { id: 'actionPlans', label: '📋 Action Plans', items: data.actionPlans, type: 'actionPlans', property: 'title' },
-    { id: 'goals', label: '🎯 Goals', items: data.goals, type: 'goals', property: 'title' },
-    { id: 'tasks', label: '✓ Tasks', items: data.tasks, type: 'tasks', property: 'title' },
-    { id: 'todos', label: '☐ Todos', items: data.todos, type: 'todos', property: 'title' },
-    { id: 'reminders', label: '🔔 Reminders', items: data.reminders, type: 'reminders', property: 'title' },
-    { id: 'words', label: '✨ Words', items: data.words, type: 'words', property: 'title' },
+    { id: 'actionPlans', label: 'Action Plans', items: data.actionPlans, type: 'actionPlans', property: 'title' },
+    { id: 'goals', label: 'Goals', items: data.goals, type: 'goals', property: 'title' },
+    { id: 'tasks', label: 'Tasks', items: data.tasks, type: 'tasks', property: 'title' },
+    { id: 'todos', label: 'To-Dos', items: data.todos, type: 'todos', property: 'title' },
+    { id: 'reminders', label: 'Reminders', items: data.reminders, type: 'reminders', property: 'title' },
+    { id: 'words', label: 'Words', items: data.words, type: 'words', property: 'title' },
   ];
 
   return (
-    <div className="mt-4 pt-4" style={{ borderTopColor: '#FFFF00', borderTopWidth: '2px' }}>
-      <p style={{ color: '#00FF00' }} className="text-sm font-semibold mb-3">
-        Related Entities
-      </p>
+    <div className="pt-3 border-t border-slate-100 space-y-2">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Related Entities</p>
 
-      <div className="space-y-2">
-        {sections.map(section => (
-          <div key={section.id}>
+      <div className="space-y-1.5">
+        {sections.map((section) => (
+          <div key={section.id} className="rounded-xl border border-slate-200 overflow-hidden">
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full flex items-center justify-between p-2 rounded transition-all"
-              style={{ backgroundColor: '#222222', color: '#FFFF00' }}
+              className="w-full flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-800 transition cursor-pointer text-xs font-semibold"
             >
-              <span className="font-semibold text-sm">
+              <span>
                 {section.label} ({section.items.length})
               </span>
-              {expandedSections.has(section.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {expandedSections.has(section.id) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
 
             {expandedSections.has(section.id) && section.items.length > 0 && (
-              <div className="mt-1 pl-4 space-y-1">
+              <div className="p-2.5 space-y-1 bg-white">
                 {section.items.slice(0, 5).map((item: any) => {
                   const itemKey = `${section.type}-${item.id}`;
                   const isCompleted = completedItems.has(itemKey) || item.completed;
                   const itemName = item[section.property] || item.name || 'Untitled';
 
                   return (
-                    <div key={item.id} className="flex items-center gap-2 text-xs py-1" style={{ color: '#CCCCCC' }}>
+                    <div key={item.id} className="flex items-center gap-2 text-xs py-0.5 text-slate-700">
                       <button
                         onClick={() => toggleItemCompletion(section.type, item.id, item)}
-                        className="flex-shrink-0 transition-all"
+                        className="flex-shrink-0 cursor-pointer"
                       >
                         {isCompleted ? (
-                          <CheckCircle2 size={16} style={{ color: '#00FF00' }} />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                         ) : (
-                          <Circle size={16} style={{ color: '#FFFFFF' }} />
+                          <Circle className="w-4 h-4 text-slate-300" />
                         )}
                       </button>
-                      <span style={{ textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.6 : 1 }}>
+                      <span className={isCompleted ? 'line-through text-slate-400' : 'text-slate-700'}>
                         {itemName}
                       </span>
                     </div>
                   );
                 })}
-                {section.items.length > 5 && (
-                  <p className="text-xs" style={{ color: '#999999' }}>
-                    +{section.items.length - 5} more
-                  </p>
-                )}
               </div>
             )}
           </div>

@@ -90,11 +90,20 @@ export default function AdminFormQuestionsPage() {
     { value: 'Option 2', label: { en: 'Option 2' } },
   ]);
 
+const getAdminToken = () =>
+  typeof window !== 'undefined'
+    ? localStorage.getItem('crm_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('admin_token') ||
+      localStorage.getItem('token') ||
+      ''
+    : '';
+
   const fetchQuestions = async () => {
     try {
       setLoading(true);
       setError('');
-      const token = localStorage.getItem('token') || localStorage.getItem('admin_token') || '';
+      const token = getAdminToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -167,7 +176,7 @@ export default function AdminFormQuestionsPage() {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('admin_token') || '';
+      const token = getAdminToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -238,7 +247,7 @@ export default function AdminFormQuestionsPage() {
     if (!confirm(`Are you sure you want to delete question "${label}"?`)) return;
 
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('admin_token') || '';
+      const token = getAdminToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -261,7 +270,7 @@ export default function AdminFormQuestionsPage() {
 
   const handleToggleActive = async (q: Question) => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('admin_token') || '';
+      const token = getAdminToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -307,47 +316,80 @@ export default function AdminFormQuestionsPage() {
     setOptions(next);
   };
 
+  const activeCount = questions.filter(q => q.isActive).length;
+  const requiredCount = questions.filter(q => q.required).length;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Top bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin"
-              className="p-2 bg-white rounded-xl border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors"
-            >
-              <ArrowLeft size={20} className="text-gray-600" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-                <Layers className="text-purple-600" size={26} />
-                Dynamic Form Questions
-              </h1>
-              <p className="text-sm text-gray-500">
-                Add and manage custom questions (Dropdowns, Text Boxes, Paragraphs) on public forms.
-              </p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-500" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-pink-50 border border-purple-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <Link
+                href="/admin"
+                className="p-2.5 bg-white rounded-xl border border-gray-200 shadow-2xs hover:bg-gray-100 transition-colors"
+              >
+                <ArrowLeft size={18} className="text-gray-600" />
+              </Link>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                    <Layers className="text-purple-600 w-7 h-7" />
+                    Dynamic Form Questions
+                  </h1>
+                  <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-purple-200">
+                    Form Schema
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Design dynamic intake questions, manage multilanguage labels (EN, HI, MR), and control field requirements.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={activeFormType}
+                onChange={(e) => setActiveFormType(e.target.value)}
+                className="h-11 px-3.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-xs outline-none focus:ring-2 focus:ring-purple-400"
+              >
+                <option value="workshop">Workshop Form</option>
+                <option value="retreat">Retreat Form</option>
+                <option value="consultation">Consultation Form</option>
+              </select>
+
+              <button
+                onClick={openNewModal}
+                className="h-11 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer hover:scale-[1.02]"
+              >
+                <Plus size={18} />
+                Add Question
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <select
-              value={activeFormType}
-              onChange={(e) => setActiveFormType(e.target.value)}
-              className="h-11 px-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-300"
-            >
-              <option value="workshop">Workshop Form</option>
-              <option value="retreat">Retreat Form</option>
-              <option value="consultation">Consultation Form</option>
-            </select>
-
-            <button
-              onClick={openNewModal}
-              className="h-11 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md flex items-center gap-2 transition-all hover:scale-[1.02]"
-            >
-              <Plus size={18} />
-              Add Question
-            </button>
+          {/* 4 Metric Summary Cards */}
+          <div className="mt-6 pt-5 border-t border-purple-200/50 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-purple-100 shadow-2xs">
+              <span className="text-purple-700 font-semibold block uppercase tracking-wider text-[11px]">Total Questions</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{questions.length} Fields</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-indigo-100 shadow-2xs">
+              <span className="text-indigo-700 font-semibold block uppercase tracking-wider text-[11px]">Active Fields</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{activeCount} Enabled</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-pink-100 shadow-2xs">
+              <span className="text-pink-700 font-semibold block uppercase tracking-wider text-[11px]">Mandatory Fields</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{requiredCount} Required</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-emerald-100 shadow-2xs">
+              <span className="text-emerald-700 font-semibold block uppercase tracking-wider text-[11px]">Field Types</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{QUESTION_TYPES.length} Types</span>
+            </div>
           </div>
         </div>
 

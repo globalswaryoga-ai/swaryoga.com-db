@@ -7,7 +7,8 @@
  */
 
 import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppAutomationRule, getQrWhatsAppMessage, getQrWhatsAppChat, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getQrWhatsAppMessage, getQrWhatsAppChat, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnyAutomationRules } from '@/lib/bunnyAutomationRepository';
 import { normalizePhone } from '@/lib/whatsapp';
 import { isQrTenantConnected, resolveQrTenantBridge, sendQrTenantMessage } from '@/lib/qrTenantBridge';
 
@@ -118,7 +119,6 @@ export async function handleQrInboundAutomations(input: {
     await connectDB();
 
     const Lead = getLead();
-    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
 
     const lead = await Lead.findById(leadId).lean() as any;
     if (!lead) return;
@@ -147,12 +147,9 @@ export async function handleQrInboundAutomations(input: {
     // Skip if lead is mid-chatbot flow (chatbot takes priority)
     if (lead?.metadata?.qrChatbotFlowState?.flowId) return;
 
-    // Load enabled QR automation rules for this user
-    const rules = await WhatsAppAutomationRule.find({
-      createdByUserId: userId,
-      provider: 'qr',
-      enabled: true,
-    }).sort({ createdAt: 1 }).lean() as any[];
+    // Load enabled QR automation rules for this user from Bunny Database
+    const allRules = await listBunnyAutomationRules(userId).catch(() => []);
+    const rules = (allRules || []).filter((r: any) => r.enabled && (r.provider === 'qr' || !r.provider));
 
     const now = Date.now();
 

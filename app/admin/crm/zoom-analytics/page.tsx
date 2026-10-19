@@ -106,7 +106,8 @@ function formatDateTime(iso: string) {
 /* ══════════════════════════════════════════════════════════════════════════ */
 
 function ZoomAnalyticsPageInner() {
-  const token = useAuth();
+  const authToken = useAuth();
+  const token = authToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '');
   const router = useRouter();
   const isAdmin = !!token; // useAuth redirects to login if no token
   const printRef = useRef<HTMLDivElement>(null);
@@ -336,35 +337,62 @@ function ZoomAnalyticsPageInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500" />
+
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link href="/admin/crm/zoom-hub" className="p-2 rounded-lg hover:bg-gray-100 transition" title="Back to Zoom Hub">
-                <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <Link href="/admin/crm/zoom-hub" className="p-2 rounded-xl hover:bg-slate-100 transition border border-slate-200/60" title="Back to Zoom Hub">
+                <ChevronLeft className="w-5 h-5 text-slate-600" />
               </Link>
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-indigo-100">
-                  <Video className="w-5 h-5 text-indigo-600" />
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-blue-100/80 text-blue-700 shadow-xs">
+                  <Video className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-gray-900">Zoom Meeting Analytics</h1>
-                  <p className="text-xs text-gray-500">Participant attendance, grades & reports</p>
+                  <h1 className="text-lg font-black text-slate-900 tracking-tight">Zoom Meeting Analytics</h1>
+                  <p className="text-xs text-slate-500">Participant attendance, grades & exportable reports</p>
                 </div>
               </div>
             </div>
-            <Link href="/admin" className="p-2 rounded-lg hover:bg-gray-100 transition">
-              <Home className="w-5 h-5 text-gray-500" />
+            <Link href="/admin" className="p-2.5 rounded-xl hover:bg-slate-100 transition border border-slate-200/60 text-slate-600">
+              <Home className="w-5 h-5" />
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* 4 Colorful Metric KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider block">Meeting Sessions</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{data ? data.totalSessions : '—'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">{data ? `${data.sessionDates.length} Dates` : 'Past Sessions'}</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Unique Attendees</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{data ? data.totalUniqueParticipants : '—'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Identified Users</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider block">Avg Attendance</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{data ? `${data.avgAttendance}%` : '—'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Session Completion</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-amber-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider block">Top Grade (A)</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{data?.gradeDistribution ? (data.gradeDistribution['A'] || 0) : '—'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Full Discipline</span>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 relative">

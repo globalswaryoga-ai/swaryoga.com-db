@@ -1,24 +1,31 @@
 /**
- * API Key Management Routes
+ * API Key Management Routes (Pure BunnyDB)
  * GET /api/tenants/:slug/api-keys - List API keys
- * POST /api/tenants/:slug/api-keys - Create new API key
+ * POST /api/tenants/:slug/api-keys - Create/Store new API key
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import crypto from 'crypto';
+import { getTenantBySlug } from '@/lib/tenant/bunnyTenantRepository';
 import {
-  getTenantBySlug,
-  generateAPIKey,
-  listAPIKeys,
-} from '@/lib/multiTenant/handlers';
-
-export const dynamic = 'force-dynamic';
-import { tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
+  setTenantKey,
+  listTenantKeyNames,
+} from '@/lib/tenant/apiKeyVault';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
+function tenantError(message: string, status = 400) {
+  return NextResponse.json({ success: false, error: message }, { status });
+}
+
+function tenantSuccess(data: any, message = 'Success', status = 200) {
+  return NextResponse.json({ success: true, data, message }, { status });
+}
+
 // ============================================================================
-// GET /api/tenants/:slug/api-keys - List API keys (tenant admin only)
+// GET /api/tenants/:slug/api-keys - List API keys (tenant admin or superadmin)
 // ============================================================================
 
 export async function GET(
@@ -27,7 +34,6 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-    await connectDB();
 
     // Verify admin access
     const authHeader = request.headers.get('Authorization');
@@ -38,22 +44,28 @@ export async function GET(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug) as any;
+    const tenant = await getTenantBySlug(slug);
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
+      isSuperAdmin(decoded) ||
+      decoded?.userId === tenant.ownerUserId ||
+      decoded?.email === tenant.ownerEmail;
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
 
-    const keys = await listAPIKeys(tenant._id?.toString());
+    const keys = await listTenantKeyNames(tenant.slug);
 
     return tenantSuccess({
       tenantSlug: slug,
-      keys,
+      keys: keys.map((keyName) => ({
+        keyName,
+        name: keyName,
+        createdAt: tenant.updatedAt || new Date().toISOString(),
+      })),
     });
   } catch (error: any) {
     console.error('[GET /api/tenants/:slug/api-keys] Error:', error);
@@ -62,7 +74,7 @@ export async function GET(
 }
 
 // ============================================================================
-// POST /api/tenants/:slug/api-keys - Create new API key
+// POST /api/tenants/:slug/api-keys - Create/Store new API key
 // ============================================================================
 
 export async function POST(
@@ -72,13 +84,12 @@ export async function POST(
   try {
     const { slug } = params;
     const body = await request.json();
-    const { name, permissions } = body;
+    const { name, keyName, value } = body;
 
-    if (!name) {
+    const actualKeyName = (keyName || name || '').trim();
+    if (!actualKeyName) {
       return tenantError('API key name is required', 400);
     }
-
-    await connectDB();
 
     // Verify admin access
     const authHeader = request.headers.get('Authorization');
@@ -89,41 +100,32 @@ export async function POST(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug) as any;
+    const tenant = await getTenantBySlug(slug);
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
+      isSuperAdmin(decoded) ||
+      decoded?.userId === tenant.ownerUserId ||
+      decoded?.email === tenant.ownerEmail;
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
 
-    const defaultPermissions = [
-      'leads:read',
-      'leads:write',
-      'messages:read',
-      'messages:write',
-    ];
-    const keyPermissions = permissions || defaultPermissions;
+    // If a secret value is passed, use it; otherwise generate a new secure API key
+    const generatedPlainKey = value || `swar_${crypto.randomBytes(24).toString('hex')}`;
 
-    const apiKeyResult = await generateAPIKey(
-      tenant._id?.toString(),
-      slug,
-      name,
-      keyPermissions
-    );
+    await setTenantKey(tenant.slug, actualKeyName, generatedPlainKey);
 
     return tenantSuccess(
       {
-        message: 'API key created successfully',
-        keyId: apiKeyResult.keyId,
-        name: apiKeyResult.name,
-        plainKey: apiKeyResult.plainKey,
-        warning: 'Save this key securely. You will not be able to view it again.',
+        message: 'API key configured successfully in BunnyDB vault',
+        name: actualKeyName,
+        plainKey: generatedPlainKey,
+        warning: 'Save this key securely. The raw value will not be shown again.',
       },
-      'API key created',
+      'API key saved',
       201
     );
   } catch (error: any) {
@@ -131,3 +133,4 @@ export async function POST(
     return tenantError(error.message || 'Failed to create API key', 400);
   }
 }
+

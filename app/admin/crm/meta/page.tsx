@@ -68,6 +68,7 @@ type ConversationRow = {
   chatStatus?: ChatStatus; // Manual override status
   isBlocked?: boolean;
   blockedReason?: string;
+  metadata?: Record<string, any>;
 };
 
 type Message = {
@@ -4421,7 +4422,11 @@ export default function MetaInboxPage() {
                         ai9Data: ai9Data
                       }
                     };
-                    const token = localStorage.getItem('crm_token');
+                    const token =
+                      localStorage.getItem('crm_token') ||
+                      localStorage.getItem('adminToken') ||
+                      localStorage.getItem('admin_token') ||
+                      '';
                     await fetch(`/api/admin/crm/leads/${selected.leadId || selected._id}`, {
                       method: 'PUT',
                       headers: { 

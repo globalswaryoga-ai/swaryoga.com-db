@@ -894,13 +894,15 @@ export default function LeadsPage() {
     );
   }
 
-  // Basic-plan tenants (non super-admin) get a light, Funnel-style theme.
-  // Super-admin keeps the original dark theme. A single scoped CSS block
-  // remaps the dark utility classes to light when `crm-light` is present.
-  const lightTheme = !isSuperAdmin;
+  // All users now get the modern, white and colorful UI
+  const lightTheme = true;
 
   return (
-    <div className={`min-h-screen flex p-4 md:p-6 lg:p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : 'bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a]'}`}>
+    <div className={`min-h-screen flex flex-col crm-light bg-slate-50 text-slate-900`}>
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 shrink-0" />
+
+      <div className="p-3 sm:p-6 lg:p-8 flex-1 flex flex-col">
       {lightTheme && (
         <style jsx global>{`
           .crm-light .text-white { color: #0f172a !important; }
@@ -934,8 +936,8 @@ export default function LeadsPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-white">Lead Management</h1>
-                <p className="text-gray-400 text-base md:text-lg">Manage and track all customer leads efficiently</p>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight">Lead Management</h1>
+                <p className="text-gray-400 text-sm sm:text-base md:text-lg">Manage and track all customer leads efficiently</p>
               </div>
             </div>
             {/* Leads usage / limit badge */}
@@ -1091,7 +1093,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Filters Section - Dark Glass Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-xl">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
           <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
             <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider">Filters & Search</h2>
             <div className="flex items-center gap-2">
@@ -1368,7 +1370,7 @@ export default function LeadsPage() {
                       {columns.map((col) => (
                         <th
                           key={col.key}
-                          className="px-6 py-4 text-left text-sm font-bold text-green-400 uppercase tracking-wider"
+                          className="px-3.5 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold text-green-400 uppercase tracking-wider whitespace-nowrap"
                         >
                           {col.key === '_select' ? (
                             <div className="flex items-center gap-2">
@@ -1404,7 +1406,7 @@ export default function LeadsPage() {
                         }`}
                       >
                         {columns.map((col) => (
-                          <td key={col.key} className="px-6 py-4 text-sm text-white">
+                          <td key={col.key} className="px-3.5 sm:px-6 py-2.5 sm:py-4 text-xs sm:text-sm text-white">
                             {col.render ? col.render((lead as any)[col.key], lead) : (lead as any)[col.key]}
                           </td>
                         ))}
@@ -2511,6 +2513,7 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
@@ -22,6 +22,31 @@ import {
   Settings,
   QrCode,
   Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Shield,
+  Zap,
+  GraduationCap,
+  Video,
+  Globe,
+  Calendar,
+  Layers,
+  Building2,
+  Landmark,
+  Share2,
+  Monitor,
+  Moon,
+  Search,
+  Filter,
+  Plus,
+  ExternalLink,
+  Activity,
+  CreditCard,
+  Bot,
+  Flame,
+  Heart,
+  RefreshCw,
 } from 'lucide-react';
 
 interface CRMStats {
@@ -31,6 +56,7 @@ interface CRMStats {
   metaMessagesSent: number;
   qrWhatsappMessagesSent: number;
   conversionRate: number;
+  leadsByStatus?: Record<string, number>;
 }
 
 interface DashboardData {
@@ -44,15 +70,209 @@ interface DashboardData {
   currencyBreakdown: { INR: number; USD: number; NPR: number };
 }
 
+interface HubCard {
+  title: string;
+  description: string;
+  href: string;
+  icon: React.ElementType;
+  gradient: string;
+  badge: string;
+  category: 'growth' | 'communication' | 'experience' | 'system';
+}
+
+const HUB_CARDS: HubCard[] = [
+  // Growth & Sales
+  {
+    title: 'Leads Management',
+    description: 'Central pipeline tracking all leads from Meta Ads, QR WhatsApp, and custom website forms.',
+    href: '/admin/crm/leads-hub',
+    icon: Users,
+    gradient: 'from-blue-600 to-indigo-600',
+    badge: 'Universal Pipeline',
+    category: 'growth',
+  },
+  {
+    title: 'Sales & Transactions',
+    description: 'Real-time sales ledgers, student receipts, payments, and automated financial records.',
+    href: '/admin/crm/sales',
+    icon: DollarSign,
+    gradient: 'from-emerald-500 to-teal-600',
+    badge: 'Revenue Tracker',
+    category: 'growth',
+  },
+  {
+    title: 'Workshop Management',
+    description: 'Student batches, cohort scheduling, multilingual admissions, and Zoom class timelines.',
+    href: '/admin/crm/workshop-hub',
+    icon: GraduationCap,
+    gradient: 'from-teal-600 to-cyan-600',
+    badge: 'Cohorts & Batches',
+    category: 'growth',
+  },
+  {
+    title: 'Banking & Finance',
+    description: 'Bank statement auto-parsing, Tally Prime synchronization, cash books, and accounting ledgers.',
+    href: '/admin/crm/banking-hub',
+    icon: Landmark,
+    gradient: 'from-cyan-600 to-blue-600',
+    badge: 'Tally & Ledgers',
+    category: 'growth',
+  },
+
+  // Communication & AI
+  {
+    title: 'Communication Hub',
+    description: 'Unified omnichannel inbox combining Meta Cloud API, QR WhatsApp, AI Voice Calls, SMS & Telegram.',
+    href: '/admin/crm/communication-hub',
+    icon: MessageCircle,
+    gradient: 'from-purple-600 to-indigo-600',
+    badge: 'Omnichannel Inbox',
+    category: 'communication',
+  },
+  {
+    title: 'Meta WhatsApp',
+    description: 'Official Meta Cloud API console with verified green tick delivery and HSM templates.',
+    href: '/admin/crm/meta',
+    icon: MessageCircle,
+    gradient: 'from-green-600 to-emerald-700',
+    badge: 'Official Cloud API',
+    category: 'communication',
+  },
+  {
+    title: 'QR WhatsApp Inbox',
+    description: 'Live phone pairing bridge, multi-device chat console, contact tags, and quick-reply presets.',
+    href: '/admin/crm/qr',
+    icon: QrCode,
+    gradient: 'from-teal-500 to-emerald-600',
+    badge: 'Multi-Device QR',
+    category: 'communication',
+  },
+  {
+    title: 'Broadcast WhatsApp',
+    description: 'Automated mass campaigns, recurring class broadcasts, group blast sequences, and delivery logs.',
+    href: '/admin/crm/broadcast-hub',
+    icon: Radio,
+    gradient: 'from-pink-500 to-rose-600',
+    badge: 'Campaign Blasts',
+    category: 'communication',
+  },
+  {
+    title: 'Automation & AI',
+    description: 'Visual drag-and-drop chatflow builder, intelligent knowledge base RAG bots, and auto-responders.',
+    href: '/admin/crm/automation-hub',
+    icon: Zap,
+    gradient: 'from-amber-500 to-orange-600',
+    badge: 'Visual Chatflow & Bots',
+    category: 'communication',
+  },
+
+  // Experience & Learning
+  {
+    title: 'Community Studio',
+    description: 'Interactive sadhak discussion channels (L1–L5, Aahar, Garbh Sanskar), feeds, and rich posts.',
+    href: '/admin/crm/community-hub',
+    icon: Globe,
+    gradient: 'from-indigo-600 to-blue-600',
+    badge: 'Sadhak Channels',
+    category: 'experience',
+  },
+  {
+    title: 'Zoom Management',
+    description: 'Participant attendance tracking, in/out timestamps, grades (A–E), and cloud recording vault.',
+    href: '/admin/crm/zoom-hub',
+    icon: Video,
+    gradient: 'from-sky-500 to-blue-600',
+    badge: 'Live Attendance & Vault',
+    category: 'experience',
+  },
+  {
+    title: 'E-Learning Academy',
+    description: '19-language video courses, student progress analytics, certificates, and Bunny Stream CDN delivery.',
+    href: '/admin/crm/e-learning/dashboard',
+    icon: GraduationCap,
+    gradient: 'from-emerald-600 to-teal-600',
+    badge: 'Multi-Lingual Courses',
+    category: 'experience',
+  },
+  {
+    title: 'Life Planner',
+    description: 'Ayurvedic Ritucharya routines, vision boards, daily habits, tasks, and sadhana goals tracker.',
+    href: '/admin/crm/planner',
+    icon: Calendar,
+    gradient: 'from-rose-500 to-pink-600',
+    badge: 'Ritucharya & Goals',
+    category: 'experience',
+  },
+  {
+    title: 'KP Astro Studio',
+    description: 'Professional astrologer workbench with ruling planets, 1–249 horary prashna, and matchmaking.',
+    href: '/admin/crm/kp-astro',
+    icon: Moon,
+    gradient: 'from-violet-600 to-purple-700',
+    badge: '1–249 Horary Engine',
+    category: 'experience',
+  },
+
+  // Platform & System
+  {
+    title: 'Website Management',
+    description: 'Website signups, student login records, contact submissions, and public catalog settings.',
+    href: '/admin/crm/web-admin',
+    icon: Monitor,
+    gradient: 'from-orange-500 to-amber-600',
+    badge: 'Public Portal Admin',
+    category: 'system',
+  },
+  {
+    title: 'Social Media Hub',
+    description: 'Multi-platform social inbox for Instagram DM, Facebook Messenger, and central video media assets.',
+    href: '/admin/crm/social-hub',
+    icon: Share2,
+    gradient: 'from-fuchsia-600 to-pink-600',
+    badge: 'Instagram & Facebook',
+    category: 'system',
+  },
+  {
+    title: 'CRM & Tenants',
+    description: 'Multi-tenant organization management, custom subdomains, subscription plan bundles, and staff roles.',
+    href: '/admin/crm/tenants-hub',
+    icon: Building2,
+    gradient: 'from-cyan-600 to-teal-700',
+    badge: 'SaaS Multi-Tenant',
+    category: 'system',
+  },
+  {
+    title: 'Reports & Analytics',
+    description: 'Comprehensive business intelligence, executive metrics, and one-click PDF/CSV data exports.',
+    href: '/admin/crm/reports-hub',
+    icon: BarChart3,
+    gradient: 'from-blue-600 to-indigo-700',
+    badge: 'Data Exports & Charts',
+    category: 'system',
+  },
+  {
+    title: 'CRM Settings',
+    description: 'System operational parameters, automated welcome replies, team roles, and API credentials.',
+    href: '/admin/crm/settings-hub',
+    icon: Settings,
+    gradient: 'from-slate-700 to-slate-900',
+    badge: 'Preferences & APIs',
+    category: 'system',
+  },
+];
+
 export default function CRMDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
   const [stats, setStats] = useState<CRMStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [planBundles, setPlanBundles] = useState<Set<string>>(new Set());
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'growth' | 'communication' | 'experience' | 'system'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Welcome & Setup state
   const [showWelcome, setShowWelcome] = useState(false);
@@ -142,30 +362,25 @@ export default function CRMDashboard() {
     }
   }, []);
 
-  // Check setup status and show welcome modal for first-time users
+  // Check setup status
   useEffect(() => {
     const checkSetupStatus = async () => {
       if (!token) return;
-      
       try {
         const res = await fetch('/api/crm-site/setup-status', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
         if (res.ok) {
           const data = await res.json();
           const superAdmin = data.isSuperAdmin || checkIsSuperAdmin();
           setSetupPaid(data.setupPaid || superAdmin);
-          
-          // Show welcome modal for first login or if setup param is present
+
           if (!superAdmin && (data.isFirstLogin || searchParams.get('showSetup') === 'true')) {
             setShowWelcome(true);
           }
-          
-          // Handle successful payment return
+
           if (searchParams.get('setup') === 'complete') {
             setSetupPaid(true);
-            // Clean up URL
             router.replace('/admin/crm');
           }
         }
@@ -173,7 +388,6 @@ export default function CRMDashboard() {
         console.error('Failed to check setup status:', err);
       }
     };
-    
     checkSetupStatus();
   }, [token, searchParams, router]);
 
@@ -211,55 +425,37 @@ export default function CRMDashboard() {
     }
   }, [newUserId, newEmail, newPassword, permissionMode, selectedPermissions, token]);
 
-  useEffect(() => {
-    if (token === null) return;
+  const fetchStats = useCallback(async (isManualRefresh = false) => {
+    if (!token) return;
+    try {
+      if (isManualRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
 
-    const fetchStats = async () => {
-      if (!token) {
-        setLoading(false);
-        setError('Authentication required');
+      const response = await fetch('/api/admin/crm/analytics?view=overview', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('adminUser');
+        localStorage.removeItem('admin_user');
+        router.push(getLoginPath());
         return;
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
-        const response = await fetch('/api/admin/crm/analytics?view=overview', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.status === 401) {
-          // Token expired or invalid — clear session and redirect to login.
-          localStorage.removeItem('adminToken');
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('adminUser');
-          localStorage.removeItem('admin_user');
-          router.push(getLoginPath());
-          return;
-        }
-        if (response.status === 403) {
-          // Authenticated but lacks permission — show error, don't clear session.
-          throw new Error('You do not have permission to view analytics.');
-        }
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.data || !data.data.overview) {
-          setError('Analytics data unavailable. Please refresh.');
-          setLoading(false);
-          return;
-        }
-
+      const data = await response.json();
+      if (data?.data?.overview) {
         const overview = data.data.overview;
         const totalCustomers = overview.leadsByStatus?.customer || 0;
         const totalLeads = overview.totalLeads || 0;
@@ -271,23 +467,24 @@ export default function CRMDashboard() {
           totalMessages: overview.totalMessages || 0,
           metaMessagesSent: overview.metaMessagesSent || 0,
           qrWhatsappMessagesSent: overview.qrWhatsappMessagesSent || 0,
-          conversionRate: parseFloat(conversionRate as string),
+          conversionRate: parseFloat(conversionRate),
+          leadsByStatus: overview.leadsByStatus || {},
         });
-        setError(null);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        setError(errorMessage || 'Failed to load dashboard stats');
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchStats();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load stats');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [token, router]);
 
   useEffect(() => {
-    if (!token || !isSuperAdmin) return;
+    fetchStats();
+  }, [fetchStats]);
 
+  useEffect(() => {
+    if (!token || !isSuperAdmin) return;
     const fetchDashboardData = async () => {
       try {
         const res = await fetch('/api/admin/dashboard', {
@@ -295,37 +492,40 @@ export default function CRMDashboard() {
         });
         if (res.ok) {
           const json = await res.json();
-          if (json.data) {
-            setDashboardData(json.data);
-          }
+          if (json.data) setDashboardData(json.data);
         }
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
       }
     };
-
     fetchDashboardData();
   }, [token, isSuperAdmin]);
 
-  const handleCloseWelcome = () => {
-    setShowWelcome(false);
-  };
-
-  const handleProceedToPayment = () => {
-    // Payment is handled inside WelcomeModal
-    // This will be called after successful payment
-    setShowWelcome(false);
-    setSetupPaid(true);
-  };
+  const filteredHubs = useMemo(() => {
+    return HUB_CARDS.filter((card) => {
+      const matchesCategory = selectedCategory === 'all' || card.category === selectedCategory;
+      const matchesSearch =
+        card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.badge.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [selectedCategory, searchQuery]);
 
   return (
-    <>
+    <div className="min-h-screen bg-slate-50/70">
+      {/* Top Gradient Signature Accent */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+
       {/* Welcome Modal for new users */}
       <WelcomeModal
         isOpen={showWelcome && !setupPaid && !isSuperAdmin}
-        onClose={handleCloseWelcome}
+        onClose={() => setShowWelcome(false)}
         userName={userName}
-        onProceedToPayment={handleProceedToPayment}
+        onProceedToPayment={() => {
+          setShowWelcome(false);
+          setSetupPaid(true);
+        }}
       />
 
       {/* Setup Checklist Banner */}
@@ -337,451 +537,486 @@ export default function CRMDashboard() {
           isSuperAdmin={isSuperAdmin}
         />
       )}
+
       {/* Add User Modal */}
       {showAddUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddUser(false)} />
-            <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl">
-              <div className="flex items-center justify-between px-6 py-4 border-b">
-                <h2 className="text-lg font-bold text-gray-900">Add Admin User</h2>
-                <button onClick={() => setShowAddUser(false)} className="p-2 rounded-lg hover:bg-gray-100">
-                  <X className="h-5 w-5" />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setShowAddUser(false)} />
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <UserPlus className="h-4 w-4" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900">Add Admin User</h2>
               </div>
+              <button onClick={() => setShowAddUser(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                  <input
-                    value={newUserId}
-                    onChange={(e) => setNewUserId(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="e.g., usercrm1"
-                    disabled={createUserBusy}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="user@example.com"
-                    disabled={createUserBusy}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter strong password"
-                    disabled={createUserBusy}
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={permissionMode === 'selected'}
-                        onChange={() => setPermissionMode('selected')}
-                        disabled={createUserBusy}
-                      />
-                      <span className="text-sm">Custom permissions</span>
-                    </label>
-                    {permissionMode === 'selected' && (
-                      <div className="ml-6 flex gap-4">
-                        {(['crm', 'whatsapp', 'email'] as const).map((p) => (
-                          <label key={p} className="flex items-center gap-1.5 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={selectedPermissions[p]}
-                              onChange={() => toggleSelectedPermission(p)}
-                              disabled={createUserBusy}
-                            />
-                            {p.toUpperCase()}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={permissionMode === 'all'}
-                        onChange={() => setPermissionMode('all')}
-                        disabled={createUserBusy}
-                      />
-                      <span className="text-sm">Super Admin (all permissions)</span>
-                    </label>
-                  </div>
-                </div>
-
-                {createUserMsg && (
-                  <p className={`text-sm ${createUserMsg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
-                    {createUserMsg}
-                  </p>
-                )}
-              </div>
-
-              <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                <button
-                  onClick={() => setShowAddUser(false)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={createAdminUser}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Username</label>
+                <input
+                  value={newUserId}
+                  onChange={(e) => setNewUserId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
+                  placeholder="e.g., manager1"
                   disabled={createUserBusy}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
+                  placeholder="manager@swaryoga.com"
+                  disabled={createUserBusy}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Initial Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
+                  placeholder="Enter strong password"
+                  disabled={createUserBusy}
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Access Privileges</label>
+                <div className="space-y-2.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={permissionMode === 'selected'}
+                      onChange={() => setPermissionMode('selected')}
+                      disabled={createUserBusy}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm text-slate-700 font-medium">Custom permissions</span>
+                  </label>
+                  {permissionMode === 'selected' && (
+                    <div className="ml-6 flex gap-4">
+                      {(['crm', 'whatsapp', 'email'] as const).map((p) => (
+                        <label key={p} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions[p]}
+                            onChange={() => toggleSelectedPermission(p)}
+                            disabled={createUserBusy}
+                            className="rounded text-emerald-600 focus:ring-emerald-500"
+                          />
+                          {p.toUpperCase()}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={permissionMode === 'all'}
+                      onChange={() => setPermissionMode('all')}
+                      disabled={createUserBusy}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm text-slate-700 font-medium">Super Admin (full system access)</span>
+                  </label>
+                </div>
+              </div>
+
+              {createUserMsg && (
+                <p className={`text-xs font-semibold p-2.5 rounded-lg ${createUserMsg.includes('success') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                  {createUserMsg}
+                </p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                onClick={() => setShowAddUser(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createAdminUser}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-xs disabled:opacity-60"
+                disabled={createUserBusy}
+              >
+                {createUserBusy ? 'Creating...' : 'Create Admin'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Dashboard Container */}
+      <div className="p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-7">
+        {/* Hero Header */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-5 sm:p-8 text-white shadow-xl border border-slate-800">
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Bunny Database Active
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Swar Yoga Enterprise CRM
+                </span>
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                {(() => {
+                  const h = new Date().getHours();
+                  if (h < 12) return 'Good morning';
+                  if (h < 17) return 'Good afternoon';
+                  return 'Good evening';
+                })()}, <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 bg-clip-text text-transparent">{userName || 'Administrator'}</span>
+              </h1>
+              <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
+                Welcome to your command center. Monitor real-time lead inflows, WhatsApp communications, cohort admissions, and revenue across all active hubs.
+              </p>
+            </div>
+
+            {/* Quick Hero Actions */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => fetchStats(true)}
+                disabled={refreshing}
+                title="Refresh real-time stats"
+                className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
+              </button>
+
+              <Link
+                href="/admin/crm/leads?action=create"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold transition shadow-md shadow-emerald-950/40 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Lead</span>
+              </Link>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setShowAddUser(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white text-xs font-bold transition cursor-pointer"
                 >
-                  {createUserBusy ? 'Creating...' : 'Create User'}
+                  <UserPlus className="w-4 h-4 text-indigo-400" />
+                  <span>Add Admin</span>
                 </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-2xl flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-3 text-sm font-medium">
+              <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button onClick={() => fetchStats(true)} className="text-xs font-bold underline hover:no-underline cursor-pointer">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* ── 4 Main Live KPI Stat Cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Card 1: Leads */}
+          <Link
+            href="/admin/crm/leads-hub"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-blue-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                  <Users className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+                  Total Leads
+                </span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : Number(stats?.totalLeads || 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Verified Inbound Prospects</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-blue-600 font-semibold group-hover:text-blue-700">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                Universal Pipeline
+              </span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </div>
+          </Link>
+
+          {/* Card 2: Sales */}
+          <Link
+            href="/admin/crm/sales"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  Sales & Revenue
+                </span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : `₹${Number(stats?.totalSales || 0).toLocaleString()}`}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Recorded Workshop Enrolments</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-semibold group-hover:text-emerald-700">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Live Revenue Ledgers
+              </span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </div>
+          </Link>
+
+          {/* Card 3: Conversion Rate */}
+          <Link
+            href="/admin/crm/funnel"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-amber-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
+                  <TrendingUp className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                  Conversion
+                </span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : `${stats?.conversionRate || 0}%`}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Pipeline Stage Efficiency</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-amber-600 font-semibold group-hover:text-amber-700">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Funnel Milestones
+              </span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </div>
+          </Link>
+
+          {/* Card 4: Omnichannel Messages */}
+          <Link
+            href="/admin/crm/communication-hub"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-purple-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80">
+                  All Messages
+                </span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? '—' : Number(stats?.totalMessages || 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 font-medium">
+                QR: {stats?.qrWhatsappMessagesSent || 0} • Meta: {stats?.metaMessagesSent || 0}
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-purple-600 font-semibold group-hover:text-purple-700">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                WhatsApp & Chat Bridge
+              </span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </div>
+          </Link>
+        </div>
+
+        {/* ── Super Admin Multi-Currency & Platform Vitals (If Super Admin) ── */}
+        {isSuperAdmin && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <Shield className="w-4 h-4 text-indigo-600" />
+                Super Admin Multi-Currency & Platform Vitals
+              </h2>
+              <span className="text-xs font-semibold text-slate-400">Platform Global Aggregates</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl p-5 text-white shadow-md shadow-indigo-500/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">INR Indian Revenue</span>
+                <p className="text-2xl sm:text-3xl font-black mt-1">₹{Number(dashboardData.currencyBreakdown?.INR || 0).toLocaleString()}</p>
+                <span className="text-[11px] text-indigo-100/80 mt-1 block">Razorpay & UPI Volume</span>
+              </div>
+
+              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-md shadow-emerald-500/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-100">USD International</span>
+                <p className="text-2xl sm:text-3xl font-black mt-1">${Number(dashboardData.currencyBreakdown?.USD || 0).toLocaleString()}</p>
+                <span className="text-[11px] text-emerald-100/80 mt-1 block">Global Stripe & PayPal</span>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-5 text-white shadow-md shadow-purple-500/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-100">NPR Nepal Revenue</span>
+                <p className="text-2xl sm:text-3xl font-black mt-1">Rs {Number(dashboardData.currencyBreakdown?.NPR || 0).toLocaleString()}</p>
+                <span className="text-[11px] text-purple-100/80 mt-1 block">eSewa & Khalti Admissions</span>
+              </div>
+            </div>
+
+            {/* Platform Quick Vitals Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Platform Users</span>
+                <p className="text-xl font-extrabold text-slate-900 mt-0.5">{Number(dashboardData?.totalUsers || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Sign-ins</span>
+                <p className="text-xl font-extrabold text-slate-900 mt-0.5">{Number(dashboardData?.totalSignins || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Orders</span>
+                <p className="text-xl font-extrabold text-slate-900 mt-0.5">{Number(dashboardData?.totalOrders || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Completed Orders</span>
+                <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{Number(dashboardData?.completedOrders || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Pending Orders</span>
+                <p className="text-xl font-extrabold text-amber-700 mt-0.5">{Number(dashboardData?.pendingOrders || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Total Volume USD</span>
+                <p className="text-xl font-extrabold text-indigo-700 mt-0.5">${Number(dashboardData?.totalAmountUSD || 0).toFixed(0)}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Dashboard Content */}
-        <div className="p-4 md:p-6 space-y-6">
-          {/* Add User for super admins */}
-          {isSuperAdmin && (
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowAddUser(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-              >
-                <UserPlus className="h-4 w-4" />
-                <span>Add User</span>
-              </button>
+        {/* ── Operational Workspace Hubs (The 17 Modules from Sidebar) ── */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <Layers className="w-5 h-5 text-emerald-600" />
+                CRM Modules & Action Hubs
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Every sidebar module has dedicated quick-action cards, analytics, and toolsets.
+              </p>
             </div>
-          )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <span>{error}</span>
-              <button onClick={() => window.location.reload()} className="ml-auto underline text-sm">
-                Retry
-              </button>
+            {/* Search Filter for Cards */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search modules..."
+                className="w-full bg-white border border-slate-200 pl-10 pr-4 py-2 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition shadow-2xs"
+              />
             </div>
-          )}
-
-          {loading ? (
-            <div className="space-y-4">
-              {/* Skeleton greeting */}
-              <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse" />
-              {/* Skeleton stat cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-gray-100 rounded-xl animate-pulse" />
-                      <div className="w-5 h-5 bg-gray-100 rounded animate-pulse" />
-                    </div>
-                    <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mb-2" />
-                    <div className="h-4 w-28 bg-gray-100 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-              {/* Skeleton quick actions */}
-              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mt-8" />
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {[1,2,3,4,5,6].map(i => (
-                  <div key={i} className="bg-white rounded-xl p-4 border border-gray-200">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg animate-pulse mb-3" />
-                    <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Welcome Greeting */}
-              <div className="mb-2">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {(() => {
-                    const h = new Date().getHours();
-                    if (h < 12) return 'Good morning';
-                    if (h < 17) return 'Good afternoon';
-                    return 'Good evening';
-                  })()}, {userName || 'there'}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening with your business today.</p>
-              </div>
-
-              {/* Plan banner for non-super-admin tenants */}
-              {!isSuperAdmin && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-4 text-white">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-xl">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">Your CRM is ready</p>
-                      <p className="text-white/75 text-xs">Manage leads, send messages, track reports</p>
-                    </div>
-                  </div>
-                  <Link
-                    href="/admin/crm/billing"
-                    className="flex items-center gap-1.5 px-4 py-2 bg-white text-emerald-700 text-xs font-bold rounded-xl hover:bg-gray-100 transition whitespace-nowrap"
-                  >
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                    Upgrade Plan
-                  </Link>
-                </div>
-              )}
-
-              {/* Main Stats — plan-aware */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* lead_management stats — always show if plan has it */}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <BigStatCard label="Total Leads" value={stats?.totalLeads || 0} icon={Users} color="blue" href="/admin/crm/leads" />
-                )}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <BigStatCard label="Total Sales" value={stats?.totalSales || 0} icon={DollarSign} color="green" href="/admin/crm/sales" />
-                )}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <BigStatCard label="Conversion Rate" value={`${stats?.conversionRate || 0}%`} icon={TrendingUp} color="orange" href="/admin/crm/analytics" />
-                )}
-                {/* whatsapp_qr stats */}
-                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
-                  <BigStatCard label="QR Messages" value={stats?.qrWhatsappMessagesSent || 0} icon={QrCode} color="teal" href="/admin/crm/qr" />
-                )}
-                {/* whatsapp_meta stats */}
-                {(isSuperAdmin || planBundles.has('whatsapp_meta')) && (
-                  <BigStatCard label="Meta Messages" value={stats?.metaMessagesSent || 0} icon={MessageCircle} color="purple" href="/admin/crm/meta" />
-                )}
-              </div>
-
-              {/* Super Admin Stats */}
-              {isSuperAdmin && (
-                <>
-                  <h2 className="text-lg font-bold text-gray-900 mt-8">Platform Overview</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <SmallStatCard label="Total Users" value={dashboardData.totalUsers} />
-                    <SmallStatCard label="Total Logins" value={dashboardData.totalSignins} />
-                    <SmallStatCard label="Total Orders" value={dashboardData.totalOrders} />
-                    <SmallStatCard label="Completed" value={dashboardData.completedOrders} />
-                    <SmallStatCard label="Pending" value={dashboardData.pendingOrders} />
-                    <SmallStatCard label="Revenue (USD)" value={`$${(dashboardData.totalAmountUSD || 0).toFixed(0)}`} />
-                  </div>
-
-                  {/* Currency Breakdown */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <RevenueCard label="INR Revenue" value={dashboardData.currencyBreakdown?.INR || 0} currency="₹" color="blue" />
-                    <RevenueCard label="USD Revenue" value={dashboardData.currencyBreakdown?.USD || 0} currency="$" color="green" />
-                    <RevenueCard label="NPR Revenue" value={dashboardData.currencyBreakdown?.NPR || 0} currency="Rs" color="purple" />
-                  </div>
-                </>
-              )}
-
-              {/* Quick Actions — plan-aware */}
-              <h2 className="text-lg font-bold text-gray-900 mt-8">Quick Actions</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {/* Always visible */}
-                <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Settings" color="gray" />
-                {/* lead_management */}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <QuickActionCard href="/admin/crm/leads?action=create" icon={UserPlus} label="Add Lead" color="blue" />
-                )}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <QuickActionCard href="/admin/crm/sales" icon={DollarSign} label="Sales" color="emerald" />
-                )}
-                {(isSuperAdmin || planBundles.has('lead_management')) && (
-                  <QuickActionCard href="/admin/crm/funnel" icon={TrendingUp} label="Funnel" color="orange" />
-                )}
-                {/* whatsapp_qr */}
-                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
-                  <QuickActionCard href="/admin/crm/qr" icon={QrCode} label="QR Inbox" color="teal" />
-                )}
-                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
-                  <QuickActionCard href="/admin/crm/qr/broadcast" icon={Radio} label="Broadcast" color="pink" />
-                )}
-                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
-                  <QuickActionCard href="/admin/crm/send-template" icon={FileText} label="Send Message" color="orange" />
-                )}
-                {/* whatsapp_meta */}
-                {(isSuperAdmin || planBundles.has('whatsapp_meta')) && (
-                  <QuickActionCard href="/admin/crm/meta" icon={MessageCircle} label="Meta WA" color="green" />
-                )}
-                {/* planner */}
-                {(isSuperAdmin || planBundles.has('planner')) && (
-                  <QuickActionCard href="/admin/crm/planner" icon={Sparkles} label="Planner" color="purple" />
-                )}
-                {/* report */}
-                {(isSuperAdmin || planBundles.has('report') || planBundles.has('lead_management')) && (
-                  <QuickActionCard href="/admin/crm/reports" icon={BarChart3} label="Reports" color="purple" />
-                )}
-                {/* chatbot */}
-                {(isSuperAdmin || planBundles.has('chatbot')) && (
-                  <QuickActionCard href="/admin/crm/chatbots" icon={Sparkles} label="Chatbot" color="pink" />
-                )}
-                {/* community */}
-                {(isSuperAdmin || planBundles.has('community')) && (
-                  <QuickActionCard href="/admin/crm/community" icon={Users} label="Community" color="blue" />
-                )}
-                {/* elearning */}
-                {(isSuperAdmin || planBundles.has('elearning')) && (
-                  <QuickActionCard href="/admin/crm/e-learning" icon={BarChart3} label="E-Learning" color="emerald" />
-                )}
-                {/* ai_calling */}
-                {(isSuperAdmin || planBundles.has('ai_calling')) && (
-                  <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Calls" color="teal" />
-                )}
-                {/* telegram */}
-                {(isSuperAdmin || planBundles.has('telegram')) && (
-                  <QuickActionCard href="/admin/crm/telegram" icon={Radio} label="Telegram" color="blue" />
-                )}
-                {/* email */}
-                {(isSuperAdmin || planBundles.has('email')) && (
-                  <QuickActionCard href="/admin/crm/email" icon={FileText} label="Email" color="orange" />
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="text-center text-gray-400 text-sm pt-8 pb-4">
-                Dashboard v2.0 | {new Date().toLocaleDateString()}
-              </div>
-            </>
-          )}
-        </div>
-    </>
-  );
-}
-
-// Big Stat Card Component — flat white card with colored icon
-function BigStatCard({
-  label,
-  value,
-  icon: Icon,
-  color,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ElementType;
-  color: 'blue' | 'green' | 'purple' | 'orange' | 'teal';
-  href: string;
-}) {
-  const iconBg: Record<string, string> = {
-    blue: 'bg-indigo-50 text-indigo-600',
-    green: 'bg-emerald-50 text-emerald-600',
-    purple: 'bg-purple-50 text-purple-600',
-    orange: 'bg-amber-50 text-amber-600',
-    teal: 'bg-teal-50 text-teal-600',
-  };
-
-  return (
-    <Link href={href}>
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md hover:border-indigo-200 group">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-xl ${iconBg[color]}`}>
-            <Icon className="h-6 w-6" />
           </div>
-          <ArrowUpRight className="h-5 w-5 text-gray-300 group-hover:text-indigo-500 transition-colors" />
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b border-slate-200">
+            {[
+              { key: 'all', label: 'All 17 Hubs', count: HUB_CARDS.length },
+              { key: 'growth', label: 'Leads & Sales', count: HUB_CARDS.filter(h => h.category === 'growth').length },
+              { key: 'communication', label: 'Omnichannel & AI', count: HUB_CARDS.filter(h => h.category === 'communication').length },
+              { key: 'experience', label: 'Community & Learning', count: HUB_CARDS.filter(h => h.category === 'experience').length },
+              { key: 'system', label: 'Platform & Admin', count: HUB_CARDS.filter(h => h.category === 'system').length },
+            ].map((tab) => {
+              const active = selectedCategory === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelectedCategory(tab.key as any)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    active
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredHubs.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.href}
+                  href={card.href}
+                  className="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3.5">
+                      <div
+                        className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${card.gradient} flex items-center justify-center text-white shadow-md shadow-slate-200 group-hover:scale-105 transition-transform duration-200`}
+                      >
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200/80">
+                        {card.badge}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-extrabold text-slate-900 group-hover:text-emerald-600 transition-colors flex items-center gap-1.5">
+                      {card.title}
+                      <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-emerald-600" />
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {card.description}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-bold opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <span>Open Hub</span>
+                    <span>→</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-        <div className="text-3xl font-bold text-gray-900 mb-1">{value}</div>
-        <div className="text-sm font-medium text-gray-500">{label}</div>
-      </div>
-    </Link>
-  );
-}
 
-// Small Stat Card Component
-function SmallStatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
-    </div>
-  );
-}
-
-// Revenue Card Component
-function RevenueCard({
-  label,
-  value,
-  currency,
-  color,
-}: {
-  label: string;
-  value: number;
-  currency: string;
-  color: 'blue' | 'green' | 'purple';
-}) {
-  const colors = {
-    blue: 'border-l-indigo-500 bg-indigo-50',
-    green: 'border-l-green-500 bg-green-50',
-    purple: 'border-l-purple-500 bg-purple-50',
-  };
-  const textColors = {
-    blue: 'text-indigo-700',
-    green: 'text-green-700',
-    purple: 'text-purple-700',
-  };
-
-  return (
-    <div className={`rounded-xl p-5 border-l-4 ${colors[color]}`}>
-      <div className="text-sm font-medium text-gray-600 mb-1">{label}</div>
-      <div className={`text-2xl font-bold ${textColors[color]}`}>
-        {currency}{value.toFixed(2)}
-      </div>
-    </div>
-  );
-}
-
-// Quick Action Card Component
-function QuickActionCard({
-  href,
-  icon: Icon,
-  label,
-  color,
-}: {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  color: string;
-}) {
-  const bgColors: Record<string, string> = {
-    blue: 'hover:bg-indigo-50 hover:border-indigo-200',
-    green: 'hover:bg-emerald-50 hover:border-emerald-200',
-    emerald: 'hover:bg-emerald-50 hover:border-emerald-200',
-    pink: 'hover:bg-pink-50 hover:border-pink-200',
-    orange: 'hover:bg-amber-50 hover:border-amber-200',
-    purple: 'hover:bg-purple-50 hover:border-purple-200',
-    gray: 'hover:bg-gray-50 hover:border-gray-300',
-  };
-  const iconColors: Record<string, string> = {
-    blue: 'text-indigo-600 bg-indigo-50',
-    green: 'text-emerald-600 bg-emerald-50',
-    emerald: 'text-emerald-600 bg-emerald-50',
-    pink: 'text-pink-600 bg-pink-50',
-    orange: 'text-amber-600 bg-amber-50',
-    purple: 'text-purple-600 bg-purple-50',
-    gray: 'text-gray-600 bg-gray-100',
-  };
-
-  return (
-    <Link href={href}>
-      <div className={`bg-white rounded-xl p-4 border border-gray-200 shadow-sm transition-all cursor-pointer ${bgColors[color] || bgColors.blue}`}>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${iconColors[color]}`}>
-          <Icon className="h-5 w-5" />
+        {/* Footer */}
+        <div className="text-center text-slate-400 text-xs pt-4 pb-6 flex items-center justify-center gap-3">
+          <span>Swar Yoga CRM Suite</span>
+          <span>•</span>
+          <span>Bunny Database Architecture</span>
+          <span>•</span>
+          <span>v2.5 Live</span>
         </div>
-        <div className="text-sm font-medium text-gray-900">{label}</div>
       </div>
-    </Link>
+    </div>
   );
 }

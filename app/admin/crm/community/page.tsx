@@ -338,9 +338,13 @@ function CommunityHubContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* ── Top Hero Banner ── */}
-      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 rounded-3xl p-6 sm:p-8 text-white shadow-2xl shadow-indigo-950/30 relative overflow-hidden border border-indigo-800/40">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* ── Top Hero Banner ── */}
+        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 rounded-3xl p-6 sm:p-8 text-white shadow-2xl shadow-indigo-950/30 relative overflow-hidden border border-indigo-800/40">
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/4 -mb-20 w-80 h-80 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -540,6 +544,7 @@ function CommunityHubContent() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
 

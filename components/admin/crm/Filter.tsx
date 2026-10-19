@@ -123,7 +123,7 @@ export function PageHeader({
   onFilterChange,
   onClearFilters,
   className = '',
-  theme = 'dark',
+  theme = 'light',
 }: {
   title: string | React.ReactNode;
   subtitle?: string;

@@ -1445,7 +1445,7 @@ export default function LifePlannerAccountingPage() {
                                     <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv?.accruedDividend?.toLocaleString()}</td>
                                     <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv?.alreadyPaid?.toLocaleString()}</td>
                                     <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv?.pending.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv?.nextPaymentDate).toLocaleDateString()}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">{inv?.nextPaymentDate ? new Date(inv.nextPaymentDate).toLocaleDateString() : '—'}</td>
                                     <td className="px-4 py-3 text-sm">
                                       <span className={`px-2 py-1 rounded text-xs font-semibold ${inv?.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                         {inv?.isOverdue ? 'OVERDUE' : 'PENDING'}

@@ -299,57 +299,94 @@ try {
     return freq === 'daily' ? 'Daily' : freq === 'weekly' ? 'Weekly' : 'Monthly';
   };
 
+  const totalSchedules = schedules.length;
+  const activeCount = schedules.filter(s => s.status === 'active').length;
+  const botAutomatedCount = schedules.filter(s => s.enableBotAutomation !== false).length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-teal-500 via-cyan-600 to-indigo-600" />
+
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            🧘 Sadhana Scheduler
-          </h1>
-          <p className="text-gray-400">
-            Schedule Sadhana videos with Zoom links. Mon-Fri automatic delivery.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                🧘 Sadhana Scheduler
+              </h1>
+              <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-teal-200">
+                {totalSchedules} Schedules
+              </span>
+            </div>
+            <p className="text-slate-500 text-sm mt-1">
+              Schedule Sadhana videos with Zoom rooms, automated morning bot joiners, and live community feeds.
+            </p>
+          </div>
+
+          {!showForm && (
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                onClick={handleRestartScheduler}
+                disabled={restarting}
+                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold flex items-center gap-2 transition shadow-xs disabled:opacity-50 text-sm cursor-pointer"
+              >
+                <RefreshCw size={15} className={restarting ? 'animate-spin text-teal-600' : 'text-slate-500'} />
+                <span>{restarting ? 'Restarting...' : 'Restart Scheduler'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowForm(true);
+                  setEditingId(null);
+                  setEditingData(null);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-indigo-600 hover:opacity-95 text-white rounded-xl font-bold flex items-center gap-2 transition shadow-md shadow-teal-500/20 text-sm cursor-pointer"
+              >
+                <Plus size={18} /> Add New Schedule
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 4 Colorful Metric KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-teal-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-teal-600 uppercase tracking-wider block">Total Schedules</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{totalSchedules}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Configured Routines</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider block">Active Automated</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{activeCount}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Live Running</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Bot Join Automated</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{botAutomatedCount}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Zoom Bot Active</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-cyan-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-cyan-600 uppercase tracking-wider block">Schedule Engine</span>
+            <span className="text-lg font-black text-slate-900 mt-1 block">Recurring Cron</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Mon-Sun Flexible</span>
+          </div>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 bg-red-900/50 border border-red-700 rounded-lg p-4 flex items-start gap-3">
-            <AlertCircle className="text-red-400 flex-shrink-0" size={20} />
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+            <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <p className="text-red-200 font-medium">Error</p>
-              <p className="text-red-300 text-sm">{error}</p>
+              <p className="text-rose-900 font-bold text-sm">Error</p>
+              <p className="text-rose-700 text-xs mt-0.5">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Action Buttons */}
-        {!showForm && (
-          <div className="flex items-center gap-3 mb-6 flex-wrap">
-            <button
-              onClick={() => {
-                setShowForm(true);
-                setEditingId(null);
-                setEditingData(null);
-              }}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2 transition"
-            >
-              <Plus size={20} /> Add New Schedule
-            </button>
-            <button
-              onClick={handleRestartScheduler}
-              disabled={restarting}
-              className="px-5 py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-600 rounded-lg font-medium flex items-center gap-2 transition disabled:opacity-50 text-sm"
-            >
-              <RefreshCw size={16} className={restarting ? 'animate-spin' : ''} />
-              {restarting ? 'Restarting Scheduler...' : 'Restart Scheduler'}
-            </button>
-          </div>
-        )}
-
-        {/* Form Modal */}
+        {/* Form Container */}
         {showForm && (
-          <div className="mb-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <SadhanaForm
               initialData={editingData}
               onSubmit={handleFormSubmit}
@@ -365,15 +402,15 @@ try {
         )}
 
         {/* Schedules List */}
-        <div className="grid gap-6">
+        <div className="grid gap-5">
           {loading && !showForm ? (
-            <div className="flex justify-center items-center h-40">
-              <Loader className="text-purple-400 animate-spin" size={32} />
+            <div className="flex justify-center items-center h-40 bg-white rounded-2xl border border-slate-200">
+              <Loader className="text-teal-600 animate-spin" size={32} />
             </div>
           ) : schedules.length === 0 ? (
-            <div className="bg-gray-800/50 border border-dashed border-gray-600 rounded-lg p-12 text-center">
-              <p className="text-gray-400 mb-2">No schedules yet</p>
-              <p className="text-gray-500 text-sm">
+            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
+              <p className="text-slate-800 font-bold mb-1 text-base">No schedules configured yet</p>
+              <p className="text-slate-500 text-xs">
                 Create your first Sadhana schedule to get started
               </p>
             </div>
@@ -381,19 +418,19 @@ try {
             schedules.map((schedule) => (
               <div
                 key={schedule._id}
-                className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-gray-600 transition"
+                className="bg-white border border-slate-200/90 hover:border-teal-300 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all duration-200"
               >
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold text-white">
+                    <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+                      <h3 className="text-lg font-black text-slate-900">
                         {schedule.name}
                       </h3>
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                        className={`px-3 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border ${
                           schedule.status === 'active'
-                            ? 'bg-green-900/50 text-green-300'
-                            : 'bg-gray-700/50 text-gray-400'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
                         {schedule.status === 'active' ? (
@@ -407,18 +444,18 @@ try {
                         )}
                       </span>
                     </div>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-slate-500 text-xs">
                       {frequencyLabel(schedule.schedule?.repeatFrequency)} repetition
                     </p>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button
                       onClick={() =>
                         handleToggleStatus(schedule._id, schedule.status)
                       }
-                      className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition"
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                       title={
                         schedule.status === 'active'
                           ? 'Pause schedule'
@@ -426,21 +463,21 @@ try {
                       }
                     >
                       {schedule.status === 'active' ? (
-                        <Pause size={18} />
+                        <Pause size={16} />
                       ) : (
-                        <Play size={18} />
+                        <Play size={16} />
                       )}
                     </button>
                     <button
                       onClick={() => handleTestBot(schedule._id, schedule.name)}
                       disabled={testingBotId === schedule._id}
-                      className="p-2 rounded-lg bg-amber-900/50 hover:bg-amber-800/50 text-amber-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Test bot join immediately (bypass timing)"
                     >
                       {testingBotId === schedule._id ? (
-                        <Loader size={18} className="animate-spin" />
+                        <Loader size={16} className="animate-spin" />
                       ) : (
-                        <Zap size={18} />
+                        <Zap size={16} />
                       )}
                     </button>
                     <button
@@ -449,129 +486,123 @@ try {
                         setEditingData(schedule);
                         setShowForm(true);
                       }}
-                      className="p-2 rounded-lg bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 transition"
+                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
                       title="Edit schedule"
                     >
-                      <Edit size={18} />
+                      <Edit size={16} />
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(schedule._id)}
-                      className="p-2 rounded-lg bg-red-900/50 hover:bg-red-800/50 text-red-300 transition"
+                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition"
                       title="Delete schedule"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
 
                 {/* Schedule Details */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Times</p>
-                    <p className="text-white font-mono">
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Times</p>
+                    <p className="text-slate-900 font-mono font-bold">
                       {schedule.schedule?.times?.join(' & ') || '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Days</p>
-                    <p className="text-white">
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Days</p>
+                    <p className="text-slate-800 font-semibold">
                       {schedule.schedule?.days
                         ?.map((d) => daysNames[d])
                         .join(', ') || '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Timezone</p>
-                    <p className="text-white">{schedule.schedule?.timezone || '—'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Timezone</p>
+                    <p className="text-slate-800 font-semibold">{schedule.schedule?.timezone || '—'}</p>
                   </div>
                 </div>
 
                 {/* Bot / Playback Settings */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 border-t border-gray-700 pt-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 border-t border-slate-100 pt-4 text-xs">
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Name</p>
-                    <p className="text-white">{schedule.botName || 'Sadhana Bot'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Bot Name</p>
+                    <p className="text-slate-800 font-semibold">{schedule.botName || 'Sadhana Bot'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Video Duration</p>
-                    <p className="text-white">{schedule.videoDuration ? `${schedule.videoDuration} min` : '—'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Video Duration</p>
+                    <p className="text-slate-800 font-semibold">{schedule.videoDuration ? `${schedule.videoDuration} min` : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Joins</p>
-                    <p className="text-white">{schedule.botJoinMinutes != null ? `${schedule.botJoinMinutes} min before` : '—'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Bot Joins</p>
+                    <p className="text-slate-800 font-semibold">{schedule.botJoinMinutes != null ? `${schedule.botJoinMinutes} min before` : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Chat Messages</p>
-                    <p className="text-white">
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Chat Messages</p>
+                    <p className="text-slate-800 font-semibold">
                       {schedule.chatMessages?.length
                         ? `${schedule.chatMessages.length} scheduled (${schedule.chatMessages.map((m) => `${m.delayMinutes}m`).join(', ')})`
                         : '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">AI Chat Replies</p>
-                    <p className={schedule.enableAiChatReplies ? 'text-green-400' : 'text-gray-400'}>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">AI Chat Replies</p>
+                    <p className={schedule.enableAiChatReplies ? 'text-emerald-700 font-bold' : 'text-slate-400'}>
                       {schedule.enableAiChatReplies ? 'Enabled' : 'Disabled'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Auto Close</p>
-                    <p className="text-white">{schedule.autoCloseMinutes != null ? `${schedule.autoCloseMinutes} min after` : '—'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Auto Close</p>
+                    <p className="text-slate-800 font-semibold">{schedule.autoCloseMinutes != null ? `${schedule.autoCloseMinutes} min after` : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Automation</p>
-                    <p className={schedule.enableBotAutomation === false ? 'text-gray-400' : 'text-green-400'}>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Bot Automation</p>
+                    <p className={schedule.enableBotAutomation === false ? 'text-slate-400' : 'text-emerald-700 font-bold'}>
                       {schedule.enableBotAutomation === false ? 'Disabled' : 'Enabled'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Start Date</p>
-                    <p className="text-white">{schedule.schedule?.startDate ? new Date(schedule.schedule.startDate).toLocaleDateString() : '—'}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1">Start Date</p>
+                    <p className="text-slate-800 font-semibold">{schedule.schedule?.startDate ? new Date(schedule.schedule.startDate).toLocaleDateString() : '—'}</p>
                   </div>
-                  {schedule.zoomPassword && (
-                    <div>
-                      <p className="text-gray-500 text-xs uppercase mb-1">Zoom Password</p>
-                      <p className="text-gray-300 font-mono">{'•'.repeat(Math.min(schedule.zoomPassword.length, 10))}</p>
-                    </div>
-                  )}
                 </div>
 
                 {/* Links Preview */}
-                <div className="border-t border-gray-700 pt-4 space-y-2">
+                <div className="border-t border-slate-100 pt-3 space-y-1.5 text-xs">
                   {schedule.chatMessages?.filter((m) => m.message).map((m, idx) => (
                     <div key={idx} className="flex items-start gap-2">
-                      <span className="text-gray-500 text-sm min-w-fit">💬 +{m.delayMinutes}m:</span>
-                      <span className="text-gray-300 text-sm whitespace-pre-wrap">{m.message}</span>
+                      <span className="text-slate-400 min-w-fit font-bold">💬 +{m.delayMinutes}m:</span>
+                      <span className="text-slate-700 whitespace-pre-wrap">{m.message}</span>
                     </div>
                   ))}
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-500 text-sm min-w-fit">📹 Video:</span>
+                    <span className="text-slate-400 min-w-fit font-bold">📹 Video:</span>
                     <a
                       href={schedule.videoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-purple-400 hover:text-purple-300 text-sm break-all"
+                      className="text-purple-600 hover:underline break-all"
                     >
-                      {schedule.videoUrl?.substring(0, 50) || '—'}...
+                      {schedule.videoUrl?.substring(0, 60) || '—'}...
                     </a>
                   </div>
                   {schedule.zoomLink && (
                     <div className="flex items-start gap-2">
-                      <span className="text-gray-500 text-sm min-w-fit">🎥 Zoom:</span>
+                      <span className="text-slate-400 min-w-fit font-bold">🎥 Zoom:</span>
                       <a
                         href={schedule.zoomLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 text-sm break-all"
+                        className="text-blue-600 hover:underline break-all"
                       >
-                        {schedule.zoomLink?.substring(0, 50) || '—'}...
+                        {schedule.zoomLink?.substring(0, 60) || '—'}...
                       </a>
                     </div>
                   )}
                   {schedule.zoomId && (
                     <div className="flex items-start gap-2">
-                      <span className="text-gray-500 text-sm">Zoom ID:</span>
-                      <span className="text-gray-300 text-sm font-mono">
+                      <span className="text-slate-400 font-bold">Zoom ID:</span>
+                      <span className="text-slate-800 font-mono font-semibold">
                         {schedule.zoomId}
                       </span>
                     </div>
@@ -579,12 +610,12 @@ try {
                 </div>
 
                 {/* Live Watch Page URL - Share with Community */}
-                <div className="mt-4 p-4 bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-lg border border-purple-500/30">
-                  <p className="text-purple-200 text-xs uppercase mb-2 font-semibold">
-                    🎯 Community Watch Link (share this!)
+                <div className="mt-4 p-4 bg-teal-50/60 rounded-xl border border-teal-200/80">
+                  <p className="text-teal-800 text-xs uppercase mb-2 font-bold tracking-wider">
+                    🎯 Community Watch Link
                   </p>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 text-white text-sm bg-black/40 px-3 py-2 rounded font-mono break-all">
+                    <code className="flex-1 text-slate-800 text-xs bg-white px-3 py-2 rounded-lg border border-teal-200 font-mono break-all select-all shadow-2xs">
                       {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/sadhana/live/{(schedule as any).programSlug || (schedule as any).slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}
                     </code>
                     <button
@@ -595,7 +626,7 @@ try {
                         setSuccessMessage('✅ Live URL copied!');
                         setTimeout(() => setSuccessMessage(''), 2000);
                       }}
-                      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 whitespace-nowrap"
+                      className="px-3.5 py-2 bg-gradient-to-r from-teal-600 to-indigo-600 text-white rounded-lg text-xs font-bold hover:opacity-95 whitespace-nowrap shadow-xs cursor-pointer"
                     >
                       📋 Copy
                     </button>
@@ -603,17 +634,14 @@ try {
                       href={`/sadhana/live/${(schedule as any).programSlug || (schedule as any).slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 whitespace-nowrap"
+                      className="px-3.5 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 whitespace-nowrap shadow-xs"
                     >
                       👁 Preview
                     </a>
                   </div>
-                  <p className="text-purple-300 text-xs mt-2">
-                    Community members click this link → auto-join → watch video together with live chat
-                  </p>
                 </div>
 
-                <p className="text-gray-500 text-xs mt-4">
+                <p className="text-slate-400 text-[11px] mt-3">
                   Created: {new Date(schedule.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -623,9 +651,9 @@ try {
 
         {/* Success Alert */}
         {successMessage && (
-          <div className="fixed top-4 right-4 bg-green-900/50 border border-green-700 rounded-lg p-4 flex items-center gap-3 z-50">
-            <CheckCircle className="text-green-400" size={20} />
-            <p className="text-green-200">{successMessage}</p>
+          <div className="fixed top-4 right-4 bg-emerald-600 text-white rounded-xl p-4 flex items-center gap-2.5 z-50 shadow-2xl font-semibold text-sm">
+            <CheckCircle className="text-white" size={20} />
+            <p>{successMessage}</p>
           </div>
         )}
 
@@ -640,26 +668,26 @@ try {
 
         {/* Test Bot Results Modal */}
         {showTestResults && testResults && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-gray-700">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-slate-200">
               {/* Header */}
-              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between">
+              <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {testResults.success ? (
                     <>
-                      <CheckCircle className="text-green-400" size={24} />
-                      <h2 className="text-xl font-bold text-white">Bot Test Successful</h2>
+                      <CheckCircle className="text-emerald-600" size={24} />
+                      <h2 className="text-xl font-black text-slate-900">Bot Test Successful</h2>
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="text-red-400" size={24} />
-                      <h2 className="text-xl font-bold text-white">Bot Test Failed</h2>
+                      <AlertCircle className="text-rose-600" size={24} />
+                      <h2 className="text-xl font-black text-slate-900">Bot Test Failed</h2>
                     </>
                   )}
                 </div>
                 <button
                   onClick={() => setShowTestResults(false)}
-                  className="text-gray-400 hover:text-white transition"
+                  className="text-slate-400 hover:text-slate-700 transition"
                   title="Close"
                 >
                   ✕
@@ -668,45 +696,27 @@ try {
 
               {/* Content */}
               <div className="p-6">
-                <div className="mb-6">
-                  <p className="text-gray-300 text-lg">{testResults.message}</p>
+                <div className="mb-4">
+                  <p className="text-slate-700 text-sm">{testResults.message}</p>
                 </div>
 
                 {/* Logs */}
-                <div className="mb-6">
-                  <h3 className="text-white font-semibold mb-3">Execution Logs:</h3>
-                  <div className="bg-gray-950 rounded p-4 font-mono text-sm text-gray-300 space-y-1 max-h-96 overflow-y-auto border border-gray-700">
+                <div className="mb-4">
+                  <h3 className="text-slate-800 font-bold text-xs uppercase tracking-wider mb-2">Execution Logs:</h3>
+                  <div className="bg-slate-900 rounded-xl p-4 font-mono text-xs text-slate-200 space-y-1 max-h-80 overflow-y-auto border border-slate-800">
                     {testResults.logs.map((log, idx) => (
-                      <div key={idx} className="text-gray-300">
+                      <div key={idx}>
                         {log}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Success Message */}
-                {testResults.success && (
-                  <div className="mb-6 bg-green-900/30 border border-green-700 rounded p-4">
-                    <p className="text-green-300 text-sm">
-                      ✅ Bot join test has been triggered. Check your Zoom meeting in about 1-2 minutes for the bot to join.
-                    </p>
-                  </div>
-                )}
-
-                {/* Error Message */}
-                {!testResults.success && (
-                  <div className="mb-6 bg-red-900/30 border border-red-700 rounded p-4">
-                    <p className="text-red-300 text-sm">
-                      ❌ The bot test failed. Check the logs above for details. Ensure the schedule has a valid Zoom link and bot automation is enabled.
-                    </p>
-                  </div>
-                )}
-
                 {/* Action Buttons */}
-                <div className="flex gap-3 justify-end">
+                <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
                   <button
                     onClick={() => setShowTestResults(false)}
-                    className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition"
                   >
                     Close
                   </button>
@@ -717,7 +727,7 @@ try {
                         setSuccessMessage('Logs copied to clipboard!');
                         setTimeout(() => setSuccessMessage(null), 2000);
                       }}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                      className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-indigo-600 hover:opacity-95 text-white rounded-xl font-bold text-sm transition shadow-xs"
                     >
                       Copy Logs
                     </button>

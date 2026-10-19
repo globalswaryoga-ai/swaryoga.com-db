@@ -522,7 +522,7 @@ export default function AdminLandingPagesPage() {
   // Load admin token
   useEffect(() => {
     const storedToken = typeof window !== 'undefined'
-      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('token'))
       : null;
     if (!storedToken) {
       router.push('/admin/login');
@@ -764,7 +764,15 @@ export default function AdminLandingPagesPage() {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
       
-      const token = localStorage.getItem('adminToken') || '';
+      const token =
+        adminToken ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('crm_token') ||
+            localStorage.getItem('adminToken') ||
+            localStorage.getItem('admin_token') ||
+            localStorage.getItem('token') ||
+            ''
+          : '');
       const res = await fetch('/api/admin/landing-pages/upload', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },

@@ -3,8 +3,14 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import {
+  Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus,
+  Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive,
+  ArchiveRestore, ChevronDown, ChevronUp, Download, ArrowLeft, Sparkles,
+  Users, Calendar, Clock, DollarSign, RefreshCw, FileText
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 
@@ -661,29 +667,137 @@ export default function EnquiriesPage() {
   const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
   const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', residential: '🏡', recorded: '🎥' };
 
+  const activeFormsCount = forms.filter((f) => f.isActive).length;
+  const newEnquiriesCount = enquiries.filter((e) => e.status === 'new').length;
+  const registeredCount = enquiries.filter((e) => e.status === 'registered' || e.payment?.status === 'paid').length;
+
   return (
-    <div className="flex min-h-screen bg-swar-primary-light">
+    <div className="flex min-h-screen bg-slate-50 overflow-hidden">
       <AdminSidebar isOpen={true} onClose={() => {}} />
 
-      <main className="flex-1 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top vibrant accent stripe */}
+        <div className="h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 w-full" />
 
-          {/* Header */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-swar-text mb-1">Workshop Enquiries</h1>
-              <p className="text-swar-text-secondary text-sm">
-                {forms.filter(f => f.isActive).length} active forms · {enquiries.length} total submissions
-              </p>
+        {/* Header Bar */}
+        <header className="bg-white border-b border-slate-200/80 shadow-xs z-10">
+          <div className="px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <Link
+                href="/admin/crm/web-admin"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Web Admin</span>
+              </Link>
+
+              <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-600 flex items-center justify-center text-white shadow-md shadow-teal-500/20 flex-shrink-0">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                      Workshop Enquiries
+                    </h1>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                      Live Forms
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 hidden sm:block">
+                    Inbound course registrations, custom fee options & automatic WhatsApp onboarding
+                  </p>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={openCreateForm}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold text-sm hover:bg-[#1b4332] transition-colors shadow-sm"
-            >
-              <Plus size={16} />
-              Add Form
-            </button>
+
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <button
+                onClick={openCreateForm}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold text-xs shadow-md shadow-teal-500/20 transition flex items-center gap-2"
+              >
+                <Plus size={15} />
+                <span className="hidden sm:inline">Add Workshop Form</span>
+              </button>
+            </div>
           </div>
+        </header>
+
+        <main className="flex-1 overflow-auto p-4 sm:p-6 space-y-5">
+          <div className="max-w-7xl mx-auto space-y-5">
+            {/* 4 Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* Card 1: Active Forms */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Forms</p>
+                    <p className="text-2xl sm:text-3xl font-extrabold text-teal-600 mt-1">{activeFormsCount}</p>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-teal-500/25">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-teal-700 font-medium">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Public landing page forms</span>
+                </div>
+              </div>
+
+              {/* Card 2: Total Submissions */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Submissions</p>
+                    <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">{enquiries.length}</p>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/25">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-cyan-700 font-medium">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Total registered students</span>
+                </div>
+              </div>
+
+              {/* Card 3: New Submissions */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Needs Action</p>
+                    <p className="text-2xl sm:text-3xl font-extrabold text-amber-600 mt-1">{newEnquiriesCount}</p>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/25">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-700 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Uncontacted new leads</span>
+                </div>
+              </div>
+
+              {/* Card 4: Converted */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Registered</p>
+                    <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-1">{registeredCount}</p>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/25">
+                    <Check className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Confirmed batch members</span>
+                </div>
+              </div>
+            </div>
 
           {/* Unified Forms List */}
           {formsLoading ? (
@@ -1239,6 +1353,7 @@ export default function EnquiriesPage() {
 
         </div>
       </main>
+      </div>
 
       {/* Edit Enquiry Modal */}
       {editEnquiry && (

@@ -122,6 +122,20 @@ export async function ensureTenantTables(): Promise<void> {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    await bunnyExecute(`
+      CREATE TABLE IF NOT EXISTS crm_tenant_api_keys_sql (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        key_name TEXT NOT NULL,
+        encrypted_value TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        auth_tag TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (tenant_id, key_name)
+      )
+    `);
   } catch (err) {
     console.error('[ensureTenantTables] Error:', err);
   }

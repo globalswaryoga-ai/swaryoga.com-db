@@ -1,17 +1,23 @@
 /**
- * Tenant Analytics Routes
+ * Tenant Analytics Routes (Pure BunnyDB)
  * GET /api/tenants/:slug/analytics - Get usage analytics
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getTenantBySlug, getTenantAnalytics } from '@/lib/multiTenant/handlers';
-import { tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
+import { getTenantBySlug } from '@/lib/tenant/bunnyTenantRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+function tenantError(message: string, status = 400) {
+  return NextResponse.json({ success: false, error: message }, { status });
+}
+
+function tenantSuccess(data: any, status = 200) {
+  return NextResponse.json({ success: true, data }, { status });
+}
 
 export async function GET(
   request: NextRequest,
@@ -19,15 +25,6 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-
-    // Parse optional date range
-    const startDateStr = request.nextUrl.searchParams.get('startDate');
-    const endDateStr = request.nextUrl.searchParams.get('endDate');
-
-    const startDate = startDateStr ? new Date(startDateStr) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Last 30 days default
-    const endDate = endDateStr ? new Date(endDateStr) : new Date();
-
-    await connectDB();
 
     // Verify admin access
     const authHeader = request.headers.get('Authorization');
@@ -38,60 +35,78 @@ export async function GET(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug) as any;
+    const tenant = await getTenantBySlug(slug);
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
+      isSuperAdmin(decoded) ||
+      decoded?.userId === tenant.ownerUserId ||
+      decoded?.email?.toLowerCase() === tenant.ownerEmail?.toLowerCase();
+
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
 
-    // Get analytics for this tenant
-    const analytics = await getTenantAnalytics(
-      tenant._id?.toString(),
-      startDate,
-      endDate
-    );
+    const ownerId = String(tenant.ownerUserId || '');
 
-    // Aggregate totals
-    const totals = {
-      leadsCreated: 0,
-      messagesSent: 0,
-      callsPlaced: 0,
-      logins: 0,
-      apiCalls: 0,
-    };
+    // Query live metrics from BunnyDB
+    let leadsCount = Number(tenant.currentLeadCount || 0);
+    try {
+      const res = await bunnyExecute({
+        sql: 'SELECT COUNT(*) as count FROM leads_sql WHERE tenant_slug = ? OR created_by_user_id = ?',
+        args: [slug, ownerId],
+      });
+      leadsCount = Math.max(leadsCount, Number(res.rows[0]?.count || 0));
+    } catch {}
 
-    analytics.forEach((day) => {
-      totals.leadsCreated += day.leadsCreated || 0;
-      totals.messagesSent += day.messagesSent || 0;
-      totals.callsPlaced += day.callsPlaced || 0;
-      totals.logins += day.logins || 0;
-      totals.apiCalls += day.apiCalls || 0;
-    });
+    let qrMessagesCount = 0;
+    try {
+      const res = await bunnyExecute({
+        sql: 'SELECT COUNT(*) as count FROM qr_whatsapp_messages_sql WHERE user_id = ?',
+        args: [ownerId],
+      });
+      qrMessagesCount = Number(res.rows[0]?.count || 0);
+    } catch {}
+
+    let metaMessagesCount = 0;
+    try {
+      const res = await bunnyExecute({
+        sql: 'SELECT COUNT(*) as count FROM meta_messages_sql WHERE sent_by_user_id = ?',
+        args: [ownerId],
+      });
+      metaMessagesCount = Number(res.rows[0]?.count || 0);
+    } catch {}
+
+    const totalMessages = qrMessagesCount + metaMessagesCount;
 
     return tenantSuccess({
       tenantSlug: slug,
-      period: {
-        startDate,
-        endDate,
+      totals: {
+        leadsCreated: leadsCount,
+        messagesSent: totalMessages,
+        callsPlaced: 0,
+        logins: Number(tenant.currentUserCount || 1),
+        apiCalls: 0,
       },
-      totals,
-      dailyMetrics: analytics,
       currentUsage: {
-        leadsCount: tenant.usage?.leadsCount || 0,
-        messagesCount: tenant.usage?.messagesCount || 0,
-        callsCount: tenant.usage?.callsCount || 0,
-        storageUsedMB: tenant.usage?.storageUsedMB || 0,
-        teamMembersCount: tenant.usage?.teamMembersCount || 1,
+        leadsCount,
+        messagesCount: totalMessages,
+        callsCount: 0,
+        storageUsedMB: Number(tenant.currentStorageMB || 0),
+        teamMembersCount: Number(tenant.currentUserCount || 1),
       },
-      limits: tenant.limits,
+      limits: tenant.customLimits || {
+        maxLeads: 10000,
+        maxUsers: 5,
+        maxStorageMB: 1024,
+      },
+      plan: tenant.plan,
+      status: tenant.status,
     });
   } catch (error: any) {
     console.error('[GET /api/tenants/:slug/analytics] Error:', error);
-    return tenantError(error.message || 'Failed to fetch analytics', 400);
+    return tenantError(error?.message || 'Failed to fetch analytics', 400);
   }
 }

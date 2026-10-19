@@ -4,8 +4,34 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import AdminSidebar from '@/components/AdminSidebar';
 import { workshopCatalog } from '@/lib/workshopsData';
+import {
+  Calendar,
+  Clock,
+  Globe,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  Edit2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+  Tag,
+  Users,
+  Check,
+  X,
+  Sparkles,
+  QrCode,
+  MapPin,
+  Layers,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Filter,
+} from 'lucide-react';
 
 type ModeKey = 'online' | 'offline' | 'residential' | 'recorded';
 
@@ -951,119 +977,214 @@ export default function AdminWorkshopSchedulesPage() {
 
     return (
       <>
-      <div className="flex h-screen bg-swar-primary-light">
-        <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+        {/* Top Colorful Accent Line */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-white shadow">
-            <div className="px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+          {/* Navigation & Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Link
+                  href="/admin/crm/web-admin"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-amber-600 transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back to Web Admin
+                </Link>
+                <span className="text-slate-300">/</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                  <Calendar className="w-3 h-3 text-amber-600" />
+                  Workshops & Batches
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+                <Calendar className="w-7 h-7 text-amber-600" />
+                Workshop Schedules & Batch Dates
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage upcoming live workshop schedules, customize batch timings, fees, and publish dates to registration funnels.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {selectedSlugs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={deleteSelectedWorkshops}
+                  disabled={deletingWorkshop}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm transition-all shadow-xs disabled:opacity-60"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected ({selectedSlugs.length})
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setAddWorkshopOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition-all shadow-xs shadow-amber-600/20"
+              >
+                <Plus className="w-4 h-4" />
+                + New Workshop
+              </button>
+
+              <button
+                type="button"
+                onClick={() => adminToken && loadAllSchedules(adminToken)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-all shadow-xs"
+              >
+                <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Colorful Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-105" />
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 mb-3">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Batches</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{allSchedules.length}</p>
+                <p className="text-xs text-amber-600 font-medium mt-1">Configured dates</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-105" />
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 mb-3">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Published & Live</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{publishedSchedules.length}</p>
+                <p className="text-xs text-emerald-600 font-medium mt-1">Live on website</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-105" />
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 mb-3">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Draft Batches</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{draftSchedules.length}</p>
+                <p className="text-xs text-blue-600 font-medium mt-1">Pending publish</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-105" />
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 mb-3">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Workshops Catalog</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{rows.length}</p>
+                <p className="text-xs text-purple-600 font-medium mt-1">Available programs</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Error and Success Alerts */}
+          {error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+              <button onClick={() => setError('')} className="text-rose-500 hover:text-rose-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {success && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <p className="text-sm font-medium">{success}</p>
+              </div>
+              <button onClick={() => setSuccess('')} className="text-emerald-500 hover:text-emerald-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Workflow Guide */}
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 sm:p-5 flex items-start gap-3 shadow-xs">
+            <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-900">
+              <h3 className="font-bold mb-1">Publishing Schedules to Registration Pages:</h3>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Add a batch date with fees, time, and location, then click <strong>Publish</strong>. Published dates immediately appear on active user registration URLs and checkout funnels.
+              </p>
+            </div>
+          </div>
+
+          {/* Two-Column Grid: Left Filter Sidebar + Right Schedules Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+            <aside className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs h-fit space-y-6">
+              {/* Language Selector */}
               <div>
-                <h1 className="text-2xl font-bold text-swar-text">Workshop Dates</h1>
-                <p className="text-sm text-swar-text-secondary">Manage workshop schedules. Publish/Edit/Delete dates.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <Globe className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Language Filter</h3>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">
+                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setSelectedLanguage(lang)}
+                      className={`w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition-all flex items-center justify-between ${
+                        selectedLanguage === lang
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                      }`}
+                    >
+                      <span>{lang}</span>
+                      {selectedLanguage === lang && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="md:hidden rounded-lg bg-swar-primary-light px-3 py-2 text-sm font-bold"
-                >
-                  Menu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddWorkshopOpen(true)}
-                  className="rounded-lg bg-swar-primary px-4 py-2 text-sm font-bold text-white hover:bg-swar-primary-hover"
-                >
-                  + New Workshop
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adminToken && loadAllSchedules(adminToken)}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800"
-                >
-                  Refresh
-                </button>
+
+              {/* Workshop Categories */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Categories</h3>
+                </div>
+                <div className="space-y-1.5">
+                  {CATEGORY_ORDER.map((cat) => {
+                    const heading = getCategoryHeading(cat);
+                    const active = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`w-full rounded-xl px-3.5 py-2 text-left text-sm font-medium transition-all flex items-center justify-between ${
+                          active
+                            ? 'bg-amber-50 text-amber-900 font-bold border border-amber-200/80 shadow-xs'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="truncate">{heading}</span>
+                        {active && <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </header>
-
-          <main className="flex-1 overflow-auto p-6">
-            {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
-                ✗ {error}
-              </div>
-            )}
-            
-            {success && (
-              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 font-semibold">
-                {success}
-              </div>
-            )}
-
-            {/* Workflow Instructions */}
-            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <h3 className="font-bold text-blue-900 mb-2">📋 How to Make Schedules Visible to Users:</h3>
-              <ol className="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
-                <li><strong>Add Date:</strong> Click "Add Date" button to create a new workshop schedule</li>
-                <li><strong>Fill Details:</strong> Enter start/end dates, time, fees, seats, and location</li>
-                <li><strong>Save:</strong> Click "Save" to save the schedule (it will be in Draft status)</li>
-                <li><strong>Publish:</strong> Click "Publish" button to make it visible on the registration page</li>
-                <li><strong>Verify:</strong> The schedule will now appear for users on <code className="bg-white px-1 rounded">/registration/online/hindi/[workshop]</code></li>
-              </ol>
-            </div>
-
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-                <aside className="rounded-xl border border-orange-100 bg-orange-50 p-4 sm:p-5 shadow-sm h-fit">
-                  <h2 className="text-lg font-extrabold text-swar-text mb-4">Workshop Dates</h2>
-
-                  <div className="mb-5">
-                    <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Language</p>
-                    <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-2">
-                      {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
-                        <button
-                          key={lang}
-                          type="button"
-                          onClick={() => {
-                            setSelectedLanguage(lang);
-                          }}
-                          className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
-                            selectedLanguage === lang
-                              ? 'bg-swar-primary text-white'
-                              : 'bg-white text-black hover:bg-orange-100'
-                          }`}
-                        >
-                          {lang}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-xs text-swar-text-secondary">Filtering workshop list by selected language.</p>
-                  </div>
-
-                  <div className="mb-5">
-                    <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Our Workshops</p>
-                    <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-1">
-                      {CATEGORY_ORDER.map((cat) => {
-                        const heading = getCategoryHeading(cat);
-                        const active = selectedCategory === cat;
-                        return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
-                              active
-                                ? 'bg-white text-orange-700 border border-orange-200'
-                                : 'text-swar-text hover:bg-orange-100'
-                            }`}
-                          >
-                            {heading}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </aside>
+            </aside>
 
                 <section className="rounded-xl border border-swar-border bg-white shadow-sm overflow-hidden">
                   <div className="border-b border-swar-border bg-white px-4 sm:px-6 py-4">
@@ -1872,9 +1993,7 @@ export default function AdminWorkshopSchedulesPage() {
                 </section>
               </div>
             </div>
-          </main>
-        </div>
-      </div>
+          </div>
 
       {/* Nepal QR Modal */}
       {nepalQrModal.isOpen && (

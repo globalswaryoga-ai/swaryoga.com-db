@@ -35,18 +35,14 @@ export async function GET(request: NextRequest) {
     const receiptId = url.searchParams.get('id');
     const saleId = url.searchParams.get('saleId');
 
-    if (!leadId && !receiptId) {
-      return NextResponse.json({ error: 'Missing leadId or id' }, { status: 400 });
+    if (!leadId && !receiptId && !saleId) {
+      return NextResponse.json({ error: 'Missing leadId, saleId or id' }, { status: 400 });
     }
 
     if (receiptId) {
       const rec = await getBunnyReceiptById(receiptId);
       if (!rec) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
       return NextResponse.json({ success: true, data: rec }, { status: 200 });
-    }
-
-    if (!leadId) {
-      return NextResponse.json({ error: 'Missing lead id' }, { status: 400 });
     }
 
     // A lead can have multiple sales. When the caller knows which sale it's
@@ -61,7 +57,26 @@ export async function GET(request: NextRequest) {
       if (!rec) {
         rec = await getBunnyReceiptBySaleId(saleId);
       }
+      if (!rec && sale) {
+        rec = {
+          _id: sale.receiptId || `synth-${sale._id}`,
+          saleId: sale._id,
+          leadId: sale.leadId,
+          receiptNumber: sale.receiptNumber || `REC-${String(sale._id).slice(-6).toUpperCase()}`,
+          customerName: sale.customerName,
+          customerPhone: sale.customerPhone,
+          customerEmail: sale.customerEmail,
+          workshopName: sale.workshopName,
+          issuedAt: sale.saleDate || sale.createdAt,
+          createdAt: sale.createdAt,
+          payment: paymentSnapshotFromSale(sale)
+        };
+      }
       return NextResponse.json({ success: true, data: rec ? [rec] : [] }, { status: 200 });
+    }
+
+    if (!leadId) {
+      return NextResponse.json({ error: 'Missing lead id' }, { status: 400 });
     }
 
     const receipts = await getBunnyReceiptsByLeadId(leadId!, 50);

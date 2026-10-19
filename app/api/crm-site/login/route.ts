@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/auth';
 import { logError } from '@/lib/api-error';
+import { findBunnyAdmin, recordBunnyAdminSignin } from '@/lib/bunnyAuthRepository';
+import { getClientId } from '@/lib/rate-limit';
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -24,7 +25,7 @@ function jsonResponse(data: any, status = 200) {
 /**
  * POST /api/crm-site/login
  * 
- * Authenticates CRM tenant users from swaryoga_admin_crm.admin_users
+ * Authenticates CRM tenant users from Bunny Database admin_users_sql
  */
 export async function POST(request: NextRequest) {
   try {
@@ -51,18 +52,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    // Find user in CRM admin_users collection
-    const user = await crmDb.collection('admin_users').findOne({
-      $or: [
-        { email: identifier.toLowerCase() },
-        { userId: identifier.toLowerCase() },
-      ],
-    });
+    // Find user in BunnyDB admin_users_sql
+    const user = await findBunnyAdmin(identifier);
 
     if (!user) {
       return jsonResponse(
@@ -71,8 +62,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Verify password against password_hash
+    const storedHash = user.passwordHash || (user as any).password || '';
+    let isPasswordValid = false;
+    if (storedHash.startsWith('$2')) {
+      isPasswordValid = await bcrypt.compare(password, storedHash);
+    } else {
+      isPasswordValid = password === storedHash;
+    }
+
     if (!isPasswordValid) {
       return jsonResponse(
         { error: 'Invalid credentials', success: false },
@@ -80,21 +78,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token using shared auth utility (ensures same secret)
+    // Generate JWT token using shared auth utility
     const token = generateToken({
       userId: user.userId || user.email,
       email: user.email,
-      name: user.name,
+      name: user.name || user.userId,
       role: user.role || 'admin',
-      isAdmin: true, // CRM users are always admins
+      isAdmin: true, // CRM users are admins of their tenant
       tenantSlug: user.tenantSlug || '',
     });
 
-    // Update last login
-    await crmDb.collection('admin_users').updateOne(
-      { _id: user._id },
-      { $set: { lastLoginAt: new Date() } }
-    );
+    // Record signin in BunnyDB
+    try {
+      await recordBunnyAdminSignin({
+        email: user.email,
+        userId: user.userId,
+        ipAddress: getClientId(request.headers),
+        userAgent: request.headers.get('user-agent'),
+      });
+    } catch (e) {
+      console.warn('[crm-site/login] Signin record warning:', e);
+    }
 
     return jsonResponse({
       success: true,
@@ -102,11 +106,11 @@ export async function POST(request: NextRequest) {
       user: {
         userId: user.userId || user.email,
         email: user.email,
-        name: user.name,
+        name: user.name || user.userId,
         role: user.role || 'admin',
-        isAdmin: user.isAdmin,
-        tenantSlug: user.tenantSlug,
-        phone: user.phone,
+        isAdmin: true,
+        tenantSlug: user.tenantSlug || '',
+        phone: user.phone || '',
       },
     });
   } catch (err: any) {

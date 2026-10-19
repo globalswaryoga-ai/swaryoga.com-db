@@ -1,6 +1,42 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+
+const TEAL = '#2c6975';
+const GOLD = '#cda349';
+const BROWN = '#906126';
+const RUST = '#c0512f';
+
+const ASSETS = {
+  photo: 'https://swaryogacrm.b-cdn.net/mohan.jpg',
+  signature: 'https://swaryogacrm.b-cdn.net/ChatGPT%20Image%20Aug%2021%2C%202025%20at%2004_08_28%20PM.png',
+  seal: 'https://swaryogacrm.b-cdn.net/Blue%20Ink%20Stamp%20of%20Upamanyu%20Ltd..png',
+  goldBadge: 'https://swaryogacrm.b-cdn.net/certi.jpg',
+};
+
+function CornerBanner({ corner }: { corner: 'top-left' | 'bottom-right' }) {
+  const isTopLeft = corner === 'top-left';
+  return (
+    <svg
+      className={`absolute ${isTopLeft ? 'top-0 left-0' : 'bottom-0 right-0'} w-36 h-36 pointer-events-none z-10`}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      {isTopLeft ? (
+        <>
+          <polygon points="0,0 78,0 0,58" fill={GOLD} />
+          <polygon points="0,0 68,0 0,48" fill={TEAL} />
+        </>
+      ) : (
+        <>
+          <polygon points="100,100 22,100 100,42" fill={GOLD} />
+          <polygon points="100,100 32,100 100,52" fill={TEAL} />
+        </>
+      )}
+    </svg>
+  );
+}
 
 interface CanvaStudioTabProps {
   isCanvaConnected: boolean;
@@ -9,8 +45,12 @@ interface CanvaStudioTabProps {
 
 export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudioTabProps) {
   const toast = useToast();
-  const [activeSection, setActiveSection] = useState<'meta' | 'receipts' | 'certificate' | 'downloads'>('meta');
+  const [activeSection, setActiveSection] = useState<'meta' | 'designs' | 'receipts' | 'certificate' | 'downloads'>('meta');
   const [searchQuery, setSearchQuery] = useState('');
+  const [designsSearchQuery, setDesignsSearchQuery] = useState('');
+  const [selectedDesignModal, setSelectedDesignModal] = useState<any | null>(null);
+  const [isDownloadingCert, setIsDownloadingCert] = useState(false);
+  const [currentReceiptPdfUrl, setCurrentReceiptPdfUrl] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedBatchForDownload, setSelectedBatchForDownload] = useState<string | null>(null);
   const [crmOfferData, setCrmOfferData] = useState<Record<string, any>>({});
@@ -312,7 +352,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   }, []);
 
   useEffect(() => {
-    if (activeSection === 'meta' && isCanvaConnected) {
+    if ((activeSection === 'meta' || activeSection === 'designs') && isCanvaConnected) {
       fetchCanvaDesigns();
     }
   }, [activeSection, isCanvaConnected]);
@@ -357,6 +397,56 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       fetchBrandTemplates();
     }
   }, [showCanvaPopup]);
+
+  const filteredCanvaDesigns = useMemo(() => {
+    if (!designsSearchQuery.trim()) return canvaDesigns;
+    const q = designsSearchQuery.toLowerCase();
+    return canvaDesigns.filter(d => 
+      String(d.title || '').toLowerCase().includes(q) ||
+      String(d.id || '').toLowerCase().includes(q)
+    );
+  }, [canvaDesigns, designsSearchQuery]);
+
+  const handleDownloadCertificate = async () => {
+    if (!selectedLead) {
+      toast.warning('Please select a participant first.');
+      return;
+    }
+    setIsDownloadingCert(true);
+    try {
+      const element = document.getElementById('certificate-render-node');
+      if (!element) throw new Error('Certificate preview element not found.');
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const pageWidth = 210; // A4 mm portrait
+      const pageHeight = 297; // A4 mm portrait
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+
+      const certNo = (document.getElementById('cert-number') as HTMLInputElement)?.value || certificateData?.certificateNumber || (selectedLead?.id || selectedLead?._id || 'SWAR').slice(-8).toUpperCase();
+      const pName = ((document.getElementById('cert-fullname') as HTMLInputElement)?.value || certificateData?.fullName || selectedLead?.name || 'Participant').replace(/[^a-zA-Z0-9]/g, '_');
+      pdf.save(`SwarYoga-Certificate-${certNo}-${pName}.pdf`);
+      toast.success('Certificate PDF downloaded successfully!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to generate Certificate PDF: ' + (err.message || 'Error'));
+    } finally {
+      setIsDownloadingCert(false);
+    }
+  };
 
   // Filter to only show leads that have been PUSHED
   const pushedLeads = useMemo(() => {
@@ -494,35 +584,49 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
           </h2>
           
           <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-            
-             <button 
-               onClick={() => setActiveSection('meta')}
-               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-             >
-               <ImageIcon size={16} className={activeSection === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
-               Meta Advertise
-             </button>
-             <button 
-               onClick={() => setActiveSection('receipts')}
-               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-             >
-               <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
-               Receipts
-             </button>
+            <button 
+              onClick={() => {
+                setActiveSection('designs');
+                fetchCanvaDesigns();
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'designs' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <Palette size={16} className={activeSection === 'designs' ? 'text-indigo-600' : 'text-slate-400'} />
+              <span>Canva Designs</span>
+              {canvaDesigns.length > 0 && (
+                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                  {canvaDesigns.length}
+                </span>
+              )}
+            </button>
+            <button 
+              onClick={() => setActiveSection('receipts')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
+              Receipts
+            </button>
             <button 
               onClick={() => setActiveSection('certificate')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'certificate' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
             >
-              <Share2 size={16} className={activeSection === 'certificate' ? 'text-indigo-600' : 'text-slate-400'} />
+              <Award size={16} className={activeSection === 'certificate' ? 'text-indigo-600' : 'text-slate-400'} />
               Certificate
             </button>
-              <button 
-                onClick={() => { setActiveSection('downloads'); setDownloadTab('meta'); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-             >
-               <Download size={16} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
-               Downloads
-             </button>
+            <button 
+              onClick={() => setActiveSection('meta')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <ImageIcon size={16} className={activeSection === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
+              Meta Advertise
+            </button>
+            <button 
+              onClick={() => { setActiveSection('downloads'); setDownloadTab('meta'); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <Download size={16} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
+              Downloads
+            </button>
           </div>
         </div>
 
@@ -575,7 +679,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       <div className="flex-1 flex overflow-hidden bg-white max-w-[1600px] mx-auto w-full min-h-0">
         
         {/* Inner Sidebar: Batch and Lead Selection */}
-        {!(activeSection === 'meta' || (activeSection === 'downloads' && downloadTab === 'meta')) && (
+        {!(activeSection === 'meta' || activeSection === 'designs' || (activeSection === 'downloads' && downloadTab === 'meta')) && (
           <div className="w-72 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
              <div className="p-5 border-b border-slate-100">
                 <h3 className="font-black text-slate-800 text-lg tracking-tight">
@@ -1051,6 +1155,266 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
               </div>
            )}
 
+            {/* CANVA DESIGNS BROWSER */}
+            {activeSection === 'designs' && (
+              <div className="flex flex-col min-h-full max-w-7xl mx-auto space-y-6">
+                {/* Header & Controls */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-sm font-black text-lg">
+                        C
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                          My Canva Designs
+                          {isCanvaConnected ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Connected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                              Needs Connection
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-slate-500 font-medium">
+                          Browse and preview all graphics, banners, receipts, and certificates directly from your Canva account.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    {/* Search */}
+                    <div className="relative flex-1 md:w-64">
+                      <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search Canva designs..."
+                        value={designsSearchQuery}
+                        onChange={(e) => setDesignsSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none font-medium"
+                      />
+                      {designsSearchQuery && (
+                        <button
+                          onClick={() => setDesignsSearchQuery('')}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Refresh Button */}
+                    <button
+                      onClick={fetchCanvaDesigns}
+                      disabled={isLoadingDesigns}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                      title="Reload designs from Canva"
+                    >
+                      <RefreshCw size={15} className={isLoadingDesigns ? 'animate-spin text-indigo-600' : ''} />
+                      <span className="hidden sm:inline">Refresh</span>
+                    </button>
+
+                    {/* Open Canva Web */}
+                    <a
+                      href="https://www.canva.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-sm font-bold shadow-sm transition-all"
+                    >
+                      <span>Canva.com</span>
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Not connected warning */}
+                {!isCanvaConnected && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Info className="w-6 h-6 text-amber-600 shrink-0" />
+                      <div>
+                        <h4 className="font-bold text-amber-900 text-sm">Canva Account Not Linked</h4>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Link your Canva account to automatically synchronize all your workshop creatives and templates.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/admin/crm/workshop-offer/canva', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'connect' }),
+                          });
+                          const j = await res.json();
+                          if (j.url) window.location.href = j.url;
+                          else toast.error('Could not get Canva auth link');
+                        } catch (err: any) {
+                          toast.error(err.message || 'Connection failed');
+                        }
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider shrink-0 transition-all shadow-sm"
+                    >
+                      Connect Canva Now
+                    </button>
+                  </div>
+                )}
+
+                {/* Loading State */}
+                {isLoadingDesigns && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                      <div key={n} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm animate-pulse space-y-3">
+                        <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl"></div>
+                        <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {designError && !isLoadingDesigns && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center text-red-700">
+                    <p className="font-bold">{designError}</p>
+                    <button
+                      onClick={fetchCanvaDesigns}
+                      className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!isLoadingDesigns && !designError && canvaDesigns.length === 0 && (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                      <LayoutGrid className="w-8 h-8 text-indigo-400" />
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-800">No Canva Designs Found</h4>
+                    <p className="text-sm text-slate-500 mt-2 max-w-md">
+                      We couldn't find any designs in your connected Canva account. If you just created a design, click Refresh above.
+                    </p>
+                    <button
+                      onClick={fetchCanvaDesigns}
+                      className="mt-4 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-all shadow-sm"
+                    >
+                      Refresh Designs List
+                    </button>
+                  </div>
+                )}
+
+                {/* Designs Grid */}
+                {!isLoadingDesigns && canvaDesigns.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        {filteredCanvaDesigns.length} {filteredCanvaDesigns.length === 1 ? 'Design' : 'Designs'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                      {filteredCanvaDesigns.map((design: any) => {
+                        const thumbUrl = design.thumbnail?.url;
+                        const title = design.title || 'Untitled Design';
+                        const editUrl = design.urls?.edit_url || `https://www.canva.com/design/${design.id}/edit`;
+                        const updatedTime = design.updated_at ? new Date(design.updated_at).toLocaleDateString('en-GB') : '';
+
+                        return (
+                          <div
+                            key={design.id}
+                            className="group bg-white rounded-2xl border border-slate-200/90 hover:border-indigo-400 hover:shadow-xl transition-all duration-200 flex flex-col overflow-hidden relative"
+                          >
+                            {/* Thumbnail */}
+                            <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden flex items-center justify-center">
+                              {thumbUrl ? (
+                                <img
+                                  src={thumbUrl}
+                                  alt={title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-400">
+                                  <ImageIcon className="w-10 h-10 mb-1 opacity-40" />
+                                  <span className="text-xs font-medium">No Thumbnail</span>
+                                </div>
+                              )}
+
+                              {/* Quick Hover Overlay */}
+                              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-3">
+                                <a
+                                  href={editUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-2 bg-white text-slate-800 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-all shadow flex items-center gap-1.5"
+                                >
+                                  <span>Edit</span>
+                                  <ExternalLink size={12} />
+                                </a>
+                                <button
+                                  onClick={() => setSelectedDesignModal(design)}
+                                  className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow flex items-center gap-1.5"
+                                >
+                                  <Eye size={12} />
+                                  <span>Preview</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Card Details */}
+                            <div className="p-4 flex flex-col flex-1 justify-between">
+                              <div>
+                                <h4 className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-indigo-600 transition-colors" title={title}>
+                                  {title}
+                                </h4>
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-1">
+                                  <span>ID: {design.id}</span>
+                                  {updatedTime && <span>{updatedTime}</span>}
+                                </div>
+                              </div>
+
+                              {/* Quick Action Badges */}
+                              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <button
+                                  onClick={() => {
+                                    localStorage.setItem('canvaReceiptTemplateId', design.id);
+                                    toast.success(`Template ${design.id} set for Receipts!`);
+                                    setActiveSection('receipts');
+                                  }}
+                                  className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-md transition-colors"
+                                  title="Use this design as template for receipts"
+                                >
+                                  Use for Receipt
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    localStorage.setItem('canvaCertificateTemplateId', design.id);
+                                    toast.success(`Template ${design.id} set for Certificate!`);
+                                    setActiveSection('certificate');
+                                  }}
+                                  className="text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md transition-colors"
+                                  title="Use this design as template for certificates"
+                                >
+                                  Use for Cert
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
            {/* RECEIPTS & CERTIFICATES */}
            {(activeSection === 'receipts' || activeSection === 'certificate') && (
               <div className="flex flex-col min-h-full max-w-7xl mx-auto">
@@ -1218,135 +1582,357 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                          )}
                        </div>
 
-                        <div className="flex gap-3 mt-6">
-                          {activeSection === 'receipts' && (
+                        <div className="flex flex-wrap gap-3 mt-6">
+                          {activeSection === 'receipts' ? (
+                            <>
+                              <button 
+                                onClick={async () => {
+                                const btn = document.getElementById('btn-generate-pdf');
+                                if (btn) btn.innerText = 'Generating...';
+                                try {
+                                  const leadId = selectedLead?.id || selectedLead?._id || '';
+                                  const name = (document.getElementById('receipt-name') as HTMLInputElement)?.value || '';
+                                  const amount = (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '';
+                                  const mode = (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '';
+                                  const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || '';
+                                  const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '';
+                                  const whatsapp = (document.getElementById('receipt-whatsapp') as HTMLInputElement)?.value || '';
+                                  const res = await fetch('/api/admin/crm/receipts', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
+                                    body: JSON.stringify({ force: true, leadId, receiptNumber: receiptNo, customerName: name, customerPhone: whatsapp, workshopName: workshop, issuedAt: new Date().toISOString(), payment: { amount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, paidAmount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, method: mode, provider: mode, paidAt: new Date().toISOString() } })
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error || 'Failed to generate receipt');
+                                  const token = localStorage.getItem('adminToken') || '';
+                                  setGeneratedDesignId(`PDF_${leadId}`);
+                                  const realReceiptId = data.data?._id || data.data?.id || '';
+                                  const pdfSrc = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&token=${token}&t=${Date.now()}`;
+                                  setCurrentReceiptPdfUrl(pdfSrc);
+                                  setTimeout(() => { const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; if (frame) frame.src = pdfSrc; }, 100);
+                                  if (btn) { btn.innerText = '✅ Done!'; setTimeout(() => { if (btn) btn.innerText = '📄 Generate PDF'; }, 2000); }
+                                   // Auto-trigger Canva with default receipt template
+                                   let tplId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4';
+                                   if (tplId.includes('canva.com/')) { const m = tplId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/); if (m) tplId = m[1]; }
+                                   if (tplId) {
+                                     const date = (document.getElementById('receipt-date') as HTMLInputElement)?.value || '';
+                                     const canvaData = { Name: { type: 'text', text: name }, Amount: { type: 'text', text: amount }, Mode: { type: 'text', text: mode }, ReceiptNo: { type: 'text', text: receiptNo }, WorkshopName: { type: 'text', text: workshop }, Date: { type: 'text', text: date } };
+                                     fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId: tplId, data: canvaData }) })
+                                       .then(r => r.json()).then(cj => {
+                                         if (!cj.error && cj.job?.id) {
+                                           const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${cj.job.id}`); const sj = await sr.json(); if (sj.job?.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); } else if (sj.job?.status === 'failed') { clearInterval(poll); } }, 2000);
+                                         }
+                                       }).catch(() => {});
+                                   }
+                                } catch (error: any) { alert(error.message); if (btn) btn.innerText = '📄 Generate PDF'; }
+                              }}
+                              id="btn-generate-pdf"
+                              className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                            >
+                              <FileText size={16} />
+                              <span>Generate PDF</span>
+                            </button>
                             <button 
                               onClick={async () => {
-                              const btn = document.getElementById('btn-generate-pdf');
-                              if (btn) btn.innerText = 'Generating...';
-                              try {
-                                const leadId = selectedLead?.id || selectedLead?._id || '';
-                                const name = (document.getElementById('receipt-name') as HTMLInputElement)?.value || '';
-                                const amount = (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '';
-                                const mode = (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '';
-                                const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || '';
-                                const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '';
-                                const whatsapp = (document.getElementById('receipt-whatsapp') as HTMLInputElement)?.value || '';
-                                const res = await fetch('/api/admin/crm/receipts', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
-                                  body: JSON.stringify({ force: true, leadId, receiptNumber: receiptNo, customerName: name, customerPhone: whatsapp, workshopName: workshop, issuedAt: new Date().toISOString(), payment: { amount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, paidAmount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, method: mode, provider: mode, paidAt: new Date().toISOString() } })
-                                });
-                                const data = await res.json();
-                                if (!res.ok) throw new Error(data.error || 'Failed to generate receipt');
-                                const token = localStorage.getItem('adminToken') || '';
-                                setGeneratedDesignId(`PDF_${leadId}`);
-                                const realReceiptId = data.data?._id || data.data?.id || '';
-                                setTimeout(() => { const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; if (frame) frame.src = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&token=${token}&t=${Date.now()}`; }, 100);
-                                if (btn) { btn.innerText = '\u2705 Done!'; setTimeout(() => { if (btn) btn.innerText = '\ud83d\udcc4 Generate PDF'; }, 2000); }
-                                 // Auto-trigger Canva with default receipt template
-                                 let tplId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4';
-                                 if (tplId.includes('canva.com/')) { const m = tplId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/); if (m) tplId = m[1]; }
-                                 if (tplId) {
-                                   const date = (document.getElementById('receipt-date') as HTMLInputElement)?.value || '';
-                                   const canvaData = { Name: { type: 'text', text: name }, Amount: { type: 'text', text: amount }, Mode: { type: 'text', text: mode }, ReceiptNo: { type: 'text', text: receiptNo }, WorkshopName: { type: 'text', text: workshop }, Date: { type: 'text', text: date } };
-                                   fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId: tplId, data: canvaData }) })
-                                     .then(r => r.json()).then(cj => {
-                                       if (!cj.error && cj.job?.id) {
-                                         const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${cj.job.id}`); const sj = await sr.json(); if (sj.job?.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); } else if (sj.job?.status === 'failed') { clearInterval(poll); } }, 2000);
-                                       }
-                                     }).catch(() => {});
-                                 }
-                              } catch (error: any) { alert(error.message); if (btn) btn.innerText = '\ud83d\udcc4 Generate PDF'; }
-                            }}
-                            id="btn-generate-pdf"
-                            className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md hover:-translate-y-0.5"
-                          >
-                            Generate PDF
-                          </button>
+                                const btn = document.getElementById('btn-generate-canva');
+                                if (btn) btn.innerText = '...';
+                                try {
+                                  let templateId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || '';
+                                  if (templateId.includes('canva.com/')) {
+                                    const match = templateId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/);
+                                    if (match) templateId = match[1];
+                                  }
+                                  if (!templateId) { alert('Canva Autofill requires a valid Canva Brand Template URL or ID.'); if (btn) btn.innerText = 'Canva'; return; }
+                                  const dataToFill = { Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' }, Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' }, Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' }, ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' }, Date: { type: 'text', text: (document.getElementById('receipt-date') as HTMLInputElement)?.value || '' } };
+                                  const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId, data: dataToFill }) });
+                                  const json = await res.json(); if (json.error) throw new Error(json.error);
+                                  const jobId = json.job.id;
+                                  const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
+                                } catch (error: any) { alert(error.message); if (btn) btn.innerText = 'Canva'; }
+                              }}
+                              id="btn-generate-canva"
+                              className="px-4 py-3.5 rounded-xl font-black text-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5"
+                            >
+                              Canva
+                            </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={handleDownloadCertificate}
+                                disabled={isDownloadingCert}
+                                className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                {isDownloadingCert ? (
+                                  <>
+                                    <RefreshCw size={16} className="animate-spin" />
+                                    <span>Generating PDF...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download size={16} />
+                                    <span>Download PDF</span>
+                                  </>
+                                )}
+                              </button>
+                              <button 
+                                onClick={async () => {
+                                  const btn = document.getElementById('btn-generate-cert-canva');
+                                  if (btn) btn.innerText = '...';
+                                  try {
+                                    let templateId = (document.getElementById('cert-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaCertificateTemplateId') || '';
+                                    if (templateId.includes('canva.com/')) {
+                                      const match = templateId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/);
+                                      if (match) templateId = match[1];
+                                    }
+                                    if (!templateId) { alert('Canva Autofill requires a valid Canva Brand Template URL or ID.'); if (btn) btn.innerText = 'Canva'; return; }
+                                    const dataToFill = { FirstName: { type: 'text', text: (document.getElementById('cert-firstname') as HTMLInputElement)?.value || '' }, FullName: { type: 'text', text: (document.getElementById('cert-fullname') as HTMLInputElement)?.value || '' }, City: { type: 'text', text: (document.getElementById('cert-city') as HTMLInputElement)?.value || '' }, Country: { type: 'text', text: (document.getElementById('cert-country') as HTMLInputElement)?.value || '' }, BatchName: { type: 'text', text: (document.getElementById('cert-batch') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('cert-workshop') as HTMLInputElement)?.value || '' }, CertificateNo: { type: 'text', text: (document.getElementById('cert-number') as HTMLInputElement)?.value || '' } };
+                                    const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId, data: dataToFill }) });
+                                    const json = await res.json(); if (json.error) throw new Error(json.error);
+                                    const jobId = json.job.id;
+                                    const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
+                                  } catch (error: any) { alert(error.message); if (btn) btn.innerText = 'Canva'; }
+                                }}
+                                id="btn-generate-cert-canva"
+                                className="px-4 py-3.5 rounded-xl font-black text-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5"
+                              >
+                                Canva
+                              </button>
+                            </>
                           )}
-                          <button 
-                            onClick={async () => {
-                              const btn = document.getElementById('btn-generate-canva');
-                              if (btn) btn.innerText = '...';
-                              try {
-                                let templateId = activeSection === 'receipts' 
-                                  ? ((document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || '')
-                                  : ((document.getElementById('cert-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaCertificateTemplateId') || '');
-                                
-                                if (templateId.includes('canva.com/')) {
-                                  const match = templateId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/);
-                                  if (match) templateId = match[1];
-                                }
-                                
-                                if (!templateId) { alert('Canva Autofill requires a valid Canva Brand Template URL or ID.'); if (btn) btn.innerText = 'Canva'; return; }
-                                let dataToFill: any = {};
-                                if (activeSection === 'receipts') {
-                                  dataToFill = { Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' }, Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' }, Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' }, ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' }, Date: { type: 'text', text: (document.getElementById('receipt-date') as HTMLInputElement)?.value || '' } };
-                                } else {
-                                  dataToFill = { FirstName: { type: 'text', text: (document.getElementById('cert-firstname') as HTMLInputElement)?.value || '' }, FullName: { type: 'text', text: (document.getElementById('cert-fullname') as HTMLInputElement)?.value || '' }, City: { type: 'text', text: (document.getElementById('cert-city') as HTMLInputElement)?.value || '' }, Country: { type: 'text', text: (document.getElementById('cert-country') as HTMLInputElement)?.value || '' }, BatchName: { type: 'text', text: (document.getElementById('cert-batch') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('cert-workshop') as HTMLInputElement)?.value || '' }, CertificateNo: { type: 'text', text: (document.getElementById('cert-number') as HTMLInputElement)?.value || '' } };
-                                }
-                                const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify({ templateId, data: dataToFill }) });
-                                const json = await res.json(); if (json.error) throw new Error(json.error);
-                                const jobId = json.job.id;
-                                const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
-                              } catch (error: any) { alert(error.message); if (btn) btn.innerText = 'Canva'; }
-                            }}
-                            id="btn-generate-canva"
-                            className="w-24 py-3.5 rounded-xl font-black text-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5"
-                          >
-                            Canva
-                          </button>
                         </div>
                       </div>
 
                       {/* Preview Area */}
-                      <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col items-center justify-center p-8 relative overflow-hidden">
-                         {generatedDesignId ? (
-                           generatedDesignId.startsWith('PDF_') ? (
-                             <iframe 
-                               id="receipt-preview-frame"
-                               src=""
-                               className="w-full h-full border-0 rounded-xl"
-                             />
-                           ) : (
-                             <div className="flex flex-col w-full h-full p-2">
-                               {generatedDesignId.startsWith('EAH') ? (
-                                 <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-xl mb-4 text-slate-500 p-8 text-center border border-slate-200">
-                                   <p className="font-bold mb-2">Canva Brand Template Detected</p>
-                                   <p className="text-sm">Templates cannot be embedded. Click the button below to open the template, create your design, and then paste the new Design ID here.</p>
-                                 </div>
-                               ) : (
-                                 <iframe 
-                                   src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
-                                   className="flex-1 w-full rounded-xl border-none shadow-sm mb-4"
-                                   allowFullScreen
-                                   allow="fullscreen"
-                                 ></iframe>
-                               )}
-                               <div className="flex gap-4 w-full h-14">
-                                 <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
-                                   {generatedDesignId.startsWith('EAH') ? 'Use Template' : 'Edit in Canva'}
-                                 </button>
-                                 <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
-                                   {generatedDesignId.startsWith('EAH') ? 'Open Template' : 'Download'}
-                                 </button>
-                               </div>
-                             </div>
-                           )
-                         ) : (
-                           <>
-                             <div className="absolute inset-0 bg-slate-50/50"></div>
-                             <div className="relative z-10 flex flex-col items-center">
-                               <div className="bg-white p-6 rounded-2xl shadow-sm mb-6">
-                                 {activeSection === 'receipts' ? <FileText className="h-16 w-16 text-indigo-300" /> : <Share2 className="h-16 w-16 text-indigo-300" />}
-                               </div>
-                               <h4 className="text-2xl font-black text-slate-700 mb-3">Receipt Preview</h4>
-                               <p className="text-slate-500 text-center max-w-md text-lg">
-                                 Click "Generate PDF" to create and preview. Data saved to Bunny DB.
-                               </p>
-                             </div>
-                           </>
-                         )}
+                      <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col items-center justify-start p-6 relative overflow-y-auto">
+                        {activeSection === 'receipts' ? (
+                          generatedDesignId ? (
+                            generatedDesignId.startsWith('PDF_') ? (
+                              <div className="flex flex-col w-full h-full space-y-3">
+                                {/* Receipt Toolbar */}
+                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span className="text-xs font-bold text-slate-700">Receipt Ready</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={`${currentReceiptPdfUrl || `/api/admin/crm/receipts/pdf?id=${selectedLead?.id || selectedLead?._id}&leadId=${selectedLead?.id || selectedLead?._id}&token=${typeof window !== 'undefined' ? localStorage.getItem('adminToken') || '' : ''}`}&download=1`}
+                                      download
+                                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                    >
+                                      <Download size={14} />
+                                      <span>Download Receipt PDF</span>
+                                    </a>
+                                    <button
+                                      onClick={() => {
+                                        const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement;
+                                        frame?.contentWindow?.print();
+                                      }}
+                                      className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                    >
+                                      <Printer size={14} />
+                                      <span>Print</span>
+                                    </button>
+                                  </div>
+                                </div>
+                                <iframe 
+                                  id="receipt-preview-frame"
+                                  src={currentReceiptPdfUrl || ''}
+                                  className="w-full flex-1 border-0 rounded-xl min-h-[500px]"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex flex-col w-full h-full p-2">
+                                {generatedDesignId.startsWith('EAH') ? (
+                                  <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-xl mb-4 text-slate-500 p-8 text-center border border-slate-200">
+                                    <p className="font-bold mb-2">Canva Brand Template Detected</p>
+                                    <p className="text-sm">Templates cannot be embedded. Click the button below to open the template, create your design, and then paste the new Design ID here.</p>
+                                  </div>
+                                ) : (
+                                  <iframe 
+                                    src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
+                                    className="flex-1 w-full rounded-xl border-none shadow-sm mb-4 min-h-[500px]"
+                                    allowFullScreen
+                                    allow="fullscreen"
+                                  ></iframe>
+                                )}
+                                <div className="flex gap-4 w-full h-14">
+                                  <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
+                                    {generatedDesignId.startsWith('EAH') ? 'Use Template' : 'Edit in Canva'}
+                                  </button>
+                                  <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
+                                    {generatedDesignId.startsWith('EAH') ? 'Open Template' : 'Download'}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center my-auto py-12">
+                              <div className="bg-indigo-50 p-6 rounded-2xl shadow-sm mb-6">
+                                <FileText className="h-16 w-16 text-indigo-400" />
+                              </div>
+                              <h4 className="text-2xl font-black text-slate-700 mb-3">Receipt Preview</h4>
+                              <p className="text-slate-500 text-center max-w-md text-base">
+                                Click "Generate PDF" on the left to create and preview the participant receipt. Direct download will be unlocked.
+                              </p>
+                            </div>
+                          )
+                        ) : (
+                          /* CERTIFICATE PREVIEW (Live A4 Swar Yoga Document) */
+                          <div className="flex flex-col w-full h-full space-y-4 items-center">
+                            {/* Certificate Top Toolbar */}
+                            <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span className="text-xs font-bold text-slate-700">Official Swar Yoga Certificate Preview</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleDownloadCertificate}
+                                  disabled={isDownloadingCert}
+                                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  {isDownloadingCert ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                                  <span>Download Certificate PDF</span>
+                                </button>
+                                <button
+                                  onClick={() => window.print()}
+                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                >
+                                  <Printer size={14} />
+                                  <span>Print</span>
+                                </button>
+                                <a
+                                  href={`https://wa.me/${(selectedLead?.whatsapp || selectedLead?.Phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Dear ${(certificateData?.fullName || selectedLead?.name || 'Participant')},\n\nCongratulations on completing the Swar Yoga Workshop!\nYour Certificate Reg No is: ${certificateData?.certificateNumber}.\n\nBest regards,\nUpamanyu Swar Yoga Team`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                >
+                                  <Send size={14} />
+                                  <span>WhatsApp</span>
+                                </a>
+                              </div>
+                            </div>
+
+                            {/* Actual Certificate Document (A4 Ratio, Printable, html2canvas Target) */}
+                            <div className="w-full overflow-x-auto flex justify-center py-2 bg-slate-100/50 rounded-2xl border border-slate-200">
+                              <div
+                                id="certificate-render-node"
+                                className="relative bg-white overflow-hidden shadow-2xl mx-auto select-none"
+                                style={{
+                                  width: '210mm',
+                                  minHeight: '297mm',
+                                  padding: '16mm',
+                                  border: '6px double #cda349',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                <CornerBanner corner="top-left" />
+                                <CornerBanner corner="bottom-right" />
+
+                                <div className="relative z-10 flex flex-col justify-between h-full" style={{ minHeight: '265mm' }}>
+                                  {/* Top Header */}
+                                  <div className="relative flex items-center justify-center pt-2" style={{ minHeight: '120px' }}>
+                                    <img
+                                      src={ASSETS.photo}
+                                      alt="Swar Yoga"
+                                      crossOrigin="anonymous"
+                                      className="absolute left-0 top-0 w-24 h-24 rounded-full object-cover border-4 shadow-md"
+                                      style={{ borderColor: '#5b9bd5' }}
+                                    />
+                                    <div className="text-center">
+                                      <h1 className="text-5xl font-black tracking-tight" style={{ color: BROWN }}>
+                                        Swar Yoga
+                                      </h1>
+                                      <p className="text-lg italic mt-1 font-serif" style={{ color: RUST }}>
+                                        The Science Of Breath
+                                      </p>
+                                    </div>
+                                    <img
+                                      src={ASSETS.goldBadge}
+                                      alt="Certificate Badge"
+                                      crossOrigin="anonymous"
+                                      className="absolute right-0 top-0 w-36 h-auto object-contain"
+                                    />
+                                  </div>
+
+                                  {/* Certificate Title */}
+                                  <div className="text-center mt-6">
+                                    <h2 className="text-5xl font-black tracking-wide" style={{ color: TEAL }}>
+                                      CERTIFICATE
+                                    </h2>
+                                    <p className="text-xl mt-1 tracking-[0.3em] font-bold text-slate-800">
+                                      OF PARTICIPATION & COMPLETION
+                                    </p>
+                                  </div>
+
+                                  {/* Presented To */}
+                                  <div className="text-center mt-8">
+                                    <p className="text-lg font-bold text-slate-700">This Certificate is Proudly Presented To :</p>
+                                    <p
+                                      className="text-4xl font-black mt-3 tracking-wide uppercase border-b-2 inline-block px-8 pb-2"
+                                      style={{ color: TEAL, borderColor: GOLD }}
+                                    >
+                                      {certificateData?.fullName || selectedLead?.name || 'Participant Name'}
+                                    </p>
+                                  </div>
+
+                                  {/* Body Certification Text */}
+                                  <p className="text-center text-base text-slate-700 leading-relaxed mt-6 px-4">
+                                    This is to proudly certify that{' '}
+                                    <span className="font-bold text-slate-900">{certificateData?.fullName || selectedLead?.name}</span>
+                                    {certificateData?.city && (
+                                      <>, <span className="font-bold text-slate-900">{certificateData.city}, {certificateData.country}</span></>
+                                    )}, has successfully completed the Swar Yoga –{' '}
+                                    <span className="font-bold text-slate-900">{certificateData?.workshopName || 'Swar Yoga Workshop'}</span>{' '}
+                                    organized by Upamanyu International Swar Yoga Education. With consistent enthusiasm, active involvement,
+                                    and sincere dedication to learning and practicing Swar Yoga principles, the participant is hereby recognized
+                                    with the Best Participation and Completion Certificate.
+                                    <br />
+                                    <span className="font-bold inline-block mt-3 text-slate-800">
+                                      Issue Date: {new Date().toLocaleDateString('en-GB')}
+                                    </span>
+                                  </p>
+
+                                  {/* Reg No */}
+                                  <div className="text-center mt-4">
+                                    <span className="px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-mono font-bold text-amber-900">
+                                      Reg. No.: {certificateData?.certificateNumber || (selectedLead?.id || selectedLead?._id || 'SWAR').slice(-8).toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {/* Seal & Signature Row */}
+                                  <div className="flex items-end justify-between px-6 mt-10 pt-4 border-t border-slate-200">
+                                    <div className="text-center">
+                                      <img
+                                        src={ASSETS.seal}
+                                        alt="Company Seal"
+                                        crossOrigin="anonymous"
+                                        className="w-36 h-36 object-contain mx-auto"
+                                      />
+                                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-1">Upamanyu Seal of Authenticity</p>
+                                    </div>
+
+                                    <div className="text-center">
+                                      <img
+                                        src={ASSETS.signature}
+                                        alt="Signature"
+                                        crossOrigin="anonymous"
+                                        className="h-28 mx-auto -mb-1 object-contain"
+                                      />
+                                      <p className="font-black text-base text-slate-900 border-t border-slate-400 pt-1">
+                                        MOHAN KALBURGI
+                                      </p>
+                                      <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">
+                                        SWAR YOGA ACHARYA
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1799,6 +2385,94 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Canva Design Preview Modal */}
+      {selectedDesignModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full bg-indigo-500"></span>
+                <h3 className="font-black text-slate-800 text-lg truncate max-w-md">{selectedDesignModal.title || 'Canva Design Preview'}</h3>
+                <span className="text-xs font-mono bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold">
+                  {selectedDesignModal.id}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedDesignModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 p-6 overflow-y-auto flex items-center justify-center bg-slate-100 min-h-[420px]">
+              {selectedDesignModal.thumbnail?.url ? (
+                <img
+                  src={selectedDesignModal.thumbnail.url}
+                  alt={selectedDesignModal.title}
+                  className="max-h-[60vh] max-w-full rounded-2xl shadow-lg object-contain bg-white"
+                />
+              ) : (
+                <iframe
+                  src={`https://www.canva.com/design/${selectedDesignModal.id}/view?embed`}
+                  className="w-full h-[500px] rounded-2xl border-none shadow-md"
+                  allowFullScreen
+                />
+              )}
+            </div>
+
+            <div className="p-4 px-6 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedDesignModal.id);
+                    toast.success(`Copied ID: ${selectedDesignModal.id}`);
+                  }}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <Copy size={13} />
+                  <span>Copy ID</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <a
+                  href={selectedDesignModal.urls?.edit_url || `https://www.canva.com/design/${selectedDesignModal.id}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <span>Edit in Canva</span>
+                  <ExternalLink size={13} />
+                </a>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('canvaReceiptTemplateId', selectedDesignModal.id);
+                    toast.success(`Set as active Receipt Template!`);
+                    setSelectedDesignModal(null);
+                    setActiveSection('receipts');
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                >
+                  Use as Receipt
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('canvaCertificateTemplateId', selectedDesignModal.id);
+                    toast.success(`Set as active Certificate Template!`);
+                    setSelectedDesignModal(null);
+                    setActiveSection('certificate');
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                >
+                  Use as Certificate
+                </button>
+              </div>
             </div>
           </div>
         </div>

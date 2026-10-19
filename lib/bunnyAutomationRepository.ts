@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { bunnyExecute, bunnyBatch, cleanMongoJson } from '@/lib/bunnyDatabase';
 
 const fields = ['name', 'enabled', 'triggerType', 'keywords', 'conditions', 'throttleMinutesPerLead',
-  'actionType', 'actionText', 'actionTemplateId', 'actionTemplateVariables', 'actionLeadUpdates'];
+  'actionType', 'actionText', 'actionTemplateId', 'actionTemplateVariables', 'actionLeadUpdates', 'provider'];
 
 async function schema() {
   await bunnyExecute(`CREATE TABLE IF NOT EXISTS chatbot_automation_rules_sql (

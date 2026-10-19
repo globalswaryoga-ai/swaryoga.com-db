@@ -8,6 +8,7 @@ import { WhatsAppMessengerTab } from './_WhatsAppMessengerTab';
 import OfferDetailsTab from './_OfferDetailsTab';
 import ReceivedAmountTab from './_ReceivedAmountTab';
 import { OfferStudio } from './_OfferStudio';
+import { CanvaStudioTab } from './_CanvaStudioTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import QRGroupSchedulerPage from '../qr/group-scheduler/page';
 
@@ -24,7 +25,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 };
 import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder, CheckCircle, RefreshCw, LogOut
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder, CheckCircle, RefreshCw, LogOut, Palette, Sparkles
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -1485,7 +1486,7 @@ export default function WorkshopOfferPage() {
     { id: 'our_workshops', label: 'Offers Batches', icon: Target },
     { id: 'offer_details', label: 'Offer details', icon: FileText },
     { id: 'received_amount', label: 'Received amount', icon: Handshake },
-    { id: 'create_receipts', label: 'Creative & Document Studio', icon: FileText },
+    { id: 'create_receipts', label: 'Canva Studio & Receipts', icon: Palette },
     { id: 'wt_group_message', label: 'WT-Group message', icon: MessageSquare },
   ] as const;
 
@@ -1836,8 +1837,10 @@ export default function WorkshopOfferPage() {
   );
 
   return (
-    <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
-      {!isLoaded && <div className="fixed inset-0 z-[90] bg-white/60" aria-label="Loading saved offer settings" />}
+    <div className="flex flex-col h-screen bg-slate-50 font-sans overflow-hidden">
+      <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex-shrink-0" />
+      <div className={`flex flex-1 overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+        {!isLoaded && <div className="fixed inset-0 z-[90] bg-white/60" aria-label="Loading saved offer settings" />}
       <div role={saveStatus.error || !isLoaded ? 'alert' : 'status'} className={`fixed bottom-4 right-4 z-[100] rounded-lg border px-4 py-2 text-sm shadow-lg ${saveStatus.error || !isLoaded ? 'bg-red-50 border-red-200 text-red-800' : 'bg-white border-slate-200 text-slate-700'}`}>
         {!isLoaded ? 'Saved settings have not loaded. Reload before editing.' : saveStatus.error ? `Not saved: ${saveStatus.error}` : saveStatus.saving || saveStatus.pending ? 'Saving offer changes…' : 'Offer autosave ready'}
         {saveStatus.error && <button className="ml-3 underline font-bold" onClick={() => { void saveStatus.retry().catch(error => toast.error(error.message)); }}>Retry save</button>}
@@ -2247,7 +2250,7 @@ export default function WorkshopOfferPage() {
           )}
           {activeTab === 'create_receipts' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-y-auto animate-fade-in h-full w-full">
-              <OfferStudio leads={leadsData} />
+              <CanvaStudioTab isCanvaConnected={isCanvaConnected} leadsData={displayLeads.length > 0 ? displayLeads : leadsData} />
             </div>
           )}
           {activeTab === 'wt_group_message' && (
@@ -2257,6 +2260,7 @@ export default function WorkshopOfferPage() {
           )}
         </main>
       </div>
+    </div>
     </div>
   );
 }

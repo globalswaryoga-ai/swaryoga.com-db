@@ -1,19 +1,35 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, Image, Video, FileText, Globe, Lock, Users, Settings, Trash2, Copy, ExternalLink, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import {
+  Upload,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  Globe,
+  Lock,
+  Users,
+  Settings,
+  Trash2,
+  Copy,
+  ExternalLink,
+  CheckCircle,
+  AlertCircle,
+  Loader,
+  ArrowLeft,
+  FolderOpen,
+  Sparkles,
+} from 'lucide-react';
 import Link from 'next/link';
 import { MediaPreview, detectMediaType } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Convert S3 URLs to proxied URLs for authenticated access
- * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
  */
 function getProxiedMediaUrl(url: string, authToken: string | null): string {
   if (!url) return url;
 
-  // Proxy S3 URLs (legacy) and Bunny CDN URLs for admin/community access control
   const needsProxy =
     (url.includes('.s3.') && url.includes('.amazonaws.com')) ||
     url.includes('b-cdn.net') ||
@@ -41,7 +57,19 @@ interface UploadedFile {
 }
 
 export default function MediaManagerPage() {
-  const token = useAuth();
+  const hookToken = useAuth();
+  const [token, setToken] = useState<string>('');
+
+  useEffect(() => {
+    const activeToken =
+      hookToken ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('admin_token') ||
+      '';
+    setToken(activeToken);
+  }, [hookToken]);
+
   const [accessLevel, setAccessLevel] = useState<AccessLevel>('public');
   const [fileType, setFileType] = useState<FileType>('images');
   const [selectedCommunity, setSelectedCommunity] = useState('swar-yoga');
@@ -63,34 +91,37 @@ export default function MediaManagerPage() {
   ];
 
   const accessLevels = [
-    { 
-      id: 'public' as AccessLevel, 
-      label: 'Public', 
-      icon: Globe, 
-      description: 'Anyone can view (website, community feed)',
-      color: 'from-green-500 to-emerald-600',
-      bgColor: 'bg-green-50 border-green-200'
+    {
+      id: 'public' as AccessLevel,
+      label: 'Public Access',
+      icon: Globe,
+      description: 'Public website, brochures & community feed',
+      activeClass: 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-2xs',
+      idleClass: 'bg-white border-slate-200 text-slate-700 hover:border-slate-300',
+      badge: 'bg-emerald-100 text-emerald-800',
     },
-    { 
-      id: 'admin' as AccessLevel, 
-      label: 'Admin Only', 
-      icon: Lock, 
-      description: 'Only admins can access (reports, internal docs)',
-      color: 'from-red-500 to-red-600',
-      bgColor: 'bg-red-50 border-red-200'
+    {
+      id: 'admin' as AccessLevel,
+      label: 'Admin Only',
+      icon: Lock,
+      description: 'Internal reports, invoices & audit docs',
+      activeClass: 'bg-rose-50 border-rose-500 text-rose-800 shadow-2xs',
+      idleClass: 'bg-white border-slate-200 text-slate-700 hover:border-slate-300',
+      badge: 'bg-rose-100 text-rose-800',
     },
-    { 
-      id: 'community' as AccessLevel, 
-      label: 'Community Members', 
-      icon: Users, 
-      description: 'Only community members can view',
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-50 border-purple-200'
+    {
+      id: 'community' as AccessLevel,
+      label: 'Community Members',
+      icon: Users,
+      description: 'Restricted to enrolled batch participants',
+      activeClass: 'bg-indigo-50 border-indigo-500 text-indigo-800 shadow-2xs',
+      idleClass: 'bg-white border-slate-200 text-slate-700 hover:border-slate-300',
+      badge: 'bg-indigo-100 text-indigo-800',
     },
   ];
 
   const fileTypes = [
-    { id: 'images' as FileType, label: 'Images', icon: Image, accept: 'image/*' },
+    { id: 'images' as FileType, label: 'Images', icon: ImageIcon, accept: 'image/*' },
     { id: 'videos' as FileType, label: 'Videos', icon: Video, accept: 'video/*' },
     { id: 'documents' as FileType, label: 'Documents', icon: FileText, accept: '.pdf,.doc,.docx,.xls,.xlsx,.txt' },
   ];
@@ -116,7 +147,7 @@ export default function MediaManagerPage() {
       const response = await fetch('/api/admin/media/upload', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
@@ -125,16 +156,19 @@ export default function MediaManagerPage() {
 
       if (response.ok) {
         setSuccess(`✅ File uploaded successfully!`);
-        setUploadedFiles(prev => [{
-          id: Date.now().toString(),
-          name: files[0].name,
-          url: data.url,
-          accessLevel,
-          fileType,
-          communityId: accessLevel === 'community' ? selectedCommunity : undefined,
-          size: files[0].size,
-          uploadedAt: new Date(),
-        }, ...prev]);
+        setUploadedFiles((prev) => [
+          {
+            id: Date.now().toString(),
+            name: files[0].name,
+            url: data.url,
+            accessLevel,
+            fileType,
+            communityId: accessLevel === 'community' ? selectedCommunity : undefined,
+            size: files[0].size,
+            uploadedAt: new Date(),
+          },
+          ...prev,
+        ]);
         setUploadProgress(100);
       } else {
         setError(data.error || 'Upload failed');
@@ -165,160 +199,248 @@ export default function MediaManagerPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const publicCount = uploadedFiles.filter((f) => f.accessLevel === 'public').length;
+  const adminCount = uploadedFiles.filter((f) => f.accessLevel === 'admin').length;
+  const communityCount = uploadedFiles.filter((f) => f.accessLevel === 'community').length;
+
   return (
-    <div className="dark-theme min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* Top Vibrant Gradient Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600" />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+        {/* Navigation & Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">📁 Media Manager</h1>
-            <p className="text-slate-400">Upload and manage files with proper access control</p>
+            <div className="flex items-center gap-2 mb-2">
+              <Link
+                href="/admin/crm/social-hub"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Social Hub
+              </Link>
+              <span className="text-slate-300">/</span>
+              <span className="text-xs font-medium text-amber-600">Storage & Assets</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Media Assets & Upload
+              </h1>
+              <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                Cloud Storage
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-1">
+              Upload and manage images, PDFs, banners, and workshop assets with access control.
+            </p>
           </div>
-          <Link
-            href="/admin/crm/media/settings"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all"
-          >
-            <Settings size={18} />
-            S3 Settings
-          </Link>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/crm/inbound-media"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-semibold rounded-xl shadow-2xs transition"
+            >
+              <FolderOpen className="w-4 h-4 text-emerald-600" /> WhatsApp Inbound Media
+            </Link>
+            <Link
+              href="/admin/crm/media/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-xs transition"
+            >
+              <Settings className="w-4 h-4" /> S3 & Storage Settings
+            </Link>
+          </div>
         </div>
 
+        {/* 4 Metric Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Session Uploads</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{uploadedFiles.length}</h3>
+              <p className="text-xs text-amber-600 font-semibold mt-0.5">Active Files</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+              <Upload className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Public Assets</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{publicCount}</h3>
+              <p className="text-xs text-emerald-600 font-semibold mt-0.5">Website & Social Media</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <Globe className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admin Vault</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{adminCount}</h3>
+              <p className="text-xs text-rose-600 font-semibold mt-0.5">Private Signed URLs</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+              <Lock className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Community Files</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{communityCount}</h3>
+              <p className="text-xs text-indigo-600 font-semibold mt-0.5">Enrolled Members Only</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+              <Users className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        {/* Upload & Recent Files Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Upload Section */}
+          {/* Upload Configuration */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Access Level Selection */}
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Lock size={20} className="text-purple-400" />
-                Access Level
+            {/* Access Level Selector */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-600" />
+                1. Select Access Level
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {accessLevels.map((level) => (
-                  <button
-                    key={level.id}
-                    onClick={() => setAccessLevel(level.id)}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      accessLevel === level.id
-                        ? `bg-gradient-to-br ${level.color} border-transparent text-white shadow-lg`
-                        : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:border-slate-500'
-                    }`}
-                  >
-                    <level.icon size={24} className="mb-2" />
-                    <p className="font-bold">{level.label}</p>
-                    <p className="text-xs opacity-80 mt-1">{level.description}</p>
-                  </button>
-                ))}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {accessLevels.map((level) => {
+                  const isSelected = accessLevel === level.id;
+                  return (
+                    <button
+                      key={level.id}
+                      type="button"
+                      onClick={() => setAccessLevel(level.id)}
+                      className={`p-4 rounded-xl border-2 text-left transition cursor-pointer ${
+                        isSelected ? level.activeClass : level.idleClass
+                      }`}
+                    >
+                      <level.icon className="w-5 h-5 mb-2" />
+                      <p className="font-bold text-sm">{level.label}</p>
+                      <p className="text-xs opacity-80 mt-1">{level.description}</p>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Community Selection (only for community access) */}
               {accessLevel === 'community' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Select Community</label>
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                    Target Community / Course
+                  </label>
                   <select
                     value={selectedCommunity}
                     onChange={(e) => setSelectedCommunity(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                   >
-                    {communities.filter(c => c.id !== 'global').map((community) => (
-                      <option key={community.id} value={community.id}>
-                        {community.name}
-                      </option>
-                    ))}
+                    {communities
+                      .filter((c) => c.id !== 'global')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               )}
             </div>
 
-            {/* File Type Selection */}
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <FileText size={20} className="text-indigo-400" />
-                File Type
+            {/* File Type Selector & Upload Dropzone */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-5">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" />
+                2. Select Type & Upload
               </h2>
-              <div className="flex gap-4">
-                {fileTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => setFileType(type.id)}
-                    className={`flex-1 p-4 rounded-xl border-2 transition-all ${
-                      fileType === type.id
-                        ? 'bg-indigo-600 border-indigo-500 text-white'
-                        : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:border-slate-500'
-                    }`}
-                  >
-                    <type.icon size={24} className="mx-auto mb-2" />
-                    <p className="font-bold text-center">{type.label}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            {/* Upload Area */}
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Upload size={20} className="text-green-400" />
-                Upload File
-              </h2>
+              <div className="flex gap-3">
+                {fileTypes.map((type) => {
+                  const isSelected = fileType === type.id;
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setFileType(type.id)}
+                      className={`flex-1 py-3 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-50 border-amber-500 text-amber-800 shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <type.icon className="w-4 h-4" />
+                      <span>{type.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
               {error && (
-                <div className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg flex items-center gap-2 text-red-300">
-                  <AlertCircle size={20} />
-                  {error}
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
                 </div>
               )}
 
               {success && (
-                <div className="mb-4 p-4 bg-green-900/50 border border-green-700 rounded-lg flex items-center gap-2 text-green-300">
-                  <CheckCircle size={20} />
-                  {success}
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{success}</span>
                 </div>
               )}
 
+              {/* Upload Dropzone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
+                className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition ${
                   uploading
-                    ? 'border-indigo-500 bg-indigo-900/20'
-                    : 'border-slate-600 hover:border-green-500 hover:bg-slate-700/50'
+                    ? 'border-amber-500 bg-amber-50/50'
+                    : 'border-slate-300 hover:border-amber-500 hover:bg-slate-50'
                 }`}
               >
                 <input
                   ref={fileInputRef}
                   type="file"
                   onChange={handleFileSelect}
-                  accept={fileTypes.find(t => t.id === fileType)?.accept}
+                  accept={fileTypes.find((t) => t.id === fileType)?.accept}
                   className="hidden"
                   disabled={uploading}
                 />
-                
+
                 {uploading ? (
-                  <div className="space-y-4">
-                    <Loader size={48} className="mx-auto text-indigo-400 animate-spin" />
-                    <p className="text-slate-300">Uploading...</p>
-                    <div className="w-full bg-slate-700 rounded-full h-2">
-                      <div 
-                        className="bg-indigo-500 h-2 rounded-full transition-all"
+                  <div className="space-y-3">
+                    <Loader className="w-10 h-10 mx-auto text-amber-600 animate-spin" />
+                    <p className="text-sm font-bold text-slate-800">Uploading to Cloud Storage...</p>
+                    <div className="w-64 max-w-full mx-auto bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-amber-600 h-2 rounded-full transition-all"
                         style={{ width: `${uploadProgress}%` }}
-                      ></div>
+                      />
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <Upload size={48} className="mx-auto text-slate-400 mb-4" />
-                    <p className="text-slate-300 font-medium">Click or drag file to upload</p>
-                    <p className="text-slate-500 text-sm mt-2">
-                      {fileType === 'images' && 'JPG, PNG, GIF, WebP (max 25MB)'}
-                      {fileType === 'videos' && 'MP4, WebM, MOV (max 2GB)'}
-                      {fileType === 'documents' && 'PDF, DOC, XLS, TXT (max 50MB)'}
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">Click to browse or drag file here</p>
+                    <p className="text-xs text-slate-500">
+                      {fileType === 'images' && 'PNG, JPG, WebP, SVG (Max 25MB)'}
+                      {fileType === 'videos' && 'MP4, WebM, MOV (Max 2GB via Bunny/S3)'}
+                      {fileType === 'documents' && 'PDF, DOCX, XLSX, TXT (Max 50MB)'}
                     </p>
-                  </>
+                  </div>
                 )}
               </div>
 
-              {/* Upload Path Preview */}
-              <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                <p className="text-xs text-slate-500 mb-1">File will be uploaded to:</p>
-                <code className="text-sm text-green-400">
+              {/* Path preview */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                <span>Storage Target Prefix:</span>
+                <code className="font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                   {accessLevel === 'public' && `public/${fileType}/`}
                   {accessLevel === 'admin' && `admin/${fileType}/`}
                   {accessLevel === 'community' && `community/${selectedCommunity}/${fileType}/`}
@@ -327,108 +449,105 @@ export default function MediaManagerPage() {
             </div>
           </div>
 
-          {/* Recent Uploads */}
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-            <h2 className="text-lg font-bold text-white mb-4">📋 Recent Uploads</h2>
-            
-            {uploadedFiles.length === 0 ? (
-              <div className="text-center py-10 text-slate-500">
-                <Image size={48} className="mx-auto mb-3 opacity-50" />
-                <p>No files uploaded yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {uploadedFiles.map((file) => {
-                  // Proxy S3 URLs for display
-                  const proxiedUrl = getProxiedMediaUrl(file.url, token);
-                  return (
-                  <div 
-                    key={file.id}
-                    className="p-3 bg-slate-700/50 rounded-lg border border-slate-600"
-                  >
-                    {/* Media Preview */}
-                    <div className="mb-3">
-                      <MediaPreview 
-                        media={{
-                          url: proxiedUrl,
-                          type: detectMediaType(file.url),
-                          name: file.name,
-                          size: file.size,
-                        }}
-                        size="sm"
-                        showDownload={true}
-                      />
-                    </div>
-                    
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{file.name}</p>
-                        <p className="text-slate-400 text-xs">{formatFileSize(file.size)}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            file.accessLevel === 'public' ? 'bg-green-900/50 text-green-400' :
-                            file.accessLevel === 'admin' ? 'bg-red-900/50 text-red-400' :
-                            'bg-purple-900/50 text-purple-400'
-                          }`}>
-                            {file.accessLevel === 'public' && '🌐 Public'}
-                            {file.accessLevel === 'admin' && '🔒 Admin'}
-                            {file.accessLevel === 'community' && `👥 ${file.communityId}`}
+          {/* Recent Uploads Side Column */}
+          <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center justify-between">
+                <span>Recent Uploads</span>
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">
+                  {uploadedFiles.length}
+                </span>
+              </h2>
+
+              {uploadedFiles.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs">No files uploaded this session</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {uploadedFiles.map((file) => {
+                    const proxiedUrl = getProxiedMediaUrl(file.url, token);
+                    return (
+                      <div
+                        key={file.id}
+                        className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 hover:bg-slate-100/60 transition"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
+                            <p className="text-[10px] text-slate-500">{formatFileSize(file.size)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyUrl(file.url)}
+                            className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition"
+                            title="Copy link"
+                          >
+                            {copiedUrl === file.url ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="pt-1">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              file.accessLevel === 'public'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : file.accessLevel === 'admin'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-indigo-100 text-indigo-800'
+                            }`}
+                          >
+                            {file.accessLevel.toUpperCase()}
                           </span>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => copyUrl(file.url)}
-                          className={`p-2 rounded-lg transition-all ${
-                            copiedUrl === file.url
-                              ? 'bg-green-600 text-white'
-                              : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
-                          }`}
-                          title="Copy URL"
-                        >
-                          {copiedUrl === file.url ? <CheckCircle size={16} /> : <Copy size={16} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+              <span>Cloud CDN Active</span>
+              <span className="text-emerald-600 font-bold">● High Availability</span>
+            </div>
           </div>
         </div>
 
-        {/* Access Level Info */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-900/30 border border-green-800 rounded-xl p-4">
-            <h3 className="text-green-400 font-bold flex items-center gap-2">
-              <Globe size={18} /> Public Files
+        {/* Informational Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border-l-4 border-emerald-500 rounded-xl p-5 shadow-xs">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Globe className="w-4 h-4 text-emerald-600" /> Public Assets
             </h3>
-            <p className="text-green-300/70 text-sm mt-2">
-              Used for: Community posts, website images, public content. 
-              <strong> Global community content goes here.</strong>
+            <p className="text-xs text-slate-600 mt-1.5">
+              Available to any visitor. Perfect for homepage posters, workshop banner graphics, and public blog images.
             </p>
           </div>
-          <div className="bg-red-900/30 border border-red-800 rounded-xl p-4">
-            <h3 className="text-red-400 font-bold flex items-center gap-2">
-              <Lock size={18} /> Admin Files
+
+          <div className="bg-white border-l-4 border-rose-500 rounded-xl p-5 shadow-xs">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Lock className="w-4 h-4 text-rose-600" /> Admin Restricted
             </h3>
-            <p className="text-red-300/70 text-sm mt-2">
-              Used for: Internal reports, admin documents, sensitive data. 
-              Accessed via signed URLs only.
+            <p className="text-xs text-slate-600 mt-1.5">
+              Strictly protected behind temporary presigned HMAC URLs. Used for tax receipts, financial data, and team files.
             </p>
           </div>
-          <div className="bg-purple-900/30 border border-purple-800 rounded-xl p-4">
-            <h3 className="text-purple-400 font-bold flex items-center gap-2">
-              <Users size={18} /> Community Files
+
+          <div className="bg-white border-l-4 border-indigo-500 rounded-xl p-5 shadow-xs">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Users className="w-4 h-4 text-indigo-600" /> Community Vault
             </h3>
-            <p className="text-purple-300/70 text-sm mt-2">
-              Used for: Exclusive community videos, member documents. 
-              <strong> Non-shareable, members only.</strong>
+            <p className="text-xs text-slate-600 mt-1.5">
+              Secured for enrolled members of specific yoga cohorts and advanced sadhana programs.
             </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

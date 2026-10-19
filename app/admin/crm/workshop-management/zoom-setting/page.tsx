@@ -13,7 +13,14 @@ interface Cohort {
 
 export default function WorkshopZoomSettingsPage() {
   const router = useRouter();
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('crm_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('token') ||
+        ''
+      : '';
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -132,33 +139,59 @@ export default function WorkshopZoomSettingsPage() {
   const activeMappings = cohorts.filter(c => c.zoomMeetingId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
+
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 shadow-xs">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/admin/crm/workshop-management')}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition cursor-pointer"
               title="Back to Workshops"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-xs text-gray-500 font-semibold">WORKSHOPS</p>
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Workshops Hub</p>
               <h1 className="text-lg font-bold text-gray-900">Zoom Recording Setup</h1>
             </div>
           </div>
-          <div className="text-xs text-gray-400">Zoom ID → Workshop</div>
+          <div className="text-xs text-gray-400 font-medium">Zoom ID → Workshop</div>
         </div>
       </div>
 
-      <div className="py-12 px-4">
+      <div className="py-8 px-4">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-800">Workshop Zoom Settings</h2>
-            <p className="text-gray-600 mt-2">
-              Link Zoom meeting IDs to Workshops so AI auto-delivers recordings to absent students.
+          {/* Hero Header */}
+          <div className="mb-6 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200/60 rounded-2xl p-6 shadow-xs">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Workshop Zoom Settings</h2>
+            <p className="text-slate-600 mt-1 text-sm max-w-2xl">
+              Link Zoom meeting IDs to workshop cohorts so AI auto-delivers recordings to absent students via YouTube and Bunny.net.
             </p>
+
+            {/* 4 Metric Summary Cards */}
+            <div className="mt-5 pt-4 border-t border-blue-200/50 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-blue-100 shadow-2xs">
+                <span className="text-blue-700 font-semibold block uppercase tracking-wider text-[11px]">Total Workshops</span>
+                <span className="text-lg font-black text-slate-800 mt-0.5 block">{cohorts.length} Cohorts</span>
+              </div>
+              <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-indigo-100 shadow-2xs">
+                <span className="text-indigo-700 font-semibold block uppercase tracking-wider text-[11px]">Zoom Linked</span>
+                <span className="text-lg font-black text-slate-800 mt-0.5 block">{activeMappings.length} Active</span>
+              </div>
+              <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-purple-100 shadow-2xs">
+                <span className="text-purple-700 font-semibold block uppercase tracking-wider text-[11px]">Auto-Sync Engine</span>
+                <span className="text-lg font-black text-slate-800 mt-0.5 block">Automated</span>
+              </div>
+              <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-teal-100 shadow-2xs">
+                <span className="text-teal-700 font-semibold block uppercase tracking-wider text-[11px]">Playlists Mapped</span>
+                <span className="text-lg font-black text-slate-800 mt-0.5 block">
+                  {cohorts.filter(c => c.youtubePlaylistName).length} Connected
+                </span>
+              </div>
+            </div>
           </div>
 
         {error && (

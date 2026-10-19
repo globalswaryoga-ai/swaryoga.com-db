@@ -119,14 +119,12 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-12">Our Team</h2>
           <div className="flex flex-wrap items-center justify-center gap-8">
             {TEAM.map((t) => (
-              <div key={t.name} className="text-center">
-                <img
-                  src={t.img}
-                  alt={t.name}
-                  className="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-gray-100 object-cover"
-                />
-                <p className="font-semibold text-gray-900">{t.name}</p>
-                <p className="text-sm text-gray-500">{t.role}</p>
+              <div key={t.name} className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-emerald-500/20 bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white text-xl font-bold shadow-md">
+                  MK
+                </div>
+                <p className="font-bold text-gray-900 text-base">{t.name}</p>
+                <p className="text-xs text-emerald-700 font-semibold tracking-wide uppercase mt-0.5">{t.role}</p>
               </div>
             ))}
           </div>

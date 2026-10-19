@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
@@ -9,6 +10,31 @@ import {
   expandGroups,
   PLAN_DEFAULT_GROUPS,
 } from '@/lib/tenant/moduleCatalog';
+import {
+  Building2,
+  Users,
+  Shield,
+  Layers,
+  Sparkles,
+  Search,
+  Plus,
+  Crown,
+  HardDrive,
+  Eye,
+  Edit3,
+  Key,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  ChevronRight,
+  Filter,
+  X,
+  Globe,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,20 +132,21 @@ const PLAN_STYLE: Record<string, {
   headerText: string;
   badge: string;
   dot: string;
+  bgLight: string;
 }> = {
-  free:         { gradient: 'from-gray-400 to-gray-600',      border: 'border-gray-200',   headerText: 'text-white', badge: 'bg-gray-100 text-gray-700',      dot: 'bg-gray-400' },
-  basic:        { gradient: 'from-sky-400 to-sky-600',        border: 'border-sky-200',    headerText: 'text-white', badge: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500' },
-  starter:      { gradient: 'from-emerald-400 to-emerald-600',border: 'border-emerald-200',headerText: 'text-white', badge: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500' },
-  growth:       { gradient: 'from-violet-500 to-violet-700',  border: 'border-violet-200', headerText: 'text-white', badge: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500' },
-  professional: { gradient: 'from-amber-400 to-amber-600',    border: 'border-amber-200',  headerText: 'text-white', badge: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500' },
-  enterprise:   { gradient: 'from-rose-500 to-rose-700',      border: 'border-rose-200',   headerText: 'text-white', badge: 'bg-rose-100 text-rose-700',      dot: 'bg-rose-500' },
+  free:         { gradient: 'from-slate-600 via-gray-700 to-zinc-800', border: 'border-slate-300', headerText: 'text-white', badge: 'bg-slate-100 text-slate-800 border border-slate-300', dot: 'bg-slate-500', bgLight: 'bg-slate-50' },
+  basic:        { gradient: 'from-sky-500 via-blue-600 to-indigo-700', border: 'border-sky-300', headerText: 'text-white', badge: 'bg-sky-50 text-sky-800 border border-sky-300', dot: 'bg-sky-500', bgLight: 'bg-sky-50/50' },
+  starter:      { gradient: 'from-amber-500 via-orange-600 to-amber-700', border: 'border-amber-300', headerText: 'text-white', badge: 'bg-amber-50 text-amber-800 border border-amber-300', dot: 'bg-amber-500', bgLight: 'bg-amber-50/50' },
+  growth:       { gradient: 'from-teal-500 via-emerald-600 to-green-700', border: 'border-emerald-300', headerText: 'text-white', badge: 'bg-emerald-50 text-emerald-800 border border-emerald-300', dot: 'bg-emerald-500', bgLight: 'bg-emerald-50/50' },
+  professional: { gradient: 'from-indigo-600 via-purple-600 to-pink-600', border: 'border-indigo-300', headerText: 'text-white', badge: 'bg-indigo-50 text-indigo-800 border border-indigo-300', dot: 'bg-indigo-500', bgLight: 'bg-indigo-50/50' },
+  enterprise:   { gradient: 'from-rose-600 via-pink-600 to-purple-800', border: 'border-rose-300', headerText: 'text-white', badge: 'bg-rose-50 text-rose-800 border border-rose-300', dot: 'bg-rose-500', bgLight: 'bg-rose-50/50' },
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  active:    'bg-emerald-100 text-emerald-700',
-  pending:   'bg-amber-100 text-amber-700',
-  suspended: 'bg-red-100 text-red-700',
-  archived:  'bg-gray-100 text-gray-500',
+const STATUS_STYLE: Record<string, { badge: string; dot: string; label: string }> = {
+  active:    { badge: 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs', dot: 'bg-emerald-500 animate-pulse', label: 'Active' },
+  pending:   { badge: 'bg-amber-50 text-amber-700 border border-amber-300 shadow-xs', dot: 'bg-amber-500', label: 'Pending' },
+  suspended: { badge: 'bg-rose-50 text-rose-700 border border-rose-300 shadow-xs', dot: 'bg-rose-500', label: 'Suspended' },
+  archived:  { badge: 'bg-slate-100 text-slate-600 border border-slate-300 shadow-xs', dot: 'bg-slate-400', label: 'Archived' },
 };
 
 const PLAN_OPTIONS = ['free', 'basic', 'starter', 'growth', 'professional', 'enterprise'];
@@ -411,7 +438,31 @@ export default function TenantsPage() {
 
   const [statusFilter, setStatusFilter] = useState('');
   const [planFilter, setPlanFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+
+  const filteredTenants = useMemo(() => {
+    if (!searchQuery.trim()) return tenants;
+    const q = searchQuery.toLowerCase().trim();
+    return tenants.filter(
+      (t) =>
+        t.name?.toLowerCase().includes(q) ||
+        t.slug?.toLowerCase().includes(q) ||
+        t.ownerEmail?.toLowerCase().includes(q) ||
+        t.ownerName?.toLowerCase().includes(q) ||
+        t.ownerPhone?.includes(q) ||
+        t.customDomain?.toLowerCase().includes(q) ||
+        t.plan?.toLowerCase().includes(q)
+    );
+  }, [tenants, searchQuery]);
+
+  const totalLeadsCount = useMemo(() => {
+    return tenants.reduce((acc, t) => acc + (Number(t.currentLeadCount) || 0), 0);
+  }, [tenants]);
+
+  const totalUsersCount = useMemo(() => {
+    return tenants.reduce((acc, t) => acc + (Number(t.currentUserCount) || 0), 0);
+  }, [tenants]);
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', ownerEmail: '', ownerUserId: '', password: '', plan: 'free', subscriptionEndsAt: '' });
@@ -682,168 +733,460 @@ export default function TenantsPage() {
   const planCounts = tenants.reduce<Record<string, number>>((acc, t) => { acc[t.plan] = (acc[t.plan] || 0) + 1; return acc; }, {});
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-8">
+    <div className="space-y-6">
+      {/* ── Signature Gradient Top Accent ── */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 rounded-full" />
 
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tenant Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Multi-tenant SaaS — organisations, plans, bundles &amp; limits.</p>
-        </div>
-        <button onClick={openCreate} className="shrink-0 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition text-sm font-semibold shadow-sm">
-          + New Tenant
-        </button>
-      </div>
+      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+        {/* ── Hero Header Banner ── */}
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-cyan-950 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-cyan-950/20 relative overflow-hidden border border-cyan-800/30">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 -mb-20 w-64 h-64 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
-      )}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-teal-500/30 shrink-0">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Tenant Organizations</h1>
+                  <span className="bg-cyan-500/20 text-cyan-300 text-xs font-bold px-3 py-1 rounded-full border border-cyan-400/30 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+                    100% Bunny Database
+                  </span>
+                </div>
+                <p className="text-sm text-cyan-200/80 mt-1.5 max-w-2xl leading-relaxed">
+                  Enterprise multi-tenant directory. Complete data isolation, custom domains, per-tenant quotas, and plan tiers with zero MongoDB dependency.
+                </p>
+              </div>
+            </div>
 
-      {/* ── Summary chips ── */}
-      {tenants.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <span className="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full">
-            {pagination?.total ?? tenants.length} total
-          </span>
-          <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-full">
-            {activeCount} active
-          </span>
-          {Object.entries(planCounts).map(([plan, count]) => {
-            const s = planStyle(plan);
-            return (
-              <span key={plan} className={`${s.badge} text-xs font-semibold px-3 py-1.5 rounded-full`}>
-                {plan}: {count}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Plan Tiers ── */}
-      <section id="plans" className="scroll-mt-24">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">Plan Tiers</h2>
-          <button onClick={openPlanNew} className="text-sm font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 transition">
-            + New Plan
-          </button>
-        </div>
-
-        {plans.length === 0 ? (
-          <div className="border-2 border-dashed border-gray-200 rounded-2xl py-12 text-center text-gray-400 text-sm">
-            No plans configured yet. Click &ldquo;+ New Plan&rdquo; to create one.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {plans.map((p) => (
-              <PlanCard key={p.tier} p={p} onEdit={() => openPlanEdit(p)} onDelete={() => deletePlan(p.tier)} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ── Tenant Table ── */}
-      <section>
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h2 className="text-lg font-bold text-gray-800">All Tenants</h2>
-          <div className="flex gap-2 flex-wrap">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="border rounded-xl px-3 py-1.5 text-sm bg-white">
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending</option>
-              <option value="suspended">Suspended</option>
-              <option value="archived">Archived</option>
-            </select>
-            <select value={planFilter} onChange={(e) => { setPlanFilter(e.target.value); setPage(1); }} className="border rounded-xl px-3 py-1.5 text-sm bg-white">
-              <option value="">All Plans</option>
-              {PLAN_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-16 text-gray-400">Loading tenants…</div>
-        ) : tenants.length === 0 ? (
-          <div className="border-2 border-dashed border-gray-200 rounded-2xl py-16 text-center text-gray-400 text-sm">
-            No tenants found. Click &ldquo;+ New Tenant&rdquo; to onboard your first organisation.
-          </div>
-        ) : (
-          <div className="overflow-x-auto border border-gray-200 rounded-2xl shadow-sm">
-            <table className="min-w-full divide-y divide-gray-100 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Organisation', 'Plan', 'Status', 'Bundles', 'Leads', 'Users', 'Renews', 'Created', ''].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 bg-white">
-                {tenants.map((t) => {
-                  const s = planStyle(t.plan);
-                  const modCount = (t.moduleKeys || []).filter((k) => !k.includes('.')).length;
-                  const days = daysUntil(t.subscriptionEndsAt);
-                  const daysColor = days !== null && days <= 7 ? 'text-red-500 font-semibold' : days !== null && days <= 30 ? 'text-amber-600 font-medium' : 'text-gray-500';
-                  return (
-                    <tr key={t._id} className="hover:bg-gray-50/70 transition">
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-gray-900">{t.name}</div>
-                        <div className="text-[11px] text-gray-400 font-mono">{t.slug}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${s.badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                          {t.plan}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${STATUS_STYLE[t.status] || ''}`}>{t.status}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 tabular-nums">{modCount}</td>
-                      <td className="px-4 py-3 text-gray-700 font-medium tabular-nums">{(t.currentLeadCount ?? 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-gray-600 tabular-nums">{t.currentUserCount ?? 0}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">
-                        {days !== null ? (
-                          <span className={daysColor}>
-                            {days < 0 ? 'Expired' : days === 0 ? 'Today' : `${days}d`}
-                          </span>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
-                        {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={() => openDetails(t)} className="text-xs font-semibold text-emerald-600 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition whitespace-nowrap" title="View full tenant details">
-                            👁 Details
-                          </button>
-                          <button onClick={() => openEdit(t)} className="text-xs font-semibold text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap">
-                            Edit
-                          </button>
-                          <button onClick={() => resetTenantPassword(t)} className="text-xs font-semibold text-amber-600 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-50 transition whitespace-nowrap" title="Reset login password">
-                            🔑 Reset PW
-                          </button>
-                          <button onClick={() => deleteTenant(t)} className="text-xs font-semibold text-rose-600 border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition whitespace-nowrap" title="Delete tenant">
-                            🗑 Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
-            <span>Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 border rounded-lg disabled:opacity-40">Prev</button>
-              <button disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 border rounded-lg disabled:opacity-40">Next</button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/admin/crm/tenants-hub"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-xl transition text-sm font-semibold flex items-center gap-2 backdrop-blur-xs"
+              >
+                <Layers className="w-4 h-4 text-cyan-300" />
+                Tenants Hub
+              </Link>
+              <Link
+                href="/admin/crm/tenants-plan"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-xl transition text-sm font-semibold flex items-center gap-2 backdrop-blur-xs"
+              >
+                <Crown className="w-4 h-4 text-amber-300" />
+                Plan Tiers
+              </Link>
+              <button
+                onClick={openCreate}
+                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-5 py-2.5 rounded-xl transition text-sm font-bold shadow-lg shadow-cyan-500/25 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Onboard Tenant
+              </button>
             </div>
           </div>
+
+          {/* Quick Metrics Strip */}
+          <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+              <span className="text-cyan-200 block text-[11px] font-medium">Total Registered</span>
+              <span className="text-xl font-extrabold text-white mt-0.5 block">{pagination?.total ?? tenants.length}</span>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+              <span className="text-emerald-300 block text-[11px] font-medium">Active Tenants</span>
+              <span className="text-xl font-extrabold text-white mt-0.5 block">{activeCount}</span>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+              <span className="text-indigo-200 block text-[11px] font-medium">Managed Leads</span>
+              <span className="text-xl font-extrabold text-white mt-0.5 block">{totalLeadsCount.toLocaleString()}</span>
+            </div>
+            <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+              <span className="text-amber-200 block text-[11px] font-medium">Data Architecture</span>
+              <span className="text-xl font-extrabold text-white mt-0.5 block">Isolated SQL</span>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl text-sm flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+            <div className="flex-1 font-medium">{error}</div>
+            <button onClick={() => setError('')} className="text-rose-500 hover:text-rose-700 font-bold text-xs uppercase tracking-wider">Dismiss</button>
+          </div>
         )}
-      </section>
+
+        {/* ── 4 Colorful Stat Cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Organizations</p>
+                <h3 className="text-2xl font-black text-gray-900 mt-1">{pagination?.total ?? tenants.length}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+                <Building2 className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-semibold text-emerald-600">{activeCount} active</span>
+              <span className="text-gray-300">•</span>
+              <span className="text-gray-500">{(pagination?.total ?? tenants.length) - activeCount} inactive</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Active Rate</p>
+                <h3 className="text-2xl font-black text-emerald-600 mt-1">
+                  {tenants.length > 0 ? `${Math.round((activeCount / tenants.length) * 100)}%` : '100%'}
+                </h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-semibold text-emerald-600">{activeCount} of {tenants.length} tenants</span>
+              <span className="text-gray-400">operational</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Leads Handled</p>
+                <h3 className="text-2xl font-black text-indigo-600 mt-1">{totalLeadsCount.toLocaleString()}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <Users className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-semibold text-indigo-600">Isolated database storage</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Plan Distribution</p>
+                <h3 className="text-2xl font-black text-amber-600 mt-1">{Object.keys(planCounts).length} Tiers</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/20">
+                <Crown className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+              {Object.entries(planCounts).slice(0, 3).map(([p, count]) => {
+                const s = planStyle(p);
+                return (
+                  <span key={p} className={`${s.badge} text-[10px] font-bold px-2 py-0.5 rounded-md`}>
+                    {p}: {count}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Plan Tiers Section ── */}
+        <section id="plans" className="scroll-mt-24">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">SaaS Plan Tiers &amp; Bundles</h2>
+                <p className="text-xs text-gray-500">Configured subscription bundles, storage quotas, and feature gating.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/crm/tenants-plan"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl transition"
+              >
+                Open Full Plans Editor →
+              </Link>
+              <button
+                onClick={openPlanNew}
+                className="text-xs font-semibold bg-indigo-600 text-white px-3.5 py-1.5 rounded-xl hover:bg-indigo-700 transition flex items-center gap-1 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New Plan
+              </button>
+            </div>
+          </div>
+
+          {plans.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-3xl py-12 text-center text-gray-400 text-sm bg-white">
+              No plans configured yet. Click &ldquo;+ New Plan&rdquo; to create one.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {plans.map((p) => (
+                <PlanCard key={p.tier} p={p} onEdit={() => openPlanEdit(p)} onDelete={() => deletePlan(p.tier)} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── Search & Filter Controls ── */}
+        <section className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-xs space-y-3">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Real-time search */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by tenant name, slug, email, domain..."
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-9 py-2 text-sm text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Status filter */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs">
+                {['', 'active', 'pending', 'suspended'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => { setStatusFilter(st); setPage(1); }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                      statusFilter === st
+                        ? 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {st === '' ? 'All' : st.charAt(0).toUpperCase() + st.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Plan filter */}
+              <select
+                value={planFilter}
+                onChange={(e) => { setPlanFilter(e.target.value); setPage(1); }}
+                className="border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white text-gray-700"
+              >
+                <option value="">All Plans</option>
+                {PLAN_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+
+              <button
+                onClick={fetchTenants}
+                className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600 transition"
+                title="Refresh tenants list"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Tenant Table ── */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <span>All Tenants</span>
+              <span className="text-xs bg-gray-100 text-gray-600 font-semibold px-2.5 py-0.5 rounded-full">
+                {filteredTenants.length}
+              </span>
+            </h2>
+          </div>
+
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-gray-500">Loading tenants from Bunny Database…</p>
+            </div>
+          ) : filteredTenants.length === 0 ? (
+            <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl py-16 text-center text-gray-500 text-sm">
+              <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-gray-800">No matching tenants found</h3>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                {searchQuery || statusFilter || planFilter
+                  ? 'No tenants match your active search or status filters. Try clearing your search.'
+                  : 'No tenants onboarded yet. Click "+ Onboard Tenant" to get started.'}
+              </p>
+              {(searchQuery || statusFilter || planFilter) && (
+                <button
+                  onClick={() => { setSearchQuery(''); setStatusFilter(''); setPlanFilter(''); }}
+                  className="mt-3 text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-xl border border-cyan-200 hover:bg-cyan-100 transition"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-gray-200/90 rounded-2xl shadow-xs bg-white">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-slate-50/80">
+                  <tr>
+                    {['Organisation', 'Plan', 'Status', 'Bundles', 'Leads', 'Users', 'Renews', 'Created', 'Actions'].map((h) => (
+                      <th key={h} className="px-4 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {filteredTenants.map((t) => {
+                    const s = planStyle(t.plan);
+                    const st = STATUS_STYLE[t.status] || STATUS_STYLE.active;
+                    const modCount = (t.moduleKeys || []).filter((k) => !k.includes('.')).length;
+                    const days = daysUntil(t.subscriptionEndsAt);
+                    const daysColor =
+                      days !== null && days <= 7
+                        ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
+                        : days !== null && days <= 30
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 font-semibold'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 font-medium';
+
+                    const initials = t.name
+                      ? t.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+                      : t.slug.slice(0, 2).toUpperCase();
+
+                    return (
+                      <tr key={t._id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-900 hover:text-cyan-700 transition-colors">{t.name}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[11px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.2 rounded">
+                                  {t.slug}
+                                </span>
+                                {t.customDomain && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded font-medium">
+                                    <Globe className="w-2.5 h-2.5" />
+                                    {t.customDomain}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${s.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                            {t.plan}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${st.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                            {st.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-700 font-semibold tabular-nums">
+                          <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-md font-bold">
+                            <Layers className="w-3 h-3 text-gray-500" />
+                            {modCount}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-800 font-bold tabular-nums">
+                          {(t.currentLeadCount ?? 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-700 font-semibold tabular-nums">
+                          {t.currentUserCount ?? 0}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs whitespace-nowrap">
+                          {days !== null ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] ${daysColor}`}>
+                              <Clock className="w-3 h-3" />
+                              {days < 0 ? 'Expired' : days === 0 ? 'Today' : `${days}d left`}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-gray-400 whitespace-nowrap">
+                          {t.createdAt
+                            ? new Date(t.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openDetails(t)}
+                              className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg hover:bg-emerald-100 transition whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                              title="View full tenant details"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Details
+                            </button>
+                            <button
+                              onClick={() => openEdit(t)}
+                              className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg hover:bg-indigo-100 transition whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                              title="Edit tenant plan & modules"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => resetTenantPassword(t)}
+                              className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                              title="Reset login password"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                              Reset PW
+                            </button>
+                            <button
+                              onClick={() => deleteTenant(t)}
+                              className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/80 px-2.5 py-1 rounded-lg hover:bg-rose-100 transition whitespace-nowrap flex items-center gap-1 shadow-2xs"
+                              title="Delete tenant"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+              <span>
+                Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="px-3.5 py-1.5 border border-gray-200 bg-white rounded-xl disabled:opacity-40 font-medium hover:bg-gray-50 transition"
+                >
+                  Prev
+                </button>
+                <button
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-3.5 py-1.5 border border-gray-200 bg-white rounded-xl disabled:opacity-40 font-medium hover:bg-gray-50 transition"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
 
       {/* ── Tenants — Bundles Overview ── */}
       {tenants.length > 0 && (
@@ -905,6 +1248,7 @@ export default function TenantsPage() {
           </div>
         </section>
       )}
+      </div>
 
       {/* ====== Create Tenant Modal ====== */}
       {showCreate && (

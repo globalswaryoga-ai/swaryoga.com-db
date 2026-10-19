@@ -78,13 +78,13 @@ export function DataTable({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`px-6 py-3 font-semibold text-slate-700 uppercase tracking-wider text-${column.align || 'left'}`}
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-slate-700 uppercase tracking-wider text-${column.align || 'left'}`}
                 style={{ width: column.width }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   {column.label}
                   {column.sortable && (
-                    <span className="text-slate-400 cursor-pointer hover:text-slate-600">
+                    <span className="text-slate-400 cursor-pointer hover:text-slate-600 text-xs">
                       ⬍
                     </span>
                   )}
@@ -110,7 +110,7 @@ export function DataTable({
               {columns.map((column) => (
                 <td
                   key={`${rowKey}-${column.key}`}
-                  className={`px-6 py-3 text-slate-900 text-${column.align || 'left'}`}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 text-${column.align || 'left'}`}
                 >
                   {column.render ? column.render(row[column.key], row) : row[column.key]}
                 </td>

@@ -1,12 +1,37 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { getViewerUserId } from '@/lib/crm-handlers';
+import { canvaToken } from '@/lib/canvaConnection';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get('canva_access_token')?.value;
+    let accessToken = cookieStore.get('canva_access_token')?.value || null;
+
+    if (!accessToken) {
+      const authHeader = request.headers.get('authorization') || '';
+      const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (cookieStore.get('adminToken')?.value || cookieStore.get('token')?.value);
+      if (rawToken) {
+        const decoded = verifyToken(rawToken);
+        if (decoded) {
+          const userId = getViewerUserId(decoded);
+          try {
+            accessToken = await canvaToken(userId);
+          } catch (err) {
+            console.error('[Canva token load error in autofill]', err);
+          }
+        }
+      }
+    }
+
+    if (!accessToken) {
+      try {
+        accessToken = await canvaToken('admin');
+      } catch {}
+    }
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Not authenticated with Canva' }, { status: 401 });

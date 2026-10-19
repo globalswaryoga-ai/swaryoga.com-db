@@ -665,28 +665,25 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/connections'],
   },
 
-  // KP Astro — professional astrologer workbench (birth + horary + matchmaking)
+  // KP Astro (Card Grid Hub - Professional astrologer workbench)
   {
     key: 'kp-astro',
     title: 'KP Astro',
     icon: Moon,
-    items: [
-      { label: 'Data Entry', href: '/admin/crm/kp-astro/data-entry', icon: ClipboardList },
-      { label: 'Astrologer Workspace', href: '/admin/crm/kp-astro/workspace', icon: BookOpen },
-      { label: 'Horary Workspace', href: '/admin/crm/kp-astro/horary-workspace', icon: Eye },
-      { label: 'Final Prediction', href: '/admin/crm/kp-astro/final-prediction', icon: Sparkles },
+    items: [],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/kp-astro',
+      '/admin/crm/kp-astro/data-entry',
+      '/admin/crm/kp-astro/workspace',
+      '/admin/crm/kp-astro/horary-workspace',
+      '/admin/crm/kp-astro/final-prediction',
+      '/admin/crm/kp-astro/matchmaking',
+      '/admin/crm/kp-astro/export',
+      '/admin/crm/kp-astro/rule-book',
+      '/admin/crm/kp-astro/dasha-prediction',
+      '/admin/crm/kp-astro/charts',
     ],
-    moreItems: [
-      { label: 'Matchmaking Data', href: '/admin/crm/kp-astro/matchmaking/data-entry', icon: Heart },
-      { label: 'Matchmaking Workspace', href: '/admin/crm/kp-astro/matchmaking/workspace', icon: Heart },
-      { label: 'Matchmaking Prediction', href: '/admin/crm/kp-astro/matchmaking/final-prediction', icon: Heart },
-      { label: 'Export (A4 PDF)', href: '/admin/crm/kp-astro/export', icon: FileText },
-      { label: 'Rule Book', href: '/admin/crm/kp-astro/rule-book', icon: BookMarked },
-      { label: 'Dasha Prediction', href: '/admin/crm/kp-astro/dasha-prediction', icon: CalendarClock },
-      { label: 'Toolkit', href: '/admin/crm/kp-astro', icon: Sparkles },
-      { label: 'All Birth Charts', href: '/admin/crm/kp-astro/charts', icon: Users },
-    ],
-    prefixes: ['/admin/crm/kp-astro'],
   },
 
   // Integration Hub — tabs filtered per bundle

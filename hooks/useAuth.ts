@@ -6,7 +6,8 @@ function getStoredAdminToken(): string | null {
   const token =
     localStorage.getItem('crm_token') ||
     localStorage.getItem('adminToken') ||
-    localStorage.getItem('admin_token');
+    localStorage.getItem('admin_token') ||
+    localStorage.getItem('token');
   if (!token || token === 'null' || token === 'undefined') return null;
   return token;
 }

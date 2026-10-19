@@ -18,6 +18,8 @@ import {
   StatusBadge,
 } from '@/components/admin/crm';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
+import CertificateModal from '@/components/admin/crm/CertificateModal';
+import { BulkActionsModal } from '@/components/admin/crm/BulkActionsModal';
 import {
   DollarSign,
   TrendingUp,
@@ -323,7 +325,37 @@ export default function SalesPage() {
   const [csvFileName, setCsvFileName] = useState('');
   const [csvImporting, setCsvImporting] = useState(false);
   const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
+  const [certificateSale, setCertificateSale] = useState<SaleRecord | null>(null);
   const [tallySyncingId, setTallySyncingId] = useState<string | null>(null);
+
+  const handleDownloadReceiptDirect = (saleId: string, receiptNum?: string) => {
+    const url = `/api/admin/crm/receipts/pdf?saleId=${saleId}&download=1`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Receipt-${receiptNum || saleId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleBulkDownloadReceipts = () => {
+    const selectedList = sales.filter((s) => selectedSaleIds.has(s._id));
+    if (selectedList.length === 0) return;
+    selectedList.forEach((s, idx) => {
+      setTimeout(() => {
+        handleDownloadReceiptDirect(s._id, s.receiptNumber);
+      }, idx * 350);
+    });
+    setBulkActionsOpen(false);
+  };
+
+  const handleBulkPreviewCertificate = () => {
+    const firstSelected = sales.find((s) => selectedSaleIds.has(s._id));
+    if (firstSelected) {
+      setCertificateSale(firstSelected);
+    }
+    setBulkActionsOpen(false);
+  };
 
   const [formData, setFormData] = useState({
     customerId: '',
@@ -1154,30 +1186,47 @@ export default function SalesPage() {
         <div className="flex gap-2 items-center relative">
           {/* Receipt + messaging actions */}
 
-          {/* Receipts Button */}
-          <button
-            onClick={() => {
-              const leadId = getLeadIdString(sale.leadId);
-              if (leadId) {
-                setReceiptSaleId(sale._id);
-              } else {
-                router.push(`/admin/crm/sales/${sale._id}`);
-              }
-            }}
-            className="px-3 py-1.5 bg-black border border-yellow-500 text-yellow-400 rounded-lg text-sm font-medium transition-colors hover:bg-yellow-400 hover:text-black"
-            title="View Receipt"
-          >
-            {sale.receiptNumber ? `📄 ${sale.receiptNumber}` : 'Receipts'}
-          </button>
+          {/* Receipts Button Group */}
+          <div className="inline-flex rounded-lg shadow-xs">
+            <button
+              onClick={() => setReceiptSaleId(sale._id)}
+              className="px-2.5 py-1.5 bg-black border border-yellow-500/80 text-yellow-400 rounded-l-lg text-xs font-semibold transition-colors hover:bg-yellow-400 hover:text-black flex items-center gap-1 cursor-pointer"
+              title="View & Share Receipt"
+            >
+              {sale.receiptNumber ? `📄 ${sale.receiptNumber}` : '📄 Receipt'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadReceiptDirect(sale._id, sale.receiptNumber);
+              }}
+              className="px-1.5 py-1.5 bg-black border-y border-r border-yellow-500/80 text-yellow-400 rounded-r-lg text-xs font-bold transition-colors hover:bg-yellow-400 hover:text-black cursor-pointer"
+              title="Download Receipt PDF Directly"
+            >
+              ⬇️
+            </button>
+          </div>
 
-          {/* Certificate Button */}
-          <button
-            onClick={() => router.push(`/admin/crm/sales/${sale._id}/certificate`)}
-            className="px-3 py-1.5 bg-black border border-purple-500 text-purple-400 rounded-lg text-sm font-medium transition-colors hover:bg-purple-500 hover:text-white"
-            title="View Certificate"
-          >
-            🎓 Certificate
-          </button>
+          {/* Certificate Button Group */}
+          <div className="inline-flex rounded-lg shadow-xs">
+            <button
+              onClick={() => setCertificateSale(sale)}
+              className="px-2.5 py-1.5 bg-black border border-purple-500/80 text-purple-300 rounded-l-lg text-xs font-semibold transition-colors hover:bg-purple-600 hover:text-white flex items-center gap-1 cursor-pointer"
+              title="Preview & Download Certificate"
+            >
+              🎓 Certificate
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/admin/crm/sales/${sale._id}/certificate`);
+              }}
+              className="px-1.5 py-1.5 bg-black border-y border-r border-purple-500/80 text-purple-300 rounded-r-lg text-xs font-bold transition-colors hover:bg-purple-600 hover:text-white cursor-pointer"
+              title="Open Certificate Full Page Editor"
+            >
+              ✏️
+            </button>
+          </div>
 
           {/* WhatsApp Button */}
           <button
@@ -1235,63 +1284,32 @@ export default function SalesPage() {
   ];
 
   return (
-    <div className="sales-dark min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 relative overflow-hidden">
-      {/* Ambient glowing background accents */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 left-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* Top Vibrant Gradient Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600" />
 
-      <style jsx global>{`
-        /* High-contrast modern dark table for Sales */
-        .sales-dark table { color: #f8fafc !important; border-collapse: separate; border-spacing: 0; width: 100%; }
-        .sales-dark thead { background: rgba(15, 23, 42, 0.95) !important; }
-        .sales-dark thead th { color: #94a3b8 !important; border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important; padding: 12px 16px !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; font-weight: 700 !important; }
-        .sales-dark tbody tr { background-color: rgba(15, 23, 42, 0.45) !important; border-bottom: 1px solid rgba(51, 65, 85, 0.4) !important; transition: all 0.15s ease !important; }
-        .sales-dark tbody tr:nth-child(even) { background-color: rgba(2, 6, 23, 0.45) !important; }
-        .sales-dark tbody tr:hover { background-color: rgba(30, 41, 59, 0.8) !important; }
-        .sales-dark tbody td { color: #f8fafc !important; padding: 12px 16px !important; border-bottom: 1px solid rgba(51, 65, 85, 0.3) !important; }
-        .sales-dark .text-slate-900,
-        .sales-dark .text-slate-700,
-        .sales-dark .text-slate-600,
-        .sales-dark .text-slate-500,
-        .sales-dark .text-slate-400 { color: #cbd5e1 !important; }
-        .sales-dark .border-slate-200 { border-color: rgba(51, 65, 85, 0.5) !important; }
-        .sales-dark input, .sales-dark select, .sales-dark textarea {
-          background-color: #020617 !important;
-          color: #f8fafc !important;
-          border-color: #334155 !important;
-        }
-        .sales-dark input:focus, .sales-dark select:focus, .sales-dark textarea:focus {
-          border-color: #10b981 !important;
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
-        }
-        .sales-dark option {
-          background-color: #020617 !important;
-          color: #ffffff !important;
-        }
-      `}</style>
-
-      <div className="w-full space-y-6 relative z-10">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-8 space-y-4 sm:space-y-6">
         {/* Page Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            <div className="flex items-center gap-4">
+        <div className="bg-white border border-slate-200/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => router.push('/admin/crm')}
-                className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white transition shadow-sm flex-shrink-0 cursor-pointer"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 transition shadow-2xs flex-shrink-0 cursor-pointer active:scale-95"
                 title="Go to CRM Dashboard"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Sales & Revenue Center</h1>
-                  <span className="bg-emerald-500/15 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 uppercase tracking-wider">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900">
+                    Sales &amp; Revenue Center
+                  </h1>
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider">
                     Financial Operations
                   </span>
                 </div>
-                <p className="text-sm text-slate-300/80 mt-1.5 max-w-2xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
                   Real-time revenue monitoring, student workshop transactions, installment tracking, and payment reconciliations.
                 </p>
               </div>
@@ -1300,36 +1318,36 @@ export default function SalesPage() {
             <div className="flex gap-2.5 flex-wrap items-center">
               <button
                 onClick={() => router.push('/admin/crm/sales/events')}
-                className="bg-slate-900/90 hover:bg-slate-800 text-purple-300 border border-purple-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                className="bg-white hover:bg-slate-50 text-purple-700 border border-purple-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
               >
-                <Calendar className="w-4 h-4 text-purple-400" />
+                <Calendar className="w-4 h-4 text-purple-600" />
                 <span>Events</span>
               </button>
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setShowExportMenu((v) => !v)}
                   disabled={exporting}
-                  className="bg-slate-900/90 hover:bg-slate-800 text-blue-300 border border-blue-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+                  className="bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4 text-blue-400" />
+                  <Download className="w-4 h-4 text-blue-600" />
                   <span>{exporting ? 'Exporting...' : 'Export'}</span>
                 </button>
                 {showExportMenu && (
-                  <div className="absolute z-30 mt-2 right-0 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden py-1">
+                  <div className="absolute z-30 mt-2 right-0 w-48 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1">
                     <button
                       onClick={downloadPdf}
                       disabled={exporting}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
                     >
-                      <FileText className="w-4 h-4 text-rose-400" />
+                      <FileText className="w-4 h-4 text-rose-600" />
                       <span>Export as PDF</span>
                     </button>
                     <button
                       onClick={downloadExcel}
                       disabled={exporting}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
                     >
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                       <span>Export as Excel</span>
                     </button>
                   </div>
@@ -1337,9 +1355,9 @@ export default function SalesPage() {
               </div>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="bg-slate-900/90 hover:bg-slate-800 text-violet-300 border border-violet-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                className="bg-white hover:bg-slate-50 text-violet-700 border border-violet-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
               >
-                <Upload className="w-4 h-4 text-violet-400" />
+                <Upload className="w-4 h-4 text-violet-600" />
                 <span>Upload CSV</span>
               </button>
               <button
@@ -1379,14 +1397,14 @@ export default function SalesPage() {
                   }
                 }}
                 disabled={generatingFromLeads}
-                className="bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+                className="bg-white hover:bg-slate-50 text-amber-700 border border-amber-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer disabled:opacity-50"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <Sparkles className="w-4 h-4 text-amber-600" />
                 <span>{generatingFromLeads ? 'Generating...' : 'Gen Sales'}</span>
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Record Sale</span>
@@ -1395,23 +1413,23 @@ export default function SalesPage() {
           </div>
 
           {/* Quick Sub-module switcher */}
-          <div className="mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400 font-semibold mr-1">Sales Modules:</span>
+          <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-500 font-semibold mr-1">Sales Modules:</span>
             <button
               onClick={() => router.push('/admin/crm/sales')}
-              className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-lg font-bold cursor-pointer"
+              className="bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-lg font-bold cursor-pointer"
             >
               💰 Sales Transactions
             </button>
             <button
               onClick={() => router.push('/admin/crm/order-maintenance')}
-              className="bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-slate-700 px-3 py-1 rounded-lg transition cursor-pointer"
+              className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-lg transition cursor-pointer"
             >
               📦 Orders Maintenance
             </button>
             <button
               onClick={() => router.push('/admin/crm/workshop-offer')}
-              className="bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-slate-700 px-3 py-1 rounded-lg transition cursor-pointer"
+              className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-lg transition cursor-pointer"
             >
               🏷️ Workshop Offers
             </button>
@@ -1420,53 +1438,53 @@ export default function SalesPage() {
 
         {/* Real-time KPI Summary Metrics Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Total Revenue</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Revenue</span>
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-white">
+            <p className="text-2xl sm:text-3xl font-black text-slate-900">
               ₹{Number(summary?.totalSales || 0).toLocaleString()}
             </p>
             <span className="text-xs text-slate-400 mt-1 block">Accumulated Volume</span>
           </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Total Transactions</span>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Total Transactions</span>
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
                 <Receipt className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-white">
+            <p className="text-2xl sm:text-3xl font-black text-slate-900">
               {String(summary?.totalTransactions || filteredSales.length || 0)}
             </p>
             <span className="text-xs text-slate-400 mt-1 block">Recorded Receipts</span>
           </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-400">Average Sale</span>
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-600">Average Sale</span>
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-purple-200">
+            <p className="text-2xl sm:text-3xl font-black text-slate-900">
               ₹{Number(summary?.averageSale || 0).toLocaleString()}
             </p>
             <span className="text-xs text-slate-400 mt-1 block">Per Enrollee Average</span>
           </div>
 
-          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Top Sale Record</span>
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Top Sale Record</span>
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-amber-200">
+            <p className="text-2xl sm:text-3xl font-black text-slate-900">
               ₹{Number(summary?.maxSale || 0).toLocaleString()}
             </p>
             <span className="text-xs text-slate-400 mt-1 block">Highest Ticket Amount</span>
@@ -1475,30 +1493,30 @@ export default function SalesPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-950/80 border border-red-500/50 rounded-2xl p-4 text-red-200 flex justify-between items-center shadow-lg">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 flex justify-between items-center shadow-2xs">
             <span className="font-medium text-sm">{error}</span>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 font-bold text-xl cursor-pointer">×</button>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold text-xl cursor-pointer">×</button>
           </div>
         )}
 
         {/* Success Alert */}
         {successMsg && (
-          <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl p-4 text-emerald-200 flex justify-between items-center shadow-lg">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-800 flex justify-between items-center shadow-2xs">
             <span className="font-medium text-sm">{successMsg}</span>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300 font-bold text-xl cursor-pointer">×</button>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700 font-bold text-xl cursor-pointer">×</button>
           </div>
         )}
 
         {/* View Selector Tabs */}
-        <div className="flex gap-2 flex-wrap bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-2 w-fit">
+        <div className="flex gap-2 flex-wrap bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs w-fit">
           {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                 view === v
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               {v === 'list' && '📋 Transactions List'}
@@ -1513,20 +1531,20 @@ export default function SalesPage() {
 
         {/* Bulk actions (header) */}
         {view === 'list' && selectedSaleIds.size > 0 && (
-          <div className="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-xl">
+          <div className="bg-white border border-emerald-200 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-xs">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="font-bold text-white text-sm">Selected: <span className="text-emerald-400">{selectedSaleIds.size}</span></div>
+              <div className="font-bold text-slate-900 text-sm">Selected: <span className="text-emerald-600 font-extrabold">{selectedSaleIds.size}</span></div>
 
               <button
                 onClick={clearSaleSelection}
-                className="px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-100 transition cursor-pointer"
               >
                 Clear
               </button>
 
               <button
                 onClick={() => toggleSelectAllOnPage()}
-                className="px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-100 transition cursor-pointer"
                 title="Select/deselect all on this page"
               >
                 Select Page
@@ -1534,36 +1552,36 @@ export default function SalesPage() {
 
               <button
                 onClick={() => setBulkActionsOpen(true)}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 Bulk Actions
               </button>
 
               <button
                 onClick={openAddToEvent}
-                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
                 title="Add selected sales to an Event"
               >
                 📅 Add to Event
               </button>
             </div>
 
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-500">
               Tip: Select multiple transactions to batch assign or export.
             </div>
           </div>
         )}
 
-        {/* Filters - Glassmorphic Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        {/* Filters Card */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Search & Filter Records</h2>
+              <Filter className="w-4 h-4 text-emerald-600" />
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Search &amp; Filter Records</h2>
             </div>
             <button
               onClick={clearFilters}
-              className="text-xs text-slate-400 hover:text-amber-300 transition flex items-center gap-1 cursor-pointer font-medium"
+              className="text-xs text-slate-500 hover:text-amber-600 transition flex items-center gap-1 cursor-pointer font-medium"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset All</span>
@@ -1573,11 +1591,11 @@ export default function SalesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* Program / Workshop Multi-select */}
             <div className="relative" ref={workshopFilterRef}>
-              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Program / Workshop</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Program / Workshop</label>
               <button
                 type="button"
                 onClick={() => setWorkshopFilterOpen((o) => !o)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-medium text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:border-emerald-500 transition cursor-pointer"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 font-medium text-sm text-left flex items-center justify-between gap-2 focus:bg-white focus:outline-none focus:border-emerald-500 transition cursor-pointer"
               >
                 <span className="truncate">
                   {draftFilters.workshop.length === 0
@@ -1589,32 +1607,32 @@ export default function SalesPage() {
                 <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
               </button>
               {workshopFilterOpen && (
-                <div className="absolute z-30 mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
+                <div className="absolute z-30 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                     <button
                       type="button"
                       onClick={() => setDraftFilters((p) => ({ ...p, workshop: [...workshopOptions] }))}
-                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                     >
                       Select All
                     </button>
                     <button
                       type="button"
                       onClick={() => setDraftFilters((p) => ({ ...p, workshop: [] }))}
-                      className="text-xs font-semibold text-amber-400 hover:text-amber-300 cursor-pointer"
+                      className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer"
                     >
                       Clear
                     </button>
                   </div>
                   {workshopOptions.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-slate-500">No workshops found</div>
+                    <div className="px-3 py-2 text-sm text-slate-400">No workshops found</div>
                   ) : (
                     workshopOptions.map((w) => {
                       const checked = draftFilters.workshop.includes(w);
                       return (
                         <label
                           key={w}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 cursor-pointer transition"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition"
                         >
                           <input
                             type="checkbox"
@@ -1627,7 +1645,7 @@ export default function SalesPage() {
                                   : p.workshop.filter((x) => x !== w),
                               }));
                             }}
-                            className="h-4 w-4 accent-emerald-500 rounded"
+                            className="h-4 w-4 accent-emerald-600 rounded"
                           />
                           <span className="truncate">{w}</span>
                         </label>
@@ -1640,7 +1658,7 @@ export default function SalesPage() {
 
             {/* Date Range From */}
             <div>
-              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Date Range From</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Date Range From</label>
               {(() => {
                 const isAll = !draftFilters.batchFrom;
                 const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
@@ -1653,7 +1671,7 @@ export default function SalesPage() {
                           ...p,
                           batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
                         }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition"
                       >
                         <option value="all">All Months</option>
                         {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
@@ -1662,7 +1680,7 @@ export default function SalesPage() {
                         value={fromYear}
                         disabled={isAll}
                         onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
                       >
                         {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
@@ -1671,7 +1689,7 @@ export default function SalesPage() {
                       type="date"
                       value={draftFilters.batchFrom}
                       onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
                       title="Pick an exact day instead of a whole month"
                     />
                   </div>
@@ -2637,11 +2655,9 @@ export default function SalesPage() {
       {/* ── Receipt Preview Modal ── */}
       {receiptSaleId && token && (() => {
         const sale = sales.find(s => s._id === receiptSaleId);
-        const leadId = sale ? getLeadIdString(sale.leadId) : '';
-        if (!leadId) return null;
         return (
           <ReceiptPreviewModal
-            leadId={leadId}
+            leadId={sale ? getLeadIdString(sale.leadId) : undefined}
             leadName={sale?.customerName || ''}
             leadPhone={sale?.customerPhone || ''}
             leadEmail={sale?.customerEmail || ''}
@@ -2651,6 +2667,51 @@ export default function SalesPage() {
           />
         );
       })()}
+
+      {/* ── Certificate Preview Modal ── */}
+      {certificateSale && (
+        <CertificateModal
+          sale={certificateSale}
+          token={token || undefined}
+          onClose={() => setCertificateSale(null)}
+        />
+      )}
+
+      {/* ── Bulk Actions Modal ── */}
+      {bulkActionsOpen && (
+        <BulkActionsModal
+          isOpen={bulkActionsOpen}
+          onClose={() => setBulkActionsOpen(false)}
+          title="Bulk Transaction Actions"
+          selectedCount={selectedSaleIds.size}
+          actions={[
+            {
+              key: 'bulk_receipts',
+              label: 'Download Receipts (PDF)',
+              icon: '📄',
+              variant: 'primary',
+              onClick: handleBulkDownloadReceipts,
+            },
+            {
+              key: 'bulk_certificate',
+              label: 'Preview Certificate',
+              icon: '🎓',
+              variant: 'secondary',
+              onClick: handleBulkPreviewCertificate,
+            },
+            {
+              key: 'bulk_event',
+              label: 'Add to Event',
+              icon: '📅',
+              variant: 'secondary',
+              onClick: () => {
+                setBulkActionsOpen(false);
+                openAddToEvent();
+              },
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

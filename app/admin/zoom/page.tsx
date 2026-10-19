@@ -130,32 +130,66 @@ export default function ZoomAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Zoom Management</h1>
-          <p className="text-gray-600 mt-1">View synced recordings & manage meetings</p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* Header Hero */}
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Zoom Management</h1>
+                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200">
+                  Cloud Media
+                </span>
+              </div>
+              <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                View synced Zoom cloud recordings, browse scheduled meetings, and manage automated video ingestion.
+              </p>
+            </div>
+          </div>
+
+          {/* 4 Metric Summary Cards */}
+          <div className="mt-6 pt-5 border-t border-blue-200/50 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-blue-100 shadow-2xs">
+              <span className="text-blue-700 font-semibold block uppercase tracking-wider text-[11px]">Synced Recordings</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{recordings.length} Files</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-indigo-100 shadow-2xs">
+              <span className="text-indigo-700 font-semibold block uppercase tracking-wider text-[11px]">Upcoming Sessions</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{meetings.length} Scheduled</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-cyan-100 shadow-2xs">
+              <span className="text-cyan-700 font-semibold block uppercase tracking-wider text-[11px]">Storage Engine</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">S3 & Bunny</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-teal-100 shadow-2xs">
+              <span className="text-teal-700 font-semibold block uppercase tracking-wider text-[11px]">Zoom Integration</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Active</span>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex gap-3">
           <button
             onClick={() => setActiveTab('recordings')}
-            className={`px-4 py-2 rounded-lg font-medium ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer ${
               activeTab === 'recordings'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             📹 Recordings ({recordings.length})
           </button>
           <button
             onClick={() => setActiveTab('meetings')}
-            className={`px-4 py-2 rounded-lg font-medium ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer ${
               activeTab === 'meetings'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             📅 Upcoming Meetings ({meetings.length})

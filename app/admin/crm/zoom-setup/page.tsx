@@ -125,8 +125,13 @@ export default function ZoomMeetingSetupPage() {
     setPopupSlots(popupSlots.filter((_, i) => i !== index));
   };
 
+  const totalScheduledDates = Object.keys(setupData).length;
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500" />
+
       <CrmSubNav 
         title="Zoom Meeting Setup" 
         icon={Calendar} 
@@ -134,7 +139,31 @@ export default function ZoomMeetingSetupPage() {
       />
       
       <main className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        {/* 4 Colorful Metric KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider block">Workshop Batches</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{filteredWorkshops.length}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">{selectedLang} Track</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Scheduled Dates</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{totalScheduledDates}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Configured Slots</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider block">Selected Batch</span>
+            <span className="text-lg font-black text-slate-900 mt-1 truncate block">{selectedWorkshop ? selectedWorkshop.name : 'None'}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Target Batch</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-cyan-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-cyan-600 uppercase tracking-wider block">Booking Engine</span>
+            <span className="text-lg font-black text-slate-900 mt-1 block">Live Calendar</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Multi-Slot Slots</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200/80">
           <h2 className="text-lg font-bold text-slate-800 mb-4">Zoom Meeting Setup</h2>
           <div className="flex flex-col sm:flex-row items-end gap-4">
             <div className="w-full sm:w-1/3">

@@ -207,9 +207,13 @@ function BroadcastHubContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-purple-700 via-fuchsia-600 to-pink-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-fuchsia-500/20 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-purple-700 via-fuchsia-600 to-pink-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-fuchsia-500/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-20 w-64 h-64 bg-yellow-400/15 rounded-full blur-2xl pointer-events-none" />
 
@@ -346,7 +350,7 @@ function BroadcastHubContent() {
           Showing <strong>{filteredCards.length}</strong> modules in{' '}
           <strong>{tabFilters.find((t) => t.key === activeTab)?.label}</strong>
         </div>
-        <div className="text-gray-400">Total: {broadcastPages.length} Broadcast & Template Modules</div>
+        </div>
       </div>
     </div>
   );

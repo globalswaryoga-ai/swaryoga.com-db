@@ -358,7 +358,10 @@ export async function GET(request: NextRequest) {
         rec = null;
       }
     } else if (saleId) {
-      rec = await getBunnyReceiptBySaleId(saleId, tf);
+      rec = await getBunnyReceiptBySaleId(saleId);
+      if (rec && tf.issuedByUserId && rec.issuedByUserId !== tf.issuedByUserId) {
+        rec = null;
+      }
       if (!rec) {
         // Older sales recorded before a CrmReceipt was generated for every sale —
         // build the same design straight from the sale record instead of 404ing.
@@ -368,7 +371,10 @@ export async function GET(request: NextRequest) {
         }
       }
     } else {
-      rec = await getBunnyReceiptByLeadId(leadId!, tf);
+      rec = await getBunnyReceiptByLeadId(leadId!);
+      if (rec && tf.issuedByUserId && rec.issuedByUserId !== tf.issuedByUserId) {
+        rec = null;
+      }
       if (!rec) {
         const sale = await getBunnySaleByLeadId(leadId!, saleTf);
         if (sale) {
@@ -386,11 +392,13 @@ export async function GET(request: NextRequest) {
 
     const body = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
 
+    const isDownload = url.searchParams.get('download') === '1' || url.searchParams.get('download') === 'true';
+
     return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}.pdf"`,
+        'Content-Disposition': `${isDownload ? 'attachment' : 'inline'}; filename="${filename}.pdf"`,
         'Cache-Control': 'no-store',
       },
     });

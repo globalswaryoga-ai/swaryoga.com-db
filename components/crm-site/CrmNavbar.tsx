@@ -17,22 +17,37 @@ const NAV_LINKS = [
 export default function CrmNavbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const isActive = (href: string) =>
     href === '/crm-site' ? pathname === '/crm-site' : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100/80 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/crm-site" className="flex items-center gap-2.5 group">
-            <img src="/logo.png" alt="Swar Yoga CRM" className="h-9 w-9 rounded-lg" />
+          <Link href="/crm-site" className="flex items-center gap-2.5 group select-none">
+            {!logoError ? (
+              <img
+                src="/logo.png"
+                alt="Swar Yoga CRM"
+                className="h-9 w-9 rounded-xl object-contain transition-transform group-hover:scale-105"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-800 flex items-center justify-center text-white shadow-sm ring-1 ring-emerald-500/30 group-hover:scale-105 transition-transform">
+                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" opacity="0.3" />
+                  <path d="M12 4c-4.41 0-8 3.59-8 8 0 2.25.93 4.28 2.43 5.73l1.42-1.42A5.964 5.964 0 016 12c0-3.31 2.69-6 6-6s6 2.69 6 6c0 1.62-.64 3.09-1.69 4.17l1.42 1.42A7.94 7.94 0 0020 12c0-4.41-3.59-8-8-8zm0 4a4 4 0 00-4 4c0 1.08.43 2.06 1.13 2.78l1.43-1.43A1.99 1.99 0 0110 12c0-1.1.9-2 2-2s2 .9 2 2c0 .54-.22 1.03-.57 1.38l1.43 1.43c.71-.72 1.14-1.7 1.14-2.81a4 4 0 00-4-4z" />
+                </svg>
+              </div>
+            )}
             <div className="flex flex-col leading-tight">
-              <span className="text-lg font-bold text-gray-900 group-hover:text-swar-primary transition-colors">
+              <span className="text-lg font-bold text-gray-900 group-hover:text-emerald-700 transition-colors tracking-tight">
                 Swar Yoga
               </span>
-              <span className="text-[10px] font-semibold text-swar-primary tracking-widest uppercase">
+              <span className="text-[10px] font-bold text-emerald-700 tracking-widest uppercase">
                 CRM
               </span>
             </div>

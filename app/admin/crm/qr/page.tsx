@@ -2916,6 +2916,8 @@ export default function QRWhatsAppPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pl-16">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
       {/* ═══ Left Icon Rail — matches web.whatsapp.com's own vertical icon
           strip (Chats/Calls/Status/Communities + Settings/profile at the
           bottom). Fixed positioning keeps it clear of every fixed inset-0

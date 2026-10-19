@@ -364,28 +364,29 @@ export default function CrmSubNav({
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-      <div className="flex items-center justify-between px-4 py-2">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-2xs">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2">
         {/* Left: Menu + Title */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {onMenuClick && (
             <button
               onClick={onMenuClick}
-              className={`${showMenuButtonOnDesktop ? '' : 'md:hidden'} p-2 rounded-lg hover:bg-gray-100 transition`}
+              className={`${showMenuButtonOnDesktop ? '' : 'md:hidden'} p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition active:scale-95`}
               title="Show sidebar"
+              aria-label="Toggle Navigation"
             >
               <Menu className="h-5 w-5 text-gray-700" />
             </button>
           )}
-          <div className="flex items-center gap-2">
-            {TitleIcon && <TitleIcon className="h-5 w-5 text-indigo-600" />}
-            <h1 className="font-bold text-gray-900 text-base whitespace-nowrap">{title}</h1>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {TitleIcon && <TitleIcon className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 shrink-0" />}
+            <h1 className="font-bold text-gray-900 text-sm sm:text-base truncate max-w-[130px] sm:max-w-none">{title}</h1>
           </div>
         </div>
 
         {/* Center/Right: Nav items + More dropdown */}
         {(visibleItems.length > 0 || visibleMore.length > 0) && (
-          <div className="flex flex-1 justify-end items-center gap-4 overflow-x-auto scrollbar-hide mx-6">
+          <div className="flex flex-1 justify-end items-center gap-1.5 sm:gap-4 overflow-x-auto scrollbar-hide mx-1 sm:mx-6 py-0.5">
             {visibleItems.map(item => {
               const active = isActive(item.href);
               const ItemIcon = item.icon;

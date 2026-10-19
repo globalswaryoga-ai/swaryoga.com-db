@@ -48,6 +48,17 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
+function getAdminToken(): string {
+  if (typeof window === 'undefined') return '';
+  return (
+    localStorage.getItem('crm_token') ||
+    localStorage.getItem('adminToken') ||
+    localStorage.getItem('admin_token') ||
+    localStorage.getItem('token') ||
+    ''
+  );
+}
+
 export default function CommunityModerationPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('experiences');
@@ -74,15 +85,14 @@ export default function CommunityModerationPage() {
   }, [activeTab]);
 
   async function checkAuth() {
-    // Auth is checked via token in API calls; if no token, API calls will fail
-    const token = localStorage.getItem('token');
+    const token = getAdminToken();
     if (!token) {
       router.push(getLoginPath());
     }
   }
 
   async function fetchAllCounts() {
-    const token = localStorage.getItem('token');
+    const token = getAdminToken();
     const headers = { 'Authorization': `Bearer ${token}` };
 
     try {
@@ -106,7 +116,7 @@ export default function CommunityModerationPage() {
 
   async function fetchItems() {
     setLoading(true);
-    const token = localStorage.getItem('token');
+    const token = getAdminToken();
     
     try {
       const res = await fetchWithTimeout(`/api/community/${activeTab}?status=pending`, {
@@ -132,7 +142,7 @@ export default function CommunityModerationPage() {
     
     setProcessing(true);
     setMessage(null);
-    const token = localStorage.getItem('token');
+    const token = getAdminToken();
 
     try {
       let body: any = {};
@@ -189,30 +199,62 @@ export default function CommunityModerationPage() {
   const totalPending = Object.values(pendingCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600" />
+
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-white border-b border-slate-200/80 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 py-5 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">📬 Community Moderation</h1>
-              <p className="text-gray-500 text-sm mt-1">
-                {totalPending} pending submissions awaiting review
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">📬 Community Moderation</h1>
+                <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                  {totalPending} Pending
+                </span>
+              </div>
+              <p className="text-slate-500 text-sm mt-1">
+                Review and moderate sadhak community stories, Q&A submissions, health tips, and transformation logs.
               </p>
             </div>
             <button
               onClick={() => router.push('/admin/crm')}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl font-medium border border-slate-200 transition text-sm flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
             >
-              ← Back to CRM
+              <span>←</span> Back to CRM
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 space-y-6">
+        {/* 4 Colorful Metric KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-amber-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider block">⭐ Experiences</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{pendingCounts.experiences}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Pending Review</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider block">❓ Questions</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{pendingCounts.questions}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Awaiting Answers</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider block">💡 Health Tips</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{pendingCounts.tips}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Community Tips</span>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-purple-200/80 shadow-xs">
+            <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider block">🦋 Transformations</span>
+            <span className="text-2xl font-black text-slate-900 mt-1 block">{pendingCounts.transformations}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Before & After</span>
+          </div>
+        </div>
+
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {tabs.map((tab) => (
             <button
               key={tab.id}

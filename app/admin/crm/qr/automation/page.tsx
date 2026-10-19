@@ -29,7 +29,8 @@ const BLANK_FORM = {
 };
 
 export default function QrAutomationPage() {
-  const token = useAuth();
+  const authToken = useAuth();
+  const token = authToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '');
   const crmOptions = useMemo(() => ({ token: token || '' }), [token]);
   const crm = useCRM(crmOptions);
   const crmRef = useRef(crm.fetch);
@@ -157,38 +158,66 @@ export default function QrAutomationPage() {
     return true;
   });
 
+  const welcomeCount = rules.filter(r => (r.triggerType === 'welcome' || r.triggerType === 'greeting') && r.enabled).length;
+  const keywordCount = rules.filter(r => r.triggerType === 'keyword' && r.enabled).length;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <PageHeader
-          title="⚡ QR Automation"
-          subtitle="Auto-reply rules for QR WhatsApp — sends via EC2 bridge, not Meta"
-          action={
-            <div className="flex gap-3">
-              <Link href="/admin/crm/qr/chatbot" className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">
-                ← QR Chatbot
-              </Link>
-              <button
-                onClick={openCreate}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-              >
-                + Add Rule
-              </button>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+
+      <div className="p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
+          <PageHeader
+            theme="light"
+            title="⚡ QR Automation"
+            subtitle="Auto-reply rules for QR WhatsApp — sends via EC2 bridge, not Meta"
+            action={
+              <div className="flex gap-3">
+                <Link href="/admin/crm/qr/chatbot" className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold shadow-xs transition">
+                  ← QR Chatbot
+                </Link>
+                <button
+                  onClick={openCreate}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm transition"
+                >
+                  + Add Rule
+                </button>
+              </div>
+            }
+          />
+
+          {/* 4 Colorful Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Rules</span>
+              <span className="text-2xl font-black text-slate-800 mt-1 block">{rules.length}</span>
             </div>
-          }
-        />
-
-        {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
-        {success && <AlertBox type="success" message={success} onClose={() => setSuccess(null)} />}
-
-        {/* Info banner */}
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
-          <span className="text-xl">📱</span>
-          <div className="text-sm text-emerald-700">
-            <strong>QR only:</strong> These rules send via your EC2 Baileys bridge. They run when a contact messages your QR WhatsApp number.
-            Chatbot flows take priority — automation only fires if no chatbot flow is active.
+            <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-xs">
+              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider block">Welcome Rules</span>
+              <span className="text-2xl font-black text-emerald-700 mt-1 block">{welcomeCount} Active</span>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-teal-100 shadow-xs">
+              <span className="text-xs font-semibold text-teal-600 uppercase tracking-wider block">Keyword Triggers</span>
+              <span className="text-2xl font-black text-teal-700 mt-1 block">{keywordCount} Active</span>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-cyan-100 shadow-xs">
+              <span className="text-xs font-semibold text-cyan-600 uppercase tracking-wider block">Bridge Engine</span>
+              <span className="text-2xl font-black text-cyan-700 mt-1 block">EC2 Baileys</span>
+            </div>
           </div>
-        </div>
+
+          {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
+          {success && <AlertBox type="success" message={success} onClose={() => setSuccess(null)} />}
+
+          {/* Info banner */}
+          <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 flex gap-3 text-slate-800 shadow-xs">
+            <span className="text-xl">📱</span>
+            <div className="text-sm text-emerald-900 leading-relaxed">
+              <strong>QR only:</strong> These rules send via your EC2 Baileys bridge. They run when a contact messages your QR WhatsApp number.
+              Chatbot flows take priority — automation only fires if no chatbot flow is active.
+            </div>
+          </div>
 
         {/* Tabs */}
         <div className="flex gap-2 border-b border-gray-200">
@@ -401,6 +430,7 @@ export default function QrAutomationPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

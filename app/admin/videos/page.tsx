@@ -159,7 +159,18 @@ function slugify(text: string): string {
 
 export default function AdminVideosPage() {
   const router = useRouter();
-  const token = useAuth();
+  const rawToken = useAuth();
+  const [token, setToken] = useState<string>('');
+
+  useEffect(() => {
+    const activeToken =
+      rawToken ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('admin_token') ||
+      '';
+    setToken(activeToken);
+  }, [rawToken]);
 
   const [activeTab, setActiveTab] = useState<'batch' | 'post'>('batch');
   const [playlists, setPlaylists] = useState<VideoPlaylist[]>([]);
@@ -842,37 +853,37 @@ export default function AdminVideosPage() {
   if (!token) return null;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* Top Vibrant Gradient Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-red-500 via-rose-500 to-amber-500" />
+
       {/* Header */}
-      <div className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-30">
+      <div className="border-b border-slate-200/80 bg-white sticky top-0 z-30 shadow-2xs">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={() => router.push('/admin/crm')}
-                className="p-2 hover:bg-gray-800 rounded-lg transition text-gray-400 hover:text-white">
+              <button
+                onClick={() => router.push('/admin/crm/social-hub')}
+                className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-500 hover:text-slate-800"
+                title="Back to Social Hub"
+              >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Film className="w-6 h-6 text-yellow-500" />
+                <h1 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                  <Film className="w-6 h-6 text-rose-600" />
                   Video &amp; Playlist Manager
                 </h1>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Manage workshop recordings, Bunny Stream playlists &amp; session plans
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-3 text-xs">
-                <span className="bg-gray-800 border border-gray-700 rounded-full px-3 py-1 text-yellow-400">
-                  <ListVideo className="w-3 h-3 inline mr-1" />{stats.totalBatchPlaylists + stats.totalPostPlaylists} Playlists
-                </span>
-                <span className="bg-gray-800 border border-gray-700 rounded-full px-3 py-1 text-gray-300">
-                  <Video className="w-3 h-3 inline mr-1" />{stats.totalVideos} Videos
-                </span>
-              </div>
-              <button onClick={openCreatePlaylist}
-                className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded-lg text-sm transition shadow-lg shadow-yellow-500/20">
+              <button
+                onClick={openCreatePlaylist}
+                className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition shadow-xs"
+              >
                 <Plus className="w-4 h-4" /> New Playlist
               </button>
             </div>
@@ -883,28 +894,77 @@ export default function AdminVideosPage() {
       {/* Notifications */}
       {error && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 pt-3">
-          <div className="bg-red-900/50 border border-red-800 rounded-lg px-4 py-2 text-sm text-red-300 flex items-center justify-between">
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center justify-between shadow-2xs">
             {error}
-            <button onClick={() => setError('')} className="text-red-400 hover:text-red-300"><X className="w-4 h-4" /></button>
+            <button onClick={() => setError('')} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
           </div>
         </div>
       )}
       {success && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 pt-3">
-          <div className="bg-green-900/50 border border-green-800 rounded-lg px-4 py-2 text-sm text-green-300 flex items-center gap-2">
-            <Check className="w-4 h-4" />{success}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800 flex items-center gap-2 shadow-2xs">
+            <Check className="w-4 h-4 text-emerald-600" />{success}
           </div>
         </div>
       )}
 
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* 4 Metric Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Workshop Batches</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{stats.totalBatchPlaylists}</h3>
+              <p className="text-xs text-rose-600 font-semibold mt-0.5">Active Cohort Playlists</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+              <Layers className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly / Sadhana</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{stats.totalPostPlaylists}</h3>
+              <p className="text-xs text-indigo-600 font-semibold mt-0.5">Recurring Programs</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+              <Calendar className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Stored Videos</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{stats.totalVideos}</h3>
+              <p className="text-xs text-amber-600 font-semibold mt-0.5">Bunny &amp; S3 Media Assets</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+              <Video className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cumulative Views</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">
+                {playlists.reduce((acc, p) => acc + (p.totalViews || 0), 0).toLocaleString()}
+              </h3>
+              <p className="text-xs text-emerald-600 font-semibold mt-0.5">Across All Playlists</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <Eye className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
         {/* Helpful Info Box */}
-        <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-800/50 rounded-lg p-4">
+        <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-4 shadow-2xs">
           <div className="flex items-start gap-3">
             <div className="text-2xl flex-shrink-0">💡</div>
             <div className="flex-1 text-sm">
-              <h3 className="font-semibold text-blue-300 mb-1">Quick Tips: Adding Videos to Batches</h3>
-              <ul className="text-blue-200/80 space-y-1 text-xs">
+              <h3 className="font-bold text-blue-900 mb-1">Quick Tips: Adding Videos to Batches</h3>
+              <ul className="text-blue-800/90 space-y-1 text-xs">
                 <li>✓ <strong>Add many videos to one batch:</strong> Select an existing batch from the list below, then use the "Add Video" or "Import from Bunny" buttons</li>
                 <li>✓ <strong>Same batch, different video types:</strong> Speaker playlists and Gallery playlists are created together for each batch</li>
                 <li>✓ <strong>Quick import:</strong> Click "View Videos" next to a batch, then "Import from Bunny" to add multiple videos at once</li>
@@ -915,37 +975,37 @@ export default function AdminVideosPage() {
 
         {/* Tab Switcher + View Toggle */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1">
+          <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
             <button onClick={() => { setActiveTab('batch'); setSelectedPlaylist(null); setPlaylistVideos([]); }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition ${activeTab === 'batch'
-                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'batch'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}>
               <Layers className="w-4 h-4" /> Workshop Batches
             </button>
             <button onClick={() => { setActiveTab('post'); setSelectedPlaylist(null); setPlaylistVideos([]); }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition ${activeTab === 'post'
-                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'post'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}>
               <Calendar className="w-4 h-4" /> Monthly Posts
             </button>
           </div>
           <div className="flex-1 max-w-sm relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input placeholder="Search playlists..." value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-yellow-500/40 focus:border-yellow-500/40 outline-none" />
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none shadow-2xs" />
           </div>
-          <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5">
+          <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
             <button onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition ${viewMode === 'table' ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-500 hover:text-white'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${viewMode === 'table' ? 'bg-rose-50 text-rose-700' : 'text-slate-500 hover:text-slate-900'}`}>
               <Grid className="w-3.5 h-3.5" /> Table
             </button>
             <button onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition ${viewMode === 'split' ? 'bg-yellow-500/20 text-yellow-400' : 'text-gray-500 hover:text-white'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${viewMode === 'split' ? 'bg-rose-50 text-rose-700' : 'text-slate-500 hover:text-slate-900'}`}>
               <ListVideo className="w-3.5 h-3.5" /> Split
             </button>
           </div>
-          <button onClick={fetchPlaylists} className="text-gray-500 hover:text-yellow-400 transition p-2">
+          <button onClick={fetchPlaylists} className="text-slate-400 hover:text-rose-600 transition p-2 bg-white border border-slate-200 rounded-xl shadow-2xs">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -954,23 +1014,23 @@ export default function AdminVideosPage() {
         {viewMode === 'table' && (
           <div className="space-y-6">
             {/* Playlists Table */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-                  <ListVideo className="w-4 h-4 text-yellow-500" />
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <ListVideo className="w-4 h-4 text-rose-600" />
                   All {activeTab === 'batch' ? 'Workshop' : 'Post'} Playlists ({filteredPlaylists.length})
                 </h2>
               </div>
 
               {loading ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Loader className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...
+                <div className="p-8 text-center text-slate-500">
+                  <Loader className="w-6 h-6 animate-spin mx-auto mb-2 text-rose-600" />Loading playlists...
                 </div>
               ) : filteredPlaylists.length === 0 ? (
-                <div className="p-10 text-center text-gray-600">
-                  <Film className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No playlists yet</p>
-                  <button onClick={openCreatePlaylist} className="mt-3 text-sm text-yellow-500 hover:text-yellow-400 flex items-center gap-1 mx-auto">
+                <div className="p-10 text-center text-slate-500">
+                  <Film className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
+                  <p className="text-sm font-medium">No playlists found</p>
+                  <button onClick={openCreatePlaylist} className="mt-3 text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 mx-auto">
                     <Plus className="w-4 h-4" /> Create First
                   </button>
                 </div>
@@ -978,7 +1038,7 @@ export default function AdminVideosPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-800/60 text-gray-400 text-xs uppercase tracking-wider">
+                      <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-100">
                         <th className="px-4 py-3 text-left w-10">#</th>
                         <th className="px-4 py-3 text-left">Playlist Name</th>
                         <th className="px-4 py-3 text-left w-24">Type</th>
@@ -992,32 +1052,32 @@ export default function AdminVideosPage() {
                         <th className="px-4 py-3 text-center w-36">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800/40">
+                    <tbody className="divide-y divide-slate-100">
                       {filteredPlaylists.map((p, i) => (
                         <tr key={p._id}
                           onClick={() => fetchPlaylistVideos(p._id)}
-                          className={`cursor-pointer transition group ${selectedPlaylist?._id === p._id ? 'bg-yellow-500/5 border-l-2 border-yellow-500' : 'hover:bg-gray-800/40 border-l-2 border-transparent'}`}>
-                          <td className="px-4 py-3 text-gray-500 font-mono text-xs">{i + 1}</td>
+                          className={`cursor-pointer transition group ${selectedPlaylist?._id === p._id ? 'bg-rose-50/60 border-l-4 border-rose-500' : 'hover:bg-slate-50/80 border-l-4 border-transparent'}`}>
+                          <td className="px-4 py-3 text-slate-400 font-mono text-xs">{i + 1}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <Layers className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                              <Layers className="w-4 h-4 text-rose-600 flex-shrink-0" />
                               <div className="min-w-0">
-                                <p className="font-medium text-white text-xs truncate max-w-[250px]">{p.name}</p>
-                                {p.description && <p className="text-[10px] text-gray-500 truncate max-w-[250px]">{p.description}</p>}
+                                <p className="font-semibold text-slate-900 text-xs truncate max-w-[250px]">{p.name}</p>
+                                {p.description && <p className="text-[10px] text-slate-500 truncate max-w-[250px]">{p.description}</p>}
                               </div>
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                              p.videoType === 'speaker' ? 'bg-purple-900/40 text-purple-400 border border-purple-800/50'
-                              : p.videoType === 'gallery' ? 'bg-blue-900/40 text-blue-400 border border-blue-800/50'
-                              : 'bg-gray-800 text-gray-400 border border-gray-700'
+                              p.videoType === 'speaker' ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                              : p.videoType === 'gallery' ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                             }`}>
                               {p.videoType === 'speaker' ? '🎙 Speaker' : p.videoType === 'gallery' ? '🖥 Gallery' : '🔀 Mixed'}
                             </span>
                           </td>
                           {activeTab === 'batch' && (
-                            <td className="px-4 py-3 text-xs text-gray-400 truncate max-w-[120px]">{p.workshopName || '-'}</td>
+                            <td className="px-4 py-3 text-xs text-slate-600 truncate max-w-[120px]">{p.workshopName || '-'}</td>
                           )}
                           {activeTab === 'batch' && (
                             <td className="px-4 py-3 text-center">
@@ -1073,46 +1133,46 @@ export default function AdminVideosPage() {
             {selectedPlaylist && (
               <div className="space-y-4">
                 {/* Playlist Info Bar */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <h2 className="text-lg font-bold text-white">{selectedPlaylist.name}</h2>
+                        <h2 className="text-lg font-bold text-slate-900">{selectedPlaylist.name}</h2>
                         <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                          selectedPlaylist.videoType === 'speaker' ? 'bg-purple-900/40 text-purple-400 border border-purple-800/50'
-                          : selectedPlaylist.videoType === 'gallery' ? 'bg-blue-900/40 text-blue-400 border border-blue-800/50'
-                          : 'bg-gray-800 text-gray-400 border border-gray-700'
+                          selectedPlaylist.videoType === 'speaker' ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                          : selectedPlaylist.videoType === 'gallery' ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}>
                           {selectedPlaylist.videoType === 'speaker' ? '🎙 Speaker' : selectedPlaylist.videoType === 'gallery' ? '🖥 Gallery' : '🔀 Mixed'}
                         </span>
                         {selectedPlaylist.language && (
-                          <span className="text-sm bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-300 border border-yellow-500/40 px-3 py-1 rounded-full font-medium flex items-center gap-1.5">
-                            <Languages className="w-4 h-4" /> {getLangDisplay(selectedPlaylist.language)}
+                          <span className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full font-medium flex items-center gap-1.5">
+                            <Languages className="w-4 h-4 text-amber-600" /> {getLangDisplay(selectedPlaylist.language)}
                           </span>
                         )}
                         {selectedPlaylist.membersOnly !== false && (
-                          <span className="text-xs bg-amber-900/30 text-amber-400 border border-amber-800/50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Lock className="w-3 h-3" /> Members Only
+                          <span className="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-rose-500" /> Members Only
                           </span>
                         )}
                       </div>
                       {selectedPlaylist.description && (
-                        <p className="text-sm text-gray-400 mt-1">{selectedPlaylist.description}</p>
+                        <p className="text-sm text-slate-600 mt-1">{selectedPlaylist.description}</p>
                       )}
-                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><Video className="w-3.5 h-3.5" />{selectedPlaylist.videoCount} Videos</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatDuration(selectedPlaylist.totalDuration)}</span>
-                        <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{selectedPlaylist.totalViews} Views</span>
+                      <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                        <span className="flex items-center gap-1"><Video className="w-3.5 h-3.5 text-slate-400" />{selectedPlaylist.videoCount} Videos</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />{formatDuration(selectedPlaylist.totalDuration)}</span>
+                        <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5 text-slate-400" />{selectedPlaylist.totalViews} Views</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => { setSelectedPlaylist(null); setPlaylistVideos([]); }}
-                        className="p-2 hover:bg-gray-800 rounded-lg text-gray-500 hover:text-white transition" title="Close">
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition" title="Close">
                         <X className="w-4 h-4" />
                       </button>
                       <button onClick={() => openEditPlaylist(selectedPlaylist)}
-                        className="flex items-center gap-1.5 border border-gray-700 hover:border-yellow-500/50 text-gray-400 hover:text-yellow-400 px-3 py-2 rounded-lg text-xs transition">
-                        <Edit className="w-3.5 h-3.5" /> Edit
+                        className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 px-3 py-2 rounded-lg text-xs font-semibold transition bg-slate-50">
+                        <Edit className="w-3.5 h-3.5 text-slate-500" /> Edit
                       </button>
                     </div>
                   </div>
@@ -1120,7 +1180,7 @@ export default function AdminVideosPage() {
                   {/* Zoom Details + Import */}
                   {(selectedPlaylist.zoomMeetingId || selectedPlaylist.zoomPassword) && (
                     <div className="mt-4 space-y-2">
-                      <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-4 py-3 flex items-center justify-between">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between">
                         <div className="flex items-center gap-6 text-sm">
                           <div className="flex items-center gap-2 text-gray-400">
                             <Video className="w-4 h-4 text-blue-400" />
@@ -1199,47 +1259,47 @@ export default function AdminVideosPage() {
                 </div>
 
                 {/* Videos Table — All videos for this playlist */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-                      <Video className="w-4 h-4 text-yellow-500" />
+                <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Video className="w-4 h-4 text-rose-600" />
                       Videos ({playlistVideos.length})
                     </h3>
                     <div className="flex items-center gap-2">
                       <button onClick={() => openBunnyBrowser(selectedPlaylist.videoType === 'gallery' ? 'gallery' : 'speaker')}
-                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border bg-orange-900/30 border-orange-800/50 text-orange-400 hover:opacity-80 transition">
-                        <Film className="w-3 h-3" /> Browse Bunny
+                        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 font-semibold hover:bg-amber-100 transition shadow-2xs">
+                        <Film className="w-3.5 h-3.5 text-amber-600" /> Browse Bunny
                       </button>
                       <button onClick={() => openAddVideo(selectedPlaylist.videoType === 'gallery' ? 'gallery' : selectedPlaylist.videoType === 'speaker' ? 'speaker' : 'speaker')}
-                        className="flex items-center gap-1 text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold px-2.5 py-1.5 rounded-lg transition">
-                        <Plus className="w-3 h-3" /> Add Video
+                        className="flex items-center gap-1 text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs">
+                        <Plus className="w-3.5 h-3.5" /> Add Video
                       </button>
                     </div>
                   </div>
 
                   {loadingVideos ? (
-                    <div className="p-8 text-center text-gray-500">
-                      <Loader className="w-5 h-5 animate-spin mx-auto mb-2" />Loading videos...
+                    <div className="p-8 text-center text-slate-500">
+                      <Loader className="w-5 h-5 animate-spin mx-auto mb-2 text-rose-600" />Loading videos...
                     </div>
                   ) : playlistVideos.length === 0 ? (
                     <div className="p-8 text-center">
-                      <Video className="w-10 h-10 mx-auto text-gray-700 mb-2" />
-                      <p className="text-gray-500 text-sm font-semibold mb-1">Empty Batch - Add Videos Now!</p>
-                      <p className="text-gray-600 text-xs mb-4">This batch has no videos yet. You can add videos in two ways:</p>
-                      <div className="bg-gray-800/40 border border-gray-700/50 rounded-lg p-4 mb-4 text-left">
-                        <div className="space-y-2 text-xs text-gray-300">
+                      <Video className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-700 text-sm font-bold mb-1">Empty Batch - Add Videos Now!</p>
+                      <p className="text-slate-500 text-xs mb-4">This batch has no videos yet. You can add videos in two ways:</p>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 text-left max-w-lg mx-auto">
+                        <div className="space-y-2 text-xs text-slate-600">
                           <div><strong>Option 1 - Upload from Bunny:</strong> Click "Import from Bunny" and select multiple videos at once</div>
                           <div><strong>Option 2 - Add Manually:</strong> Click "Add Video Manually" to enter video URLs and details one by one</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-center gap-3 mt-4">
                         <button onClick={() => openAddVideo(selectedPlaylist.videoType === 'gallery' ? 'gallery' : 'speaker')}
-                          className="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+                          className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs">
                           <Plus className="w-3.5 h-3.5" /> Add Video Manually
                         </button>
                         <button onClick={() => openBunnyBrowser(selectedPlaylist.videoType === 'gallery' ? 'gallery' : 'speaker')}
-                          className="text-xs border border-orange-800/50 text-orange-400 hover:bg-orange-900/20 px-4 py-2 rounded-lg transition flex items-center gap-1.5">
-                          <Film className="w-3.5 h-3.5" /> Import from Bunny
+                          className="text-xs border border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 font-bold">
+                          <Film className="w-3.5 h-3.5 text-amber-600" /> Import from Bunny
                         </button>
                       </div>
                     </div>
@@ -1247,7 +1307,7 @@ export default function AdminVideosPage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-800/60 text-gray-400 text-xs uppercase tracking-wider">
+                          <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-100">
                             <th className="px-4 py-2.5 text-left w-10">#</th>
                             <th className="px-4 py-2.5 text-left">Title</th>
                             <th className="px-4 py-2.5 text-left w-20">Type</th>
@@ -1259,25 +1319,25 @@ export default function AdminVideosPage() {
                             <th className="px-4 py-2.5 text-center w-32">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-800/40">
+                        <tbody className="divide-y divide-slate-100">
                           {playlistVideos.map((v, i) => (
-                            <tr key={v._id} className="hover:bg-gray-800/40 transition group">
-                              <td className="px-4 py-3 text-gray-500 font-mono text-xs">{i + 1}</td>
+                            <tr key={v._id} className="hover:bg-slate-50/80 transition group">
+                              <td className="px-4 py-3 text-slate-400 font-mono text-xs">{i + 1}</td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-16 h-10 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative group/thumb cursor-pointer"
+                                  <div className="w-16 h-10 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative group/thumb cursor-pointer border border-slate-200"
                                     onClick={() => setShowPreviewModal(v.bunnyEmbedUrl || v.videoUrl)}>
                                     {v.thumbnailUrl ? (
                                       <img src={v.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                                     ) : (
-                                      <Play className="w-4 h-4 text-gray-600" />
+                                      <Play className="w-4 h-4 text-slate-400" />
                                     )}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition flex items-center justify-center">
                                       <Play className="w-4 h-4 text-white" />
                                     </div>
                                   </div>
                                   <div className="min-w-0">
-                                    <p className="font-medium text-white truncate max-w-[250px] text-xs">{v.title}</p>
+                                    <p className="font-semibold text-slate-900 truncate max-w-[250px] text-xs">{v.title}</p>
                                     {v.sessionTitle && <p className="text-[10px] text-gray-500 truncate">{v.sessionTitle}</p>}
                                   </div>
                                 </div>

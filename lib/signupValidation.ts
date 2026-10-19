@@ -55,7 +55,9 @@ export function isGibberishWord(rawWord: string): boolean {
 
 export type SignupQualityResult = {
   isLegitimate: boolean;
+  isLikelyLegitimate?: boolean;
   status: 'active' | 'pending';
+  suggestedStatus?: 'active' | 'pending';
   reasons: string[];
 };
 

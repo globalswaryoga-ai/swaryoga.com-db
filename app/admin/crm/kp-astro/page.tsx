@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Shuffle, Info, RefreshCw, Clock } from 'lucide-react';
+import { Sparkles, Shuffle, Info, RefreshCw, Clock, Moon, BookOpen, Eye, Heart, BookMarked, ClipboardList, ArrowRight } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { SPECIAL_ASPECT_OFFSETS } from '@/lib/kpAstro/aspectAnalysis';
@@ -125,24 +125,193 @@ export default function KpAstroPage() {
     .map((h) => ({ house: h, ...HOUSE_TEXT_SOURCES[h] }));
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      <PageHeader theme="light"
-        title={
-          <span className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-indigo-500" />
-            KP Astro
-          </span>
-        }
-        subtitle="KP astrology reference & lookup tool, built from the TFU MasterClass rulebook"
-        action={
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 shrink-0" />
+
+      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+        <PageHeader theme="light"
+          title={
+            <span className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-indigo-500" />
+              KP Astro Workbench
+            </span>
+          }
+          subtitle="KP astrology reference & lookup tool, built from the TFU MasterClass rulebook"
+          action={
+            <Link
+              href="/admin/crm/kp-astro/charts"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm"
+            >
+              Horoscope Charts →
+            </Link>
+          }
+        />
+
+        {/* 6 Colorful Interactive Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
-            href="/admin/crm/kp-astro/charts"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+            href="/admin/crm/kp-astro/data-entry"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
           >
-            Horoscope Charts →
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:scale-105 transition-transform">
+                  <ClipboardList className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Birth Chart
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                New Horoscope Entry
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-indigo-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Enter birth details, compute Lagna, accurate planetary longitudes, and cuspal sub-lords.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-indigo-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Open data entry</span>
+              <span>→</span>
+            </div>
           </Link>
-        }
-      />
+
+          <Link
+            href="/admin/crm/kp-astro/workspace"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-purple-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-100 group-hover:scale-105 transition-transform">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                  Workbench
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-purple-600 transition-colors flex items-center gap-1.5">
+                Astrologer Workspace
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-purple-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Full 12 houses analysis, planetary significators (ABCD), and ruling planet corroboration.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-purple-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Launch workspace</span>
+              <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/crm/kp-astro/horary-workspace"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-violet-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white shadow-md shadow-violet-100 group-hover:scale-105 transition-transform">
+                  <Eye className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                  Prashna
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-violet-600 transition-colors flex items-center gap-1.5">
+                Horary Workspace (1–249)
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-violet-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Instant Horary Prashna computation with exact seed number (1–249) and Moon corroboration.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-violet-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Open horary</span>
+              <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/crm/kp-astro/final-prediction"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-100 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Synthesis
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors flex items-center gap-1.5">
+                Final Prediction Engine
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-emerald-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Automated positive / negative verdict synthesis using primary and supporting house groupings.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Synthesize prediction</span>
+              <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/crm/kp-astro/matchmaking/workspace"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-rose-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 flex items-center justify-center text-white shadow-md shadow-rose-100 group-hover:scale-105 transition-transform">
+                  <Heart className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                  Kundali Milan
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-rose-600 transition-colors flex items-center gap-1.5">
+                Matchmaking Studio
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-rose-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Two-chart compatibility comparison, 36 gunas check, longevity, and marital bliss evaluation.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-rose-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Open matchmaking</span>
+              <span>→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/crm/kp-astro/rule-book"
+            className="group bg-white rounded-2xl border border-slate-200/80 hover:border-amber-300 hover:shadow-xl hover:-translate-y-0.5 transition-all p-5 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-100 group-hover:scale-105 transition-transform">
+                  <BookMarked className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  Rulebook
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                Master KP Rule Book
+                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-amber-600" />
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Explore astrological house significators, disease patterns, career determinants, and sub-lord rules.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-amber-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Browse rules</span>
+              <span>→</span>
+            </div>
+          </Link>
+        </div>
 
       <RulingPlanetsNow />
 
@@ -287,5 +456,6 @@ export default function KpAstroPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }

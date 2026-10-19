@@ -102,7 +102,7 @@ const tenantCards: TenantCard[] = [
   // ── 3. Billing, Invoices & Capacity ──
   {
     label: 'Storage & Database Capacity',
-    description: 'Track per-tenant MongoDB collection sizes, disk storage usage, media asset consumption, and overflow limits.',
+    description: 'Track per-tenant Bunny Database storage sizes, disk storage usage, media asset consumption, and overflow limits.',
     href: '/admin/crm/capacity',
     icon: HardDrive,
     gradient: 'from-emerald-600 via-teal-600 to-cyan-700',
@@ -191,8 +191,12 @@ function TenantsHubContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Hero Header */}
+    <div className="space-y-6">
+      {/* ── Signature Gradient Top Accent ── */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 rounded-full" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* Hero Header */}
       <div className="bg-gradient-to-r from-teal-900 via-cyan-900 to-blue-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-cyan-950/20 relative overflow-hidden border border-cyan-800/40">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-20 w-64 h-64 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
@@ -329,6 +333,7 @@ function TenantsHubContent() {
           <p className="text-sm text-gray-500 mt-1">Try searching with a different keyword or module name.</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

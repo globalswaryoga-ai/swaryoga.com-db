@@ -179,41 +179,65 @@ function ZoomHubContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 flex-shrink-0">
-              <Video className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Zoom Management</h1>
-                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200">
-                  Live & Recordings
-                </span>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500" />
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 flex-shrink-0">
+                <Video className="w-7 h-7" />
               </div>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-                Unified operations center for live Zoom sessions, participant attendance analytics, cloud recordings vault, and community automated syncing.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Zoom Management</h1>
+                  <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-200">
+                    Live & Recordings
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-1 max-w-2xl">
+                  Unified operations center for live Zoom sessions, participant attendance analytics, cloud recordings vault, and community automated syncing.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Search */}
+            <div className="relative w-full md:w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search zoom modules..."
+                className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-xs"
+              />
             </div>
           </div>
 
-          {/* Quick Search */}
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search zoom modules..."
-              className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-xs"
-            />
+          {/* 4 Metric Cards */}
+          <div className="mt-6 pt-5 border-t border-blue-200/40 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-blue-100 shadow-2xs">
+              <span className="text-blue-600 font-semibold block uppercase tracking-wider text-[11px]">Active Modules</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">{zoomPages.length} Tools</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-indigo-100 shadow-2xs">
+              <span className="text-indigo-600 font-semibold block uppercase tracking-wider text-[11px]">Analytics Engine</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Attendance A-E</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-cyan-100 shadow-2xs">
+              <span className="text-cyan-600 font-semibold block uppercase tracking-wider text-[11px]">Storage Vault</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Bunny + Cloud</span>
+            </div>
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-teal-100 shadow-2xs">
+              <span className="text-teal-600 font-semibold block uppercase tracking-wider text-[11px]">Sadhana Bots</span>
+              <span className="text-lg font-black text-slate-800 mt-0.5 block">Automated Join</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b border-gray-200">
@@ -299,6 +323,7 @@ function ZoomHubContent() {
         <div className="text-gray-400">Total: {zoomPages.length} Zoom Management Modules</div>
       </div>
     </div>
+  </div>
   );
 }
 

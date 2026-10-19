@@ -1476,7 +1476,9 @@ export default function BroadcastPage(props: BroadcastPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top Gradient Accent Line */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-green-500" />
       {/* Header */}
       {!isEmbedded && (
       <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">

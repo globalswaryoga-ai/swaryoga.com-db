@@ -3,11 +3,13 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Users, LogOut, Menu, X, Download, Search, KeyRound,
   Eye, EyeOff, CheckCircle, AlertCircle, RefreshCw,
-  Check, Trash2, Clock, AlertTriangle, UserX, UserCheck, ShieldAlert
+  Check, Trash2, Clock, AlertTriangle, UserX, UserCheck, ShieldAlert,
+  ArrowLeft, ChevronRight, Sparkles, Mail, Phone, MapPin, Shield
 } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 
@@ -465,228 +467,358 @@ export default function SignupData() {
   }
 
   return (
-    <div className="flex h-screen bg-swar-primary-light">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white shadow">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        {/* Top vibrant accent stripe */}
+        <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 w-full" />
+
+        {/* Header Bar */}
+        <header className="bg-white border-b border-slate-200/80 shadow-xs z-10">
+          <div className="px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light"
+                className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
               >
-                {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
-                  <Users className="h-8 w-8 text-swar-primary" />
-                  <span>Signup Data</span>
-                </h1>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Connected to Bunny Database • Anti-bot spam protection active
-                </p>
+
+              <Link
+                href="/admin/crm/web-admin"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Web Admin</span>
+              </Link>
+
+              <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 flex-shrink-0">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                      Signup Data
+                    </h1>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Bunny DB
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 hidden sm:block">
+                    Real-time member registrations, verification pipeline & access controls
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 onClick={fetchSignupData}
-                title="Refresh"
-                className="p-2 rounded-lg bg-swar-primary-light text-swar-primary hover:bg-swar-border transition-colors"
+                title="Refresh Signups"
+                className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
               >
-                <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
               </button>
               <button
                 onClick={handleExport}
-                className="p-2 rounded-lg bg-swar-primary-light text-swar-primary hover:bg-swar-border transition-colors flex items-center space-x-2"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-md shadow-blue-500/20 transition flex items-center gap-2"
               >
-                <Download className="h-5 w-5" />
-                <span className="hidden sm:inline text-sm font-medium">Export CSV</span>
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Export CSV</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
+                title="Logout"
+                className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
               >
-                <LogOut className="h-6 w-6" />
+                <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>
-
-          {/* Status Tabs & Search */}
-          <div className="px-6 pb-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Tabs */}
-              <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setStatusTab('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    statusTab === 'all'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  All ({counts.all})
-                </button>
-                <button
-                  onClick={() => setStatusTab('pending')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    statusTab === 'pending'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'text-amber-700 hover:text-amber-900'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  Pending Review ({counts.pending})
-                </button>
-                <button
-                  onClick={() => setStatusTab('active')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    statusTab === 'active'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-emerald-700 hover:text-emerald-900'
-                  }`}
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  Approved ({counts.active})
-                </button>
-                <button
-                  onClick={() => setStatusTab('rejected')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    statusTab === 'rejected'
-                      ? 'bg-red-600 text-white shadow-sm'
-                      : 'text-red-700 hover:text-red-900'
-                  }`}
-                >
-                  <UserX className="w-3.5 h-3.5" />
-                  Rejected ({counts.rejected})
-                </button>
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative w-full max-w-sm">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search name, email, phone, country..."
-                  className="w-full pl-9 pr-8 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-xs"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Bulk Actions Banner */}
-            {selectedIds.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 animate-in fade-in duration-200">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-700" />
-                  <span className="text-xs font-semibold text-amber-900">
-                    {selectedIds.length} signups selected
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleBulkApprove}
-                    disabled={bulkBusy}
-                    className="px-3 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition disabled:opacity-50"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Approve Selected
-                  </button>
-                  <button
-                    onClick={handleBulkReject}
-                    disabled={bulkBusy}
-                    className="px-3 py-1 bg-amber-600 text-white hover:bg-amber-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition disabled:opacity-50"
-                  >
-                    <UserX className="w-3.5 h-3.5" />
-                    Reject Selected
-                  </button>
-                  <button
-                    onClick={() => openDeleteModal(selectedIds, `${selectedIds.length} selected signups`)}
-                    disabled={bulkBusy}
-                    className="px-3 py-1 bg-red-600 text-white hover:bg-red-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete Selected
-                  </button>
-                  <button
-                    onClick={() => setSelectedIds([])}
-                    className="px-2 py-1 text-gray-500 hover:text-gray-800 text-xs font-medium"
-                  >
-                    Clear Selection
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6 space-y-5">
+          {/* 4 Top Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Card 1: Total */}
+            <div
+              onClick={() => setStatusTab('all')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                statusTab === 'all'
+                  ? 'bg-gradient-to-br from-blue-500/15 via-indigo-500/10 to-white border-blue-400 shadow-md shadow-blue-500/10'
+                  : 'bg-white border-slate-200/80 hover:border-blue-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Signups</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">{counts.all}</p>
+                </div>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25">
+                  <Users className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-blue-700 font-medium">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>All registrations in DB</span>
+              </div>
+            </div>
+
+            {/* Card 2: Pending */}
+            <div
+              onClick={() => setStatusTab('pending')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                statusTab === 'pending'
+                  ? 'bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-white border-amber-400 shadow-md shadow-amber-500/10'
+                  : 'bg-white border-slate-200/80 hover:border-amber-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Needs Review</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-amber-600 mt-1">{counts.pending}</p>
+                </div>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/25">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-700 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                <span>Pending admin approval</span>
+              </div>
+            </div>
+
+            {/* Card 3: Approved */}
+            <div
+              onClick={() => setStatusTab('active')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                statusTab === 'active'
+                  ? 'bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-white border-emerald-400 shadow-md shadow-emerald-500/10'
+                  : 'bg-white border-slate-200/80 hover:border-emerald-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Verified Active</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-1">{counts.active}</p>
+                </div>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/25">
+                  <Check className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Full access granted</span>
+              </div>
+            </div>
+
+            {/* Card 4: Rejected */}
+            <div
+              onClick={() => setStatusTab('rejected')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                statusTab === 'rejected'
+                  ? 'bg-gradient-to-br from-rose-500/15 via-red-500/10 to-white border-rose-400 shadow-md shadow-rose-500/10'
+                  : 'bg-white border-slate-200/80 hover:border-rose-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rejected / Spam</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-rose-600 mt-1">{counts.rejected}</p>
+                </div>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-rose-500 to-red-600 flex items-center justify-center text-white shadow-md shadow-rose-500/25">
+                  <UserX className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-rose-700 font-medium">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Spam / blocked entries</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Tabs & Search Card */}
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full">
+              <button
+                onClick={() => setStatusTab('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  statusTab === 'all'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Signups ({counts.all})
+              </button>
+              <button
+                onClick={() => setStatusTab('pending')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  statusTab === 'pending'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-amber-700 hover:text-amber-900 hover:bg-amber-50'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Pending Review ({counts.pending})
+              </button>
+              <button
+                onClick={() => setStatusTab('active')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  statusTab === 'active'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+                }`}
+              >
+                <Check className="w-3.5 h-3.5" />
+                Approved ({counts.active})
+              </button>
+              <button
+                onClick={() => setStatusTab('rejected')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  statusTab === 'rejected'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-rose-700 hover:text-rose-900 hover:bg-rose-50'
+                }`}
+              >
+                <UserX className="w-3.5 h-3.5" />
+                Rejected ({counts.rejected})
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, email, phone, city..."
+                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Bulk Actions Floating Bar */}
+          {selectedIds.length > 0 && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/80 rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-3 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  {selectedIds.length}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-amber-950">
+                    {selectedIds.length} signups selected
+                  </p>
+                  <p className="text-[11px] text-amber-700">Apply batch review actions below</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkBusy}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Approve All
+                </button>
+                <button
+                  onClick={handleBulkReject}
+                  disabled={bulkBusy}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  Reject All
+                </button>
+                <button
+                  onClick={() => openDeleteModal(selectedIds, `${selectedIds.length} selected signups`)}
+                  disabled={bulkBusy}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+                <button
+                  onClick={() => setSelectedIds([])}
+                  className="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 text-xs font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Table Container */}
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64 space-y-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-swar-primary"></div>
-              <p className="text-xs text-gray-500">Connecting to Bunny DB & loading signups...</p>
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-16 flex flex-col items-center justify-center space-y-3">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
+              <p className="text-xs font-semibold text-slate-600">Connecting to Bunny DB & loading signups...</p>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-red-800 space-y-2">
-              <div className="flex items-center gap-2 font-semibold">
-                <AlertCircle className="w-5 h-5 text-red-600" />
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-rose-900 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <AlertCircle className="w-5 h-5 text-rose-600" />
                 <span>{error}</span>
               </div>
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-rose-700">
                 Please verify that you are logged in as admin and that the backend is reachable.
               </p>
               <button
                 onClick={fetchSignupData}
-                className="mt-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
+                className="mt-2 px-3.5 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-semibold hover:bg-rose-700 transition"
               >
-                Retry
+                Retry Connection
               </button>
             </div>
           ) : filteredData.length === 0 ? (
-            <div className="bg-white border border-swar-border rounded-xl p-12 text-center shadow-sm">
-              <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-700 font-medium text-base">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-16 text-center shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                <Users className="h-7 w-7" />
+              </div>
+              <p className="text-slate-800 font-bold text-base">
                 {searchQuery ? 'No signups match your search filter' : `No ${statusTab === 'all' ? '' : statusTab} signups found`}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {searchQuery ? 'Try clearing your search query' : 'New signups will appear here automatically.'}
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-slate-50/80 border-b border-slate-200/80">
                     <tr>
-                      <th className="px-3 py-3 w-10 text-center">
+                      <th className="px-4 py-3.5 w-12 text-center">
                         <input
                           type="checkbox"
                           checked={isAllSelected}
                           onChange={handleToggleSelectAll}
-                          className="rounded border-gray-300 text-swar-primary focus:ring-swar-primary h-4 w-4"
+                          className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                         />
                       </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600">Name & Details</th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600">Contact</th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600">Location</th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600">Status & Approval</th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600">Signed Up</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600">Actions</th>
+                      <th className="px-4 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider">Member Details</th>
+                      <th className="px-4 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider">Contact Info</th>
+                      <th className="px-4 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider">Location</th>
+                      <th className="px-4 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider">Status & Approval</th>
+                      <th className="px-4 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider">Signed Up</th>
+                      <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-600 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-100">
                     {filteredData.map((user) => {
                       const userId = user.id || user._id;
                       const isSelected = selectedIds.includes(userId);
@@ -695,52 +827,94 @@ export default function SignupData() {
                       const isActive = user.status === 'active' || (!user.status);
                       const busyType = actionBusy[userId];
 
+                      // Name initials
+                      const initials = (user.name || user.email || 'U')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase();
+
                       return (
                         <tr
                           key={userId}
                           className={`transition-colors ${
                             isSelected
-                              ? 'bg-amber-50/50'
+                              ? 'bg-blue-50/60'
                               : isPending
-                              ? 'bg-amber-50/20 hover:bg-amber-50/40'
-                              : 'hover:bg-gray-50'
+                              ? 'bg-amber-50/25 hover:bg-amber-50/50'
+                              : 'hover:bg-slate-50/80'
                           }`}
                         >
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelectOne(userId)}
-                              className="rounded border-gray-300 text-swar-primary focus:ring-swar-primary h-4 w-4"
+                              className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="font-semibold text-sm text-gray-900">{user.name || 'Unnamed'}</div>
-                            <div className="text-xs text-gray-500">
-                              {[user.gender, user.age ? `${user.age} yrs` : '', user.profession]
-                                .filter(Boolean)
-                                .join(' • ') || 'No profile details'}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0 ${
+                                isPending
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : isActive
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {initials}
+                              </div>
+                              <div>
+                                <div className="font-bold text-sm text-slate-900">{user.name || 'Unnamed Member'}</div>
+                                <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                                  {user.gender && <span className="capitalize">{user.gender}</span>}
+                                  {user.age && <span>• {user.age} yrs</span>}
+                                  {user.profession && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium">
+                                      {user.profession}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-xs">
-                            <div className="text-gray-900 font-medium">{user.email}</div>
-                            <div className="text-gray-500">{user.phone || 'No phone'}</div>
+                          <td className="px-4 py-3.5">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-900 font-medium">
+                                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{user.email}</span>
+                              </div>
+                              {user.phone ? (
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{user.phone}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">No phone provided</span>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-3 py-3 text-xs text-gray-600">
-                            <div>{user.country || 'Unknown'}</div>
-                            {user.state && <div className="text-gray-400">{user.state}</div>}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <div>
+                                <span className="font-medium">{user.country || 'Global'}</span>
+                                {user.state && <span className="text-slate-400 text-[11px]"> • {user.state}</span>}
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-3.5">
                             {isPending ? (
                               <div className="space-y-1">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-                                  <Clock className="w-3 h-3" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <Clock className="w-3 h-3 text-amber-600" />
                                   Pending Review
                                 </span>
                                 {user.approvalReason && (
                                   <div
                                     title={user.approvalReason}
-                                    className="text-[11px] text-amber-700 max-w-xs truncate"
+                                    className="text-[11px] text-amber-700 max-w-xs truncate font-medium"
                                   >
                                     {user.approvalReason}
                                   </div>
@@ -748,46 +922,46 @@ export default function SignupData() {
                               </div>
                             ) : isActive ? (
                               <div className="space-y-1">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                                  <Check className="w-3 h-3" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3 h-3 text-emerald-600" />
                                   Approved
                                 </span>
                                 {user.approvalReason && user.approvalReason !== 'Approved by admin' && (
-                                  <div className="text-[11px] text-gray-400 max-w-xs truncate">
+                                  <div className="text-[11px] text-slate-400 max-w-xs truncate">
                                     {user.approvalReason}
                                   </div>
                                 )}
                               </div>
                             ) : (
                               <div className="space-y-1">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                                  <UserX className="w-3 h-3" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <UserX className="w-3 h-3 text-rose-600" />
                                   Rejected
                                 </span>
                                 {user.approvalReason && (
-                                  <div className="text-[11px] text-red-700 max-w-xs truncate">
+                                  <div className="text-[11px] text-rose-700 max-w-xs truncate font-medium">
                                     {user.approvalReason}
                                   </div>
                                 )}
                               </div>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
                             {new Date(user.createdAt).toLocaleDateString(undefined, {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric',
                             })}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <div className="inline-flex items-center gap-1.5">
                               {/* Approve Button */}
                               {isPending && (
                                 <button
                                   onClick={() => handleApprove(user)}
                                   disabled={!!busyType}
-                                  title="Approve Signup & Send Welcome Email"
-                                  className="p-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
+                                  title="Approve & Activate"
+                                  className="p-2 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition shadow-xs disabled:opacity-50"
                                 >
                                   {busyType === 'approve' ? (
                                     <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
@@ -802,8 +976,8 @@ export default function SignupData() {
                                 <button
                                   onClick={() => handleReject(user)}
                                   disabled={!!busyType}
-                                  title="Reject Signup"
-                                  className="p-1.5 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition disabled:opacity-50"
+                                  title="Reject Access"
+                                  className="p-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition shadow-xs disabled:opacity-50"
                                 >
                                   {busyType === 'reject' ? (
                                     <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
@@ -816,8 +990,8 @@ export default function SignupData() {
                               {/* Reset Password Button */}
                               <button
                                 onClick={() => openResetModal(user)}
-                                title="Reset Password"
-                                className="p-1.5 text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition"
+                                title="Reset Member Password"
+                                className="p-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition shadow-xs"
                               >
                                 <KeyRound className="w-3.5 h-3.5" />
                               </button>
@@ -825,8 +999,8 @@ export default function SignupData() {
                               {/* Delete Button */}
                               <button
                                 onClick={() => openDeleteModal([userId], user.name || user.email)}
-                                title="Delete Signup Permanently"
-                                className="p-1.5 text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition"
+                                title="Delete Permanently"
+                                className="p-2 text-rose-600 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition shadow-xs"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -840,18 +1014,27 @@ export default function SignupData() {
               </div>
 
               {/* Stats Footer */}
-              <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between text-xs text-gray-500">
+              <div className="bg-slate-50 border-t border-slate-200/80 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 font-medium">
                 <div>
-                  Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> of{' '}
-                  <span className="font-semibold text-gray-900">{signupData.length}</span> signups
+                  Showing <span className="font-bold text-slate-900">{filteredData.length}</span> of{' '}
+                  <span className="font-bold text-slate-900">{signupData.length}</span> total signups
                   {statusTab !== 'all' && (
-                    <span> in <strong className="capitalize">{statusTab}</strong> filter</span>
+                    <span> in <strong className="capitalize text-slate-800">{statusTab}</strong> filter</span>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <span>Pending: <strong className="text-amber-700">{counts.pending}</strong></span>
-                  <span>Approved: <strong className="text-emerald-700">{counts.active}</strong></span>
-                  <span>Rejected: <strong className="text-red-700">{counts.rejected}</strong></span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    Pending: <strong className="text-amber-800">{counts.pending}</strong>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Approved: <strong className="text-emerald-800">{counts.active}</strong>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Rejected: <strong className="text-rose-800">{counts.rejected}</strong>
+                  </span>
                 </div>
               </div>
             </div>
