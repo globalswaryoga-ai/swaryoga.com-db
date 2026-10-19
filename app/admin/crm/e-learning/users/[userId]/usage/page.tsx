@@ -254,7 +254,7 @@ export default function StudentUsagePage() {
             className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 text-gray-300 hover:text-white hover:bg-gray-800 border border-transparent hover:border-gray-700 transition-all"
           >
             <Video size={16} />
-            <span>1) Video Management</span>
+            <span>Video Management</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-800 text-emerald-400">
               {videosCount} Videos
             </span>
@@ -266,7 +266,7 @@ export default function StudentUsagePage() {
             className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 text-gray-300 hover:text-white hover:bg-gray-800 border border-transparent hover:border-gray-700 transition-all"
           >
             <Smartphone size={16} />
-            <span>2) Device Management</span>
+            <span>Device Management</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-800 text-purple-300">
               {devicesCount}/3 Slots
             </span>
@@ -277,7 +277,7 @@ export default function StudentUsagePage() {
             className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 ring-2 ring-cyan-400/40"
           >
             <Activity size={16} />
-            <span>3) User Updates Dashboard (Daily, Weekly, Monthly, Total)</span>
+            <span>User Updates Dashboard</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white">
               {dailyActivity.length} Days Active
             </span>

@@ -92,7 +92,7 @@ export default function StudentManagementHeader({
             <span>Profile</span>
           </Link>
 
-          {/* Button 1: 1) Video Management */}
+          {/* Button 1: Video Management */}
           <Link
             href={`/admin/crm/e-learning/users/${userId}/videos?enrollmentId=${currentEnrollmentId}`}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
@@ -102,7 +102,7 @@ export default function StudentManagementHeader({
             }`}
           >
             <Video className={`w-4 h-4 ${activePage === 'videos' ? 'text-black stroke-[2.5]' : 'text-emerald-400'}`} />
-            <span>1) Video Management</span>
+            <span>Video Management</span>
             {videosCount > 0 && (
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
@@ -114,7 +114,7 @@ export default function StudentManagementHeader({
             )}
           </Link>
 
-          {/* Button 2: 2) Device Management */}
+          {/* Button 2: Device Management */}
           <Link
             href={`/admin/crm/e-learning/users/${userId}/devices?enrollmentId=${currentEnrollmentId}`}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
@@ -124,7 +124,7 @@ export default function StudentManagementHeader({
             }`}
           >
             <Smartphone className={`w-4 h-4 ${activePage === 'devices' ? 'text-black stroke-[2.5]' : 'text-purple-400'}`} />
-            <span>2) Device Management</span>
+            <span>Device Management</span>
             <span
               className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
                 activePage === 'devices' ? 'bg-black/25 text-black' : 'bg-gray-800 text-purple-300'
@@ -134,7 +134,7 @@ export default function StudentManagementHeader({
             </span>
           </Link>
 
-          {/* Button 3: 3) User Updates */}
+          {/* Button 3: User Updates */}
           <Link
             href={`/admin/crm/e-learning/users/${userId}/usage?enrollmentId=${currentEnrollmentId}`}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
@@ -144,7 +144,7 @@ export default function StudentManagementHeader({
             }`}
           >
             <Activity className={`w-4 h-4 ${activePage === 'usage' ? 'text-black stroke-[2.5]' : 'text-cyan-400'}`} />
-            <span>3) User Updates</span>
+            <span>User Updates</span>
             {daysActiveCount > 0 && (
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${

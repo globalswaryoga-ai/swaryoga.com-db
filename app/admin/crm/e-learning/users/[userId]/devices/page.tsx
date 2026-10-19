@@ -271,7 +271,7 @@ export default function StudentDevicesPage() {
           className="flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 text-gray-300 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-gray-700 transition-all"
         >
           <Video size={17} />
-          <span>1) Video Management</span>
+          <span>Video Management</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-800 text-emerald-400 border border-gray-700">
             {videosCount} Videos
           </span>
@@ -282,7 +282,7 @@ export default function StudentDevicesPage() {
           className="flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/25 ring-2 ring-purple-400/40"
         >
           <Smartphone size={17} />
-          <span>2) Device Management</span>
+          <span>Device Management</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white">
             {devices.length}/3 Slots
           </span>
@@ -294,7 +294,7 @@ export default function StudentDevicesPage() {
           className="flex-1 sm:flex-initial px-5 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 text-gray-300 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-gray-700 transition-all"
         >
           <Activity size={17} />
-          <span>3) User Updates Dashboard (Daily, Weekly, Monthly, Total)</span>
+          <span>User Updates Dashboard</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gray-800 text-cyan-300 border border-gray-700">
             {daysCount} Days Active
           </span>
