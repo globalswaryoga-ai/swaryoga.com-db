@@ -237,8 +237,9 @@ export default function StudentManagementHeader({
 
       {/* ============================================================ */}
       {/* TAKEN WORKSHOPS & LIVE PROGRESS BARS IN HEADER */}
+      {/* (Only visible on Video Management page) */}
       {/* ============================================================ */}
-      {takenWorkshops.length > 0 && (
+      {activePage === 'videos' && takenWorkshops.length > 0 && (
         <div className="bg-[#0b1019] border border-gray-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
             <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
