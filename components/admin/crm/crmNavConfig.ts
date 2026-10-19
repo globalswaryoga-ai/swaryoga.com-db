@@ -110,122 +110,86 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm'],
   },
 
-  // 2. Web Super Admin (superadmin only — the public website's admin area)
+  // 2. Website Management (Card Grid Hub - No navbar dropdowns)
   {
     key: 'web-admin',
-    title: 'Web Super Admin',
+    title: 'Website Management',
     icon: Monitor,
-    items: [
-      {
-        label: 'Users', href: '/admin/crm/web-admin', icon: Users,
-        children: [
-          { label: 'Admin Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-          { label: 'Signup Data', href: '/admin/signup-data', icon: Users },
-          { label: 'Signin Data', href: '/admin/signin-data', icon: LogIn },
-          { label: 'Website Users', href: '/admin/users', icon: Users },
-          { label: 'Contact Messages', href: '/admin/contact-messages', icon: MessageSquare },
-          { label: 'Enquiries', href: '/admin/enquiries', icon: MessageSquare },
-          { label: 'Admin Users', href: '/admin/crm/users', icon: Shield },
-        ],
-      },
-      {
-        label: 'Sales', href: '/admin/crm/web-admin?tab=sales', icon: DollarSign,
-        children: [
-          { label: 'Leads', href: '/admin/crm/leads', icon: Users },
-          { label: 'Follow-up', href: '/admin/crm/leads-followup', icon: UserCheck },
-          { label: 'Funnel', href: '/admin/crm/funnel', icon: Filter },
-          { label: 'Funnel Manage', href: '/admin/crm/funnel/manage', icon: Sliders },
-          { label: 'Labels', href: '/admin/crm/labels', icon: Tag },
-          { label: 'Form Links', href: '/admin/crm/form-links', icon: Link2 },
-          { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Settings },
-          { label: 'Deleted Leads', href: '/admin/crm/leads/deleted', icon: Trash2 },
-          { label: 'Orders', href: '/admin/crm/order-maintenance', icon: ShoppingBag },
-          { label: 'Offers', href: '/admin/offers', icon: Tag },
-          { label: 'Investment', href: '/admin/crm/investment', icon: TrendingUp },
-          { label: 'Investment Dashboard', href: '/admin/crm/investment-dashboard', icon: BarChart3 },
-        ],
-      },
-      {
-        label: 'Workshops', href: '/admin/crm/web-admin?tab=workshops', icon: Calendar,
-        children: [
-          { label: 'Workshops', href: '/admin/workshops', icon: Calendar },
-          { label: 'Workshop Dates', href: '/admin/workshops/schedules', icon: Calendar },
-          { label: 'Youth Program', href: '/admin/youth-program', icon: Users },
-          { label: 'Landing Pages', href: '/admin/landing-pages', icon: FileText },
-          { label: 'Accounting', href: '/admin/accounting', icon: Calculator },
-        ],
-      },
-      {
-        label: 'Social & Media', href: '/admin/crm/web-admin?tab=social', icon: Share2,
-        children: [
-          { label: 'Social Media', href: '/admin/social-media', icon: Share2 },
-          { label: 'Social Setup', href: '/admin/social-media-setup', icon: Settings },
-          { label: 'Video Library', href: '/admin/videos', icon: Video },
-          { label: 'Media Upload', href: '/admin/media-upload', icon: Image },
-          { label: 'Communities', href: '/admin/communities', icon: Globe },
-          { label: 'Community Content', href: '/admin/communities/content', icon: FileText },
-          { label: 'Recordings & Videos', href: '/admin/communities/recordings-videos', icon: Video },
-          { label: 'Community Admin', href: '/admin/community', icon: Globe },
-          { label: 'Community Members', href: '/admin/community/members', icon: Users },
-          { label: 'Private Videos', href: '/admin/community/private-videos', icon: Video },
-          { label: 'Zoom', href: '/admin/zoom', icon: Video },
-        ],
-      },
-      {
-        label: 'Settings', href: '/admin/crm/web-admin?tab=settings', icon: Settings,
-        children: [
-          { label: 'Website Settings', href: '/admin/settings', icon: Settings },
-          { label: 'CRM Settings', href: '/admin/crm/settings', icon: Wrench },
-          { label: 'Ritucharya Admin', href: '/admin/crm/planner-dashboard/ritucharya/ritus-admin', icon: Leaf },
-          { label: 'Knowledge Base', href: '/admin/crm/knowledge-base', icon: BookOpen },
-          { label: 'AI Agents', href: '/admin/crm/ai-agents', icon: Zap },
-          { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
-          { label: 'CRM Media', href: '/admin/crm/media', icon: Image },
-          { label: 'Inbound Media', href: '/admin/crm/inbound-media', icon: Image },
-          { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
-          { label: 'Chatbot Builder', href: '/admin/crm/chatbot-builder', icon: Bot },
-          { label: 'Send Template', href: '/admin/crm/send-template', icon: FileText },
-          { label: 'Templates', href: '/admin/crm/templates', icon: FileText },
-        ],
-      },
-    ],
+    items: [],
     moreItems: [],
     prefixes: [
       '/admin/crm/web-admin',
       '/admin/dashboard', '/admin/signup-data', '/admin/signin-data', '/admin/users',
-      '/admin/contact-messages', '/admin/enquiries', '/admin/offers', '/admin/workshops',
-      '/admin/youth-program', '/admin/landing-pages', '/admin/accounting',
-      '/admin/social-media', '/admin/social-media-setup', '/admin/videos', '/admin/media-upload',
-      '/admin/communities', '/admin/community', '/admin/zoom', '/admin/settings',
+      '/admin/contact-messages', '/admin/enquiries', '/admin/offers',
+      '/admin/settings',
     ],
   },
 
-  // 3. Lead Management - Meta — clean lead tabs (Follow-up/extras only for Copper+)
+  // 3. Leads Management Hub (Unified Leads, Funnel, Follow-up - No navbar dropdowns)
+  {
+    key: 'leads-hub',
+    title: 'Leads Management',
+    icon: Users,
+    items: [],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/leads-hub',
+      '/admin/crm/leads',
+      '/admin/crm/funnel',
+      '/admin/crm/funnel/manage',
+      '/admin/crm/leads-followup',
+      '/admin/crm/labels',
+      '/admin/crm/form-links',
+      '/admin/crm/form-questions',
+      '/admin/crm/lead-assignment-settings',
+      '/admin/crm/leads/deleted',
+      '/admin/crm/qr/leads',
+      '/admin/crm/qr/funnel',
+      '/admin/crm/qr/manage',
+    ],
+  },
+
+  // 4. Social Media Hub (Card Grid Hub - No navbar dropdowns)
+  {
+    key: 'social-hub',
+    title: 'Social Media',
+    icon: Share2,
+    items: [],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/social-hub',
+      '/admin/social-media',
+      '/admin/social-media-setup',
+      '/admin/crm/instagram',
+      '/admin/crm/messenger',
+      '/admin/videos',
+      '/admin/media-upload',
+    ],
+  },
+
+  // 5. Sales Management — Deals, Orders, Offers (No navbar dropdowns)
   {
     key: 'sales',
-    title: 'Lead Management - Meta',
+    title: 'Sales Management',
     icon: DollarSign,
-    items: [
-      { label: 'Funnel', href: '/admin/crm/funnel', icon: Filter },
-      { label: 'Funnel Manage', href: '/admin/crm/funnel/manage', icon: Sliders },
-      { label: 'Leads', href: '/admin/crm/leads', icon: Users },
-      { label: 'Sales', href: '/admin/crm/sales', icon: DollarSign },
-      { label: 'Follow-up', href: '/admin/crm/leads-followup', icon: UserCheck, bundle: 'whatsapp_meta' },
-      { label: 'Zoom Meeting Setup', href: '/admin/crm/zoom-setup', icon: Calendar },
-    ],
-    moreItems: [
-      { label: 'Labels', href: '/admin/crm/labels', icon: Tag, bundle: 'whatsapp_meta' },
-      { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Settings, bundle: 'whatsapp_meta' },
-      { label: 'Deleted Leads', href: '/admin/crm/leads/deleted', icon: Trash2, bundle: 'whatsapp_meta' },
-      { label: 'Orders', href: '/admin/crm/order-maintenance', icon: ShoppingBag, bundle: 'whatsapp_meta' },
-      { label: 'Investment', href: '/admin/crm/investment', icon: TrendingUp },
-      { label: 'Investment Dashboard', href: '/admin/crm/investment-dashboard', icon: BarChart3 },
-    ],
+    items: [],
+    moreItems: [],
     prefixes: [
-      '/admin/crm/sales', '/admin/crm/leads', '/admin/crm/leads-followup',
-      '/admin/crm/funnel', '/admin/crm/order-maintenance', '/admin/crm/labels',
-      '/admin/crm/lead-assignment-settings', '/admin/crm/investment',
-      '/admin/crm/investment-dashboard',
+      '/admin/crm/sales',
+      '/admin/crm/order-maintenance',
+      '/admin/crm/workshop-offer',
+    ],
+  },
+
+  // 3a. Communication Hub (Card Grid Hub - Unified Meta WA, QR WA, Email, SMS, Calling, Telegram - No navbar dropdowns)
+  {
+    key: 'communication',
+    title: 'Communication Hub',
+    icon: MessageCircle,
+    items: [],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/communication-hub',
     ],
   },
 
@@ -254,25 +218,22 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 4. Broadcast WhatsApp — whatsapp_qr OR whatsapp_meta
+  // 4. Broadcast WhatsApp (Card Grid Hub - No navbar dropdowns)
   {
     key: 'broadcast',
     title: 'Broadcast WhatsApp',
     icon: Radio,
-    items: [
-      { label: 'Broadcast', href: '/admin/crm/broadcast', icon: Radio },
-      { label: 'Dashboard', href: '/admin/crm/broadcast-dashboard', icon: BarChart3 },
-      { label: 'Reports', href: '/admin/crm/broadcast/reports', icon: PieChart },
-      { label: 'Send Template', href: '/admin/crm/send-template', icon: Send },
-    ],
-    moreItems: [
-      { label: 'Templates', href: '/admin/crm/templates', icon: FileText },
-      { label: 'Template Builder', href: '/admin/crm/templates/builder', icon: FileEdit },
-      { label: 'Scheduled Messages', href: '/admin/crm/scheduled-messages', icon: Clock },
-    ],
+    items: [],
+    moreItems: [],
     prefixes: [
-      '/admin/crm/broadcast', '/admin/crm/broadcast-dashboard',
-      '/admin/crm/broadcast-runs', '/admin/crm/send-template', '/admin/crm/templates',
+      '/admin/crm/broadcast-hub',
+      '/admin/crm/broadcast',
+      '/admin/crm/broadcast-dashboard',
+      '/admin/crm/broadcast/reports',
+      '/admin/crm/broadcast-runs',
+      '/admin/crm/send-template',
+      '/admin/crm/templates',
+      '/admin/crm/templates/builder',
       '/admin/crm/scheduled-messages',
     ],
   },
@@ -290,50 +251,55 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/email', '/admin/crm/email-campaigns'],
   },
 
-  // 6. Community — community bundle
+  // 6. Community (Card Grid Hub - No navbar dropdowns)
   {
     key: 'community',
     title: 'Community',
     icon: Globe,
-    items: [
-      { label: 'Community', href: '/admin/crm/community', icon: Globe },
-      { label: 'Moderation', href: '/admin/crm/community-moderation', icon: Shield },
-    ],
+    items: [],
     moreItems: [],
     prefixes: [
-      '/admin/crm/community', '/admin/crm/community-moderation',
+      '/admin/crm/community-hub',
+      '/admin/crm/community',
+      '/admin/crm/community-moderation',
     ],
   },
 
-  // 6b. Zoom Management — community bundle (recordings + zoom analytics)
+  // 6b. Zoom Management (Card Grid Hub - No navbar dropdowns)
   {
     key: 'zoom',
     title: 'Zoom Management',
     icon: Video,
-    items: [
-
-    ],
+    items: [],
     moreItems: [],
     prefixes: [
-      '/admin/crm/recording-management', '/admin/crm/zoom-analytics'
+      '/admin/crm/zoom-hub',
+      '/admin/crm/zoom-analytics',
+      '/admin/crm/recording-management',
+      '/admin/crm/community/zoom-setting',
+      '/admin/crm/zoom-setup',
+      '/admin/zoom',
+      '/admin/community/pending-zoom-shares',
+      '/admin/crm/sadhana-programs',
+      '/admin/crm/sadhana-scheduler',
     ],
   },
 
-  // 6c. Workshop Management
+  // 6c. Workshop Management (Card Grid Hub - No navbar dropdowns)
   {
     key: 'workshop-management',
     title: 'Workshop Management',
     icon: GraduationCap,
-    items: [
-      { label: 'Workshop Students', href: '/admin/crm/workshop-management', icon: Users },
-      { label: 'Register New Batch', href: '/admin/crm/new-registration/english', icon: Plus },
-      { label: 'Workshop Offer', href: '/admin/crm/workshop-offer', icon: Tag },
-    ],
+    items: [],
     moreItems: [],
     prefixes: [
+      '/admin/crm/workshop-hub',
       '/admin/crm/workshop-management',
       '/admin/crm/new-registration',
       '/admin/crm/workshop-offer',
+      '/admin/landing-pages',
+      '/admin/workshops',
+      '/admin/youth-program',
     ],
   },
 
@@ -438,45 +404,39 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 10. Reports — report bundle (tab-level bundle tags for cross-bundle tabs)
+  // 10. Reports (Card Grid Hub - No navbar dropdowns)
   {
     key: 'reports',
-    title: 'All Reports',
+    title: 'All Reports & Analytics',
     icon: BarChart3,
-    items: [
-      { label: 'Reports Center', href: '/admin/crm/reports', icon: BarChart3 },
-      { label: 'All Reports', href: '/admin/crm/all-reports', icon: FileText },
-      { label: 'Analytics', href: '/admin/crm/analytics', icon: PieChart },
-      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2, bundle: ['whatsapp_qr', 'whatsapp_meta'] },
+    items: [],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/reports-hub',
+      '/admin/crm/reports',
+      '/admin/crm/all-reports',
+      '/admin/crm/analytics',
+      '/admin/crm/whatsapp-analytics',
     ],
-    moreItems: [
-      { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: FileText, bundle: 'whatsapp_meta' },
-      { label: 'QR Reports', href: '/admin/crm/reports/qr', icon: FileText, bundle: 'whatsapp_qr' },
-    ],
-    prefixes: ['/admin/crm/analytics', '/admin/crm/reports', '/admin/crm/all-reports', '/admin/crm/whatsapp-analytics'],
   },
 
-  // 11. Settings — always visible, tab-level bundle tags for optional tabs
+  // 11. Settings (Card Grid Hub - No navbar dropdowns)
   {
     key: 'settings',
     title: 'Settings',
     icon: Settings,
-    items: [
-      { label: 'CRM Settings', href: '/admin/crm/settings', icon: Sliders },
-      { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
-      { label: 'Team', href: '/admin/crm/team', icon: Users },
-    ],
-    moreItems: [
-      { label: 'Data Management', href: '/admin/crm/settings/data-management', icon: Database },
-      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle, bundle: ['whatsapp_qr', 'whatsapp_meta'] },
-      { label: 'Media Settings', href: '/admin/crm/media/settings', icon: Image },
-      { label: 'Custom Fields', href: '/admin/crm/custom-fields', icon: FileText },
-      { label: 'Branding', href: '/admin/crm/branding', icon: Image },
-      { label: 'Permissions', href: '/admin/crm/permissions', icon: Shield },
-    ],
+    items: [],
+    moreItems: [],
     prefixes: [
-      '/admin/crm/settings', '/admin/crm/users/profile', '/admin/crm/team',
-      '/admin/crm/custom-fields', '/admin/crm/branding', '/admin/crm/permissions',
+      '/admin/crm/settings-hub',
+      '/admin/crm/settings',
+      '/admin/crm/profile',
+      '/admin/crm/users/profile',
+      '/admin/crm/team',
+      '/admin/crm/custom-fields',
+      '/admin/crm/branding',
+      '/admin/crm/permissions',
+      '/admin/crm/settings/data-management',
     ],
   },
 
@@ -494,37 +454,39 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/telegram'],
   },
 
-  // AI & Chatbot — chatbot bundle
+  // AI & Chatbot — folded into Automation Hub
   {
     key: 'chatbot',
-    title: 'AI & Chatbot',
+    title: 'Automation & AI',
     icon: Bot,
-    items: [
-      { label: 'Chatbots', href: '/admin/crm/chatbots', icon: Bot },
-      { label: 'Knowledge Base', href: '/admin/crm/knowledge-base', icon: BookOpen },
-      { label: 'AI Agents', href: '/admin/crm/ai-agents', icon: Cpu },
-    ],
-    moreItems: [
-      { label: 'Chatbot Builder', href: '/admin/crm/chatbot-builder', icon: Bot },
-      { label: 'Chatbot Settings', href: '/admin/crm/chatbot-settings', icon: Settings },
-    ],
+    items: [],
+    moreItems: [],
     prefixes: [
+      '/admin/crm/automation-hub',
       '/admin/crm/chatbots', '/admin/crm/chatbot-settings', '/admin/crm/chatbot-builder',
       '/admin/crm/knowledge-base', '/admin/crm/ai-agents',
     ],
   },
 
-  // Automation — chatbot bundle
+  // Automation & AI (Card Grid Hub - No navbar dropdowns)
   {
     key: 'automation',
-    title: 'Automation',
+    title: 'Automation & AI',
     icon: Zap,
-    items: [
-      { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
-      { label: 'Workflows', href: '/admin/crm/workflows', icon: Zap },
-    ],
+    items: [],
     moreItems: [],
-    prefixes: ['/admin/crm/automation', '/admin/crm/workflows'],
+    prefixes: [
+      '/admin/crm/automation-hub',
+      '/admin/crm/automation',
+      '/admin/crm/workflows',
+      '/admin/crm/chatbots',
+      '/admin/crm/chatbot-builder',
+      '/admin/crm/chatbot-settings',
+      '/admin/crm/ai-agents',
+      '/admin/crm/knowledge-base',
+      '/admin/crm/qr/automation',
+      '/admin/crm/qr/chatbot',
+    ],
   },
 
   // Landing Page — landing_page bundle
@@ -604,16 +566,23 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/calls'],
   },
 
-  // Bank Income Tracker — super-admin only
+  // Banking & Finance (Card Grid Hub - No navbar dropdowns)
   {
     key: 'bank-income',
-    title: 'Bank Income',
+    title: 'Banking & Finance',
     icon: Landmark,
-    items: [
-      { label: 'Bank Income', href: '/admin/crm/bank-income', icon: Landmark },
-    ],
+    items: [],
     moreItems: [],
-    prefixes: ['/admin/crm/bank-income'],
+    prefixes: [
+      '/admin/crm/banking-hub',
+      '/admin/crm/bank-income',
+      '/admin/accounting',
+      '/admin/crm/account',
+      '/admin/crm/account-book',
+      '/admin/crm/tally',
+      '/admin/crm/investment',
+      '/admin/crm/investment-dashboard',
+    ],
   },
 
   // SMS Management — sms bundle
@@ -646,17 +615,18 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/super-admin'],
   },
 
-  // 13. CRM Tenants (Multi-Tenant SaaS — superadmin only)
+  // 13. CRM Tenants (Card Grid Hub - Multi-Tenant SaaS — superadmin only)
   {
     key: 'tenants',
-    title: 'Tenants',
+    title: 'CRM & Tenants',
     icon: Building2,
-    items: [
-      { label: 'All Tenants', href: '/admin/crm/tenants', icon: Building2 },
-    ],
+    items: [],
     moreItems: [],
     prefixes: [
+      '/admin/crm/tenants-hub',
       '/admin/crm/tenants',
+      '/admin/crm/tenants-plan',
+      '/admin/crm/crm-users',
     ],
   },
 

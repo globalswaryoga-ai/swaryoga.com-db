@@ -34,7 +34,7 @@ const translations = {
     loading: 'Loading...',
     videos: 'videos',
     completed: 'completed',
-    markComplete: 'Mark as Complete',
+    markComplete: 'I Have Completed',
     completed_badge: 'Completed',
     nextVideo: 'Next Video',
     previousVideo: 'Previous',
@@ -65,7 +65,7 @@ const translations = {
     loading: 'लोड हो रहा है...',
     videos: 'वीडियो',
     completed: 'पूरा हुआ',
-    markComplete: 'पूर्ण के रूप में चिह्नित करें',
+    markComplete: 'मैंने पूरा कर लिया है (I Have Completed)',
     completed_badge: 'पूर्ण',
     nextVideo: 'अगला वीडियो',
     previousVideo: 'पिछला',
@@ -96,7 +96,7 @@ const translations = {
     loading: 'लोड हुँदैछ...',
     videos: 'भिडियो',
     completed: 'पूरा भयो',
-    markComplete: 'पूरा भएको चिन्ह लगाउनुहोस्',
+    markComplete: 'मैले पूरा गरिसकेँ (I Have Completed)',
     completed_badge: 'पूरा',
     nextVideo: 'अर्को भिडियो',
     previousVideo: 'अघिल्लो',
@@ -273,6 +273,11 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [pendingTargetVideo, setPendingTargetVideo] = useState<Video | null>(null);
+  const [lockedModalData, setLockedModalData] = useState<{
+    targetVideo: Video;
+    prevIncompleteVideo: Video;
+  } | null>(null);
+  const [localCompletedVideoIds, setLocalCompletedVideoIds] = useState<string[]>([]);
   const [videoStream, setVideoStream] = useState<VideoStreamData | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -384,6 +389,28 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         setEnrollment(data.enrollment);
         setCanAccessPaidContent(data.canAccessPaidContent);
 
+        // Sync completed videos from localStorage and enrollment
+        let localIds: string[] = [];
+        try {
+          const raw = localStorage.getItem(`swar_completed_videos_${slug}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) localIds = parsed;
+          }
+        } catch {}
+
+        const remoteWatched: string[] = (data.enrollment?.videosWatched || []).map((w: any) =>
+          typeof w === 'string' ? w : w?._id
+        );
+        const remoteCompleted: string[] = (data.enrollment?.completedVideos || []).map((c: any) =>
+          String(c.videoId)
+        );
+        const allCompleted = Array.from(new Set([...localIds, ...remoteWatched, ...remoteCompleted]));
+        setLocalCompletedVideoIds(allCompleted);
+        try {
+          localStorage.setItem(`swar_completed_videos_${slug}`, JSON.stringify(allCompleted));
+        } catch {}
+
         if (data.enrollment?.data?.videoProgress) {
           const map: Record<string, number> = {};
           for (const [vid, p] of Object.entries(data.enrollment.data.videoProgress)) {
@@ -405,32 +432,49 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             Boolean(token));
         setIsUnlocked(userIsUnlocked);
 
-        // Auto-select video from URL param, last watched, or first video
+        // Sequential locking helper for initial selection
+        const isCompletedCheck = (vidId: string) => allCompleted.includes(vidId);
+        const isLockedCheck = (idx: number) => {
+          if (idx <= 0) return false;
+          for (let j = 0; j < idx; j++) {
+            if (!isCompletedCheck(data.videos[j]._id)) return true;
+          }
+          return false;
+        };
+
+        // Auto-select video from URL param, last watched, or first video (respecting sequential locking)
         if (videoIdParam) {
           const selectedIndex = data.videos?.findIndex((v: Video) => v._id === videoIdParam);
           const selectedVideo = selectedIndex >= 0 ? data.videos[selectedIndex] : null;
           if (selectedVideo) {
-            if (selectedIndex === 0 || userIsUnlocked) {
+            if (!isLockedCheck(selectedIndex) && (selectedIndex === 0 || userIsUnlocked)) {
               setCurrentVideo(selectedVideo);
             } else {
-              // Video 2+ selected without filling form: load video 1 and show unlock modal
+              // Video is locked or gated: load video 1 and prompt with lock modal if locked
               setCurrentVideo(data.videos[0] || selectedVideo);
-              setPendingTargetVideo(selectedVideo);
-              setShowUnlockModal(true);
+              if (isLockedCheck(selectedIndex)) {
+                const prevInc = data.videos.find((v: Video, i: number) => i < selectedIndex && !isCompletedCheck(v._id));
+                if (prevInc) {
+                  setLockedModalData({ targetVideo: selectedVideo, prevIncompleteVideo: prevInc });
+                }
+              } else {
+                setPendingTargetVideo(selectedVideo);
+                setShowUnlockModal(true);
+              }
             }
           }
         } else if (data.enrollment?.lastWatchedVideoId || data.enrollment?.lastVideoId) {
           const lastVideoId = String(data.enrollment.lastWatchedVideoId || data.enrollment.lastVideoId);
-          const lastVideo = data.videos?.find((v: Video) => v._id === lastVideoId);
-          if (lastVideo) {
-            setCurrentVideo(lastVideo);
+          const lastIndex = data.videos?.findIndex((v: Video) => v._id === lastVideoId);
+          if (lastIndex >= 0 && !isLockedCheck(lastIndex)) {
+            setCurrentVideo(data.videos[lastIndex]);
+          } else if (data.videos?.length > 0) {
+            const firstPlayable = data.videos.find((_: Video, i: number) => !isLockedCheck(i)) || data.videos[0];
+            if (firstPlayable) setCurrentVideo(firstPlayable);
           }
         } else if (data.videos?.length > 0) {
           // Always default to Video 1 (which is 100% free for everyone)
-          const firstWatchable = data.videos[0] || data.videos.find((v: Video) => v.canWatch);
-          if (firstWatchable) {
-            setCurrentVideo(firstWatchable);
-          }
+          setCurrentVideo(data.videos[0]);
         }
       } else if (!data.enrollment && !data.canAccessPaidContent) {
         // Check if there are free videos - if yes, allow access
@@ -782,14 +826,88 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     }
   };
 
-  const isVideoCompleted = (videoId: string) => {
-    const watched = enrollment?.videosWatched?.some((watchedVideo) => {
-      const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
-      return String(watchedId) === videoId;
-    });
-    const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
-    return watched || completed || false;
-  };
+  const markVideoAsCompleted = useCallback(
+    (videoId: string) => {
+      setLocalCompletedVideoIds((prev) => {
+        if (prev.includes(videoId)) return prev;
+        const next = [...prev, videoId];
+        try {
+          localStorage.setItem(`swar_completed_videos_${slug}`, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      setEnrollment((prev: any) => {
+        if (!prev) {
+          return {
+            videosWatched: [videoId],
+            completedVideos: [{ videoId, completedAt: new Date().toISOString() }],
+            progress: 10,
+          } as any;
+        }
+        const watched = (prev.videosWatched || []).map((w: any) => (typeof w === 'string' ? w : w?._id));
+        const completed = prev.completedVideos || [];
+        return {
+          ...prev,
+          videosWatched: watched.includes(videoId) ? watched : [...watched, videoId],
+          completedVideos: completed.some((cv: any) => cv.videoId === videoId)
+            ? completed
+            : [...completed, { videoId, completedAt: new Date().toISOString() }],
+        };
+      });
+    },
+    [slug]
+  );
+
+  const isVideoCompleted = useCallback(
+    (videoId: string) => {
+      if (localCompletedVideoIds.includes(videoId)) return true;
+
+      const watched = enrollment?.videosWatched?.some((watchedVideo) => {
+        const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
+        return String(watchedId) === videoId;
+      });
+      if (watched) return true;
+
+      const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
+      if (completed) return true;
+
+      const v = videos.find((item) => item._id === videoId);
+      const seen =
+        videoId === currentVideo?._id
+          ? Math.max(videoProgressMap[videoId] || 0, currentPlaybackTime)
+          : (videoProgressMap[videoId] || 0);
+      if (v && v.duration > 0 && seen >= v.duration * 0.9) {
+        return true;
+      }
+
+      return false;
+    },
+    [localCompletedVideoIds, enrollment, videos, currentVideo, videoProgressMap, currentPlaybackTime]
+  );
+
+  const getVideoLockStatus = useCallback(
+    (targetVideo: Video) => {
+      const targetIndex = videos.findIndex((v) => v._id === targetVideo._id);
+      if (targetIndex <= 0) {
+        return { isLocked: false, prevIncompleteVideo: null as Video | null };
+      }
+
+      for (let i = 0; i < targetIndex; i++) {
+        const prevVid = videos[i];
+        if (!isVideoCompleted(prevVid._id)) {
+          return {
+            isLocked: true,
+            prevIncompleteVideo: prevVid,
+            incompleteIndex: i,
+          };
+        }
+      }
+
+      return { isLocked: false, prevIncompleteVideo: null as Video | null };
+    },
+    [videos, isVideoCompleted]
+  );
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -824,6 +942,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   }).length;
 
   const handleVideoEnded = async () => {
+    if (currentVideo) {
+      markVideoAsCompleted(currentVideo._id);
+    }
     await updateProgress(true);
 
     const currentIndex = videos.findIndex((v) => v._id === currentVideo?._id);
@@ -869,30 +990,23 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   updateProgressRef.current = updateProgress;
 
   const handleMarkComplete = async () => {
+    if (!currentVideo) return;
+    markVideoAsCompleted(currentVideo._id);
     await updateProgress(true);
-    // Update local state
-    if (currentVideo && enrollment) {
-      const alreadyCompleted = enrollment.completedVideos?.some(
-        (cv) => cv.videoId === currentVideo._id
-      );
-      if (!alreadyCompleted) {
-        setEnrollment({
-          ...enrollment,
-          videosWatched: [
-            ...(enrollment.videosWatched || []),
-            currentVideo._id,
-          ],
-          completedVideos: [
-            ...(enrollment.completedVideos || []),
-            { videoId: currentVideo._id, completedAt: new Date().toISOString() },
-          ],
-        });
-      }
-    }
   };
 
   const handleSelectVideo = useCallback(
     (video: Video) => {
+      // 1. Enforce sequential completion: previous video must be completed first!
+      const lockStatus = getVideoLockStatus(video);
+      if (lockStatus.isLocked && lockStatus.prevIncompleteVideo) {
+        setLockedModalData({
+          targetVideo: video,
+          prevIncompleteVideo: lockStatus.prevIncompleteVideo,
+        });
+        return;
+      }
+
       const vIndex = videos.findIndex((v) => v._id === video._id);
       const isFirstVideo = vIndex === 0;
       const userIsUnlocked =
@@ -913,7 +1027,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         setShowUnlockModal(true);
       }
     },
-    [videos, isUnlocked, slug]
+    [videos, isUnlocked, slug, getVideoLockStatus]
   );
 
   const getVideosBySection = (sectionId: string) => {
@@ -1574,16 +1688,22 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       const vIndex = videos.findIndex((v) => v._id === video._id);
                       const isFirst = vIndex === 0;
                       const userUnlocked = isFirst || isUnlocked || Boolean(typeof window !== 'undefined' && localStorage.getItem('token'));
+                      const lockStatus = getVideoLockStatus(video);
+                      const isSequentialLocked = lockStatus.isLocked;
+                      const isCompleted = isVideoCompleted(video._id);
+                      const isCurrent = currentVideo?._id === video._id;
 
                       return (
                         <button
                           key={video._id}
                           onClick={() => handleSelectVideo(video)}
                           className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
-                            currentVideo?._id === video._id
+                            isCurrent
                               ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
+                              : isSequentialLocked
+                              ? 'bg-gray-900/40 hover:bg-gray-800/60 border border-gray-800/80 opacity-80 hover:opacity-100'
                               : userUnlocked
-                              ? 'hover:bg-gray-700/60'
+                              ? 'hover:bg-gray-700/60 border border-transparent'
                               : 'hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30'
                           }`}
                         >
@@ -1619,17 +1739,25 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                             </span>
 
                             {/* Status Overlay */}
-                            {isVideoCompleted(video._id) ? (
+                            {isCompleted ? (
                               <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
                                 <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                               </div>
-                            ) : currentVideo?._id === video._id ? (
+                            ) : isCurrent ? (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                 <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
                                   <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
                                     <path d="M8 5v14l11-7z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            ) : isSequentialLocked ? (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                <div className="w-7 h-7 bg-gray-900/90 border border-amber-500/40 text-amber-400 rounded-full flex items-center justify-center shadow">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                   </svg>
                                 </div>
                               </div>
@@ -1647,7 +1775,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                           <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                             <p
                               className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
-                                currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
+                                isCurrent ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
                               }`}
                             >
                               {video.title}
@@ -1658,21 +1786,35 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                               </p>
                             ) : null}
                             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              {isFirst ? (
-                                <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                              {isCompleted ? (
+                                <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Completed
+                                </span>
+                              ) : isSequentialLocked ? (
+                                <span className="text-[10px] font-medium bg-gray-800/90 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1 shadow-xs">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                  </svg>
+                                  Locked
+                                </span>
+                              ) : isFirst ? (
+                                <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">
                                   Free
                                 </span>
                               ) : userUnlocked ? (
-                                <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.2 rounded border border-green-500/30">
+                                <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30">
                                   Unlocked
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40">
+                                <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">
                                   Free Unlock
                                 </span>
                               )}
-                              {currentVideo?._id === video._id && (
-                                <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
+                              {isCurrent && (
+                                <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
                                   <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
                                   Playing
                                 </span>
@@ -1742,16 +1884,22 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   const vIndex = videos.findIndex((v) => v._id === video._id);
                   const isFirst = vIndex === 0;
                   const userUnlocked = isFirst || isUnlocked || Boolean(typeof window !== 'undefined' && localStorage.getItem('token'));
+                  const lockStatus = getVideoLockStatus(video);
+                  const isSequentialLocked = lockStatus.isLocked;
+                  const isCompleted = isVideoCompleted(video._id);
+                  const isCurrent = currentVideo?._id === video._id;
 
                   return (
                     <button
                       key={video._id}
                       onClick={() => handleSelectVideo(video)}
                       className={`w-full group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
-                        currentVideo?._id === video._id
+                        isCurrent
                           ? 'bg-orange-500/15 border border-orange-500/50 shadow-sm'
+                          : isSequentialLocked
+                          ? 'bg-gray-900/40 hover:bg-gray-800/60 border border-gray-800/80 opacity-80 hover:opacity-100'
                           : userUnlocked
-                          ? 'hover:bg-gray-700/60'
+                          ? 'hover:bg-gray-700/60 border border-transparent'
                           : 'hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30'
                       }`}
                     >
@@ -1787,17 +1935,25 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                         </span>
 
                         {/* Status Overlay */}
-                        {isVideoCompleted(video._id) ? (
+                        {isCompleted ? (
                           <div className="absolute top-1 left-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow">
                             <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                             </svg>
                           </div>
-                        ) : currentVideo?._id === video._id ? (
+                        ) : isCurrent ? (
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                             <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-lg ring-2 ring-orange-400 animate-pulse">
                               <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+                        ) : isSequentialLocked ? (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <div className="w-7 h-7 bg-gray-900/90 border border-amber-500/40 text-amber-400 rounded-full flex items-center justify-center shadow">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                               </svg>
                             </div>
                           </div>
@@ -1815,7 +1971,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                         <p
                           className={`text-xs sm:text-sm font-medium line-clamp-2 leading-snug ${
-                            currentVideo?._id === video._id ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
+                            isCurrent ? 'text-orange-400 font-semibold' : 'text-gray-200 group-hover:text-white'
                           }`}
                         >
                           {video.title}
@@ -1826,21 +1982,35 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                           </p>
                         ) : null}
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          {isFirst ? (
-                            <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                          {isCompleted ? (
+                            <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Completed
+                            </span>
+                          ) : isSequentialLocked ? (
+                            <span className="text-[10px] font-medium bg-gray-800/90 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1 shadow-xs">
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              Locked
+                            </span>
+                          ) : isFirst ? (
+                            <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">
                               Free
                             </span>
                           ) : userUnlocked ? (
-                            <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.2 rounded border border-green-500/30">
+                            <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30">
                               Unlocked
                             </span>
                           ) : (
-                            <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40">
+                            <span className="text-[10px] font-medium bg-amber-500/25 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">
                               Free Unlock
                             </span>
                           )}
-                          {currentVideo?._id === video._id && (
-                            <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20">
+                          {isCurrent && (
+                            <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
                               Playing
                             </span>
@@ -2921,13 +3091,27 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   <button
                     onClick={handleMarkComplete}
                     disabled={isVideoCompleted(currentVideo._id)}
-                    className={`px-3 sm:px-6 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all shadow-sm ${
+                    className={`px-3 sm:px-6 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all shadow-sm flex items-center gap-1.5 ${
                       isVideoCompleted(currentVideo._id)
-                        ? 'bg-green-600 text-white cursor-default'
+                        ? 'bg-emerald-600 text-white cursor-default'
                         : 'bg-orange-500 hover:bg-orange-600 text-white active:scale-95'
                     }`}
                   >
-                    {isVideoCompleted(currentVideo._id) ? t.completed_badge : t.markComplete}
+                    {isVideoCompleted(currentVideo._id) ? (
+                      <>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{t.completed_badge || 'Completed'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{t.markComplete || 'I Have Completed'}</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -3032,6 +3216,162 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         courseSlug={slug}
         targetVideoTitle={pendingTargetVideo?.title}
       />
+
+      {/* Sequential Locked Video Modal */}
+      {lockedModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-gray-900 border border-gray-700/80 rounded-2xl p-6 shadow-2xl text-white">
+            {/* Close 'X' Button */}
+            <button
+              onClick={() => setLockedModalData(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-800 cursor-pointer"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Header Icon & Title */}
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0 shadow-inner">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Video Locked</h3>
+                <p className="text-xs text-amber-400/90 font-medium">Please watch videos in order</p>
+              </div>
+            </div>
+
+            {/* Explanatory Message */}
+            <p className="text-sm text-gray-300 leading-relaxed mb-4">
+              To watch <span className="font-semibold text-white">"{lockedModalData.targetVideo.title}"</span>, you need to complete the previous video first:
+            </p>
+
+            {/* Incomplete Video Card */}
+            <div className="p-3 bg-gray-800/80 border border-gray-700/70 rounded-xl mb-4 flex items-center gap-3">
+              <div className="relative w-20 h-12 rounded-lg overflow-hidden bg-gray-950 flex-shrink-0 border border-gray-700">
+                {lockedModalData.prevIncompleteVideo.thumbnail ? (
+                  <img
+                    src={lockedModalData.prevIncompleteVideo.thumbnail}
+                    alt={lockedModalData.prevIncompleteVideo.title}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                )}
+                <span className="absolute bottom-0.5 right-0.5 bg-black/85 text-[9px] font-mono text-white/90 px-1 rounded">
+                  {formatDuration(lockedModalData.prevIncompleteVideo.duration)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white truncate">
+                  {lockedModalData.prevIncompleteVideo.title}
+                </p>
+                <p className="text-[11px] text-amber-400 mt-0.5 flex items-center gap-1 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Please complete this video first
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 mb-4">
+              Please see it first and click to completed, or watch it now:
+            </p>
+
+            {/* Action Buttons */}
+            <div className="space-y-2.5">
+              {/* Option 1: Watch previous video first */}
+              <button
+                type="button"
+                onClick={() => {
+                  const prev = lockedModalData.prevIncompleteVideo;
+                  setLockedModalData(null);
+                  setCurrentVideo(prev);
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    setSidebarOpen(false);
+                  }
+                }}
+                className="w-full py-2.5 px-4 bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>Watch Previous Video First</span>
+              </button>
+
+              {/* Option 2: I have completed it */}
+              <button
+                type="button"
+                onClick={() => {
+                  const prev = lockedModalData.prevIncompleteVideo;
+                  const target = lockedModalData.targetVideo;
+                  markVideoAsCompleted(prev._id);
+                  setLockedModalData(null);
+
+                  // Re-check if target video still has any prior incomplete video
+                  const targetIndex = videos.findIndex((v) => v._id === target._id);
+                  let remainingIncomplete: Video | null = null;
+                  for (let i = 0; i < targetIndex; i++) {
+                    const vid = videos[i];
+                    if (vid._id !== prev._id && !isVideoCompleted(vid._id)) {
+                      remainingIncomplete = vid;
+                      break;
+                    }
+                  }
+
+                  if (remainingIncomplete) {
+                    setLockedModalData({
+                      targetVideo: target,
+                      prevIncompleteVideo: remainingIncomplete,
+                    });
+                  } else {
+                    const isFirst = targetIndex === 0;
+                    const userIsUnlocked =
+                      isFirst ||
+                      isUnlocked ||
+                      (typeof window !== 'undefined' &&
+                        (localStorage.getItem(`swar_course_unlocked_${slug}`) === 'true' ||
+                          localStorage.getItem('swar_course_unlocked_all') === 'true' ||
+                          Boolean(localStorage.getItem('token'))));
+
+                    if (userIsUnlocked) {
+                      setCurrentVideo(target);
+                      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                        setSidebarOpen(false);
+                      }
+                    } else {
+                      setPendingTargetVideo(target);
+                      setShowUnlockModal(true);
+                    }
+                  }
+                }}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 border border-emerald-500/40 cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>✓ I Have Completed It (Unlock Next)</span>
+              </button>
+
+              {/* Cancel Button */}
+              <button
+                type="button"
+                onClick={() => setLockedModalData(null)}
+                className="w-full py-2 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

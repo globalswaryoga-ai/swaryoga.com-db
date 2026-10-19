@@ -21,7 +21,28 @@ interface CrmSidebarProps {
 }
 
 // Sections only super-admins should see.
-const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'tenants-plan', 'web-admin', 'archive', 'bank-income']);
+const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'tenants-plan', 'web-admin', 'archive', 'bank-income', 'leads-hub', 'social-hub']);
+
+// Main domain (swaryoga.com) displays the 16 clean, organized functional sections:
+const MAIN_DOMAIN_SECTION_KEYS = [
+  'web-admin',           // 1. Website Management (Card Grid Hub)
+  'workshop-management', // 2. Workshop Management (Includes Landing Pages)
+  'leads-hub',           // 3. Leads Management (Card Grid Hub - Unified Web, Meta, QR, Forms)
+  'sales',               // 4. Sales Management
+  'bank-income',         // 5. Banking & Finance
+  'zoom',                // 6. Zoom Management (Isolated from workshops)
+  'communication',       // 7. Communication (Card Grid Hub - QR WA, Meta, Email, Calls, SMS, Telegram)
+  'community',           // 8. Community (Kept as it is)
+  'planner',             // 9. Planner (Kept as it is)
+  'automation',          // 10. Automation & AI
+  'broadcast',           // 11. Broadcast (Kept as it is)
+  'social-hub',          // 12. Social Media (Card Grid Hub)
+  'tenants',             // 13. CRM & Tenants
+  'reports',             // 14. All Reports
+  'settings',            // 15. Settings
+  'kp-astro',            // 16. KP Astro
+  'elearning',           // 17. E-Learning (Strictly untouched!)
+];
 
 // Tenant CRM (crm.swaryoga.com) shows ONLY these module sections, in this order.
 // Owner-panel sections (web-admin / super-admin / tenants / archive) never appear here —
@@ -161,6 +182,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     // like Dashboard/Storage. (Intentionally not mapped to a bundle.)
     // Broadcast WhatsApp — only for Copper+ (Meta broadcasts; QR broadcasts are inside QR WA section)
     'broadcast':      ['whatsapp_meta'],
+    // Communication Hub — Omnichannel suite
+    'communication':  ['whatsapp_meta', 'email', 'sms', 'ai_calling', 'telegram'],
     // Meta WhatsApp — whatsapp_meta bundle (Copper+)
     'meta':           ['whatsapp_meta'],
     // Email — email bundle
@@ -225,12 +248,12 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       return isSuper ? ordered : ordered.filter((s) => hasModule(s.key));
     }
 
-    // Main domain (swaryoga.com): owner panel + everything for super-admin.
-    return sectionConfigs.filter((s) => {
-      // Super-admin-only sections: hide from regular users
-      if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
-      // Super-admin sees ALL sections — no module key gating
-      if (isSuper) return true;
+    // Main domain (swaryoga.com): the 16 clean organized sections
+    const ordered = MAIN_DOMAIN_SECTION_KEYS
+      .map((k) => sectionConfigs.find((s) => s.key === k))
+      .filter((s): s is SectionConfig => Boolean(s));
+    return isSuper ? ordered : ordered.filter((s) => {
+      if (SUPER_ADMIN_KEYS.has(s.key)) return false;
       return hasModule(s.key);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,18 +272,56 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       )}
 
       <aside
-        className={`fixed ${hiddenOnDesktop ? '' : 'md:static'} inset-y-0 left-0 z-[10000] ${width} bg-gray-900 text-white transform transition-all duration-300 ease-in-out flex flex-col ${
+        className={`fixed ${hiddenOnDesktop ? '' : 'md:static'} inset-y-0 left-0 z-[10000] ${width} bg-[#0b0f19] border-r border-slate-800/80 text-white transform transition-all duration-300 ease-in-out flex flex-col relative overflow-hidden ${
           isOpen ? 'translate-x-0' : (hiddenOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0')
         }`}
       >
+        {/* Ambient Top Glow */}
+        <div className="absolute top-0 left-0 right-0 h-44 bg-gradient-to-b from-emerald-500/10 via-teal-500/5 to-transparent pointer-events-none" />
+
         {/* Header */}
-        <div className={`border-b border-gray-800 flex-shrink-0 ${collapsed ? 'p-2' : 'p-4'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'space-x-2.5 min-w-0 flex-1'}`}>
-              <img src="/logo.png" alt="Swar Yoga" className="w-8 h-8 rounded-lg flex-shrink-0" />
-              {!collapsed && <h2 className="font-bold text-base truncate text-white">Swar Yoga</h2>}
-            </div>
-            <button onClick={onClose} className={`${hiddenOnDesktop ? '' : 'md:hidden'} p-1 rounded-lg hover:bg-gray-800 transition`}>
+        <div className={`border-b border-slate-800/80 flex-shrink-0 relative z-10 ${collapsed ? 'p-2.5' : 'p-3.5'}`}>
+          <div className="flex items-center justify-between mb-2.5">
+            {!collapsed && (
+              <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-0.5 shadow-md shadow-emerald-500/25 flex-shrink-0 flex items-center justify-center">
+                  <div className="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center overflow-hidden">
+                    <img
+                      src="/logo.png"
+                      alt="Swar Yoga"
+                      className="w-6 h-6 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="font-extrabold text-sm truncate text-white tracking-tight">Swar Yoga</h2>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                  </div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 truncate">CRM Suite</p>
+                </div>
+              </div>
+            )}
+            {collapsed && (
+              <div className="flex items-center justify-center w-full">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-0.5 shadow-md shadow-emerald-500/25 flex items-center justify-center">
+                  <div className="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center overflow-hidden">
+                    <img
+                      src="/logo.png"
+                      alt="Swar Yoga"
+                      className="w-6 h-6 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <button onClick={onClose} className={`${hiddenOnDesktop ? '' : 'md:hidden'} p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition`}>
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -268,16 +329,16 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
           {!collapsed && (
             <button
               onClick={() => { router.push('/'); onClose(); }}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-swar-primary hover:bg-swar-primary-dark rounded-lg text-white text-xs font-medium transition"
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-white border border-emerald-500/25 rounded-lg text-xs font-semibold transition-all shadow-xs"
             >
               <Home className="h-3.5 w-3.5" />
-              <span>Home</span>
+              <span>Back to Home</span>
             </button>
           )}
         </div>
 
         {/* Module list */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto py-2.5 px-2 space-y-1">
           {modules.map((s) => {
             const Icon = s.icon;
             const active = activeKey === s.key;
@@ -287,16 +348,22 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
                 href={landingHref(s)}
                 onClick={onClose}
                 title={collapsed ? s.title : undefined}
-                className={`flex items-center gap-3 rounded-lg transition-colors ${
-                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+                className={`flex items-center gap-2.5 rounded-xl transition-all duration-150 group relative ${
+                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
                 } ${
                   active
-                    ? 'bg-emerald-500/15 text-emerald-300 font-semibold'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent text-emerald-300 font-bold border-l-[3px] border-emerald-400 shadow-sm shadow-emerald-950/30'
+                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-white'
                 }`}
               >
-                {Icon && <Icon className={`h-5 w-5 flex-shrink-0 ${active ? 'text-emerald-400' : ''}`} />}
-                {!collapsed && <span className="text-sm truncate">{s.title}</span>}
+                {Icon && (
+                  <Icon
+                    className={`h-4 w-4 flex-shrink-0 transition-all ${
+                      active ? 'text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.7)]' : 'text-slate-500 group-hover:text-slate-200 group-hover:scale-105'
+                    }`}
+                  />
+                )}
+                {!collapsed && <span className="text-xs truncate">{s.title}</span>}
               </Link>
             );
           })}
@@ -304,28 +371,28 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
         {/* Trial / subscription status (non-super-admin only) */}
         {!isSuper && (
-          <div className={`border-t border-gray-800 flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'} space-y-2`}>
+          <div className={`border-t border-slate-800/80 flex-shrink-0 relative z-10 ${collapsed ? 'p-2' : 'p-3'} space-y-2`}>
             {/* Trial days-left / expired badge */}
             {trial?.isTrialActive && !collapsed && (
-              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-3 py-2 hover:bg-emerald-500/25 transition">
+              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 hover:bg-emerald-500/20 transition-all">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                  <Clock className="h-4 w-4 text-emerald-400 flex-shrink-0 animate-pulse" />
                   <div className="leading-tight">
-                    <div className="text-xs font-semibold text-emerald-300">Free trial</div>
-                    <div className="text-[11px] text-emerald-200/80">{trial.trialDaysRemaining} day{trial.trialDaysRemaining === 1 ? '' : 's'} left</div>
+                    <div className="text-xs font-bold text-emerald-300">Free Trial Active</div>
+                    <div className="text-[10px] text-emerald-200/80">{trial.trialDaysRemaining} day{trial.trialDaysRemaining === 1 ? '' : 's'} remaining</div>
                   </div>
                 </div>
               </Link>
             )}
             {trial?.isTrialActive && collapsed && (
-              <Link href="/admin/crm/subscription" onClick={onClose} title={`Trial: ${trial.trialDaysRemaining} days left`} className="flex items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2 py-2 text-emerald-300 text-xs font-bold">
+              <Link href="/admin/crm/subscription" onClick={onClose} title={`Trial: ${trial.trialDaysRemaining} days left`} className="flex items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-2 py-2 text-emerald-300 text-xs font-bold shadow-xs">
                 {trial.trialDaysRemaining}d
               </Link>
             )}
             {trial?.isLocked && !collapsed && (
-              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-lg bg-red-500/15 border border-red-500/40 px-3 py-2 hover:bg-red-500/25 transition">
-                <div className="text-xs font-semibold text-red-300">Trial ended</div>
-                <div className="text-[11px] text-red-200/80">Pay to continue</div>
+              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-xl bg-rose-500/15 border border-rose-500/40 px-3 py-2 hover:bg-rose-500/25 transition">
+                <div className="text-xs font-bold text-rose-300">Trial Ended</div>
+                <div className="text-[10px] text-rose-200/80">Subscribe to continue</div>
               </Link>
             )}
 
@@ -333,24 +400,24 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
               href="/admin/crm/subscription"
               onClick={onClose}
               title={collapsed ? 'Upgrade Plan' : undefined}
-              className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition font-medium ${
-                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+              className={`flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-white transition-all font-semibold shadow-md shadow-orange-500/20 active:scale-[0.98] ${
+                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
               }`}
             >
               <Zap className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span className="text-xs">Upgrade Plan</span>}
+              {!collapsed && <span className="text-xs tracking-wide">Upgrade Plan</span>}
             </Link>
           </div>
         )}
 
         {/* Collapse toggle (desktop) */}
         {onToggleCollapse && (
-          <div className="border-t border-gray-800 p-2 hidden md:block flex-shrink-0">
+          <div className="border-t border-slate-800/80 p-2 hidden md:block flex-shrink-0 relative z-10">
             <button
               onClick={onToggleCollapse}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white text-xs transition"
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:bg-white/[0.05] hover:text-white text-xs transition"
             >
-              {collapsed ? <ChevronRight className="h-4 w-4" /> : <><ChevronLeft className="h-4 w-4" /><span>Collapse</span></>}
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <><ChevronLeft className="h-4 w-4" /><span className="text-[11px] font-medium">Collapse Sidebar</span></>}
             </button>
           </div>
         )}

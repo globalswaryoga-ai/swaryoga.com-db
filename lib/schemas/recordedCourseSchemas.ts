@@ -204,6 +204,8 @@ export interface IRecordedCourse extends Document {
   isFree: boolean;
   discount?: number; // Discount percentage (0-100)
   promoCode?: string; // Promo code for discount
+  promoDiscount?: number;
+  promoExpiry?: string | null; // Expiry timestamp (auto expires at 11:59 PM)
 
   // Gift Hours Settings
   giftHours: {
@@ -434,6 +436,8 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
   isFree: { type: Boolean, default: false },
   discount: { type: Number, min: 0, max: 100 },
   promoCode: { type: String, trim: true, uppercase: true },
+  promoDiscount: { type: Number, min: 0, max: 100 },
+  promoExpiry: { type: String, trim: true },
 
   giftHours: {
     enabled: { type: Boolean, default: true },

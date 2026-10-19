@@ -24,6 +24,7 @@ interface CourseEnrollmentModalProps {
     discount?: number;
     promoCode?: string | null;
     promoDiscount?: number;
+    promoExpiry?: string | null;
   };
   token?: string;
   enrolledStudents?: EnrolledStudent[];
@@ -94,12 +95,30 @@ export default function CourseEnrollmentModal({
 
     const configuredCode = (course.promoCode || '').trim().toUpperCase();
     const configuredDiscount = Number(course.promoDiscount) || 0;
+    const configuredExpiry = course.promoExpiry;
 
     if (configuredCode && entered === configuredCode) {
+      if (configuredExpiry) {
+        const expiryTime = new Date(configuredExpiry).getTime();
+        if (!isNaN(expiryTime) && Date.now() > expiryTime) {
+          const expiryDateFormatted = new Date(configuredExpiry).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          });
+          setPromoError(`This promo code expired on ${expiryDateFormatted} at 11:59 PM.`);
+          setPromoSuccess(null);
+          return;
+        }
+      }
+
       if (configuredDiscount > 0) {
         setAppliedPromo({ code: entered, discountPct: configuredDiscount });
         setPromoError(null);
-        setPromoSuccess(`Promo code "${entered}" applied! ${configuredDiscount}% discount.`);
+        const expiryNote = configuredExpiry
+          ? ` (Valid until 11:59 PM, ${new Date(configuredExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`
+          : '';
+        setPromoSuccess(`Promo code "${entered}" applied! ${configuredDiscount}% discount${expiryNote}.`);
       } else {
         setPromoError('This promo code is valid but has no discount configured.');
         setPromoSuccess(null);

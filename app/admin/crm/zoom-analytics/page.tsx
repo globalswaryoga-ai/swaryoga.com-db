@@ -342,7 +342,7 @@ function ZoomAnalyticsPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link href="/admin/crm" className="p-2 rounded-lg hover:bg-gray-100 transition">
+              <Link href="/admin/crm/zoom-hub" className="p-2 rounded-lg hover:bg-gray-100 transition" title="Back to Zoom Hub">
                 <ChevronLeft className="w-5 h-5 text-gray-600" />
               </Link>
               <div className="flex items-center gap-2">

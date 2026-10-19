@@ -164,6 +164,8 @@ interface Course {
   };
   discount?: number;
   promoCode?: string;
+  promoDiscount?: number;
+  promoExpiry?: string | null;
   isFree: boolean;
   isPublished?: boolean;
   giftHours?: {

@@ -18,6 +18,29 @@ import {
   StatusBadge,
 } from '@/components/admin/crm';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
+import {
+  DollarSign,
+  TrendingUp,
+  Calendar,
+  Download,
+  Upload,
+  Plus,
+  Search,
+  Filter,
+  CheckCircle2,
+  XCircle,
+  FileSpreadsheet,
+  FileText,
+  Sparkles,
+  ArrowRight,
+  Layers,
+  Receipt,
+  RotateCcw,
+  ShoppingBag,
+  Tag,
+  ArrowLeft,
+  ChevronDown,
+} from 'lucide-react';
 
 function toDateInputValue(v: string | undefined | null): string {
   if (!v) return '';
@@ -1211,286 +1234,387 @@ export default function SalesPage() {
     },
   ];
 
-  // Basic-plan tenants (non super-admin) get a light, Funnel-style theme.
-  // Super-admin keeps the dark theme. Scoped CSS remaps dark utilities.
-  const lightTheme = !isSuperAdmin;
-
   return (
-    <div className={`sales-dark min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : ''}`} style={{backgroundColor: '#1a0f2e'}}>
-      {!lightTheme && (
-        <style jsx global>{`
-          /* Data table: light-lavender backgrounds + white text */
-          .sales-dark table { color: #ffffff !important; }
-          .sales-dark thead { background: #3a2659 !important; }
-          .sales-dark thead th { color: #e9d5ff !important; }
-          .sales-dark tbody tr { background-color: #2d1b4e !important; border-color: #4c3575 !important; }
-          .sales-dark tbody tr:nth-child(even) { background-color: #34215a !important; }
-          .sales-dark tbody tr:hover { background-color: #432c70 !important; }
-          .sales-dark tbody td { color: #ffffff !important; }
-          .sales-dark .text-slate-900,
-          .sales-dark .text-slate-700,
-          .sales-dark .text-slate-600,
-          .sales-dark .text-slate-500,
-          .sales-dark .text-slate-400 { color: #ffffff !important; }
-          .sales-dark .border-slate-200 { border-color: #4c3575 !important; }
-        `}</style>
-      )}
-      {lightTheme && (
-        <style jsx global>{`
-          .crm-light .text-white { color: #0f172a !important; }
-          .crm-light .text-gray-400 { color: #64748b !important; }
-          .crm-light .text-gray-300 { color: #475569 !important; }
-          .crm-light .bg-black { background-color: #ffffff !important; }
-          .crm-light .bg-white\\/5 { background-color: #ffffff !important; }
-          .crm-light .bg-white\\/10 { background-color: #f1f5f9 !important; }
-          .crm-light [class*="border-white/"] { border-color: #e2e8f0 !important; }
-          .crm-light .text-emerald-400 { color: #059669 !important; }
-          .crm-light .text-yellow-400 { color: #d97706 !important; }
-          .crm-light .border-emerald-500 { border-color: #6366F1 !important; }
-          .crm-light .border-yellow-500 { border-color: #8B5CF6 !important; }
-          .crm-light input, .crm-light select, .crm-light textarea { color: #0f172a !important; }
-          .crm-light input::placeholder, .crm-light textarea::placeholder { color: #94a3b8 !important; }
-        `}</style>
-      )}
-      <div className="w-full space-y-8">
+    <div className="sales-dark min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 relative overflow-hidden">
+      {/* Ambient glowing background accents */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 left-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <style jsx global>{`
+        /* High-contrast modern dark table for Sales */
+        .sales-dark table { color: #f8fafc !important; border-collapse: separate; border-spacing: 0; width: 100%; }
+        .sales-dark thead { background: rgba(15, 23, 42, 0.95) !important; }
+        .sales-dark thead th { color: #94a3b8 !important; border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important; padding: 12px 16px !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; font-weight: 700 !important; }
+        .sales-dark tbody tr { background-color: rgba(15, 23, 42, 0.45) !important; border-bottom: 1px solid rgba(51, 65, 85, 0.4) !important; transition: all 0.15s ease !important; }
+        .sales-dark tbody tr:nth-child(even) { background-color: rgba(2, 6, 23, 0.45) !important; }
+        .sales-dark tbody tr:hover { background-color: rgba(30, 41, 59, 0.8) !important; }
+        .sales-dark tbody td { color: #f8fafc !important; padding: 12px 16px !important; border-bottom: 1px solid rgba(51, 65, 85, 0.3) !important; }
+        .sales-dark .text-slate-900,
+        .sales-dark .text-slate-700,
+        .sales-dark .text-slate-600,
+        .sales-dark .text-slate-500,
+        .sales-dark .text-slate-400 { color: #cbd5e1 !important; }
+        .sales-dark .border-slate-200 { border-color: rgba(51, 65, 85, 0.5) !important; }
+        .sales-dark input, .sales-dark select, .sales-dark textarea {
+          background-color: #020617 !important;
+          color: #f8fafc !important;
+          border-color: #334155 !important;
+        }
+        .sales-dark input:focus, .sales-dark select:focus, .sales-dark textarea:focus {
+          border-color: #10b981 !important;
+          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+        }
+        .sales-dark option {
+          background-color: #020617 !important;
+          color: #ffffff !important;
+        }
+      `}</style>
+
+      <div className="w-full space-y-6 relative z-10">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/admin/crm')}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white border border-white/20"
+                className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white transition shadow-sm flex-shrink-0 cursor-pointer"
                 title="Go to CRM Dashboard"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9 22V12H15V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-4xl font-bold text-purple-300">Sales Management</h1>
-                <p className="text-purple-200/70 text-lg">Track revenue, transactions, and workshop sales</p>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Sales & Revenue Center</h1>
+                  <span className="bg-emerald-500/15 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 uppercase tracking-wider">
+                    Financial Operations
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300/80 mt-1.5 max-w-2xl leading-relaxed">
+                  Real-time revenue monitoring, student workshop transactions, installment tracking, and payment reconciliations.
+                </p>
               </div>
             </div>
-          </div>
-          <div className="flex gap-3 flex-wrap justify-end">
-            <button
-              onClick={() => router.push('/admin/crm/sales/events')}
-              className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white"
-            >
-              📅 Events
-            </button>
-            <div className="relative" ref={exportMenuRef}>
+
+            <div className="flex gap-2.5 flex-wrap items-center">
               <button
-                onClick={() => setShowExportMenu((v) => !v)}
-                disabled={exporting}
-                className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white disabled:opacity-50"
+                onClick={() => router.push('/admin/crm/sales/events')}
+                className="bg-slate-900/90 hover:bg-slate-800 text-purple-300 border border-purple-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer"
               >
-                {exporting ? '⏳ Exporting...' : '📤 Export'}
+                <Calendar className="w-4 h-4 text-purple-400" />
+                <span>Events</span>
               </button>
-              {showExportMenu && (
-                <div className="absolute z-20 mt-2 right-0 w-48 bg-black border border-white/30 rounded-lg shadow-xl overflow-hidden">
-                  <button
-                    onClick={downloadPdf}
-                    disabled={exporting}
-                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-purple-600/40 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    📄 Export as PDF
-                  </button>
-                  <button
-                    onClick={downloadExcel}
-                    disabled={exporting}
-                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-purple-600/40 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    📊 Export as Excel
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="bg-purple-900/30 border border-violet-400 text-violet-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-violet-600 hover:text-white"
-            >
-              📤 Upload
-            </button>
-            <button
-              onClick={async () => {
-                if (!token || !isSuperAdmin) return;
-                const ok = window.confirm('Generate sales for Apr 2025-Mar 2026 from leads?');
-                if (!ok) return;
-                setGeneratingFromLeads(true);
-                setError(null);
-                try {
-                  const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
-                    method: 'POST',
-                    body: {
-                      startMonth: '2025-04',
-                      endMonth: '2026-03',
-                      workshops: [
-                        { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
-                        { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
-                        { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
-                        { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
-                        { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
-                        { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
-                        { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
-                      ],
-                    },
-                  });
-                  if (res?.success) {
-                    alert(`✅ Generated ${res.createdCount} sales entries`);
-                    await fetchSalesData();
-                  } else {
-                    setError(res?.error || 'Generation failed');
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  onClick={() => setShowExportMenu((v) => !v)}
+                  disabled={exporting}
+                  className="bg-slate-900/90 hover:bg-slate-800 text-blue-300 border border-blue-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 text-blue-400" />
+                  <span>{exporting ? 'Exporting...' : 'Export'}</span>
+                </button>
+                {showExportMenu && (
+                  <div className="absolute z-30 mt-2 right-0 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden py-1">
+                    <button
+                      onClick={downloadPdf}
+                      disabled={exporting}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-rose-400" />
+                      <span>Export as PDF</span>
+                    </button>
+                    <button
+                      onClick={downloadExcel}
+                      disabled={exporting}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                      <span>Export as Excel</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="bg-slate-900/90 hover:bg-slate-800 text-violet-300 border border-violet-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              >
+                <Upload className="w-4 h-4 text-violet-400" />
+                <span>Upload CSV</span>
+              </button>
+              <button
+                onClick={async () => {
+                  if (!token || !isSuperAdmin) return;
+                  const ok = window.confirm('Generate sales for Apr 2025-Mar 2026 from leads?');
+                  if (!ok) return;
+                  setGeneratingFromLeads(true);
+                  setError(null);
+                  try {
+                    const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
+                      method: 'POST',
+                      body: {
+                        startMonth: '2025-04',
+                        endMonth: '2026-03',
+                        workshops: [
+                          { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
+                          { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
+                          { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
+                          { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
+                          { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
+                          { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
+                          { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
+                        ],
+                      },
+                    });
+                    if (res?.success) {
+                      alert(`✅ Generated ${res.createdCount} sales entries`);
+                      await fetchSalesData();
+                    } else {
+                      setError(res?.error || 'Generation failed');
+                    }
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Failed to generate');
+                  } finally {
+                    setGeneratingFromLeads(false);
                   }
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Failed to generate');
-                } finally {
-                  setGeneratingFromLeads(false);
-                }
-              }}
-              disabled={generatingFromLeads}
-              className="bg-purple-900/30 border border-purple-500 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-purple-600 hover:text-white disabled:opacity-50"
+                }}
+                disabled={generatingFromLeads}
+                className="bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-500/30 px-3.5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>{generatingFromLeads ? 'Generating...' : 'Gen Sales'}</span>
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Record Sale</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Sub-module switcher */}
+          <div className="mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-400 font-semibold mr-1">Sales Modules:</span>
+            <button
+              onClick={() => router.push('/admin/crm/sales')}
+              className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-lg font-bold cursor-pointer"
             >
-              {generatingFromLeads ? '⏳ Generating...' : '📊 Gen Sales'}
+              💰 Sales Transactions
             </button>
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-purple-600 border-2 border-purple-400 text-white px-6 py-2 rounded-lg transition-all font-bold hover:bg-purple-700 hover:text-white"
+              onClick={() => router.push('/admin/crm/order-maintenance')}
+              className="bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-slate-700 px-3 py-1 rounded-lg transition cursor-pointer"
             >
-              + Record Sale
+              📦 Orders Maintenance
             </button>
+            <button
+              onClick={() => router.push('/admin/crm/workshop-offer')}
+              className="bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-slate-700 px-3 py-1 rounded-lg transition cursor-pointer"
+            >
+              🏷️ Workshop Offers
+            </button>
+          </div>
+        </div>
+
+        {/* Real-time KPI Summary Metrics Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Total Revenue</span>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <DollarSign className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-2xl sm:text-3xl font-black text-white">
+              ₹{Number(summary?.totalSales || 0).toLocaleString()}
+            </p>
+            <span className="text-xs text-slate-400 mt-1 block">Accumulated Volume</span>
+          </div>
+
+          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Total Transactions</span>
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <Receipt className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-2xl sm:text-3xl font-black text-white">
+              {String(summary?.totalTransactions || filteredSales.length || 0)}
+            </p>
+            <span className="text-xs text-slate-400 mt-1 block">Recorded Receipts</span>
+          </div>
+
+          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-400">Average Sale</span>
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-2xl sm:text-3xl font-black text-purple-200">
+              ₹{Number(summary?.averageSale || 0).toLocaleString()}
+            </p>
+            <span className="text-xs text-slate-400 mt-1 block">Per Enrollee Average</span>
+          </div>
+
+          <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Top Sale Record</span>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Sparkles className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-2xl sm:text-3xl font-black text-amber-200">
+              ₹{Number(summary?.maxSale || 0).toLocaleString()}
+            </p>
+            <span className="text-xs text-slate-400 mt-1 block">Highest Ticket Amount</span>
           </div>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-red-300 flex justify-between items-center backdrop-blur-sm">
-            <span className="font-medium">{error}</span>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 font-bold text-xl">×</button>
+          <div className="bg-red-950/80 border border-red-500/50 rounded-2xl p-4 text-red-200 flex justify-between items-center shadow-lg">
+            <span className="font-medium text-sm">{error}</span>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 font-bold text-xl cursor-pointer">×</button>
           </div>
         )}
 
         {/* Success Alert */}
         {successMsg && (
-          <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-emerald-300 flex justify-between items-center backdrop-blur-sm">
-            <span className="font-medium">{successMsg}</span>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300 font-bold text-xl">×</button>
+          <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl p-4 text-emerald-200 flex justify-between items-center shadow-lg">
+            <span className="font-medium text-sm">{successMsg}</span>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300 font-bold text-xl cursor-pointer">×</button>
           </div>
         )}
 
-        {/* View Selector - Professional Tabs */}
-        <div className="flex gap-2 flex-wrap bg-black border border-white/30 rounded-xl p-2 w-fit">
+        {/* View Selector Tabs */}
+        <div className="flex gap-2 flex-wrap bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-2 w-fit">
           {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
                 view === v
-                  ? 'bg-black text-emerald-400 shadow-md border-2 border-emerald-500'
-                  : 'bg-black text-white hover:text-yellow-400 border border-white/30'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
-              {v === 'list' && '📋 List'}
-              {v === 'summary' && '📊 Summary'}
-              {v === 'yearly' && '🧾 Yearly'}
-              {v === 'daily' && '📈 Daily'}
-              {v === 'weekly' && '🗓️ Weekly'}
-              {v === 'monthly' && '📅 Monthly'}
+              {v === 'list' && '📋 Transactions List'}
+              {v === 'summary' && '📊 Summary Overview'}
+              {v === 'yearly' && '🧾 Yearly Trends'}
+              {v === 'monthly' && '📅 Monthly Breakdown'}
+              {v === 'weekly' && '🗓️ Weekly Cycles'}
+              {v === 'daily' && '⏱️ Daily Timeline'}
             </button>
           ))}
         </div>
 
         {/* Bulk actions (header) */}
         {view === 'list' && selectedSaleIds.size > 0 && (
-          <div className="bg-black border border-white/30 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-xl">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="font-semibold text-white">Selected: {selectedSaleIds.size}</div>
+              <div className="font-bold text-white text-sm">Selected: <span className="text-emerald-400">{selectedSaleIds.size}</span></div>
 
               <button
                 onClick={clearSaleSelection}
-                className="px-3 py-1.5 bg-black border border-white/30 text-white rounded-lg font-semibold hover:bg-yellow-400 hover:text-black transition-colors"
+                className="px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
               >
                 Clear
               </button>
 
               <button
                 onClick={() => toggleSelectAllOnPage()}
-                className="px-3 py-1.5 bg-black border border-white/30 text-white rounded-lg font-semibold hover:text-yellow-400 transition-colors"
+                className="px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
                 title="Select/deselect all on this page"
               >
-                Actions All
+                Select Page
               </button>
 
               <button
                 onClick={() => setBulkActionsOpen(true)}
-                className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg font-semibold hover:bg-emerald-600 hover:text-white transition-colors"
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
               >
-                Actions
+                Bulk Actions
               </button>
 
               <button
                 onClick={openAddToEvent}
-                className="px-3 py-1.5 bg-black border border-purple-400 text-purple-300 rounded-lg font-semibold hover:bg-purple-600 hover:text-white transition-colors"
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
                 title="Add selected sales to an Event"
               >
                 📅 Add to Event
               </button>
             </div>
 
-            <div className="text-sm text-white/60">
-              Tip: select 2+ sales to auto-open actions.
+            <div className="text-xs text-slate-400">
+              Tip: Select multiple transactions to batch assign or export.
             </div>
           </div>
         )}
 
-        {/* Filters - Professional Card */}
-        <div className="bg-black border border-white/30 rounded-xl p-8">
-          <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-6">Filters</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Filters - Glassmorphic Card */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Search & Filter Records</h2>
+            </div>
+            <button
+              onClick={clearFilters}
+              className="text-xs text-slate-400 hover:text-amber-300 transition flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset All</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* Program / Workshop Multi-select */}
             <div className="relative" ref={workshopFilterRef}>
-              <label className="block text-white text-sm font-semibold mb-3">Program/Workshop</label>
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Program / Workshop</label>
               <button
                 type="button"
                 onClick={() => setWorkshopFilterOpen((o) => !o)}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium text-left flex items-center justify-between gap-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-medium text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:border-emerald-500 transition cursor-pointer"
               >
                 <span className="truncate">
                   {draftFilters.workshop.length === 0
-                    ? 'All workshops'
+                    ? 'All Workshops'
                     : draftFilters.workshop.length === 1
                     ? draftFilters.workshop[0]
-                    : `${draftFilters.workshop.length} workshops selected`}
+                    : `${draftFilters.workshop.length} selected`}
                 </span>
-                <span className="text-white/50">▾</span>
+                <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
               </button>
               {workshopFilterOpen && (
-                <div className="absolute z-20 mt-2 w-full bg-black border border-white/30 rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                <div className="absolute z-30 mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
                     <button
                       type="button"
                       onClick={() => setDraftFilters((p) => ({ ...p, workshop: [...workshopOptions] }))}
-                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer"
                     >
                       Select All
                     </button>
                     <button
                       type="button"
                       onClick={() => setDraftFilters((p) => ({ ...p, workshop: [] }))}
-                      className="text-xs font-semibold text-yellow-400 hover:text-yellow-300"
+                      className="text-xs font-semibold text-amber-400 hover:text-amber-300 cursor-pointer"
                     >
                       Clear
                     </button>
                   </div>
                   {workshopOptions.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-white/50">No workshops found</div>
+                    <div className="px-3 py-2 text-sm text-slate-500">No workshops found</div>
                   ) : (
                     workshopOptions.map((w) => {
                       const checked = draftFilters.workshop.includes(w);
                       return (
                         <label
                           key={w}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 cursor-pointer transition"
                         >
                           <input
                             type="checkbox"
@@ -1503,7 +1627,7 @@ export default function SalesPage() {
                                   : p.workshop.filter((x) => x !== w),
                               }));
                             }}
-                            className="h-4 w-4 accent-emerald-500"
+                            className="h-4 w-4 accent-emerald-500 rounded"
                           />
                           <span className="truncate">{w}</span>
                         </label>
@@ -1513,8 +1637,10 @@ export default function SalesPage() {
                 </div>
               )}
             </div>
+
+            {/* Date Range From */}
             <div>
-              <label className="block text-white text-sm font-semibold mb-3">Date Range From</label>
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Date Range From</label>
               {(() => {
                 const isAll = !draftFilters.batchFrom;
                 const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
@@ -1527,34 +1653,35 @@ export default function SalesPage() {
                           ...p,
                           batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
                         }))}
-                        className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition"
                       >
-                        <option value="all">All</option>
+                        <option value="all">All Months</option>
                         {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
                       </select>
                       <select
                         value={fromYear}
                         disabled={isAll}
                         onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
-                        className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
                       >
                         {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                     </div>
-                    {/* Exact-day override — the month/year selects above only snap to month boundaries */}
                     <input
                       type="date"
                       value={draftFilters.batchFrom}
                       onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                      className="w-full bg-black border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:border-emerald-500 transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
                       title="Pick an exact day instead of a whole month"
                     />
                   </div>
                 );
               })()}
             </div>
+
+            {/* Date Range To */}
             <div>
-              <label className="block text-white text-sm font-semibold mb-3">Date Range To</label>
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Date Range To</label>
               {(() => {
                 const isAll = !draftFilters.batchTo;
                 const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
@@ -1567,63 +1694,69 @@ export default function SalesPage() {
                           ...p,
                           batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
                         }))}
-                        className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition"
                       >
-                        <option value="all">All</option>
+                        <option value="all">All Months</option>
                         {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
                       </select>
                       <select
                         value={toYear}
                         disabled={isAll}
                         onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
-                        className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
                       >
                         {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                     </div>
-                    {/* Exact-day override — the month/year selects above only snap to month boundaries */}
                     <input
                       type="date"
                       value={draftFilters.batchTo}
                       onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
-                      className="w-full bg-black border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:border-emerald-500 transition-all"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
                       title="Pick an exact day instead of a whole month"
                     />
                   </div>
                 );
               })()}
             </div>
-            <div>
-              <label className="block text-white text-sm font-semibold mb-3">Reported By (User ID)</label>
-              <input
-                type="text"
-                value={draftFilters.reportedByUserId}
-                onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                placeholder="Admin user ID"
-              />
-            </div>
-            <div>
-              <label className="block text-white text-sm font-semibold mb-3">Search</label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                placeholder="ID, name, mobile, or amount"
-              />
+
+            {/* Reported By & Search */}
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Search Records</label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-white font-medium text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                    placeholder="ID, name, mobile, amount..."
+                  />
+                </div>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={draftFilters.reportedByUserId}
+                  onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-white font-medium text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  placeholder="Filter by Admin User ID..."
+                />
+              </div>
             </div>
           </div>
-          <div className="mt-8 flex gap-3">
+
+          <div className="flex items-center gap-3 pt-2">
             <button
               onClick={applyFilters}
-              className="bg-black border border-emerald-500 text-emerald-400 px-8 py-2.5 rounded-lg font-semibold transition-all hover:bg-emerald-600 hover:text-white"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-2.5 rounded-xl font-bold text-sm transition shadow-md shadow-emerald-500/20 cursor-pointer"
             >
               ✓ Apply Filters
             </button>
             <button
               onClick={clearFilters}
-              className="bg-black border border-yellow-500 text-yellow-400 px-8 py-2.5 rounded-lg font-semibold transition-all hover:bg-yellow-400 hover:text-black"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-6 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer"
             >
               ✕ Clear
             </button>
@@ -1632,55 +1765,53 @@ export default function SalesPage() {
 
         {/* Loading State */}
         {crm.loading ? (
-          <LoadingSpinner />
+          <div className="flex items-center justify-center py-20">
+            <LoadingSpinner />
+          </div>
         ) : (
           <>
             {/* Summary View */}
             {view === 'summary' && summary && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Sales Card */}
-                <div className="bg-black border border-white/30 rounded-xl p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Total Sales</h3>
-                    <span className="text-2xl">📊</span>
+                    <h3 className="text-emerald-400 text-xs font-bold uppercase tracking-wider">Total Transactions</h3>
+                    <Receipt className="w-5 h-5 text-emerald-400" />
                   </div>
-                  <p className="text-4xl font-black text-white mt-3">{String(summary.totalTransactions || 0)}</p>
+                  <p className="text-4xl font-black text-white mt-4">{String(summary.totalTransactions || 0)}</p>
                 </div>
                 
-                {/* Total Revenue Card */}
-                <div className="bg-black border border-white/30 rounded-xl p-6">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Total Revenue</h3>
-                    <span className="text-2xl">💰</span>
+                    <h3 className="text-yellow-400 text-xs font-bold uppercase tracking-wider">Total Revenue</h3>
+                    <DollarSign className="w-5 h-5 text-yellow-400" />
                   </div>
-                  <p className="text-4xl font-black text-yellow-400 mt-3">₹{Number(summary.totalSales || 0).toLocaleString()}</p>
+                  <p className="text-4xl font-black text-yellow-400 mt-4">₹{Number(summary.totalSales || 0).toLocaleString()}</p>
                 </div>
                 
-                {/* Average Sale Card */}
-                <div className="bg-black border border-white/30 rounded-xl p-6">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Average Sale</h3>
-                    <span className="text-2xl">📈</span>
+                    <h3 className="text-purple-400 text-xs font-bold uppercase tracking-wider">Average Sale</h3>
+                    <TrendingUp className="w-5 h-5 text-purple-400" />
                   </div>
-                  <p className="text-4xl font-black text-yellow-400 mt-3">₹{Number(summary.averageSale || 0).toLocaleString()}</p>
+                  <p className="text-4xl font-black text-purple-300 mt-4">₹{Number(summary.averageSale || 0).toLocaleString()}</p>
                 </div>
                 
-                {/* Summary Card */}
-                <div className="bg-black border border-white/30 rounded-xl p-6">
-                  <div className="text-emerald-400 font-bold mb-4 text-sm uppercase tracking-wider">
-                    Summary
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
+                  <div className="text-blue-400 font-bold mb-3 text-xs uppercase tracking-wider">
+                    Range Summary
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Max Sale</span>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Max Sale:</span>
                       <span className="font-bold text-yellow-400">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Min Sale</span>
-                      <span className="font-bold text-yellow-400">₹{Number(summary.minSale || 0).toLocaleString()}</span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Min Sale:</span>
+                      <span className="font-bold text-emerald-400">₹{Number(summary.minSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Target Achieved</span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Target Count:</span>
                       <span className="font-bold text-white">{Number(summary.targetAchieved || 0)}</span>
                     </div>
                   </div>
@@ -1694,22 +1825,30 @@ export default function SalesPage() {
                 {(view === 'daily' ? daily : view === 'weekly' ? weekly : view === 'monthly' ? monthly : yearly).map((row) => {
                   const periodSales = filteredSales.filter((s) => periodKeyForSale(s, view) === String(row._id));
                   return (
-                    <div key={String(row._id)} className="space-y-2">
-                      <div className="flex items-center justify-between bg-[#3a2659] rounded-lg px-4 py-3 border border-purple-500/30">
-                        <span className="text-purple-200 font-bold text-lg">{String(row._id)}</span>
+                    <div key={String(row._id)} className="space-y-3">
+                      <div className="flex items-center justify-between bg-gradient-to-r from-purple-950/80 via-slate-900 to-slate-900 rounded-xl px-5 py-3.5 border border-purple-500/30 shadow-md">
+                        <span className="text-purple-200 font-bold text-base">{String(row._id)}</span>
                         <div className="flex items-center gap-6 text-sm">
-                          <span className="text-white/80">{Number(row.count ?? 0)} transactions</span>
-                          <span className="text-yellow-400 font-bold">₹{Number(row.totalSales || 0).toLocaleString()}</span>
+                          <span className="text-slate-300">{Number(row.count ?? 0)} transactions</span>
+                          <span className="text-yellow-400 font-bold text-base">₹{Number(row.totalSales || 0).toLocaleString()}</span>
                         </div>
                       </div>
-                      <DataTable
-                        columns={columns}
-                        data={periodSales}
-                        loading={crm.loading}
-                        empty={periodSales.length === 0}
-                        striped
-                        hover
-                      />
+                      {periodSales.length === 0 ? (
+                        <div className="text-center text-slate-500 py-6 text-sm bg-slate-900/30 rounded-xl border border-slate-800">
+                          No transactions in this period
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-slate-800 overflow-hidden shadow-xl bg-slate-900/60">
+                          <DataTable
+                            columns={columns}
+                            data={periodSales}
+                            loading={crm.loading}
+                            empty={false}
+                            striped
+                            hover
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1717,21 +1856,54 @@ export default function SalesPage() {
                   (view === 'weekly' && weekly.length === 0) ||
                   (view === 'monthly' && monthly.length === 0) ||
                   (view === 'yearly' && yearly.length === 0)) && (
-                  <div className="text-center text-white/50 py-12">No data for this period</div>
+                  <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-3xl p-12 text-center my-6 shadow-2xl">
+                    <Receipt className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                    <h3 className="text-lg font-bold text-white">No data available for this period</h3>
+                    <p className="text-sm text-slate-400 mt-1">Try widening your date filters.</p>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Sales List */}
             {view === 'list' && (
-              <DataTable
-                columns={columns}
-                data={filteredSales}
-                loading={crm.loading}
-                empty={filteredSales.length === 0}
-                striped
-                hover
-              />
+              filteredSales.length === 0 ? (
+                <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-3xl p-12 text-center my-6 shadow-2xl">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mx-auto mb-4 shadow-inner">
+                    <Receipt className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-black text-white">No Sales Transactions Recorded</h3>
+                  <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+                    There are no sales entries matching your selected workshop or date filter. Try widening your dates or record a new sale.
+                  </p>
+                  <div className="mt-6 flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Record Sale</span>
+                    </button>
+                    <button
+                      onClick={clearFilters}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
+                    >
+                      Clear Filter Range
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-800 overflow-hidden shadow-2xl bg-slate-900/60">
+                  <DataTable
+                    columns={columns}
+                    data={filteredSales}
+                    loading={crm.loading}
+                    empty={false}
+                    striped
+                    hover
+                  />
+                </div>
+              )
             )}
           </>
         )}

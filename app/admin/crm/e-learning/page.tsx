@@ -29,6 +29,17 @@ const languageOptions = [
   { code: 'id', name: 'Indonesian' },
 ];
 
+// Helper to convert ISO date or string to local YYYY-MM-DD for date inputs
+const getLocalYYYYMMDD = (isoStr?: string | null): string => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface Course {
   _id: string;
   slug: string;
@@ -46,6 +57,7 @@ interface Course {
   discount?: number;
   promoCode?: string | null;
   promoDiscount?: number;
+  promoExpiry?: string | null;
   isFree: boolean;
   isPublished: boolean;
   isActive: boolean;
@@ -604,7 +616,28 @@ export default function ELearningPage() {
                     {course.isFree ? (
                       <span className="text-green-400 font-semibold">Free</span>
                     ) : (
-                      <span className="text-white font-medium">₹{course.pricing?.INR?.price || 0}</span>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-white font-medium">₹{course.pricing?.INR?.price || 0}</span>
+                          {course.discount ? (
+                            <span className="text-[11px] font-semibold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                              -{course.discount}%
+                            </span>
+                          ) : null}
+                        </div>
+                        {course.promoCode && (
+                          <div className="mt-1 flex items-center gap-1 text-[11px] font-mono">
+                            <span className="text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded">
+                              {course.promoCode} (-{course.promoDiscount || 0}%)
+                            </span>
+                            {course.promoExpiry && Date.now() > new Date(course.promoExpiry).getTime() && (
+                              <span className="text-[10px] text-rose-400 bg-rose-500/20 px-1 rounded font-sans">
+                                Expired
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-6 py-4">
@@ -763,6 +796,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
   const [discount, setDiscount] = useState(String(course.discount || 0));
   const [promoCode, setPromoCode] = useState(course.promoCode || '');
   const [promoDiscount, setPromoDiscount] = useState(String((course as any).promoDiscount || 0));
+  const [promoExpiry, setPromoExpiry] = useState((course as any).promoExpiry || '');
   const [promoSubmitted, setPromoSubmitted] = useState(Boolean(course.promoCode));
   const [isFree, setIsFree] = useState(course.isFree || false);
   const [saving, setSaving] = useState(false);
@@ -806,6 +840,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
           discount: parseInt(discount) || 0,
           promoCode: promoCode ? promoCode.trim().toUpperCase() : null,
           promoDiscount: parseInt(promoDiscount) || 0,
+          promoExpiry: promoExpiry || null,
           isFree,
           isPublished: false,
           isActive: true,
@@ -1140,9 +1175,21 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                       </span>
                       <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
                       {promoSubmitted && promoCode.trim() && parseInt(promoDiscount) > 0 && (
-                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm">
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF)</span>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm border ${
+                          promoExpiry && Date.now() > new Date(promoExpiry).getTime()
+                            ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                            : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                        }`}>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>
+                            Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF
+                            {promoExpiry
+                              ? Date.now() > new Date(promoExpiry).getTime()
+                                ? ' • EXPIRED'
+                                : ` • Exp: ${new Date(promoExpiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} 11:59 PM`
+                              : ''}
+                            )
+                          </span>
                         </span>
                       )}
                     </div>
@@ -1244,6 +1291,138 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                     </div>
                   </div>
 
+                  {/* Promo Expiration Date Picker (Auto-expires at 11:59 PM) */}
+                  <div className="mb-3 p-3 bg-black/40 border border-blue-900/50 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                          <span>⏰</span> Promo Expiration Date (Auto-expires at 11:59 PM)
+                        </label>
+                        <span className="text-[11px] text-gray-400">
+                          Auto-expires on selected date at 11:59 PM sharp
+                        </span>
+                      </div>
+                      {promoExpiry && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPromoExpiry('');
+                            setPromoSubmitted(false);
+                          }}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 underline self-start sm:self-auto"
+                        >
+                          Clear / Remove Expiry
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      <input
+                        type="date"
+                        value={getLocalYYYYMMDD(promoExpiry)}
+                        onChange={(e) => {
+                          if (!e.target.value) {
+                            setPromoExpiry('');
+                            return;
+                          }
+                          const [y, m, d] = e.target.value.split('-').map(Number);
+                          const exp = new Date(y, m - 1, d, 23, 59, 59, 999);
+                          setPromoExpiry(exp.toISOString());
+                        }}
+                        className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-xs focus:border-blue-500 focus:outline-none"
+                      />
+
+                      {/* Quick Expiry Date Presets */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: 'Tonight', days: 0 },
+                          { label: 'Tomorrow', days: 1 },
+                          { label: '+3 Days', days: 3 },
+                          { label: '+7 Days', days: 7 },
+                          { label: '+30 Days', days: 30 },
+                        ].map((preset) => {
+                          const isSelected = (() => {
+                            if (!promoExpiry) return false;
+                            const target = new Date();
+                            target.setDate(target.getDate() + preset.days);
+                            return getLocalYYYYMMDD(promoExpiry) === getLocalYYYYMMDD(target.toISOString());
+                          })();
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                const exp = new Date();
+                                exp.setDate(exp.getDate() + preset.days);
+                                exp.setHours(23, 59, 59, 999);
+                                setPromoExpiry(exp.toISOString());
+                              }}
+                              className={`px-2 py-1 text-[11px] font-medium rounded border transition-all ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-400'
+                                  : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:bg-gray-700 hover:text-white'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => setPromoExpiry('')}
+                          className={`px-2 py-1 text-[11px] font-medium rounded border transition-all ${
+                            !promoExpiry
+                              ? 'bg-gray-700 text-white border-gray-500'
+                              : 'bg-black text-gray-400 border-gray-800 hover:text-gray-300'
+                          }`}
+                        >
+                          No Expiry
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expiry status banner */}
+                    {promoExpiry ? (
+                      (() => {
+                        const isExpired = Date.now() > new Date(promoExpiry).getTime();
+                        const expDate = new Date(promoExpiry);
+                        const formatted = expDate.toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        });
+                        return (
+                          <div
+                            className={`mt-2.5 px-3 py-1.5 rounded-md text-xs flex items-center justify-between border ${
+                              isExpired
+                                ? 'bg-rose-950/50 border-rose-600/50 text-rose-300'
+                                : 'bg-blue-950/50 border-blue-600/50 text-blue-200'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span>{isExpired ? '⚠️' : '⏰'}</span>
+                              <span>
+                                <strong>{isExpired ? 'EXPIRED' : 'ACTIVE'}:</strong> Auto-expires at{' '}
+                                <strong className="text-white">11:59 PM</strong> on{' '}
+                                <strong className="text-white">{formatted}</strong>
+                              </span>
+                            </span>
+                            {isExpired && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-500/30 text-rose-300 px-2 py-0.5 rounded border border-rose-500/40">
+                                Expired • Inactive
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1">
+                        <span>♾️</span>
+                        <span>No expiry date set — promo code will remain valid indefinitely until removed.</span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Submit / Add Promo Code Action Bar */}
                   <div className="flex items-center justify-between gap-3 mb-3 p-2.5 bg-blue-950/30 border border-blue-500/30 rounded-lg">
                     <div className="text-xs text-gray-300">
@@ -1306,6 +1485,17 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                               )
                             ).toLocaleString()})
                             </span>
+                            {promoExpiry && (
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
+                                Date.now() > new Date(promoExpiry).getTime()
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                              }`}>
+                                {Date.now() > new Date(promoExpiry).getTime()
+                                  ? '⚠️ Expired'
+                                  : `Valid until ${new Date(promoExpiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} 11:59 PM`}
+                              </span>
+                            )}
                           </div>
                         </>
                       ) : (
@@ -1361,6 +1551,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
   const [discount, setDiscount] = useState('0');
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState('0');
+  const [promoExpiry, setPromoExpiry] = useState('');
   const [promoSubmitted, setPromoSubmitted] = useState(false);
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1404,6 +1595,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
           discount: parseInt(discount) || 0,
           promoCode: promoCode ? promoCode.trim().toUpperCase() : null,
           promoDiscount: parseInt(promoDiscount) || 0,
+          promoExpiry: promoExpiry || null,
           isFree,
           isPublished: false,
           isActive: true,
@@ -1738,9 +1930,21 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                       </span>
                       <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
                       {promoSubmitted && promoCode.trim() && parseInt(promoDiscount) > 0 && (
-                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm">
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF)</span>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm border ${
+                          promoExpiry && Date.now() > new Date(promoExpiry).getTime()
+                            ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                            : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                        }`}>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>
+                            Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF
+                            {promoExpiry
+                              ? Date.now() > new Date(promoExpiry).getTime()
+                                ? ' • EXPIRED'
+                                : ` • Exp: ${new Date(promoExpiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} 11:59 PM`
+                              : ''}
+                            )
+                          </span>
                         </span>
                       )}
                     </div>
@@ -1842,6 +2046,138 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                     </div>
                   </div>
 
+                  {/* Promo Expiration Date Picker (Auto-expires at 11:59 PM) */}
+                  <div className="mb-3 p-3 bg-black/40 border border-blue-900/50 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                          <span>⏰</span> Promo Expiration Date (Auto-expires at 11:59 PM)
+                        </label>
+                        <span className="text-[11px] text-gray-400">
+                          Auto-expires on selected date at 11:59 PM sharp
+                        </span>
+                      </div>
+                      {promoExpiry && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPromoExpiry('');
+                            setPromoSubmitted(false);
+                          }}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 underline self-start sm:self-auto"
+                        >
+                          Clear / Remove Expiry
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      <input
+                        type="date"
+                        value={getLocalYYYYMMDD(promoExpiry)}
+                        onChange={(e) => {
+                          if (!e.target.value) {
+                            setPromoExpiry('');
+                            return;
+                          }
+                          const [y, m, d] = e.target.value.split('-').map(Number);
+                          const exp = new Date(y, m - 1, d, 23, 59, 59, 999);
+                          setPromoExpiry(exp.toISOString());
+                        }}
+                        className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-xs focus:border-blue-500 focus:outline-none"
+                      />
+
+                      {/* Quick Expiry Date Presets */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: 'Tonight', days: 0 },
+                          { label: 'Tomorrow', days: 1 },
+                          { label: '+3 Days', days: 3 },
+                          { label: '+7 Days', days: 7 },
+                          { label: '+30 Days', days: 30 },
+                        ].map((preset) => {
+                          const isSelected = (() => {
+                            if (!promoExpiry) return false;
+                            const target = new Date();
+                            target.setDate(target.getDate() + preset.days);
+                            return getLocalYYYYMMDD(promoExpiry) === getLocalYYYYMMDD(target.toISOString());
+                          })();
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                const exp = new Date();
+                                exp.setDate(exp.getDate() + preset.days);
+                                exp.setHours(23, 59, 59, 999);
+                                setPromoExpiry(exp.toISOString());
+                              }}
+                              className={`px-2 py-1 text-[11px] font-medium rounded border transition-all ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-400'
+                                  : 'bg-gray-800/80 text-gray-300 border-gray-700 hover:bg-gray-700 hover:text-white'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => setPromoExpiry('')}
+                          className={`px-2 py-1 text-[11px] font-medium rounded border transition-all ${
+                            !promoExpiry
+                              ? 'bg-gray-700 text-white border-gray-500'
+                              : 'bg-black text-gray-400 border-gray-800 hover:text-gray-300'
+                          }`}
+                        >
+                          No Expiry
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expiry status banner */}
+                    {promoExpiry ? (
+                      (() => {
+                        const isExpired = Date.now() > new Date(promoExpiry).getTime();
+                        const expDate = new Date(promoExpiry);
+                        const formatted = expDate.toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        });
+                        return (
+                          <div
+                            className={`mt-2.5 px-3 py-1.5 rounded-md text-xs flex items-center justify-between border ${
+                              isExpired
+                                ? 'bg-rose-950/50 border-rose-600/50 text-rose-300'
+                                : 'bg-blue-950/50 border-blue-600/50 text-blue-200'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span>{isExpired ? '⚠️' : '⏰'}</span>
+                              <span>
+                                <strong>{isExpired ? 'EXPIRED' : 'ACTIVE'}:</strong> Auto-expires at{' '}
+                                <strong className="text-white">11:59 PM</strong> on{' '}
+                                <strong className="text-white">{formatted}</strong>
+                              </span>
+                            </span>
+                            {isExpired && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-500/30 text-rose-300 px-2 py-0.5 rounded border border-rose-500/40">
+                                Expired • Inactive
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-1">
+                        <span>♾️</span>
+                        <span>No expiry date set — promo code will remain valid indefinitely until removed.</span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Submit / Add Promo Code Action Bar */}
                   <div className="flex items-center justify-between gap-3 mb-3 p-2.5 bg-blue-950/30 border border-blue-500/30 rounded-lg">
                     <div className="text-xs text-gray-300">
@@ -1904,6 +2240,17 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                               )
                             ).toLocaleString()})
                             </span>
+                            {promoExpiry && (
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
+                                Date.now() > new Date(promoExpiry).getTime()
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                              }`}>
+                                {Date.now() > new Date(promoExpiry).getTime()
+                                  ? '⚠️ Expired'
+                                  : `Valid until ${new Date(promoExpiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} 11:59 PM`}
+                              </span>
+                            )}
                           </div>
                         </>
                       ) : (

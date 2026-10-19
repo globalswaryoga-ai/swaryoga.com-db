@@ -313,8 +313,8 @@ export default function BankIncomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/admin/crm" className="text-gray-500 hover:text-gray-700 text-sm">
-                ← CRM
+              <Link href="/admin/crm/banking-hub" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition">
+                ← Banking Hub
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">🏦 Bank Income Tracker</h1>
             </div>

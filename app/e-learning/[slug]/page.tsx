@@ -54,6 +54,7 @@ interface Course {
   discount?: number;
   promoCode?: string;
   promoDiscount?: number;
+  promoExpiry?: string | null;
   isFree: boolean;
   enrolledCount?: number;
   averageRating?: number;
@@ -322,9 +323,14 @@ export default function CourseDetailPage() {
                           Save ₹{discountAmount.toLocaleString()} ({course.discount}% OFF)
                         </div>
                         {/* Promo Code Note */}
-                        {course.promoCode && (
+                        {course.promoCode && (!course.promoExpiry || Date.now() <= new Date(course.promoExpiry).getTime()) && (
                           <div className="bg-amber-50 border border-amber-200/80 rounded-lg py-1.5 px-3 text-xs text-amber-800 font-medium">
                             🏷️ Have a promo code? Enter it at checkout
+                            {course.promoExpiry && (
+                              <span className="block text-[11px] text-amber-700/80 mt-0.5">
+                                Expires at 11:59 PM on {new Date(course.promoExpiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
                           </div>
                         )}
                       </>
@@ -410,6 +416,7 @@ export default function CourseDetailPage() {
             discount: course.discount,
             promoCode: course.promoCode,
             promoDiscount: course.promoDiscount,
+            promoExpiry: course.promoExpiry,
           }}
           token={token}
           enrollmentCount={displayedStudentCount}

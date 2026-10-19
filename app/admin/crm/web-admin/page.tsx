@@ -1,153 +1,204 @@
 'use client';
+
+import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getLoginPath } from '@/hooks/useAuth';
 import { jwtDecode } from 'jwt-decode';
-
-import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   Monitor,
   Users,
   LogIn,
   MessageSquare,
   Calendar,
-  Share2,
-  Video,
   Globe,
   Settings,
   Tag,
-  DollarSign,
-  FileText,
   Shield,
   ArrowRight,
-  Filter,
-  TrendingUp,
-  BarChart3,
-  ShoppingBag,
-  Link2,
-  Trash2,
-  Sliders,
   Smartphone,
-  BookOpen,
-  Zap,
-  Image,
-  Bot,
-  Calculator,
   Wrench,
-  SmartphoneNfc,
-  AlertTriangle,
+  Search,
+  HardDrive,
+  Eye,
+  Sparkles,
 } from 'lucide-react';
 
-type TabKey = 'users' | 'sales' | 'social' | 'tally' | 'tools';
+type WebTabKey = 'all' | 'users' | 'inquiries' | 'content' | 'settings';
 
 interface PageCard {
   label: string;
   description: string;
   href: string;
   icon: React.ElementType;
-  color: string;
+  gradient: string;
+  badge?: string;
+  category: 'users' | 'inquiries' | 'content' | 'settings';
+  superAdminOnly?: boolean;
 }
 
-const tabConfig: Record<TabKey, { label: string; icon: React.ElementType; pages: PageCard[] }> = {
-  users: {
-    label: 'Users',
+const websitePages: PageCard[] = [
+  // ── Users & Registrations ──
+  {
+    label: 'Signup Data',
+    description: 'Registration records, form submissions, and verified new accounts',
+    href: '/admin/signup-data',
     icon: Users,
-    pages: [
-      { label: 'Signup Data', description: 'Registration data and form submissions', href: '/admin/signup-data', icon: Users, color: 'bg-indigo-500' },
-      { label: 'Signin Data', description: 'Login history and authentication records', href: '/admin/signin-data', icon: LogIn, color: 'bg-indigo-600' },
-      { label: 'Contact Messages', description: 'Messages from the contact form', href: '/admin/contact-messages', icon: MessageSquare, color: 'bg-indigo-500' },
-      { label: 'Website Users', description: 'View all registered website users', href: '/admin/users', icon: Users, color: 'bg-indigo-600' },
-      { label: 'Website Visitors', description: 'Visitor analytics, clicks, and locations', href: '/admin/crm/visitors', icon: Globe, color: 'bg-indigo-500' },
-      { label: 'Enquiries', description: 'Service and workshop enquiries', href: '/admin/enquiries', icon: MessageSquare, color: 'bg-violet-500' },
-      { label: 'Admin Users', description: 'CRM admin user management', href: '/admin/crm/users', icon: Shield, color: 'bg-violet-600' },
-      { label: 'Workshop Dates', description: 'Manage workshop schedules and timings', href: '/admin/workshops/schedules', icon: Calendar, color: 'bg-purple-500' },
-    ],
+    gradient: 'from-blue-600 to-indigo-600',
+    badge: 'Signups',
+    category: 'users',
   },
-  sales: {
-    label: 'Sales',
-    icon: DollarSign,
-    pages: [
-      { label: 'Leads', description: 'Manage all leads and prospects', href: '/admin/crm/leads', icon: Users, color: 'bg-green-500' },
-      { label: 'Follow-up', description: 'Lead follow-up tracking', href: '/admin/crm/leads-followup', icon: Users, color: 'bg-green-600' },
-      { label: 'Funnel', description: 'Sales funnel stages and pipeline', href: '/admin/crm/funnel', icon: Filter, color: 'bg-emerald-500' },
-      { label: 'Funnel Manage', description: 'Manage funnel stages and settings', href: '/admin/crm/funnel/manage', icon: Sliders, color: 'bg-emerald-600' },
-      { label: 'Labels', description: 'Manage lead labels and categories', href: '/admin/crm/labels', icon: Tag, color: 'bg-teal-500' },
-      { label: 'Form Links', description: 'Lead capture form links', href: '/admin/crm/form-links', icon: Link2, color: 'bg-teal-600' },
-      { label: 'Lead Assignment', description: 'Configure lead assignment rules', href: '/admin/crm/lead-assignment-settings', icon: Settings, color: 'bg-cyan-500' },
-      { label: 'Deleted Leads', description: 'View and restore deleted leads', href: '/admin/crm/leads/deleted', icon: Trash2, color: 'bg-red-500' },
-      { label: 'Orders', description: 'Order maintenance and tracking', href: '/admin/crm/order-maintenance', icon: ShoppingBag, color: 'bg-orange-500' },
-      { label: 'Investment', description: 'Investment tracking', href: '/admin/crm/investment', icon: TrendingUp, color: 'bg-amber-500' },
-      { label: 'Investment Dashboard', description: 'Investment analytics overview', href: '/admin/crm/investment-dashboard', icon: BarChart3, color: 'bg-amber-600' },
-    ],
+  {
+    label: 'Signin Data',
+    description: 'Student login logs, authentication timestamps, and session history',
+    href: '/admin/signin-data',
+    icon: LogIn,
+    gradient: 'from-indigo-500 to-purple-600',
+    badge: 'Security',
+    category: 'users',
   },
-  social: {
-    label: 'Social',
-    icon: Share2,
-    pages: [
-      { label: 'Social Media', description: 'Social media accounts and posts', href: '/admin/social-media', icon: Share2, color: 'bg-pink-500' },
-      { label: 'Social Setup', description: 'Configure social media integrations', href: '/admin/social-media-setup', icon: Settings, color: 'bg-pink-600' },
-      { label: 'Video Library', description: 'Manage video content and playlists', href: '/admin/videos', icon: Video, color: 'bg-red-500' },
-      { label: 'Communities', description: 'Community management and members', href: '/admin/communities', icon: Globe, color: 'bg-teal-500' },
-      { label: 'Community CRM', description: 'CRM community management', href: '/admin/crm/community', icon: Globe, color: 'bg-teal-600' },
-      { label: 'Community Moderation', description: 'Content moderation tools', href: '/admin/crm/community-moderation', icon: Shield, color: 'bg-cyan-500' },
-      { label: 'Recordings & Videos', description: 'Community recordings and videos', href: '/admin/communities/recordings-videos', icon: Video, color: 'bg-rose-500' },
-      { label: 'Recording Mgmt', description: 'Recording management dashboard', href: '/admin/crm/recording-management', icon: Video, color: 'bg-rose-600' },
-      { label: 'Zoom Analytics', description: 'Zoom meeting analytics', href: '/admin/crm/zoom-analytics', icon: Video, color: 'bg-indigo-500' },
-    ],
+  {
+    label: 'Website Users',
+    description: 'View, search, and manage all registered website members & accounts',
+    href: '/admin/users',
+    icon: Users,
+    gradient: 'from-purple-500 to-pink-600',
+    badge: 'Directory',
+    category: 'users',
+    superAdminOnly: true,
   },
-  tally: {
-    label: 'Tally',
-    icon: Calculator,
-    pages: [
-      { label: 'Tally', description: 'Tally integration and management', href: '/admin/crm/tally', icon: Calculator, color: 'bg-yellow-500' },
-      { label: 'Accounting', description: 'Financial records and accounting', href: '/admin/accounting', icon: DollarSign, color: 'bg-yellow-600' },
-    ],
+  {
+    label: 'Admin Users',
+    description: 'Manage staff, admin privileges, role-based permissions, and team access',
+    href: '/admin/crm/users',
+    icon: Shield,
+    gradient: 'from-violet-600 to-indigo-700',
+    badge: 'Permissions',
+    category: 'users',
+    superAdminOnly: true,
   },
-  tools: {
-    label: 'Tools',
+
+  // ── Inquiries & Traffic ──
+  {
+    label: 'Contact Messages',
+    description: 'Direct inquiries, suggestions, and feedback sent via Contact Us form',
+    href: '/admin/contact-messages',
+    icon: MessageSquare,
+    gradient: 'from-emerald-500 to-teal-600',
+    badge: 'Inbound',
+    category: 'inquiries',
+  },
+  {
+    label: 'Enquiries',
+    description: 'Course and workshop specific questions submitted across landing pages',
+    href: '/admin/enquiries',
+    icon: MessageSquare,
+    gradient: 'from-teal-500 to-cyan-600',
+    badge: 'Workshops',
+    category: 'inquiries',
+  },
+  {
+    label: 'Website Visitors & Analytics',
+    description: 'Live visitor traffic, location demographics, and button click analytics',
+    href: '/admin/crm/visitors',
+    icon: Globe,
+    gradient: 'from-cyan-500 to-blue-600',
+    badge: 'Traffic',
+    category: 'inquiries',
+  },
+
+  // ── Content & Schedules ──
+  {
+    label: 'Workshop Schedules & Dates',
+    description: 'Manage live workshop schedules, upcoming batch dates, and timings',
+    href: '/admin/workshops/schedules',
+    icon: Calendar,
+    gradient: 'from-amber-500 to-orange-600',
+    badge: 'Batches',
+    category: 'content',
+  },
+  {
+    label: 'Promotional Offers',
+    description: 'Manage discount coupons, seasonal promotional offers, and banner deals',
+    href: '/admin/offers',
+    icon: Tag,
+    gradient: 'from-rose-500 to-pink-600',
+    badge: 'Discounts',
+    category: 'content',
+  },
+
+  // ── Settings & System ──
+  {
+    label: 'Website Settings',
+    description: 'General website metadata, brand identity, header, and footer config',
+    href: '/admin/settings',
+    icon: Settings,
+    gradient: 'from-slate-600 to-gray-800',
+    badge: 'Site Config',
+    category: 'settings',
+  },
+  {
+    label: 'CRM Settings',
+    description: 'CRM global operational parameters, notification rules, and preferences',
+    href: '/admin/crm/settings',
     icon: Wrench,
-    pages: [
-      { label: 'Offers', description: 'Manage promotional offers', href: '/admin/offers', icon: Tag, color: 'bg-orange-500' },
-      { label: 'Devices', description: 'Device management', href: '/admin/crm/devices', icon: Smartphone, color: 'bg-slate-500' },
-      { label: 'Knowledge Base', description: 'AI knowledge base management', href: '/admin/crm/knowledge-base', icon: BookOpen, color: 'bg-indigo-500' },
-      { label: 'AI Agents', description: 'Configure AI agents', href: '/admin/crm/ai-agents', icon: Zap, color: 'bg-violet-500' },
-      { label: 'Automation', description: 'Workflow automation rules', href: '/admin/crm/automation', icon: Zap, color: 'bg-violet-600' },
-      { label: 'Media', description: 'Media library management', href: '/admin/crm/media', icon: Image, color: 'bg-pink-500' },
-      { label: 'Inbound Media', description: 'Inbound media from WhatsApp', href: '/admin/crm/inbound-media', icon: Image, color: 'bg-pink-600' },
-      { label: 'Youth Program', description: 'Youth program registrations', href: '/admin/youth-program', icon: Users, color: 'bg-green-500' },
-      { label: 'Chatbot Builder', description: 'Build custom chatbot flows', href: '/admin/crm/chatbot-builder', icon: Bot, color: 'bg-emerald-500' },
-      { label: 'Chatbot Settings', description: 'Configure chatbot behavior', href: '/admin/crm/chatbot-settings', icon: Settings, color: 'bg-emerald-600' },
-      { label: 'Send Template', description: 'Send WhatsApp templates', href: '/admin/crm/send-template', icon: FileText, color: 'bg-indigo-500' },
-      { label: 'Templates', description: 'Manage WhatsApp templates', href: '/admin/crm/templates', icon: FileText, color: 'bg-indigo-600' },
-      { label: 'Website Settings', description: 'General website configuration', href: '/admin/settings', icon: Settings, color: 'bg-gray-500' },
-      { label: 'CRM Settings', description: 'CRM configuration and tools', href: '/admin/crm/settings', icon: Wrench, color: 'bg-gray-600' },
-    ],
+    gradient: 'from-gray-700 to-slate-900',
+    badge: 'CRM Config',
+    category: 'settings',
   },
-};
+  {
+    label: 'Connected Devices',
+    description: 'Active login sessions, authorized mobile devices, and browser tracking',
+    href: '/admin/crm/devices',
+    icon: Smartphone,
+    gradient: 'from-blue-500 to-indigo-600',
+    badge: 'Hardware',
+    category: 'settings',
+  },
+  {
+    label: 'Storage & Backup Usage',
+    description: 'Monitor database size, cloud storage GB consumption, and backup logs',
+    href: '/admin/crm/storage',
+    icon: HardDrive,
+    gradient: 'from-indigo-600 to-purple-700',
+    badge: 'Storage',
+    category: 'settings',
+  },
+];
 
-const allTabs: TabKey[] = ['users', 'sales', 'social', 'tally', 'tools'];
+const tabFilters: { key: WebTabKey; label: string; count: (list: PageCard[]) => number }[] = [
+  { key: 'all', label: 'All Website Pages', count: (l) => l.length },
+  { key: 'users', label: 'Users & Signups', count: (l) => l.filter(p => p.category === 'users').length },
+  { key: 'inquiries', label: 'Inquiries & Traffic', count: (l) => l.filter(p => p.category === 'inquiries').length },
+  { key: 'content', label: 'Schedules & Offers', count: (l) => l.filter(p => p.category === 'content').length },
+  { key: 'settings', label: 'Settings & System', count: (l) => l.filter(p => p.category === 'settings').length },
+];
 
-export default function WebAdminPage() {
+function WebAdminContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>('users');
+  const [activeTab, setActiveTab] = useState<WebTabKey>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-    if (!token) return;
-    
-    // Check if user is superadmin
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token');
+    if (!token) {
+      router.push(getLoginPath());
+      return;
+    }
+
     try {
       const decoded: any = jwtDecode(token);
       const superAdminEmails = [
         'swarsakshi9999@gmail.com',
         'admin@swaryoga.com',
         'vijay@swaryoga.com',
-        'varun@swaryoga.com'
+        'varun@swaryoga.com',
       ];
-      const userIsSuperAdmin = decoded.role === 'superadmin' || superAdminEmails.includes(decoded?.email?.toLowerCase());
+      const userIsSuperAdmin =
+        decoded.role === 'superadmin' || superAdminEmails.includes(decoded?.email?.toLowerCase());
       setIsSuperAdmin(userIsSuperAdmin);
       setIsAuthenticated(true);
     } catch {
@@ -155,117 +206,173 @@ export default function WebAdminPage() {
     }
   }, [router]);
 
-  // Read tab from URL query param
   useEffect(() => {
-    const tab = searchParams.get('tab') as TabKey;
-    if (tab && allTabs.includes(tab)) {
+    const tab = searchParams.get('tab') as WebTabKey;
+    if (tab && ['all', 'users', 'inquiries', 'content', 'settings'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
 
-  const switchTab = (tab: TabKey) => {
+  const switchTab = (tab: WebTabKey) => {
     setActiveTab(tab);
-    window.history.replaceState(null, '', `/admin/crm/web-admin${tab === 'users' ? '' : `?tab=${tab}`}`);
+    window.history.replaceState(null, '', `/admin/crm/web-admin${tab === 'all' ? '' : `?tab=${tab}`}`);
   };
+
+  const visiblePages = websitePages.filter((p) => {
+    if (p.superAdminOnly && !isSuperAdmin) return false;
+    return true;
+  });
+
+  const filteredCards = visiblePages.filter((card) => {
+    const matchesTab = activeTab === 'all' || card.category === activeTab;
+    const matchesSearch =
+      card.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      card.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
       </div>
     );
   }
 
-  // Non-superadmin: hide superadmin-only pages (like 'Website Users' which is admin-only)
-  // but still allow access to the Web Admin page itself
-  const filteredTabConfig: Record<TabKey, { label: string; icon: React.ElementType; pages: PageCard[] }> = {} as any;
-  for (const key of allTabs) {
-    const tab = tabConfig[key];
-    filteredTabConfig[key] = {
-      ...tab,
-      pages: isSuperAdmin
-        ? tab.pages
-        : tab.pages.filter(p => !['/admin/users'].includes(p.href)),
-    };
-  }
-
-  const currentTab = filteredTabConfig[activeTab];
-
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-          <Monitor className="w-5 h-5 text-orange-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Web Admin</h1>
-          <p className="text-sm text-gray-500">Manage website pages, users, sales, social, and tools</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-indigo-50 border border-orange-200/60 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-orange-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-md shadow-orange-500/20 flex-shrink-0">
+              <Monitor className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Website Management</h1>
+                <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-orange-200">
+                  Web Super Admin
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-1 max-w-2xl">
+                Manage website members, user signups, inbound contact messages, workshop schedules, and overall system configuration.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Search */}
+          <div className="relative w-full md:w-72">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search website pages..."
+              className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition shadow-xs"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Tab Buttons */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 pb-3 overflow-x-auto">
-        {allTabs.map(tab => {
-          const cfg = filteredTabConfig[tab];
-          const Icon = cfg.icon;
-          const isActive = activeTab === tab;
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b border-gray-200">
+        {tabFilters.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const count = tab.count(visiblePages);
           return (
             <button
-              key={tab}
-              onClick={() => switchTab(tab)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+              key={tab.key}
+              onClick={() => switchTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 isActive
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                  ? 'bg-orange-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {cfg.label}
-              <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
-                isActive ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {cfg.pages.length}
+              <span>{tab.label}</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  isActive ? 'bg-orange-500/80 text-white' : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {count}
               </span>
             </button>
           );
         })}
       </div>
 
-      {/* Page Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {currentTab.pages.map(page => {
-          const Icon = page.icon;
+      {/* 3-Column Card Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredCards.map((card) => {
+          const Icon = card.icon;
           return (
             <Link
-              key={page.href}
-              href={page.href}
-              className="group bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg transition-all p-5 flex items-start gap-4"
+              key={card.href}
+              href={card.href}
+              className="group bg-white rounded-2xl border border-gray-200/80 hover:border-orange-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
             >
-              <div className={`w-11 h-11 ${page.color} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                <Icon className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
-                  {page.label}
-                  <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div>
+                <div className="flex items-center justify-between mb-3.5">
+                  <div
+                    className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${card.gradient} flex items-center justify-center text-white shadow-md shadow-gray-200 group-hover:scale-105 transition-transform duration-200`}
+                  >
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  {card.badge && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md">
+                      {card.badge}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-orange-600 transition-colors flex items-center gap-1.5">
+                  {card.label}
+                  <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-orange-600" />
                 </h3>
-                <p className="text-sm text-gray-500 mt-1">{page.description}</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+                  {card.description}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-orange-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                <span>Open page</span>
+                <span>→</span>
               </div>
             </Link>
           );
         })}
       </div>
 
-      {/* Quick Stats Footer */}
-      <div className="mt-8 bg-gray-50 rounded-xl border p-4 flex items-center justify-between">
-        <span className="text-sm text-gray-500">
-          Showing <strong>{currentTab.pages.length}</strong> pages in <strong>{currentTab.label}</strong>
-        </span>
-        <span className="text-sm text-gray-400">
-          Total: {Object.values(filteredTabConfig).reduce((sum, t) => sum + t.pages.length, 0)} admin pages
-        </span>
+      {filteredCards.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+          <p className="text-gray-500 text-sm">No pages found matching "{searchQuery}"</p>
+        </div>
+      )}
+
+      {/* Footer Stats */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500 shadow-xs">
+        <div>
+          Showing <strong>{filteredCards.length}</strong> pages in{' '}
+          <strong>{tabFilters.find((t) => t.key === activeTab)?.label}</strong>
+        </div>
+        <div className="text-gray-400">Total: {visiblePages.length} Website Pages</div>
       </div>
     </div>
+  );
+}
+
+export default function WebAdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
+        </div>
+      }
+    >
+      <WebAdminContent />
+    </Suspense>
   );
 }
