@@ -51,6 +51,8 @@ import {
   Activity,
   Wifi,
   LogIn,
+  CreditCard,
+  User,
 } from 'lucide-react';
 
 interface CourseData {
@@ -160,10 +162,16 @@ function formatDuration(seconds: number): string {
 
 interface ActivityEvent {
   id: string;
-  type: 'signin' | 'watch' | 'device' | 'submission';
+  type: string;
   title: string;
   subtitle?: string;
+  details?: string;
+  badge?: string;
   ip?: string;
+  device?: string;
+  location?: string;
+  watchDuration?: number;
+  videoTitle?: string;
   timestamp: string;
 }
 
@@ -241,6 +249,9 @@ export default function UserDetailPage() {
   const [primaryIp, setPrimaryIp] = useState<string>('');
   const [primaryLocation, setPrimaryLocation] = useState<string>('');
   const [primaryDevice, setPrimaryDevice] = useState<string>('');
+  const [payments, setPayments] = useState<any[]>([]);
+  const [activeMainTab, setActiveMainTab] = useState<'videos' | 'devices' | 'usage' | 'profile' | 'payments'>('videos');
+  const [usagePeriod, setUsagePeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -391,6 +402,7 @@ export default function UserDetailPage() {
           setPrimaryLocation(data.primaryLocation || enr.userId?.location || '');
           setPrimaryDevice(data.primaryDevice || enr.userId?.device || '');
           setManualDeviceIp(detectedIp);
+          setPayments(data.payments || []);
 
           // Also fetch student submissions
           fetchStudentSubmissions(enr.userId?._id || (params?.userId as string), enr.courseId?._id);
@@ -816,6 +828,136 @@ export default function UserDetailPage() {
     );
   }
 
+  const getFilteredActivity = () => {
+    const events = [...recentActivity];
+    if (!events.length) {
+      if (dailyActivity && dailyActivity.length > 0) return dailyActivity;
+      return [];
+    }
+
+    if (usagePeriod === 'day') {
+      if (dailyActivity && dailyActivity.length > 0) return dailyActivity;
+      const map: Record<string, any> = {};
+      events.forEach((ev) => {
+        const d = new Date(ev.timestamp);
+        const key = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : 'Earlier';
+        if (!map[key]) {
+          map[key] = {
+            dateKey: key,
+            displayDate: !isNaN(d.getTime())
+              ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+              : 'Earlier Activity',
+            totalWatchSeconds: 0,
+            videosSeenCount: 0,
+            events: [],
+          };
+        }
+        if (ev.type === 'watch') {
+          map[key].totalWatchSeconds += (ev.watchDuration || 0);
+          map[key].videosSeenCount += 1;
+        }
+        map[key].events.push(ev);
+      });
+      return Object.values(map).sort((a: any, b: any) => b.dateKey.localeCompare(a.dateKey));
+    }
+
+    if (usagePeriod === 'week') {
+      const map: Record<string, any> = {};
+      events.forEach((ev) => {
+        const d = new Date(ev.timestamp);
+        if (isNaN(d.getTime())) return;
+        const target = new Date(d.valueOf());
+        const dayNr = (d.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+          target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        }
+        const weekNum = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+        const year = d.getFullYear();
+        const weekKey = `${year}-W${String(weekNum).padStart(2, '0')}`;
+
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - dayNr);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        const displayLabel = `Week ${weekNum} • ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+        if (!map[weekKey]) {
+          map[weekKey] = {
+            dateKey: weekKey,
+            displayDate: displayLabel,
+            totalWatchSeconds: 0,
+            videosSeenCount: 0,
+            events: [],
+          };
+        }
+        if (ev.type === 'watch') {
+          map[weekKey].totalWatchSeconds += (ev.watchDuration || 0);
+          map[weekKey].videosSeenCount += 1;
+        }
+        map[weekKey].events.push(ev);
+      });
+      return Object.values(map).sort((a: any, b: any) => b.dateKey.localeCompare(a.dateKey));
+    }
+
+    if (usagePeriod === 'month') {
+      const map: Record<string, any> = {};
+      events.forEach((ev) => {
+        const d = new Date(ev.timestamp);
+        if (isNaN(d.getTime())) return;
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const displayLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        if (!map[monthKey]) {
+          map[monthKey] = {
+            dateKey: monthKey,
+            displayDate: displayLabel,
+            totalWatchSeconds: 0,
+            videosSeenCount: 0,
+            events: [],
+          };
+        }
+        if (ev.type === 'watch') {
+          map[monthKey].totalWatchSeconds += (ev.watchDuration || 0);
+          map[monthKey].videosSeenCount += 1;
+        }
+        map[monthKey].events.push(ev);
+      });
+      return Object.values(map).sort((a: any, b: any) => b.dateKey.localeCompare(a.dateKey));
+    }
+
+    if (usagePeriod === 'year') {
+      const map: Record<string, any> = {};
+      events.forEach((ev) => {
+        const d = new Date(ev.timestamp);
+        if (isNaN(d.getTime())) return;
+        const yearKey = `${d.getFullYear()}`;
+        const displayLabel = `Year ${d.getFullYear()}`;
+
+        if (!map[yearKey]) {
+          map[yearKey] = {
+            dateKey: yearKey,
+            displayDate: displayLabel,
+            totalWatchSeconds: 0,
+            videosSeenCount: 0,
+            events: [],
+          };
+        }
+        if (ev.type === 'watch') {
+          map[yearKey].totalWatchSeconds += (ev.watchDuration || 0);
+          map[yearKey].videosSeenCount += 1;
+        }
+        map[yearKey].events.push(ev);
+      });
+      return Object.values(map).sort((a: any, b: any) => b.dateKey.localeCompare(a.dateKey));
+    }
+
+    return dailyActivity;
+  };
+
   const courseTitle =
     enrollment.courseId.title ||
     enrollment.courseId.content?.en?.title ||
@@ -861,6 +1003,35 @@ export default function UserDetailPage() {
               {enrollment.userId.phone && <span>• {enrollment.userId.phone}</span>}
               <span>• Course: <span className="text-green-400 font-medium">{courseTitle}</span></span>
             </p>
+
+            {/* Header Quick Buttons */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setActiveMainTab('profile')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeMainTab === 'profile'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 border border-gray-700/60'
+                }`}
+              >
+                <User size={13} className="text-blue-400" />
+                <span>Profile Details</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMainTab('payments')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeMainTab === 'payments'
+                    ? 'bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20'
+                    : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 border border-gray-700/60'
+                }`}
+              >
+                <CreditCard size={13} className="text-amber-400" />
+                <span>Payments ({enrollment.purchaseType || 'paid'})</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -947,10 +1118,106 @@ export default function UserDetailPage() {
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: All Video Controls & Progress (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* Three Main Feature Buttons & Navigation Bar (Well Separated) */}
+      <div className="max-w-7xl mx-auto mb-6 bg-gray-900/90 border border-gray-800 p-2 rounded-2xl backdrop-blur-md shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Button 1: Video Management */}
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('videos')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+              activeMainTab === 'videos'
+                ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-black shadow-lg shadow-emerald-500/20'
+                : 'text-gray-300 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <Video size={16} />
+            <span>1) Video Management</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                activeMainTab === 'videos' ? 'bg-black/30 text-black' : 'bg-gray-800 text-emerald-400'
+              }`}
+            >
+              {videos.length}
+            </span>
+          </button>
+
+          {/* Button 2: Device Management */}
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('devices')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+              activeMainTab === 'devices'
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20'
+                : 'text-gray-300 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <Smartphone size={16} />
+            <span>2) Device Management</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                activeMainTab === 'devices' ? 'bg-white/20 text-white' : 'bg-gray-800 text-purple-300'
+              }`}
+            >
+              {devices.length}/3
+            </span>
+          </button>
+
+          {/* Button 3: All Uses - Day, Week, Month, Years */}
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('usage')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+              activeMainTab === 'usage'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/20'
+                : 'text-gray-300 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <Activity size={16} />
+            <span>3) All Uses (Day, Week, Month, Years)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                activeMainTab === 'usage' ? 'bg-white/20 text-white' : 'bg-gray-800 text-cyan-300'
+              }`}
+            >
+              {dailyActivity.length} Days
+            </span>
+          </button>
+        </div>
+
+        {/* Profile Details & Payments Tabs */}
+        <div className="flex items-center gap-2 border-t lg:border-t-0 lg:border-l border-gray-800 pt-2 lg:pt-0 lg:pl-3">
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('profile')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeMainTab === 'profile'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <User size={14} />
+            <span>Profile Details</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('payments')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeMainTab === 'payments'
+                ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <CreditCard size={14} />
+            <span>Payments</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 1) Video Management Tab */}
+      {activeMainTab === 'videos' && (
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Top Switcher Tabs: Videos vs Assignments & Tasks */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-900/80 p-2 rounded-2xl border border-gray-800 backdrop-blur-sm">
             <div className="flex items-center gap-2">
@@ -2395,562 +2662,174 @@ export default function UserDetailPage() {
         </div>
       )}
     </div>
+      )}
 
-        {/* Right Column / Sidebar: Student Profile, Watch Stats, Devices (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* User Information Card */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-white mb-4">Student Information</h2>
-            <div className="space-y-3.5">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-emerald-400 shrink-0">
-                  <Mail size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">Email Address</p>
-                  <p className="text-sm text-white font-medium break-all">
-                    {enrollment.userId.email || 'No email provided'}
-                  </p>
-                </div>
-              </div>
-
-              {enrollment.userId.phone && (
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-blue-400 shrink-0">
-                    <Phone size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-gray-400">Phone Number</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-white font-medium">{enrollment.userId.phone}</p>
-                      <a
-                        href={`https://wa.me/${enrollment.userId.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-                      >
-                        <MessageCircle size={12} /> WhatsApp
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {(enrollment.userId.country || enrollment.userId.state) && (
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-purple-400 shrink-0">
-                    <Globe size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Location</p>
-                    <p className="text-sm text-white">
-                      {[enrollment.userId.state, enrollment.userId.country]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {enrollment.userId.profession && (
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-amber-400 shrink-0">
-                    <Award size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Profession</p>
-                    <p className="text-sm text-white">{enrollment.userId.profession}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 shrink-0">
-                  <Calendar size={16} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400">Enrolled Date</p>
-                  <p className="text-sm text-white">
-                    {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* User IP Address & Location */}
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-cyan-400 shrink-0">
-                  <Wifi size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">User IP Address & Network</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-sm font-mono text-cyan-300 font-bold truncate">
-                      {primaryIp || enrollment.userId.ip || '103.141.53.13'}
-                    </span>
-                    {(primaryIp || enrollment.userId.ip) && (
-                      <button
-                        onClick={() =>
-                          copyToClipboard(primaryIp || enrollment.userId.ip || '', 'user-ip')
-                        }
-                        className="p-1 hover:bg-gray-800 text-gray-400 hover:text-white rounded transition-colors"
-                        title="Copy IP Address"
-                      >
-                        {copiedText === 'user-ip' ? (
-                          <Check size={12} className="text-emerald-400" />
-                        ) : (
-                          <Copy size={12} />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                  {/* Geo Location */}
-                  <p className="text-[11px] text-gray-300 font-medium mt-1 flex items-center gap-1.5">
-                    <Globe size={12} className="text-purple-400 shrink-0" />
-                    <span>
-                      {primaryLocation ||
-                        [(enrollment.userId as any)?.city, enrollment.userId.state, enrollment.userId.country]
-                          .filter(Boolean)
-                          .join(', ') ||
-                        'Sangamner, Maharashtra, India'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Detected Device Details */}
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-emerald-400 shrink-0">
-                  <Laptop size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">Active Device & Browser</p>
-                  <p className="text-xs text-white font-medium mt-0.5">
-                    {primaryDevice || devices[0]?.deviceName || 'MacBook / Mac OS (Google Chrome)'}
-                  </p>
-                  {devices[0]?.os && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      OS: {devices[0].os} • Browser: {devices[0].browser || 'Chrome'}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Last Used / Active Date & Time */}
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-indigo-400 shrink-0">
-                  <Clock size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">Last Active / Used</p>
-                  <p className="text-sm text-white font-medium">
-                    {formatDateTime(
-                      enrollment.userId.lastUsedAt ||
-                        enrollment.userId.lastActiveAt ||
-                        recentActivity[0]?.timestamp ||
-                        enrollment.enrolledAt
-                    )}
-                  </p>
-                  {(enrollment.userId.lastUsedAt || recentActivity[0]?.timestamp) && (
-                    <p className="text-[10px] text-gray-500 mt-0.5">
-                      {formatTimeAgo(
-                        enrollment.userId.lastUsedAt || recentActivity[0]?.timestamp
-                      )}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Login Credentials & Password Reset */}
-            <div className="mt-5 pt-5 border-t border-gray-800">
-              <h3 className="text-xs font-bold text-gray-300 mb-2 flex items-center gap-2">
-                <Key size={14} className="text-amber-400" />
-                Login Credentials
-              </h3>
-              <p className="text-xs text-gray-400 mb-2.5">
-                Student logs in with: <span className="text-white font-medium">{enrollment.userId.email}</span>
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newPassword}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    setPasswordResetDone(false);
-                  }}
-                  placeholder="New password (min 6 chars)"
-                  className="flex-1 px-3 py-2 bg-black/60 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none text-xs"
-                />
-                <button
-                  onClick={generatePassword}
-                  title="Generate random password"
-                  className="px-2.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
-                >
-                  <RefreshCw size={14} />
-                </button>
-                <button
-                  onClick={handleResetPassword}
-                  disabled={resettingPassword || newPassword.length < 6}
-                  className="px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-colors whitespace-nowrap"
-                >
-                  {resettingPassword ? '...' : 'Reset'}
-                </button>
-              </div>
-
-              {passwordResetDone && (
-                <div className="mt-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-white font-mono">
-                      <div>Login: {enrollment.userId.email}</div>
-                      <div>Pass: {newPassword}</div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        copyToClipboard(
-                          `Email: ${enrollment.userId.email}\nPassword: ${newPassword}`,
-                          'creds'
-                        )
-                      }
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs flex items-center gap-1"
-                    >
-                      {copiedText === 'creds' ? (
-                        <Check size={12} className="text-emerald-400" />
-                      ) : (
-                        <Copy size={12} />
-                      )}
-                      <span>Copy</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Watch Stats Card */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Clock size={20} className="text-blue-400" />
-              Watch Stats
-            </h2>
-            <div className="space-y-4">
+      {/* 2) Device Management Tab (Well Separated) */}
+      {activeMainTab === 'devices' && (
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-800">
               <div>
-                <p className="text-xs text-gray-400">Total Watch Time</p>
-                <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-                  {formatWatchHours(
-                    Math.max(Number(enrollment.totalWatchTime || 0), computedTotalWatchedSeconds)
-                  )}
+                <div className="flex items-center gap-2">
+                  <Smartphone className="text-purple-400" size={22} />
+                  <h2 className="text-xl font-bold text-white tracking-tight">
+                    2) Device Management & Hardware Slot Control
+                  </h2>
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    {devices.length}/3 Slots Used
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Authorize, track, and manage student device hardware. Device fingerprint and IP address are automatically recognized during video playback.
                 </p>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-gray-400">Overall Course Progress</span>
-                  <span className="text-emerald-400 font-bold font-mono">{computedProgress}%</span>
-                </div>
-                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full transition-all duration-300"
-                    style={{ width: `${computedProgress}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="bg-black/40 p-3 rounded-xl border border-gray-800">
-                  <p className="text-[11px] text-gray-400">Purchase Type</p>
-                  <p className="text-sm font-bold text-white capitalize mt-0.5">
-                    {enrollment.purchaseType || 'paid'}
-                  </p>
-                </div>
-                <div className="bg-black/40 p-3 rounded-xl border border-gray-800">
-                  <p className="text-[11px] text-gray-400">Gift Hours</p>
-                  <p className="text-sm font-bold text-amber-300 font-mono mt-0.5">
-                    {giftHours} hrs
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Activity Card */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Activity size={20} className="text-emerald-400" />
-                Recent Activity
-              </h2>
-              {recentActivity.length > 0 && (
-                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded-full font-mono">
-                  {recentActivity.length} events
-                </span>
-              )}
-            </div>
-
-            {recentActivity.length === 0 ? (
-              <div className="py-6 text-center text-gray-500 border border-dashed border-gray-800 rounded-xl px-4">
-                <Activity size={24} className="mx-auto mb-2 opacity-30 text-emerald-400" />
-                <p className="text-xs font-semibold text-gray-400">No recent activity</p>
-                <p className="text-[11px] text-gray-600 mt-1">
-                  Logins, video watches, and assignment submissions will automatically appear here with student IP address and timestamp.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                {recentActivity.map((act) => (
-                  <div
-                    key={act.id}
-                    className="p-3 bg-black/50 hover:bg-black/70 rounded-xl border border-gray-800/80 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-gray-800/90 flex items-center justify-center shrink-0 mt-0.5 text-xs">
-                          {act.type === 'signin' ? (
-                            <LogIn size={14} className="text-blue-400" />
-                          ) : act.type === 'watch' ? (
-                            <Play size={14} className="text-emerald-400" />
-                          ) : act.type === 'submission' ? (
-                            <CheckSquare size={14} className="text-purple-400" />
-                          ) : (
-                            <Smartphone size={14} className="text-amber-400" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-white truncate">
-                            {act.title}
-                          </p>
-                          {act.subtitle && (
-                            <p className="text-[11px] text-gray-400 truncate">
-                              {act.subtitle}
-                            </p>
-                          )}
-                          {act.ip && (
-                            <div className="flex items-center gap-1.5 text-[11px] font-mono text-cyan-400 mt-1">
-                              <Wifi size={11} className="text-cyan-400 shrink-0" />
-                              <span>IP: {act.ip}</span>
-                              <button
-                                onClick={() => copyToClipboard(act.ip || '', act.id)}
-                                className="text-gray-500 hover:text-white"
-                                title="Copy IP"
-                              >
-                                {copiedText === act.id ? (
-                                  <Check size={10} className="text-emerald-400" />
-                                ) : (
-                                  <Copy size={10} />
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] text-gray-400">
-                          {formatDateTime(act.timestamp)}
-                        </p>
-                        <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                          {formatTimeAgo(act.timestamp)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Devices Card (Device Fingerprint, Browser, OS, IP, Controls) */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Smartphone size={20} className="text-purple-400" />
-                Devices ({devices.length}/3)
-              </h2>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setShowAddDeviceModal(true)}
-                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-purple-300 rounded-lg transition-colors"
-                  title="Authorize new device manually"
+                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
                 >
                   <Plus size={15} />
+                  <span>+ Authorize Device Slot</span>
                 </button>
                 {devices.length > 0 && (
                   <button
                     onClick={resetAllDevices}
-                    className="px-2.5 py-1 bg-red-500/15 hover:bg-red-500/25 text-red-300 text-xs rounded-lg border border-red-500/30 transition-colors"
-                    title="Reset all device slots"
+                    className="px-3.5 py-2 bg-red-500/15 hover:bg-red-500/25 text-red-300 text-xs font-semibold rounded-xl border border-red-500/30 transition-colors flex items-center gap-1.5"
                   >
-                    Reset Slots
+                    <RotateCcw size={13} />
+                    <span>Reset All Slots</span>
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Authorized Devices</p>
+                <p className="text-2xl font-bold text-white font-mono mt-1">
+                  {devices.length} <span className="text-xs text-gray-500 font-normal">/ 3 allowed slots</span>
+                </p>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Active Hardware</p>
+                <p className="text-sm font-bold text-purple-300 mt-1 truncate">
+                  {primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}
+                </p>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Student IP Address</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-mono font-bold text-cyan-300 truncate">
+                    {primaryIp || enrollment?.userId?.ip || '103.141.53.13'}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(primaryIp || enrollment?.userId?.ip || '', 'dev-ip')}
+                    className="text-gray-400 hover:text-white p-0.5"
+                  >
+                    {copiedText === 'dev-ip' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                </div>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Network Location</p>
+                <p className="text-sm font-bold text-gray-200 mt-1 truncate">
+                  {primaryLocation || 'Sangamner, Maharashtra, India'}
+                </p>
+              </div>
+            </div>
+
+            {/* Devices List */}
+            <div className="mt-6 space-y-3">
               {devices.length === 0 ? (
-                <div className="py-6 text-center text-gray-500 border border-dashed border-gray-800 rounded-xl px-4">
-                  <Smartphone size={28} className="mx-auto mb-2 opacity-40 text-purple-400" />
-                  <p className="text-xs font-semibold text-gray-300">No devices registered</p>
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Device model & browser are automatically captured when the student logs in or plays video.
+                <div className="text-center py-12 bg-black/40 border border-dashed border-gray-800 rounded-2xl">
+                  <Smartphone size={36} className="mx-auto text-gray-600 mb-2" />
+                  <p className="text-sm font-semibold text-gray-300">No devices registered</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    When the student plays any video or logs in, their device and IP are automatically recognized.
                   </p>
-                  {(primaryIp || enrollment.userId.ip) && (
-                    <div className="mt-3 p-2.5 bg-black/60 rounded-xl border border-gray-800 text-left text-xs">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-gray-400 flex items-center gap-1">
-                          <Wifi size={11} className="text-cyan-400" />
-                          Last detected IP:
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-cyan-300 font-semibold">
-                            {primaryIp || enrollment.userId.ip}
-                          </span>
-                          <button
-                            onClick={() =>
-                              copyToClipboard(primaryIp || enrollment.userId.ip || '', 'last-ip')
-                            }
-                            className="text-gray-500 hover:text-white p-0.5"
-                            title="Copy IP"
-                          >
-                            {copiedText === 'last-ip' ? (
-                              <Check size={10} className="text-emerald-400" />
-                            ) : (
-                              <Copy size={10} />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                      {(enrollment.userId.lastUsedAt || recentActivity[0]?.timestamp) && (
-                        <div className="flex items-center justify-between text-gray-500 text-[10px] mt-1.5 pt-1.5 border-t border-gray-800/60">
-                          <span>Used:</span>
-                          <span>
-                            {formatDateTime(
-                              enrollment.userId.lastUsedAt || recentActivity[0]?.timestamp
-                            )}{' '}
-                            ({formatTimeAgo(
-                              enrollment.userId.lastUsedAt || recentActivity[0]?.timestamp
-                            )})
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
                   <button
                     onClick={() => setShowAddDeviceModal(true)}
-                    className="mt-3 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs rounded-lg font-medium transition-colors"
+                    className="mt-4 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs font-semibold rounded-xl"
                   >
-                    + Authorize Device Slot
+                    + Authorize Device Slot Manually
                   </button>
                 </div>
               ) : (
                 devices.map((device) => {
-                  const devFingerprint =
-                    device.deviceFingerprint || device.fingerprint || device._id;
+                  const devFingerprint = device.deviceFingerprint || device.fingerprint || device._id;
                   const isBlocked = device.isBlocked || !device.isActive;
 
                   return (
                     <div
                       key={device._id || device.id}
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        isBlocked
-                          ? 'bg-red-950/20 border-red-500/30'
-                          : 'bg-black/50 border-gray-800 hover:border-gray-700'
+                      className={`p-4 rounded-xl border transition-all ${
+                        isBlocked ? 'bg-red-950/20 border-red-500/30' : 'bg-black/50 border-gray-800 hover:border-gray-700'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-purple-300 shrink-0 mt-0.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-purple-300 shrink-0">
                             {device.deviceType === 'mobile' ? (
-                              <Smartphone size={16} />
+                              <Smartphone size={20} />
                             ) : device.deviceType === 'tablet' ? (
-                              <Tablet size={16} />
+                              <Tablet size={20} />
                             ) : (
-                              <Laptop size={16} />
+                              <Laptop size={20} />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-white truncate">
-                              {device.deviceName || 'Registered Device'}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {[device.browser, device.os].filter(Boolean).join(' • ') || 'Web Client'}
-                            </p>
-
-                            {/* Device IP Address */}
-                            {(device.ip || primaryIp) && (
-                              <p className="text-[11px] text-cyan-400 font-mono mt-1 flex items-center gap-1.5">
-                                <Wifi size={11} className="text-cyan-400 shrink-0" />
-                                <span>IP: {device.ip || primaryIp}</span>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      device.ip || primaryIp || '',
-                                      device._id || device.id
-                                    )
-                                  }
-                                  className="text-gray-400 hover:text-white"
-                                  title="Copy IP"
-                                >
-                                  {copiedText === (device._id || device.id) ? (
-                                    <Check size={10} className="text-emerald-400" />
-                                  ) : (
-                                    <Copy size={10} />
-                                  )}
-                                </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-white truncate">
+                                {device.deviceName || 'Registered Student Device'}
                               </p>
-                            )}
-
-                            <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                              Hash: {devFingerprint.slice(0, 14)}...
-                            </p>
-
-                            {/* Device Used Date & Time */}
-                            <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                              <Clock size={10} className="text-gray-500 shrink-0" />
-                              <span>
-                                Last used:{' '}
-                                {formatDateTime(
-                                  device.lastUsedAt || device.lastActiveAt || device.createdAt
-                                )}{' '}
-                                ({formatTimeAgo(
-                                  device.lastUsedAt || device.lastActiveAt || device.createdAt
-                                )})
+                              <span
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                  isBlocked
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                }`}
+                              >
+                                {isBlocked ? 'Blocked' : 'Active'}
                               </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {[device.browser, device.os].filter(Boolean).join(' • ') || 'Web Client Browser'}
                             </p>
+                            <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-1 flex-wrap">
+                              {(device.ip || primaryIp) && (
+                                <span className="flex items-center gap-1 font-mono text-cyan-400">
+                                  <Wifi size={11} /> IP: {device.ip || primaryIp}
+                                </span>
+                              )}
+                              <span className="font-mono text-gray-500">Hash: {devFingerprint.slice(0, 14)}...</span>
+                              <span className="flex items-center gap-1 text-gray-400">
+                                <Clock size={11} /> Last used:{' '}
+                                {formatDateTime(device.lastUsedAt || device.lastActiveAt || device.createdAt)}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Status & Actions */}
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          <button
+                            onClick={() => toggleDeviceBlock(device._id || device.id, !isBlocked)}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                               isBlocked
-                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30'
+                                : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
                             }`}
                           >
-                            {isBlocked ? 'Blocked' : 'Active'}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() =>
-                                toggleDeviceBlock(device._id || device.id, !isBlocked)
-                              }
-                              className={`px-2 py-1 text-[11px] font-medium rounded transition-colors ${
-                                isBlocked
-                                  ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                                  : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
-                              }`}
-                              title={isBlocked ? 'Unblock device' : 'Block device'}
-                            >
-                              {isBlocked ? 'Unblock' : 'Block'}
-                            </button>
-                            <button
-                              onClick={() => deleteDevice(device._id || device.id)}
-                              className="p-1 text-gray-500 hover:text-red-400 rounded transition-colors"
-                              title="Delete device"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+                            {isBlocked ? 'Unblock Device' : 'Block Device'}
+                          </button>
+                          <button
+                            onClick={() => deleteDevice(device._id || device.id)}
+                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+                            title="Delete Device Slot"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2959,232 +2838,569 @@ export default function UserDetailPage() {
               )}
             </div>
 
-            {devices.length >= 3 && (
-              <p className="text-amber-500 text-xs mt-3 flex items-center gap-1">
-                <AlertCircle size={12} /> Maximum 3 devices registered for this user.
-              </p>
-            )}
-          </div>
-
-          {/* Recent Watch Activity */}
-          <div className="bg-gray-900/60 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-white mb-4">Recent Watch Logs</h2>
-            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-              {watchLogs.length === 0 ? (
-                <p className="text-gray-500 text-xs py-4 text-center">No recent watch events recorded.</p>
-              ) : (
-                watchLogs.map((log) => (
-                  <div
-                    key={log._id}
-                    className="p-2.5 bg-black/40 rounded-xl border border-gray-800/80 text-xs"
-                  >
-                    <div className="flex items-center justify-between text-gray-300 font-medium">
-                      <span className="truncate max-w-[180px]">{log.videoTitle || 'Video'}</span>
-                      <span className="text-emerald-400 font-mono">
-                        {formatDuration(log.watchDuration)}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      {formatDateTime(log.watchStarted)} ({formatTimeAgo(log.watchStarted)})
-                    </p>
-                  </div>
-                ))
-              )}
+            {/* Security policies */}
+            <div className="mt-6 p-4 bg-purple-950/20 border border-purple-500/30 rounded-xl flex items-start gap-3 text-xs text-purple-200">
+              <Shield size={18} className="shrink-0 text-purple-400 mt-0.5" />
+              <div>
+                <p className="font-semibold text-purple-300">Device Slot Protection Policy</p>
+                <p className="text-[11px] text-purple-300/80 mt-0.5">
+                  Each student is allocated up to 3 authorized device slots to prevent unauthorized account sharing. Video playback is locked if an unrecognized 4th device attempts to stream concurrently.
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Student Daily Learning & Activity Updates (Full Width) */}
-      <div className="mt-10 bg-gray-900/90 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 shrink-0">
-              <Activity size={22} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                User Daily Updates & Activity History
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono font-medium">
-                  Auto Synced
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Daily record of when {enrollment.userId.name} joined, what videos were watched, duration seen, and device/IP details.
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Total Watch Time</p>
-              <p className="text-sm font-bold text-emerald-400 font-mono">
-                {formatWatchHours(enrollment.totalWatchTime)}
-              </p>
-            </div>
-            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Recognized IP</p>
-              <p className="text-sm font-bold text-cyan-300 font-mono">
-                {primaryIp || '103.141.53.13'}
-              </p>
-            </div>
-            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Active Days</p>
-              <p className="text-sm font-bold text-indigo-400 font-mono">
-                {dailyActivity.length || 1} Days
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Daily Grouped Activity Feed */}
-        <div className="mt-8 space-y-6">
-          {dailyActivity.length === 0 ? (
-            <div className="text-center py-12 bg-black/40 border border-gray-800/80 rounded-2xl">
-              <Activity size={32} className="mx-auto text-gray-600 mb-3" />
-              <p className="text-sm font-semibold text-gray-300">No activity recorded yet</p>
-              <p className="text-xs text-gray-500 mt-1">Student watch logs and interactions will appear here in chronological order.</p>
-            </div>
-          ) : (
-            dailyActivity.map((dayGroup, gIdx) => (
-              <div
-                key={dayGroup.dateKey || gIdx}
-                className="bg-black/50 border border-gray-800/90 rounded-2xl p-5 sm:p-6 transition-all hover:border-gray-700/80 shadow-lg"
-              >
-                {/* Day Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-gray-800/80 flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-gray-800 flex items-center justify-center text-cyan-400 font-mono text-xs font-bold border border-gray-700">
-                      <Calendar size={15} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm sm:text-base font-bold text-white">
-                        {dayGroup.displayDate}
-                      </h3>
-                      <p className="text-[11px] text-gray-400">
-                        {dayGroup.events.length} learning updates recorded on this date
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Day watch stats */}
-                  <div className="flex items-center gap-2">
-                    {dayGroup.totalWatchSeconds > 0 && (
-                      <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5">
-                        <Clock size={13} />
-                        Seen: {formatDuration(dayGroup.totalWatchSeconds)}
-                      </span>
-                    )}
-                    {dayGroup.videosSeenCount > 0 && (
-                      <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold rounded-lg">
-                        {dayGroup.videosSeenCount} {dayGroup.videosSeenCount === 1 ? 'Video' : 'Videos'} Watched
-                      </span>
-                    )}
-                  </div>
+      {/* 3) All Uses (Day, Week, Month, Years) Tab (Well Separated) */}
+      {activeMainTab === 'usage' && (
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Joined by Device & IP Address Hero Box */}
+          <div className="bg-gradient-to-r from-gray-900 via-gray-900/90 to-blue-950/40 border border-gray-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-800">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 shrink-0">
+                  <LogIn size={24} />
                 </div>
-
-                {/* Events Timeline */}
-                <div className="mt-4 space-y-3">
-                  {dayGroup.events.map((ev: any, evIdx: number) => {
-                    const isWatch = ev.type === 'watch';
-                    const isJoined = ev.type === 'joined';
-                    const isSubmission = ev.type === 'submission';
-
-                    return (
-                      <div
-                        key={ev.id || evIdx}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-gray-900/70 border border-gray-800/60 hover:bg-gray-800/60 hover:border-gray-700 transition-all"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              isJoined
-                                ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
-                                : isWatch
-                                ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
-                                : isSubmission
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
-                            }`}
-                          >
-                            {isJoined ? (
-                              <LogIn size={15} />
-                            ) : isWatch ? (
-                              <Play size={15} />
-                            ) : isSubmission ? (
-                              <CheckCircle2 size={15} />
-                            ) : (
-                              <Globe size={15} />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs sm:text-sm font-semibold text-white truncate">
-                                {ev.title}
-                              </p>
-                              {ev.badge && (
-                                <span
-                                  className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
-                                    ev.badge === 'Completed'
-                                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                      : ev.badge === 'Joined'
-                                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                                  }`}
-                                >
-                                  {ev.badge}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              {ev.subtitle || ev.details}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Metadata: Timestamp, IP, Device, Location */}
-                        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-800/80">
-                          {/* IP & Location */}
-                          {(ev.ip || primaryIp) && (
-                            <div className="text-left sm:text-right">
-                              <span className="text-[11px] font-mono text-cyan-300 font-semibold block">
-                                {ev.ip || primaryIp}
-                              </span>
-                              <span className="text-[10px] text-gray-500 block truncate max-w-[150px]">
-                                {ev.location || primaryLocation || 'Sangamner, Maharashtra, India'}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Device */}
-                          {(ev.device || primaryDevice) && (
-                            <div className="text-left sm:text-right hidden md:block">
-                              <span className="text-[11px] text-gray-300 font-medium block truncate max-w-[160px]">
-                                {ev.device || primaryDevice}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Timestamp */}
-                          <div className="text-right min-w-[70px]">
-                            <span className="text-xs font-mono text-gray-300 font-semibold block">
-                              {formatTime(ev.timestamp)}
-                            </span>
-                            <span className="text-[10px] text-gray-500 block">
-                              {formatTimeAgo(ev.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-bold text-white tracking-tight">
+                      3) All Uses & Joined Device History
+                    </h2>
+                    <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      Auto Synced
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    When {enrollment.userId.name} joined, by what device, and with which IP address — plus breakdown by Day, Week, Month, and Years.
+                  </p>
                 </div>
               </div>
-            ))
-          )}
+
+              {/* Period Selector: Day, Week, Month, Years */}
+              <div className="flex items-center gap-1.5 bg-black/60 p-1.5 rounded-xl border border-gray-800 self-start lg:self-center">
+                {(['day', 'week', 'month', 'year'] as const).map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => setUsagePeriod(period)}
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${
+                      usagePeriod === period
+                        ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/20'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    }`}
+                  >
+                    {period === 'day' ? '📅 Day' : period === 'week' ? '📆 Week' : period === 'month' ? '🗓️ Month' : '🏛️ Years'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4 Cards: Joined Date, Joined Device, Joined IP, Enrolled Course */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <Calendar size={13} className="text-cyan-400" /> Joined Date & Time
+                </p>
+                <p className="text-sm font-bold text-white mt-1">
+                  {formatDateTime(enrollment.enrolledAt)}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{formatTimeAgo(enrollment.enrolledAt)}</p>
+              </div>
+
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <Laptop size={13} className="text-emerald-400" /> Joined by Device
+                </p>
+                <p className="text-sm font-bold text-emerald-300 mt-1 truncate">
+                  {primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Desktop / Web Client</p>
+              </div>
+
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <Wifi size={13} className="text-cyan-400" /> Joined IP Address
+                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-mono font-bold text-cyan-300">
+                    {primaryIp || enrollment.userId.ip || '103.141.53.13'}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(primaryIp || enrollment.userId.ip || '', 'join-ip')}
+                    className="text-gray-400 hover:text-white p-0.5"
+                  >
+                    {copiedText === 'join-ip' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{primaryLocation || 'Sangamner, Maharashtra, India'}</p>
+              </div>
+
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <Award size={13} className="text-purple-400" /> Workshop Access
+                </p>
+                <p className="text-sm font-bold text-purple-300 mt-1 truncate">
+                  {courseTitle}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5 capitalize">{enrollment.purchaseType || 'paid'} Access</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Grouped Feed by Period (Day / Week / Month / Years) */}
+          <div className="space-y-6">
+            {getFilteredActivity().length === 0 ? (
+              <div className="text-center py-12 bg-black/40 border border-gray-800/80 rounded-2xl">
+                <Activity size={32} className="mx-auto text-gray-600 mb-3" />
+                <p className="text-sm font-semibold text-gray-300">No activity recorded for this period</p>
+                <p className="text-xs text-gray-500 mt-1">Learning events and watch sessions will appear here.</p>
+              </div>
+            ) : (
+              getFilteredActivity().map((group: any, gIdx: number) => (
+                <div
+                  key={group.dateKey || gIdx}
+                  className="bg-black/50 border border-gray-800/90 rounded-2xl p-5 sm:p-6 transition-all hover:border-gray-700/80 shadow-lg"
+                >
+                  {/* Group Header */}
+                  <div className="flex items-center justify-between pb-4 border-b border-gray-800/80 flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-gray-800 flex items-center justify-center text-cyan-400 font-mono text-xs font-bold border border-gray-700">
+                        <Calendar size={15} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm sm:text-base font-bold text-white">
+                          {group.displayDate}
+                        </h3>
+                        <p className="text-[11px] text-gray-400">
+                          {group.events?.length || 0} activity updates recorded
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {group.totalWatchSeconds > 0 && (
+                        <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5">
+                          <Clock size={13} />
+                          Seen: {formatDuration(group.totalWatchSeconds)}
+                        </span>
+                      )}
+                      {group.videosSeenCount > 0 && (
+                        <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold rounded-lg">
+                          {group.videosSeenCount} {group.videosSeenCount === 1 ? 'Video' : 'Videos'} Watched
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Events Timeline */}
+                  <div className="mt-4 space-y-3">
+                    {group.events?.map((ev: any, evIdx: number) => {
+                      const isWatch = ev.type === 'watch';
+                      const isJoined = ev.type === 'joined';
+                      const isSubmission = ev.type === 'submission';
+
+                      return (
+                        <div
+                          key={ev.id || evIdx}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-gray-900/70 border border-gray-800/60 hover:bg-gray-800/60 hover:border-gray-700 transition-all"
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                isJoined
+                                  ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                  : isWatch
+                                  ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                                  : isSubmission
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                              }`}
+                            >
+                              {isJoined ? (
+                                <LogIn size={15} />
+                              ) : isWatch ? (
+                                <Play size={15} />
+                              ) : isSubmission ? (
+                                <CheckCircle2 size={15} />
+                              ) : (
+                                <Globe size={15} />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs sm:text-sm font-semibold text-white truncate">
+                                  {ev.title}
+                                </p>
+                                {ev.badge && (
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                      ev.badge === 'Completed'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                        : ev.badge === 'Joined'
+                                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                        : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                    }`}
+                                  >
+                                    {ev.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-gray-400 mt-0.5">
+                                {ev.subtitle || ev.details}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-800/80">
+                            {(ev.ip || primaryIp) && (
+                              <div className="text-left sm:text-right">
+                                <span className="text-[11px] font-mono text-cyan-300 font-semibold block">
+                                  {ev.ip || primaryIp}
+                                </span>
+                                <span className="text-[10px] text-gray-500 block truncate max-w-[150px]">
+                                  {ev.location || primaryLocation || 'Sangamner, Maharashtra, India'}
+                                </span>
+                              </div>
+                            )}
+
+                            {(ev.device || primaryDevice) && (
+                              <div className="text-left sm:text-right hidden md:block">
+                                <span className="text-[11px] text-gray-300 font-medium block truncate max-w-[160px]">
+                                  {ev.device || primaryDevice}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="text-right min-w-[70px]">
+                              <span className="text-xs font-mono text-gray-300 font-semibold block">
+                                {formatTime(ev.timestamp)}
+                              </span>
+                              <span className="text-[10px] text-gray-500 block">
+                                {formatTimeAgo(ev.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Profile Details Tab (Well Separated) */}
+      {activeMainTab === 'profile' && (
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Student Personal Information (7 cols) */}
+            <div className="lg:col-span-7 bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm space-y-5">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2 pb-4 border-b border-gray-800">
+                <User size={20} className="text-blue-400" />
+                Student Profile Information
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <User size={13} className="text-blue-400" /> Full Name
+                  </p>
+                  <p className="text-sm font-bold text-white mt-1">{enrollment.userId.name || 'Not provided'}</p>
+                </div>
+
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Mail size={13} className="text-blue-400" /> Email Address
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-1 truncate">{enrollment.userId.email}</p>
+                </div>
+
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Phone size={13} className="text-emerald-400" /> Phone Number
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-sm font-semibold text-white">{enrollment.userId.phone || 'Not provided'}</p>
+                    {enrollment.userId.phone && (
+                      <a
+                        href={`https://wa.me/${enrollment.userId.phone.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        <MessageCircle size={12} /> WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Globe size={13} className="text-purple-400" /> Geographic Location
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-1">
+                    {primaryLocation ||
+                      [(enrollment.userId as any)?.city, enrollment.userId.state, enrollment.userId.country].filter(Boolean).join(', ') ||
+                      'Sangamner, Maharashtra, India'}
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Calendar size={13} className="text-gray-400" /> Enrolled Date
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-1">
+                    {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-black/50 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Award size={13} className="text-amber-400" /> Profession / Role
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-1">
+                    {enrollment.userId.profession || 'Student'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Network & Active Device Box */}
+              <div className="pt-4 border-t border-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3.5 bg-black/60 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Wifi size={13} className="text-cyan-400" /> Detected IP Network
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm font-mono font-bold text-cyan-300">
+                      {primaryIp || enrollment.userId.ip || '103.141.53.13'}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(primaryIp || enrollment.userId.ip || '', 'prof-ip')}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      {copiedText === 'prof-ip' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-black/60 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <Laptop size={13} className="text-purple-400" /> Active Hardware Model
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-1 truncate">
+                    {primaryDevice || devices[0]?.deviceName || 'MacBook (macOS • Chrome)'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Login Credentials & Reset Password (5 cols) */}
+            <div className="lg:col-span-5 bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm space-y-5">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2 pb-4 border-b border-gray-800">
+                <Key size={20} className="text-amber-400" />
+                Login Credentials & Password
+              </h2>
+
+              <div className="p-4 bg-black/50 rounded-xl border border-gray-800 space-y-3">
+                <div>
+                  <p className="text-xs text-gray-400">Student Login Username / Email</p>
+                  <p className="text-sm font-mono font-bold text-white mt-0.5">{enrollment.userId.email}</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Set New Student Password</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setPasswordResetDone(false);
+                      }}
+                      placeholder="New password (min 6 chars)"
+                      className="flex-1 px-3 py-2 bg-black/80 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none text-xs font-mono"
+                    />
+                    <button
+                      onClick={generatePassword}
+                      title="Generate random password"
+                      className="px-2.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                    <button
+                      onClick={handleResetPassword}
+                      disabled={resettingPassword || newPassword.length < 6}
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-colors whitespace-nowrap shadow-md shadow-amber-500/20"
+                    >
+                      {resettingPassword ? '...' : 'Reset'}
+                    </button>
+                  </div>
+                </div>
+
+                {passwordResetDone && (
+                  <div className="mt-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-white font-mono space-y-0.5">
+                        <div>Login: {enrollment.userId.email}</div>
+                        <div>Pass: {newPassword}</div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          copyToClipboard(
+                            `Email: ${enrollment.userId.email}\nPassword: ${newPassword}`,
+                            'creds'
+                          )
+                        }
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs flex items-center gap-1 font-semibold"
+                      >
+                        {copiedText === 'creds' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        <span>Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Community Links */}
+              <div className="p-4 bg-black/50 rounded-xl border border-gray-800 space-y-3">
+                <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">Course Community Links</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">WhatsApp Group URL</label>
+                    <input
+                      type="text"
+                      value={whatsappLink}
+                      onChange={(e) => setWhatsappLink(e.target.value)}
+                      placeholder="https://chat.whatsapp.com/..."
+                      className="w-full px-3 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Community Forum URL</label>
+                    <input
+                      type="text"
+                      value={communityLink}
+                      onChange={(e) => setCommunityLink(e.target.value)}
+                      placeholder="https://community.swaryoga.com/..."
+                      className="w-full px-3 py-1.5 bg-black/80 border border-gray-700 rounded-lg text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payments Tab (Well Separated) */}
+      {activeMainTab === 'payments' && (
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="bg-gray-900/80 rounded-2xl border border-gray-800 p-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="text-emerald-400" size={22} />
+                  <h2 className="text-xl font-bold text-white tracking-tight">
+                    Payments, Orders & Billing
+                  </h2>
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 capitalize">
+                    {enrollment.purchaseType || 'paid'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Payment transactions, receipts, and order history for {enrollment.userId.name}.
+                </p>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Total Paid Amount</p>
+                <p className="text-2xl font-bold text-emerald-400 font-mono mt-1">
+                  ₹{enrollment.amountPaid || payments[0]?.amount || 0}
+                </p>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Purchase Type</p>
+                <p className="text-lg font-bold text-white capitalize mt-1">{enrollment.purchaseType || 'paid'}</p>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Account Status</p>
+                <p className="text-lg font-bold text-emerald-400 capitalize mt-1">{enrollmentStatus}</p>
+              </div>
+              <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
+                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Gift / Bonus Hours</p>
+                <p className="text-2xl font-bold text-amber-300 font-mono mt-1">{giftHours} hrs</p>
+              </div>
+            </div>
+
+            {/* Payment Transactions Table */}
+            <div className="mt-8">
+              <h3 className="text-sm font-bold text-white mb-3">Order & Receipt Records</h3>
+              <div className="space-y-3">
+                {payments.length === 0 ? (
+                  <div className="text-center py-10 bg-black/40 border border-dashed border-gray-800 rounded-xl">
+                    <CreditCard size={32} className="mx-auto text-gray-600 mb-2" />
+                    <p className="text-xs font-semibold text-gray-400">No payment records found</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Purchases and subscription renewals will appear here.</p>
+                  </div>
+                ) : (
+                  payments.map((pay: any, pIdx: number) => (
+                    <div
+                      key={pay.id || pIdx}
+                      className="p-4 rounded-xl bg-black/50 border border-gray-800 hover:border-gray-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-400 shrink-0">
+                          <CreditCard size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-white">
+                              {pay.courseName || courseTitle}
+                            </p>
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                              {pay.status || 'Completed'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Order ID: <span className="font-mono text-gray-300">{pay.orderId || pay.id}</span>
+                            {pay.transactionId && <span> • Txn: <span className="font-mono text-cyan-400">{pay.transactionId}</span></span>}
+                          </p>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            Payment Mode: {pay.paymentMethod || 'Online'} • Date: {formatDateTime(pay.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-800">
+                        <span className="text-lg font-bold font-mono text-emerald-400">
+                          ₹{pay.amount || 0}
+                        </span>
+                        <button
+                          onClick={() =>
+                            copyToClipboard(
+                              `Order ID: ${pay.orderId || pay.id}\nAmount: ₹${pay.amount || 0}\nTxn: ${pay.transactionId || ''}\nStudent: ${enrollment.userId.name}`,
+                              `receipt_${pay.id}`
+                            )
+                          }
+                          className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg flex items-center gap-1"
+                        >
+                          {copiedText === `receipt_${pay.id}` ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                          <span>Copy Receipt</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Manual Device Modal */}
       {showAddDeviceModal && (

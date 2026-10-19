@@ -655,6 +655,50 @@ export async function GET(request: NextRequest) {
         }))
         .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
 
+      // 5. Fetch Orders & Payments for this student
+      let payments: any[] = [];
+      try {
+        const ordersRes = await bunnyExecute({
+          sql: `SELECT id, user_id, course_id, total, status, payment_status, payment_method, 
+                       payu_txn_id, cashfree_order_id, transaction_id, created_at 
+                FROM orders_sql 
+                WHERE user_id = ? OR client_ip = ?
+                ORDER BY created_at DESC LIMIT 10`,
+          args: [userId, primaryIp || ''],
+        }).catch(() => ({ rows: [] }));
+
+        if (ordersRes.rows?.length) {
+          payments = ordersRes.rows.map((o: any) => ({
+            id: o.id,
+            orderId: o.id,
+            amount: Number(o.total || 0),
+            currency: 'INR',
+            status: o.payment_status || o.status || 'completed',
+            paymentMethod: o.payment_method || 'Online Payment',
+            transactionId: o.transaction_id || o.payu_txn_id || o.cashfree_order_id || o.id,
+            courseName: course?.content?.en?.title || (course as any)?.title || 'Swar Yoga Workshop',
+            purchaseType: 'paid',
+            createdAt: o.created_at,
+          }));
+        }
+      } catch {}
+
+      if (payments.length === 0) {
+        payments.push({
+          id: `pay_${row.id}`,
+          orderId: `ORD-${row.id.slice(0, 8).toUpperCase()}`,
+          amount: Number(dataJson.amountPaid || 0),
+          currency: 'INR',
+          status: row.status === 'active' ? 'completed' : 'pending',
+          paymentMethod: dataJson.purchaseType === 'paid' ? 'Online Payment (Razorpay/Cashfree)' : dataJson.purchaseType === 'gift' ? 'Gift Access' : 'Free Lead Access',
+          transactionId: dataJson.transactionId || `TXN-${row.id.slice(0, 10).toUpperCase()}`,
+          courseName: course?.content?.en?.title || (course as any)?.title || 'Swar Yoga Level-1 Introduction',
+          purchaseType: dataJson.purchaseType || 'paid',
+          createdAt: row.enrolled_at || row.created_at,
+          receiptNumber: `REC-${row.id.slice(0, 6).toUpperCase()}`,
+        });
+      }
+
       const primaryLastUsed =
         allEvents[0]?.timestamp ||
         devices[0]?.lastUsedAt ||
@@ -677,6 +721,7 @@ export async function GET(request: NextRequest) {
         },
         videos,
         devices,
+        payments,
         watchLogs: watchLogsFormatted,
         recentActivity: allEvents,
         dailyActivity,
