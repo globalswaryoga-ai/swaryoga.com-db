@@ -19,6 +19,9 @@ import {
   Receipt,
   Users,
   Plus,
+  Video,
+  Smartphone,
+  Activity,
 } from 'lucide-react';
 
 export interface SubNavItem {
@@ -35,6 +38,8 @@ export interface SubNavItem {
   bundle?: string | string[];
   /** Optional highlight to render as a primary gradient button */
   highlight?: boolean;
+  /** Render as emerald green action pill matching Image 3 */
+  isGreenPill?: boolean;
 }
 
 interface CrmSubNavProps {
