@@ -829,6 +829,19 @@ export async function getCourseById(id: string): Promise<BunnyRecordedCourse | n
   return res.rows[0] ? courseRowToObj(res.rows[0]) : null;
 }
 
+export async function getCoursesByIds(ids: string[]): Promise<BunnyRecordedCourse[]> {
+  if (!ids || ids.length === 0) return [];
+  await initCourseSchema();
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const res = await bunnyExecute({
+    sql: `SELECT * FROM recorded_courses_sql WHERE id IN (${placeholders}) OR slug IN (${placeholders})`,
+    args: [...uniqueIds, ...uniqueIds],
+  });
+  return res.rows.map(courseRowToObj);
+}
+
 export async function getCourseBySlug(slug: string): Promise<BunnyRecordedCourse | null> {
   await initCourseSchema();
   const res = await bunnyExecute({

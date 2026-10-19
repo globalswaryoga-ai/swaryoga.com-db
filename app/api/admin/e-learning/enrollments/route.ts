@@ -13,6 +13,7 @@ import {
   initCourseSchema,
   saveEnrollment,
   getCourseById,
+  getCoursesByIds,
   listDevices,
   deleteEnrollment,
   listVideosByCourse,
@@ -735,6 +736,7 @@ export async function GET(request: NextRequest) {
                 courseId: String(wRow.course_id),
                 courseTitle: wCourse?.content?.en?.title || (wCourse as any)?.title || wCourse?.slug || 'Swar Yoga Workshop',
                 slug: wCourse?.slug || String(wRow.course_id),
+                thumbnail: wCourse?.thumbnail || (wCourse as any)?.thumbnail || '',
                 level: wCourse?.level || 'Beginner',
                 progressPercent: wProgress,
                 totalVideos: wTotal,
@@ -757,6 +759,7 @@ export async function GET(request: NextRequest) {
           courseId: courseId,
           courseTitle: course?.content?.en?.title || (course as any)?.title || course?.slug || 'Swar Yoga Level-1 Introduction',
           slug: course?.slug || courseId,
+          thumbnail: course?.thumbnail || (course as any)?.thumbnail || '',
           level: course?.level || 'Beginner',
           progressPercent: progressPercent,
           totalVideos: totalVideosCount,
@@ -848,38 +851,34 @@ export async function GET(request: NextRequest) {
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const countRes = await bunnyExecute({
-      sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${where}`,
-      args,
-    });
-    const total = Number(countRes.rows[0]?.cnt || 0);
 
-    // Compute stats for all 4 cards
-    const [allCountRes, todayCountRes, weekCountRes, monthCountRes] = await Promise.all([
-      bunnyExecute({
-        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere}`,
-        args: baseArgs,
-      }).catch(() => ({ rows: [{ cnt: 0 }] })),
-      bunnyExecute({
-        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
-        args: [...baseArgs, startOfToday],
-      }).catch(() => ({ rows: [{ cnt: 0 }] })),
-      bunnyExecute({
-        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
-        args: [...baseArgs, startOfWeek],
-      }).catch(() => ({ rows: [{ cnt: 0 }] })),
-      bunnyExecute({
-        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
-        args: [...baseArgs, startOfMonth],
-      }).catch(() => ({ rows: [{ cnt: 0 }] })),
-    ]);
+    // Fast single query for stats & timeframe counts
+    const statsSql = `
+      SELECT 
+        COUNT(*) as all_cnt,
+        COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as today_cnt,
+        COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as week_cnt,
+        COALESCE(SUM(CASE WHEN enrolled_at >= ? THEN 1 ELSE 0 END), 0) as month_cnt
+      FROM course_enrollments_sql ${baseWhere}
+    `;
 
+    const statsRes = await bunnyExecute({
+      sql: statsSql,
+      args: [startOfToday, startOfWeek, startOfMonth, ...baseArgs],
+    }).catch(() => ({ rows: [{ all_cnt: 0, today_cnt: 0, week_cnt: 0, month_cnt: 0 }] }));
+
+    const statsRow: any = statsRes.rows[0] || {};
     const stats = {
-      all: Number(allCountRes.rows[0]?.cnt || 0),
-      today: Number(todayCountRes.rows[0]?.cnt || 0),
-      week: Number(weekCountRes.rows[0]?.cnt || 0),
-      month: Number(monthCountRes.rows[0]?.cnt || 0),
+      all: Number(statsRow.all_cnt || 0),
+      today: Number(statsRow.today_cnt || 0),
+      week: Number(statsRow.week_cnt || 0),
+      month: Number(statsRow.month_cnt || 0),
     };
+
+    const total = timeframe === 'today' ? stats.today
+      : timeframe === 'week' ? stats.week
+      : timeframe === 'month' ? stats.month
+      : stats.all;
 
     const offset = (page - 1) * limit;
     const listRes = await bunnyExecute({
@@ -887,27 +886,75 @@ export async function GET(request: NextRequest) {
       args: [...args, limit, offset],
     });
 
-    const enrollments = await Promise.all(
-      listRes.rows.map(async (row: any) => {
-        const c = await getCourseById(String(row.course_id));
-        const u = await findStudentUser(String(row.user_id));
-        let dJson: any = {};
-        try { dJson = row.data_json ? JSON.parse(String(row.data_json)) : {}; } catch {}
-        return {
-          _id: String(row.id),
-          id: String(row.id),
-          userId: u,
-          courseId: c ? { _id: c.id, slug: c.slug, content: c.content, level: c.level, title: c.content?.en?.title || c.slug } : String(row.course_id),
-          status: row.status,
-          enrolledAt: row.enrolled_at,
-          expiresAt: row.expires_at,
-          progress: Number(row.progress_percent || dJson.progress || 0),
-          progressPercent: Number(row.progress_percent || dJson.progress || 0),
-          purchaseType: dJson.purchaseType || 'paid',
-          giftHoursRemaining: Number(dJson.giftHoursRemaining ?? dJson.giftHours ?? 0),
-        };
-      })
-    );
+    // Batch fetch unique courses in one query
+    const uniqueCourseIds = Array.from(new Set(listRes.rows.map((r: any) => String(r.course_id)).filter(Boolean)));
+    const courseList = await getCoursesByIds(uniqueCourseIds).catch(() => []);
+    const courseMap = new Map<string, any>();
+    for (const c of courseList) {
+      courseMap.set(String(c.id), c);
+      if (c.slug) courseMap.set(String(c.slug), c);
+    }
+
+    // Batch fetch unique users in one query
+    const uniqueUserIds = Array.from(new Set(listRes.rows.map((r: any) => String(r.user_id)).filter(Boolean)));
+    const userMap = new Map<string, any>();
+    if (uniqueUserIds.length > 0) {
+      const placeholders = uniqueUserIds.map(() => '?').join(',');
+      const uRes = await bunnyExecute({
+        sql: `SELECT id, userId, name, email, phone, role, status FROM users WHERE id IN (${placeholders}) OR userId IN (${placeholders}) OR email IN (${placeholders})`,
+        args: [...uniqueUserIds, ...uniqueUserIds, ...uniqueUserIds],
+      }).catch(() => ({ rows: [] }));
+      for (const u of uRes.rows) {
+        if (u.id) userMap.set(String(u.id), u);
+        if (u.userId) userMap.set(String(u.userId), u);
+        if (u.email) userMap.set(String(u.email), u);
+      }
+    }
+
+    const enrollments = listRes.rows.map((row: any) => {
+      const uid = String(row.user_id);
+      const cid = String(row.course_id);
+      const c = courseMap.get(cid);
+      const u = userMap.get(uid);
+
+      let dJson: any = {};
+      try { dJson = row.data_json ? JSON.parse(String(row.data_json)) : {}; } catch {}
+
+      const studentName = u?.name || dJson.studentName || dJson.name || (uid.includes('@') ? uid.split('@')[0] : 'Student');
+      const studentEmail = u?.email || dJson.studentEmail || dJson.email || (uid.includes('@') ? uid : '');
+      const studentPhone = u?.phone || dJson.studentPhone || dJson.phone || '';
+
+      const courseTitle = c?.content?.en?.title || c?.slug || cid;
+
+      return {
+        _id: String(row.id),
+        id: String(row.id),
+        userId: {
+          _id: u?.id || uid,
+          id: u?.id || uid,
+          name: studentName,
+          email: studentEmail,
+          phone: studentPhone,
+          role: u?.role || 'student',
+          status: u?.status || row.status || 'active',
+        },
+        courseId: {
+          _id: c?.id || cid,
+          id: c?.id || cid,
+          slug: c?.slug || cid,
+          content: c?.content || { en: { title: courseTitle } },
+          level: c?.level || 'all',
+          title: courseTitle,
+        },
+        status: row.status,
+        enrolledAt: row.enrolled_at,
+        expiresAt: row.expires_at,
+        progress: Number(row.progress_percent || dJson.progress || 0),
+        progressPercent: Number(row.progress_percent || dJson.progress || 0),
+        purchaseType: dJson.purchaseType || 'paid',
+        giftHoursRemaining: Number(dJson.giftHoursRemaining ?? dJson.giftHours ?? 0),
+      };
+    });
 
     return NextResponse.json({
       success: true,

@@ -164,7 +164,7 @@ export default function ELearningUsersPage() {
       setLoading(true);
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50',
+        limit: '25',
       });
 
       if (search.trim()) params.append('search', search.trim());

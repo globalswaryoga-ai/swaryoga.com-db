@@ -18,6 +18,8 @@ export interface TakenWorkshop {
   enrollmentId: string;
   courseId: string;
   courseTitle: string;
+  slug?: string;
+  thumbnail?: string;
   enrolledAt: string;
   progressPercent: number;
   totalVideos: number;
@@ -252,6 +254,7 @@ export default function StudentManagementHeader({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {takenWorkshops.map((ws) => {
               const isSelected = ws.enrollmentId === currentEnrollmentId;
+              const thumbnail = ws.thumbnail || enrollment?.courseId?.thumbnail || '';
               return (
                 <Link
                   key={ws.enrollmentId}
@@ -262,48 +265,67 @@ export default function StudentManagementHeader({
                       : 'bg-black/40 border-gray-800 hover:border-gray-700 hover:bg-gray-800/40'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors truncate" title={ws.courseTitle}>
-                          {ws.courseTitle}
-                        </p>
-                        {isSelected && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        Enrolled: {ws.enrolledAt ? new Date(ws.enrolledAt).toLocaleDateString() : 'N/A'}
-                      </p>
+                  <div className="flex items-start gap-3">
+                    {/* Small Workshop Thumbnail on Side */}
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden border border-gray-700/80 shrink-0 bg-black/60 relative flex items-center justify-center">
+                      {thumbnail ? (
+                        <img
+                          src={thumbnail}
+                          alt={ws.courseTitle}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-emerald-950/40 flex items-center justify-center text-emerald-400">
+                          <Video size={20} />
+                        </div>
+                      )}
                     </div>
-                    <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
-                      {ws.progressPercent}%
-                    </span>
-                  </div>
 
-                  {/* Progress Bar Track */}
-                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden p-0.5 border border-gray-700/60 mb-2">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        ws.progressPercent >= 100
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                          : ws.progressPercent > 0
-                          ? 'bg-gradient-to-r from-blue-500 to-emerald-400'
-                          : 'bg-gray-700'
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(0, ws.progressPercent))}%` }}
-                    />
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors truncate" title={ws.courseTitle}>
+                              {ws.courseTitle}
+                            </p>
+                            {isSelected && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Enrolled: {ws.enrolledAt ? new Date(ws.enrolledAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                        <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                          {ws.progressPercent}%
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-gray-400">
-                    <span className="font-mono">
-                      {ws.completedVideos || 0}/{ws.totalVideos || 6} videos seen
-                    </span>
-                    <span className="text-emerald-400 group-hover:text-emerald-300 font-bold">
-                      Click to open videos ↗
-                    </span>
+                      {/* Progress Bar Track */}
+                      <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden p-0.5 border border-gray-700/60 mb-2">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            ws.progressPercent >= 100
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                              : ws.progressPercent > 0
+                              ? 'bg-gradient-to-r from-blue-500 to-emerald-400'
+                              : 'bg-gray-700'
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(0, ws.progressPercent))}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-gray-400">
+                        <span className="font-mono">
+                          {ws.completedVideos || 0}/{ws.totalVideos || 6} videos seen
+                        </span>
+                        <span className="text-emerald-400 group-hover:text-emerald-300 font-bold">
+                          Click to open videos ↗
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </Link>
               );
