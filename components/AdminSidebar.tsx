@@ -1199,7 +1199,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           href: '/admin/crm/e-learning',
           color: 'text-purple-400',
           module: 'elearning',
-          planModule: 'elearning',
+          planModule: 'community',
           description: 'Online learning platform & courses',
         },
       ],
