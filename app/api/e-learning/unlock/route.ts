@@ -1,10 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import { getCourseBySlug, getCourseById, saveEnrollment } from '@/lib/bunnyCourseRepository';
+import { getCourseBySlug, getCourseById, saveEnrollment, registerDevice } from '@/lib/bunnyCourseRepository';
 import { saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { updateVisitorLeadInfo, recordVisitor } from '@/lib/bunnyVisitorRepository';
 
 export const dynamic = 'force-dynamic';
+
+function parseDeviceDetails(userAgent: string) {
+  let deviceName = 'Web Browser';
+  let deviceType = 'desktop';
+  let browser = 'Web Browser';
+  let os = 'Unknown OS';
+
+  if (!userAgent) return { deviceName, deviceType, browser, os };
+
+  if (/iPhone/i.test(userAgent)) {
+    deviceName = 'Apple iPhone';
+    deviceType = 'mobile';
+    os = 'iOS';
+  } else if (/iPad/i.test(userAgent)) {
+    deviceName = 'Apple iPad';
+    deviceType = 'tablet';
+    os = 'iPadOS';
+  } else if (/Android.*Mobile|Mobile/i.test(userAgent)) {
+    deviceName = 'Android Mobile';
+    deviceType = 'mobile';
+    os = 'Android';
+  } else if (/Android/i.test(userAgent)) {
+    deviceName = 'Android Tablet';
+    deviceType = 'tablet';
+    os = 'Android';
+  } else if (/Macintosh|Mac OS X/i.test(userAgent)) {
+    deviceName = 'MacBook / Mac OS';
+    deviceType = 'desktop';
+    os = 'macOS';
+  } else if (/Windows NT 10.0/i.test(userAgent)) {
+    deviceName = 'Windows 10/11 PC';
+    deviceType = 'desktop';
+    os = 'Windows 10/11';
+  } else if (/Windows/i.test(userAgent)) {
+    deviceName = 'Windows PC';
+    deviceType = 'desktop';
+    os = 'Windows';
+  } else if (/Linux/i.test(userAgent)) {
+    deviceName = 'Linux PC';
+    deviceType = 'desktop';
+    os = 'Linux';
+  }
+
+  if (/Edg\//i.test(userAgent)) browser = 'Microsoft Edge';
+  else if (/Chrome\//i.test(userAgent)) browser = 'Google Chrome';
+  else if (/Safari\//i.test(userAgent)) browser = 'Apple Safari';
+  else if (/Firefox\//i.test(userAgent)) browser = 'Mozilla Firefox';
+
+  return { deviceName, deviceType, browser, os };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve course
-    let course = null;
+    let course: any = null;
     if (courseId) {
       course = await getCourseById(courseId);
     }
@@ -136,7 +186,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Save course enrollment
+    // 3. Save course enrollment and register device
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
+      request.headers.get('cf-connecting-ip') ||
+      '';
+    const userAgent = request.headers.get('user-agent') || '';
+    const parsedDevice = parseDeviceDetails(userAgent);
+    const deviceFingerprint = crypto
+      .createHash('sha256')
+      .update([cleanEmail, userAgent, clientIp].join('|'))
+      .digest('hex');
+
     if (course) {
       try {
         const enrollId = `${cleanEmail}_${course.id}`;
@@ -153,11 +215,27 @@ export async function POST(request: NextRequest) {
             state: cleanState,
             city: cleanCity,
             gender: cleanGender,
+            ipAddress: clientIp,
+            userAgent,
+            deviceName: parsedDevice.deviceName,
             unlockedAt: new Date().toISOString(),
+            lastActiveAt: new Date().toISOString(),
           },
         });
+
+        // Register student device
+        await registerDevice({
+          userId: cleanEmail,
+          courseId: course.id,
+          deviceFingerprint,
+          deviceName: parsedDevice.deviceName,
+          deviceType: parsedDevice.deviceType,
+          browser: parsedDevice.browser,
+          os: parsedDevice.os,
+          ip: clientIp,
+        });
       } catch (enrollErr) {
-        console.warn('[E-Learning Unlock] Error saving enrollment:', enrollErr);
+        console.warn('[E-Learning Unlock] Error saving enrollment/device:', enrollErr);
       }
     }
 

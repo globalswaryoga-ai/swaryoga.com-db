@@ -36,7 +36,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         decoded = verifyToken(authHeader.split(' ')[1]);
         userId = decoded?.id || decoded?._id || decoded?.userId || null;
       } catch {
-        // Continue as guest
+        // Continue as guest or student email
+      }
+    }
+
+    if (!userId) {
+      const emailParam =
+        request.headers.get('x-student-email') ||
+        request.nextUrl.searchParams.get('email') ||
+        request.nextUrl.searchParams.get('userId');
+      if (emailParam && emailParam.includes('@')) {
+        userId = emailParam.trim().toLowerCase();
       }
     }
 
@@ -80,11 +90,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const userAgent = request.headers.get('user-agent') || 'unknown';
     const ipAddress =
-      request.headers.get('x-forwarded-for')?.split(',')[0] ||
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
+      request.headers.get('cf-connecting-ip') ||
       'unknown';
     const deviceFingerprint = getDeviceFingerprint(request);
-    const deviceName = getDeviceName(request, userAgent);
+    const parsedDevice = parseDeviceDetails(userAgent);
+    const deviceName = getDeviceName(request, userAgent) || parsedDevice.deviceName;
 
     if (userId) {
       try {
@@ -93,6 +105,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           courseId: course.id,
           deviceFingerprint,
           deviceName,
+          deviceType: parsedDevice.deviceType,
+          browser: parsedDevice.browser,
+          os: parsedDevice.os,
           ip: ipAddress,
         });
       } catch (e) {
@@ -155,41 +170,117 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { videoId } = await params;
 
+    let userId: string | null = null;
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const decoded = verifyToken(authHeader.split(' ')[1]);
+        if (decoded) {
+          userId = (decoded as any).id || (decoded as any)._id || (decoded as any).userId || null;
+        }
+      } catch {}
     }
 
-    const decoded = verifyToken(authHeader.split(' ')[1]);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const body = await request.json().catch(() => ({}));
+    const {
+      watchedSeconds = 0,
+      totalSeconds = 0,
+      completed = false,
+      email: bodyEmail,
+      userId: bodyUserId,
+    } = body;
+
+    if (!userId) {
+      const fallbackEmail =
+        bodyEmail ||
+        bodyUserId ||
+        request.headers.get('x-student-email') ||
+        request.nextUrl.searchParams.get('email');
+      if (fallbackEmail && typeof fallbackEmail === 'string' && fallbackEmail.includes('@')) {
+        userId = fallbackEmail.trim().toLowerCase();
+      }
     }
 
-    const userId = (decoded as any).id || (decoded as any)._id || (decoded as any).userId;
-
-    const body = await request.json();
-    const { watchedSeconds = 0, completed = false } = body;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized or missing student identification' }, { status: 401 });
+    }
 
     const video = await getVideoById(videoId);
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
-    await logWatchProgress(String(userId), video.id, video.courseId, watchedSeconds, completed);
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const ipAddress =
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
+      request.headers.get('cf-connecting-ip') ||
+      'unknown';
+    const deviceFingerprint = getDeviceFingerprint(request);
+    const parsedDevice = parseDeviceDetails(userAgent);
+    const deviceName = getDeviceName(request, userAgent) || parsedDevice.deviceName;
 
+    // Register / update student device
+    try {
+      await registerDevice({
+        userId: String(userId),
+        courseId: video.courseId,
+        deviceFingerprint,
+        deviceName,
+        deviceType: parsedDevice.deviceType,
+        browser: parsedDevice.browser,
+        os: parsedDevice.os,
+        ip: ipAddress,
+      });
+    } catch (e) {
+      console.warn('[Video API] Device registration error in POST:', e);
+    }
+
+    // Log watch progress
+    const effectiveWatchSeconds = Math.max(0, Math.round(Number(watchedSeconds) || 0));
+    const effectiveDuration = Math.max(1, Number(video.duration) || Number(totalSeconds) || 1);
+    const isActuallyCompleted = completed || (effectiveWatchSeconds >= effectiveDuration * 0.9);
+
+    await logWatchProgress(String(userId), video.id, video.courseId, effectiveWatchSeconds, isActuallyCompleted);
+
+    // Update enrollment progress
     const enrollment = await getEnrollment(String(userId), video.courseId);
     let updatedProgress = 0;
     let watchedCount = 0;
 
     if (enrollment) {
       const watched = new Set(enrollment.videosWatched || []);
-      if (completed) {
+      if (isActuallyCompleted) {
         watched.add(video.id);
       }
       watchedCount = watched.size;
+
+      const dataJson = enrollment.data || {};
+      const videoProgress = (dataJson.videoProgress && typeof dataJson.videoProgress === 'object')
+        ? { ...dataJson.videoProgress }
+        : {};
+
+      videoProgress[video.id] = {
+        watchedSeconds: effectiveWatchSeconds,
+        duration: effectiveDuration,
+        percent: Math.min(100, Math.round((effectiveWatchSeconds / effectiveDuration) * 100)),
+        isCompleted: isActuallyCompleted,
+        lastWatchedAt: new Date().toISOString(),
+      };
+
+      // Recalculate course overall progress percent
       const course = await getCourseById(video.courseId);
-      const totalVideos = course?.totalDuration ? 10 : 1;
+      const totalVideos = 6; // default 6 videos for Swar Yoga workshop
       updatedProgress = Math.min(100, Math.round((watchedCount / totalVideos) * 100));
+
+      const updatedData = {
+        ...dataJson,
+        videoProgress,
+        ipAddress,
+        userAgent,
+        lastActiveAt: new Date().toISOString(),
+        completedVideoIds: Array.from(watched),
+      };
 
       await saveEnrollment({
         id: enrollment.id,
@@ -197,6 +288,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         courseId: video.courseId,
         progressPercent: updatedProgress,
         videosWatched: Array.from(watched),
+        data: updatedData,
       });
     }
 
@@ -204,6 +296,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       success: true,
       progress: updatedProgress,
       videosWatched: watchedCount,
+      watchedSeconds: effectiveWatchSeconds,
+      completed: isActuallyCompleted,
     });
   } catch (error: any) {
     console.error('[Video Progress Error]:', error);
@@ -211,14 +305,58 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
+function parseDeviceDetails(userAgent: string) {
+  let deviceName = 'Web Browser';
+  let deviceType = 'desktop';
+  let browser = 'Web Browser';
+  let os = 'Unknown OS';
+
+  if (!userAgent) return { deviceName, deviceType, browser, os };
+
+  if (/iPhone/i.test(userAgent)) {
+    deviceName = 'Apple iPhone';
+    deviceType = 'mobile';
+    os = 'iOS';
+  } else if (/iPad/i.test(userAgent)) {
+    deviceName = 'Apple iPad';
+    deviceType = 'tablet';
+    os = 'iPadOS';
+  } else if (/Android.*Mobile|Mobile/i.test(userAgent)) {
+    deviceName = 'Android Mobile';
+    deviceType = 'mobile';
+    os = 'Android';
+  } else if (/Android/i.test(userAgent)) {
+    deviceName = 'Android Tablet';
+    deviceType = 'tablet';
+    os = 'Android';
+  } else if (/Macintosh|Mac OS X/i.test(userAgent)) {
+    deviceName = 'MacBook / Mac OS';
+    deviceType = 'desktop';
+    os = 'macOS';
+  } else if (/Windows NT 10.0/i.test(userAgent)) {
+    deviceName = 'Windows 10/11 PC';
+    deviceType = 'desktop';
+    os = 'Windows 10/11';
+  } else if (/Windows/i.test(userAgent)) {
+    deviceName = 'Windows PC';
+    deviceType = 'desktop';
+    os = 'Windows';
+  } else if (/Linux/i.test(userAgent)) {
+    deviceName = 'Linux PC';
+    deviceType = 'desktop';
+    os = 'Linux';
+  }
+
+  if (/Edg\//i.test(userAgent)) browser = 'Microsoft Edge';
+  else if (/Chrome\//i.test(userAgent)) browser = 'Google Chrome';
+  else if (/Safari\//i.test(userAgent)) browser = 'Apple Safari';
+  else if (/Firefox\//i.test(userAgent)) browser = 'Mozilla Firefox';
+
+  return { deviceName, deviceType, browser, os };
+}
+
 function parseDeviceName(userAgent: string): string {
-  if (userAgent.includes('iPhone')) return 'iPhone';
-  if (userAgent.includes('iPad')) return 'iPad';
-  if (userAgent.includes('Android')) return 'Android Device';
-  if (userAgent.includes('Windows')) return 'Windows PC';
-  if (userAgent.includes('Mac')) return 'Mac';
-  if (userAgent.includes('Linux')) return 'Linux PC';
-  return 'Unknown Device';
+  return parseDeviceDetails(userAgent).deviceName;
 }
 
 function getDeviceFingerprint(request: NextRequest): string {
@@ -227,7 +365,11 @@ function getDeviceFingerprint(request: NextRequest): string {
 
   const userAgent = request.headers.get('user-agent') || 'unknown';
   const language = request.headers.get('accept-language') || '';
-  const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || '';
+  const ipAddress =
+    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    request.headers.get('x-real-ip') ||
+    request.headers.get('cf-connecting-ip') ||
+    '';
   return crypto
     .createHash('sha256')
     .update([userAgent, language, ipAddress].join('|'))

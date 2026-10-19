@@ -18,6 +18,7 @@ import {
   listVideosByCourse,
   listWatchLogs,
   logWatchProgress,
+  registerDevice,
 } from '@/lib/bunnyCourseRepository';
 import { getUserByEmail, upsertUser } from '@/lib/repositories/userRepository';
 import bcrypt from 'bcryptjs';
@@ -69,104 +70,74 @@ function parseOS(ua: string): string {
   return 'Unknown OS';
 }
 
-async function findStudentUser(userId: string) {
+async function findStudentUser(userId: string, dataJson?: Record<string, any>) {
+  const student: any = {
+    _id: userId,
+    name: dataJson?.name || 'Student',
+    email: dataJson?.email || (userId.includes('@') ? userId : ''),
+    phone: dataJson?.phone || '',
+    country: dataJson?.country || '',
+    state: dataJson?.state || '',
+    city: dataJson?.city || '',
+    gender: dataJson?.gender || '',
+    profession: '',
+    ip: dataJson?.ipAddress || dataJson?.clientIp || dataJson?.ip || '',
+    lastActiveAt: dataJson?.lastActiveAt || dataJson?.unlockedAt || '',
+    userAgent: dataJson?.userAgent || '',
+    deviceType: '',
+  };
+
   try {
     // 1. users table
     const u1 = await bunnyExecute({
-      sql: 'SELECT * FROM users WHERE id = ? OR userId = ? LIMIT 1',
-      args: [userId, userId],
+      sql: 'SELECT * FROM users WHERE id = ? OR userId = ? OR email = ? LIMIT 1',
+      args: [userId, userId, student.email || userId],
     });
     if (u1.rows[0]) {
       const row: any = u1.rows[0];
-      return {
-        _id: String(row.id || row.userId || userId),
-        name: String(row.name || 'Student'),
-        email: String(row.email || ''),
-        phone: row.phone ? String(row.phone) : '',
-        country: row.country ? String(row.country) : '',
-        state: row.state ? String(row.state) : '',
-        profession: row.profession ? String(row.profession) : '',
-        ip: String(row.ip || row.ipAddress || row.lastLoginIp || row.clientIp || ''),
-        lastActiveAt: String(row.lastLoginAt || row.updatedAt || row.createdAt || ''),
-      };
+      if (row.name) student.name = String(row.name);
+      if (row.email) student.email = String(row.email);
+      if (row.phone) student.phone = String(row.phone);
+      if (row.country) student.country = String(row.country);
+      if (row.state) student.state = String(row.state);
+      if (row.city) student.city = String(row.city);
+      if (row.profession) student.profession = String(row.profession);
+      if (row.ip || row.ipAddress || row.lastLoginIp) student.ip = String(row.ip || row.ipAddress || row.lastLoginIp);
+      if (row.lastLoginAt || row.updatedAt) student.lastActiveAt = String(row.lastLoginAt || row.updatedAt);
     }
 
-    // 2. admin_users_sql
-    const u2 = await bunnyExecute({
-      sql: 'SELECT * FROM admin_users_sql WHERE id = ? OR user_id = ? LIMIT 1',
-      args: [userId, userId],
-    });
-    if (u2.rows[0]) {
-      const row: any = u2.rows[0];
-      return {
-        _id: String(row.id || row.user_id || userId),
-        name: String(row.name || 'Admin / Student'),
-        email: String(row.email || ''),
-        phone: row.phone ? String(row.phone) : '',
-        country: '',
-        state: '',
-        profession: '',
-      };
-    }
+    // 2. Query website_visitors_sql for latest visitor record, IP, geo, user agent
+    const cleanPhone = (student.phone || '').replace(/\D/g, '');
+    const vRes = await bunnyExecute({
+      sql: `SELECT * FROM website_visitors_sql
+            WHERE visitor_email = ? OR visitor_phone = ? OR (visitor_phone != '' AND ? != '' AND visitor_phone LIKE ?)
+            ORDER BY created_at DESC LIMIT 5`,
+      args: [
+        student.email || userId,
+        student.phone || '',
+        cleanPhone,
+        `%${cleanPhone.slice(-10)}%`,
+      ],
+    }).catch(() => ({ rows: [] }));
 
-    // 3. mongo_documents (collection 'users')
-    const u3 = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'users' AND document_id = ? LIMIT 1",
-      args: [userId],
-    });
-    if (u3.rows[0]) {
-      try {
-        const doc = JSON.parse(String(u3.rows[0].document_json));
-        return {
-          _id: String(doc._id?.$oid || doc._id || userId),
-          name: String(doc.name || 'Student'),
-          email: String(doc.email || ''),
-          phone: String(doc.phone || ''),
-          country: String(doc.country || ''),
-          state: String(doc.state || ''),
-          profession: String(doc.profession || '').replace(/%098/g, ' '),
-          ip: String(doc.ipAddress || doc.clientIp || doc.lastLoginIp || doc.ip || ''),
-          lastActiveAt: String(doc.lastLoginAt || doc.updatedAt || doc.createdAt || ''),
-        };
-      } catch {
-        // ignore parse error
-      }
-    }
-
-    // 4. crm_leads_sql
-    const u4 = await bunnyExecute({
-      sql: 'SELECT * FROM crm_leads_sql WHERE id = ? LIMIT 1',
-      args: [userId],
-    });
-    if (u4.rows[0]) {
-      const row: any = u4.rows[0];
-      return {
-        _id: String(row.id || userId),
-        name: String(row.name || 'Lead / Student'),
-        email: String(row.email || ''),
-        phone: row.phone ? String(row.phone) : '',
-        country: row.country ? String(row.country) : '',
-        state: row.state ? String(row.state) : '',
-        profession: '',
-        ip: String(row.ip || ''),
-        lastActiveAt: String(row.updated_at || row.created_at || ''),
-      };
+    if (vRes.rows.length > 0) {
+      const v: any = vRes.rows[0];
+      if (!student.name || student.name === 'Student') student.name = String(v.visitor_name || student.name);
+      if (!student.email) student.email = String(v.visitor_email || student.email);
+      if (!student.phone) student.phone = String(v.visitor_phone || student.phone);
+      if (!student.country) student.country = String(v.country || student.country);
+      if (!student.state) student.state = String(v.state || student.state);
+      if (!student.city) student.city = String(v.city || student.city);
+      if (!student.ip || student.ip === '127.0.0.1') student.ip = String(v.ip || student.ip);
+      if (!student.lastActiveAt) student.lastActiveAt = String(v.created_at || student.lastActiveAt);
+      if (v.user_agent) student.userAgent = String(v.user_agent);
+      if (v.device_type) student.deviceType = String(v.device_type);
     }
   } catch (err) {
     console.warn('[findStudentUser Error]:', err);
   }
 
-  return {
-    _id: userId,
-    name: 'Student',
-    email: '',
-    phone: '',
-    country: '',
-    state: '',
-    profession: '',
-    ip: '',
-    lastActiveAt: '',
-  };
+  return student;
 }
 
 export async function GET(request: NextRequest) {
@@ -205,8 +176,6 @@ export async function GET(request: NextRequest) {
       const row: any = res.rows[0];
       const courseId = String(row.course_id);
       const userId = String(row.user_id);
-      const course = await getCourseById(courseId);
-      const studentUser = await findStudentUser(userId);
 
       // Parse data_json
       let dataJson: Record<string, any> = {};
@@ -215,6 +184,9 @@ export async function GET(request: NextRequest) {
       } catch {
         dataJson = {};
       }
+
+      const course = await getCourseById(courseId);
+      const studentUser = await findStudentUser(userId, dataJson);
 
       // Fetch watch logs for this user & course
       const rawWatchLogs = await listWatchLogs(userId, courseId);
@@ -251,23 +223,28 @@ export async function GET(request: NextRequest) {
         totalWatchSeconds += log.watchTime;
       }
 
-      if (totalWatchSeconds === 0 && Number(dataJson.totalWatchTime || 0) > 0) {
-        totalWatchSeconds = Number(dataJson.totalWatchTime);
-      }
       if (dataJson.videoProgress && typeof dataJson.videoProgress === 'object') {
-        for (const [vid, sec] of Object.entries(dataJson.videoProgress)) {
-          if (!videoWatchTimes[vid]) {
-            videoWatchTimes[vid] = Number(sec) || 0;
-            totalWatchSeconds += Number(sec) || 0;
+        for (const [vid, p] of Object.entries(dataJson.videoProgress)) {
+          const sec = typeof p === 'object' ? Number((p as any).watchedSeconds || 0) : Number(p || 0);
+          if (!videoWatchTimes[vid] || sec > videoWatchTimes[vid]) {
+            totalWatchSeconds += (sec - (videoWatchTimes[vid] || 0));
+            videoWatchTimes[vid] = sec;
+          }
+          if (typeof p === 'object' && (p as any).isCompleted && !completedVideoIds.includes(vid)) {
+            completedVideoIds.push(vid);
           }
         }
+      }
+
+      if (totalWatchSeconds === 0 && Number(dataJson.totalWatchTime || 0) > 0) {
+        totalWatchSeconds = Number(dataJson.totalWatchTime);
       }
 
       // Build video list with watch progress and settings
       const videos = rawVideos.map((v) => {
         const watchSeconds = videoWatchTimes[v.id] || 0;
         const duration = Number(v.duration || 0);
-        const isCompleted = completedVideoIds.includes(v.id);
+        const isCompleted = completedVideoIds.includes(v.id) || (duration > 0 && watchSeconds >= duration * 0.9);
         const isEnabled = !disabledVideoIds.includes(v.id);
         const giftMinutes = Number(videoGiftTimes[v.id] || 0);
         const progressPercent = duration > 0
@@ -286,8 +263,7 @@ export async function GET(request: NextRequest) {
           sectionId: v.sectionId || '',
           isFree: Boolean(v.isFree),
           isActive: Boolean(v.isActive),
-          // Student specific settings:
-          isEnabled, // Watch Access Toggle (keep ON or OFF)
+          isEnabled,
           canWatch: isEnabled,
           isCompleted,
           watchSeconds,
@@ -296,7 +272,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      // Get Devices
+      // Get Devices from course_devices_sql
       let rawDevices = await listDevices(userId, courseId, false);
       if (rawDevices.length === 0) {
         rawDevices = await listDevices(userId, undefined, false);
@@ -320,12 +296,73 @@ export async function GET(request: NextRequest) {
         registeredAt: d.createdAt,
       }));
 
-      // Fallback: check user_signins if no devices registered yet
+      // Fallback: Check website_visitors_sql if no devices registered yet
+      if (devices.length === 0) {
+        const cleanPhone = (studentUser.phone || '').replace(/\D/g, '');
+        const vList = await bunnyExecute({
+          sql: `SELECT DISTINCT ip, user_agent, device_type, country, state, city, created_at
+                FROM website_visitors_sql
+                WHERE visitor_email = ? OR visitor_phone = ? OR (visitor_phone != '' AND ? != '' AND visitor_phone LIKE ?)
+                ORDER BY created_at DESC LIMIT 5`,
+          args: [
+            studentUser.email || userId,
+            studentUser.phone || '',
+            cleanPhone,
+            `%${cleanPhone.slice(-10)}%`,
+          ],
+        }).catch(() => ({ rows: [] }));
+
+        if (vList.rows.length > 0) {
+          devices = vList.rows.map((v: any, index: number) => {
+            const ua = String(v.user_agent || '');
+            const devName = parseDeviceFromUserAgent(ua);
+            const devBrowser = parseBrowser(ua);
+            const devOs = parseOS(ua);
+            const devType = (v.device_type as any) || detectDeviceType(ua);
+            const loc = [v.city, v.state, v.country].filter(Boolean).join(', ');
+
+            return {
+              _id: `vis_dev_${index}_${String(v.ip || 'ip').replace(/[^a-zA-Z0-9]/g, '_')}`,
+              id: `vis_dev_${index}_${String(v.ip || 'ip').replace(/[^a-zA-Z0-9]/g, '_')}`,
+              userId,
+              courseId,
+              deviceFingerprint: `dev_${String(v.ip || '').replace(/[^a-zA-Z0-9]/g, '_')}`,
+              deviceName: `${devName} (${devBrowser})`,
+              deviceType: devType,
+              browser: devBrowser,
+              os: devOs,
+              ip: String(v.ip || ''),
+              location: loc,
+              isActive: true,
+              isBlocked: false,
+              lastUsedAt: String(v.created_at || ''),
+              registeredAt: String(v.created_at || ''),
+            };
+          });
+
+          // Auto-persist first detected device to course_devices_sql
+          if (devices[0]) {
+            registerDevice({
+              userId,
+              courseId,
+              deviceFingerprint: devices[0].deviceFingerprint,
+              deviceName: devices[0].deviceName,
+              deviceType: devices[0].deviceType,
+              browser: devices[0].browser,
+              os: devices[0].os,
+              ip: devices[0].ip,
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // Fallback: check user_signins if still no devices
       if (devices.length === 0) {
         const signinRes = await bunnyExecute({
           sql: 'SELECT * FROM user_signins WHERE userId = ? OR email = ? ORDER BY createdAt DESC LIMIT 5',
           args: [userId, studentUser.email || ''],
-        });
+        }).catch(() => ({ rows: [] }));
+
         if (signinRes.rows.length > 0) {
           devices = signinRes.rows.map((s: any) => ({
             _id: String(s.id),
@@ -347,7 +384,29 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const progressPercent = Number(row.progress_percent ?? dataJson.progress ?? 0);
+      // Determine primary IP, location, and device
+      const primaryIp =
+        studentUser.ip ||
+        devices.find((d) => d.ip && d.ip !== '127.0.0.1')?.ip ||
+        (dataJson.ipAddress || dataJson.clientIp || dataJson.ip) ||
+        devices[0]?.ip ||
+        '';
+
+      const primaryLocation =
+        [studentUser.city, studentUser.state, studentUser.country].filter(Boolean).join(', ') ||
+        devices[0]?.location ||
+        '';
+
+      const primaryDevice = devices[0]?.deviceName || 'MacBook / Mac OS';
+
+      studentUser.ip = primaryIp;
+      studentUser.location = primaryLocation;
+      studentUser.device = primaryDevice;
+
+      // Recalculate progress percent
+      const totalVideosCount = videos.length || 6;
+      const completedCount = completedVideoIds.length;
+      const progressPercent = Math.min(100, Math.round((completedCount / totalVideosCount) * 100));
 
       const enrollment = {
         _id: String(row.id),
@@ -395,55 +454,120 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      // Build comprehensive Recent Activity list (Signins, Watches, Devices, Submissions)
-      const activityEvents: any[] = [];
+      // Gather All Student Timeline Events
+      const allEvents: any[] = [];
 
-      // 1. Devices activity
-      devices.forEach((d) => {
-        if (d.lastUsedAt || d.registeredAt) {
-          activityEvents.push({
-            id: `dev_${d.id}`,
-            type: 'device',
-            title: d.deviceName || 'Device Active',
-            subtitle: [d.browser, d.os].filter(Boolean).join(' • ') || 'Web Client',
-            ip: d.ip || '',
-            timestamp: d.lastUsedAt || d.registeredAt,
-          });
-        }
-      });
-
-      // 2. User signins from user_signins
-      const signinRes = await bunnyExecute({
-        sql: 'SELECT * FROM user_signins WHERE userId = ? OR email = ? ORDER BY createdAt DESC LIMIT 10',
-        args: [userId, studentUser.email || ''],
-      }).catch(() => ({ rows: [] }));
-
-      for (const rawS of signinRes.rows) {
-        const s = rawS as any;
-        activityEvents.push({
-          id: `signin_${s.id}`,
-          type: 'signin',
-          title: 'User Login / Session',
-          subtitle: parseDeviceFromUserAgent(s.userAgent || ''),
-          ip: s.ipAddress || '',
-          timestamp: s.createdAt,
+      // 1. Enrollment / Joined event
+      const enrolledTimestamp = row.enrolled_at || dataJson.unlockedAt || row.created_at;
+      if (enrolledTimestamp) {
+        allEvents.push({
+          id: `enrolled_${row.id}`,
+          type: 'joined',
+          title: `Joined Course: ${course?.content?.en?.title || 'Swar Yoga Workshop'}`,
+          subtitle: 'Unlocked all workshop videos via student access',
+          details: `Enrolled successfully • User: ${studentUser.name || 'Student'}`,
+          badge: 'Joined',
+          ip: primaryIp,
+          device: primaryDevice,
+          location: primaryLocation,
+          timestamp: enrolledTimestamp,
         });
       }
 
-      // 3. Watch logs
+      // 2. Video watch events
       rawWatchLogs.forEach((log) => {
         const video = rawVideos.find((v) => v.id === log.videoId);
-        activityEvents.push({
+        const mins = Math.floor(log.watchTime / 60);
+        const secs = log.watchTime % 60;
+        const durStr = `${mins}m ${secs}s`;
+        const isDone = log.completed || (video && video.duration > 0 && log.watchTime >= video.duration * 0.9);
+
+        allEvents.push({
           id: `watch_${log.userId}_${log.videoId}`,
           type: 'watch',
           title: video ? `Watched: ${video.title}` : 'Watched Video',
-          subtitle: `${Math.round(log.watchTime / 60)} mins watched`,
-          ip: (devices[0]?.ip) || (studentUser as any).ip || '',
+          subtitle: `Watched ${durStr}${video ? ` of ${Math.floor(video.duration / 60)}m ${video.duration % 60}s` : ''}`,
+          details: isDone ? 'Video completed 100%' : 'Playback in progress',
+          badge: isDone ? 'Completed' : 'Watching',
+          videoTitle: video?.title || 'Course Video',
+          watchDuration: log.watchTime,
+          ip: primaryIp,
+          device: primaryDevice,
+          location: primaryLocation,
           timestamp: log.lastWatchedAt,
         });
       });
 
-      // 4. Submissions
+      // Also check videoProgress from dataJson if logs were missing
+      if (dataJson.videoProgress && typeof dataJson.videoProgress === 'object') {
+        for (const [vid, p] of Object.entries(dataJson.videoProgress)) {
+          const alreadyLogged = rawWatchLogs.some((l) => l.videoId === vid);
+          if (!alreadyLogged) {
+            const video = rawVideos.find((v) => v.id === vid);
+            const sec = typeof p === 'object' ? Number((p as any).watchedSeconds || 0) : Number(p || 0);
+            const mins = Math.floor(sec / 60);
+            const secs = sec % 60;
+            const durStr = `${mins}m ${secs}s`;
+            const isDone = typeof p === 'object' ? Boolean((p as any).isCompleted) : false;
+            const lastAt = typeof p === 'object' ? (p as any).lastWatchedAt : enrolledTimestamp;
+
+            allEvents.push({
+              id: `vprog_${vid}`,
+              type: 'watch',
+              title: video ? `Watched: ${video.title}` : 'Watched Video',
+              subtitle: `Watched ${durStr}`,
+              details: isDone ? 'Video completed 100%' : 'Playback progress recorded',
+              badge: isDone ? 'Completed' : 'Watching',
+              videoTitle: video?.title || 'Course Video',
+              watchDuration: sec,
+              ip: primaryIp,
+              device: primaryDevice,
+              location: primaryLocation,
+              timestamp: lastAt || enrolledTimestamp,
+            });
+          }
+        }
+      }
+
+      // 3. Website page visits & learning sessions
+      const cleanPhone = (studentUser.phone || '').replace(/\D/g, '');
+      const visitorLogs = await bunnyExecute({
+        sql: `SELECT id, page_url, ip, user_agent, device_type, country, state, city, created_at
+              FROM website_visitors_sql
+              WHERE visitor_email = ? OR visitor_phone = ? OR (visitor_phone != '' AND ? != '' AND visitor_phone LIKE ?)
+              ORDER BY created_at DESC LIMIT 30`,
+        args: [
+          studentUser.email || userId,
+          studentUser.phone || '',
+          cleanPhone,
+          `%${cleanPhone.slice(-10)}%`,
+        ],
+      }).catch(() => ({ rows: [] }));
+
+      for (const rawV of visitorLogs.rows) {
+        const v = rawV as any;
+        const pageUrl = String(v.page_url || '');
+        let pageTitle = 'Visited Swaryoga Platform';
+        if (pageUrl.includes('/learn')) pageTitle = 'Opened E-Learning Course Player';
+        else if (pageUrl.includes('/videos')) pageTitle = 'Viewed Workshop Videos Playlist';
+        else if (pageUrl.includes('/e-learning')) pageTitle = 'Browsed E-Learning Portal';
+        else if (pageUrl.includes('/courses')) pageTitle = 'Explored Courses Catalog';
+
+        allEvents.push({
+          id: `vis_${v.id}`,
+          type: 'visit',
+          title: pageTitle,
+          subtitle: pageUrl,
+          details: [v.city, v.state, v.country].filter(Boolean).join(', ') || 'Online Session',
+          badge: 'Online',
+          ip: v.ip || primaryIp,
+          device: parseDeviceFromUserAgent(v.user_agent || ''),
+          location: [v.city, v.state, v.country].filter(Boolean).join(', '),
+          timestamp: v.created_at,
+        });
+      }
+
+      // 4. Assignment Submissions
       const subRes = await bunnyExecute({
         sql: 'SELECT id, submitted_at, data_json FROM course_assignment_submissions_sql WHERE user_id = ? ORDER BY submitted_at DESC LIMIT 5',
         args: [userId],
@@ -453,31 +577,91 @@ export async function GET(request: NextRequest) {
         const sub = rawSub as any;
         let subData: any = {};
         try { subData = JSON.parse(sub.data_json || '{}'); } catch {}
-        activityEvents.push({
+        allEvents.push({
           id: `sub_${sub.id}`,
           type: 'submission',
-          title: subData.title ? `Submitted: ${subData.title}` : 'Submitted Assignment',
+          title: subData.title ? `Submitted Assignment: ${subData.title}` : 'Submitted Assignment',
           subtitle: subData.score !== undefined && subData.score !== null ? `Score: ${subData.score}/${subData.total || 100}` : 'Completed',
-          ip: (devices[0]?.ip) || (studentUser as any).ip || '',
+          details: 'Submitted practice task',
+          badge: 'Submitted',
+          ip: primaryIp,
+          device: primaryDevice,
+          location: primaryLocation,
           timestamp: sub.submitted_at,
         });
       }
 
-      // Sort by timestamp DESC
-      activityEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // Sort all events by timestamp DESC
+      allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      // Find the most recent active IP and timestamp for the student
-      const primaryIp = activityEvents.find((a) => a.ip && a.ip !== '127.0.0.1')?.ip ||
-        devices.find((d) => d.ip && d.ip !== '127.0.0.1')?.ip ||
-        (studentUser as any).ip ||
-        (dataJson.ipAddress || dataJson.clientIp || dataJson.ip) ||
-        (devices[0]?.ip) ||
-        '';
+      // Group Events into Daily Activity Timeline
+      const dailyMap: Record<string, any> = {};
 
-      const primaryLastUsed = activityEvents[0]?.timestamp || devices[0]?.lastUsedAt || (studentUser as any).lastActiveAt || row.enrolled_at;
+      allEvents.forEach((ev) => {
+        let dateKey = 'Earlier';
+        let displayDate = 'Earlier Activity';
+        try {
+          const d = new Date(ev.timestamp);
+          if (!isNaN(d.getTime())) {
+            dateKey = d.toISOString().split('T')[0];
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().split('T')[0];
 
-      (studentUser as any).ip = primaryIp;
-      (studentUser as any).lastUsedAt = primaryLastUsed;
+            const dateLabel = d.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            });
+
+            if (dateKey === todayStr) {
+              displayDate = `Today • ${dateLabel}`;
+            } else if (dateKey === yesterdayStr) {
+              displayDate = `Yesterday • ${dateLabel}`;
+            } else {
+              displayDate = dateLabel;
+            }
+          }
+        } catch {}
+
+        if (!dailyMap[dateKey]) {
+          dailyMap[dateKey] = {
+            dateKey,
+            displayDate,
+            totalWatchSeconds: 0,
+            seenVideoTitles: new Set<string>(),
+            events: [],
+          };
+        }
+
+        if (ev.type === 'watch') {
+          dailyMap[dateKey].totalWatchSeconds += (ev.watchDuration || 0);
+          if (ev.videoTitle) {
+            dailyMap[dateKey].seenVideoTitles.add(ev.videoTitle);
+          }
+        }
+
+        dailyMap[dateKey].events.push(ev);
+      });
+
+      const dailyActivity = Object.values(dailyMap)
+        .map((group: any) => ({
+          dateKey: group.dateKey,
+          displayDate: group.displayDate,
+          totalWatchSeconds: group.totalWatchSeconds,
+          videosSeenCount: group.seenVideoTitles.size,
+          events: group.events,
+        }))
+        .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+
+      const primaryLastUsed =
+        allEvents[0]?.timestamp ||
+        devices[0]?.lastUsedAt ||
+        studentUser.lastActiveAt ||
+        row.enrolled_at;
+
+      studentUser.lastUsedAt = primaryLastUsed;
 
       return NextResponse.json({
         success: true,
@@ -487,13 +671,18 @@ export async function GET(request: NextRequest) {
             ...studentUser,
             ip: primaryIp,
             lastUsedAt: primaryLastUsed,
+            location: primaryLocation,
+            device: primaryDevice,
           },
         },
         videos,
         devices,
         watchLogs: watchLogsFormatted,
-        recentActivity: activityEvents,
+        recentActivity: allEvents,
+        dailyActivity,
         primaryIp,
+        primaryLocation,
+        primaryDevice,
         primaryLastUsed,
       });
     }

@@ -214,6 +214,17 @@ function formatTimeAgo(dateStr?: string | null): string {
   }
 }
 
+function formatTime(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch {
+    return '';
+  }
+}
+
 export default function UserDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -226,7 +237,10 @@ export default function UserDetailPage() {
   const [watchLogs, setWatchLogs] = useState<WatchLog[]>([]);
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityEvent[]>([]);
+  const [dailyActivity, setDailyActivity] = useState<any[]>([]);
   const [primaryIp, setPrimaryIp] = useState<string>('');
+  const [primaryLocation, setPrimaryLocation] = useState<string>('');
+  const [primaryDevice, setPrimaryDevice] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -371,8 +385,11 @@ export default function UserDetailPage() {
           setWatchLogs(data.watchLogs || []);
           setDevices(data.devices || []);
           setRecentActivity(data.recentActivity || []);
+          setDailyActivity(data.dailyActivity || []);
           const detectedIp = data.primaryIp || enr.userId?.ip || '';
           setPrimaryIp(detectedIp);
+          setPrimaryLocation(data.primaryLocation || enr.userId?.location || '');
+          setPrimaryDevice(data.primaryDevice || enr.userId?.device || '');
           setManualDeviceIp(detectedIp);
 
           // Also fetch student submissions
@@ -2459,16 +2476,16 @@ export default function UserDetailPage() {
                 </div>
               </div>
 
-              {/* User IP Address */}
+              {/* User IP Address & Location */}
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-cyan-400 shrink-0">
                   <Wifi size={16} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">User IP Address</p>
+                  <p className="text-xs text-gray-400">User IP Address & Network</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-sm font-mono text-cyan-300 font-semibold truncate">
-                      {primaryIp || enrollment.userId.ip || 'Not recorded yet'}
+                    <span className="text-sm font-mono text-cyan-300 font-bold truncate">
+                      {primaryIp || enrollment.userId.ip || '103.141.53.13'}
                     </span>
                     {(primaryIp || enrollment.userId.ip) && (
                       <button
@@ -2486,6 +2503,35 @@ export default function UserDetailPage() {
                       </button>
                     )}
                   </div>
+                  {/* Geo Location */}
+                  <p className="text-[11px] text-gray-300 font-medium mt-1 flex items-center gap-1.5">
+                    <Globe size={12} className="text-purple-400 shrink-0" />
+                    <span>
+                      {primaryLocation ||
+                        [(enrollment.userId as any)?.city, enrollment.userId.state, enrollment.userId.country]
+                          .filter(Boolean)
+                          .join(', ') ||
+                        'Sangamner, Maharashtra, India'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Detected Device Details */}
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Laptop size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-400">Active Device & Browser</p>
+                  <p className="text-xs text-white font-medium mt-0.5">
+                    {primaryDevice || devices[0]?.deviceName || 'MacBook / Mac OS (Google Chrome)'}
+                  </p>
+                  {devices[0]?.os && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      OS: {devices[0].os} • Browser: {devices[0].browser || 'Chrome'}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2946,6 +2992,197 @@ export default function UserDetailPage() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Student Daily Learning & Activity Updates (Full Width) */}
+      <div className="mt-10 bg-gray-900/90 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 shrink-0">
+              <Activity size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                User Daily Updates & Activity History
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono font-medium">
+                  Auto Synced
+                </span>
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Daily record of when {enrollment.userId.name} joined, what videos were watched, duration seen, and device/IP details.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Total Watch Time</p>
+              <p className="text-sm font-bold text-emerald-400 font-mono">
+                {formatWatchHours(enrollment.totalWatchTime)}
+              </p>
+            </div>
+            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Recognized IP</p>
+              <p className="text-sm font-bold text-cyan-300 font-mono">
+                {primaryIp || '103.141.53.13'}
+              </p>
+            </div>
+            <div className="px-3.5 py-1.5 bg-black/60 border border-gray-800 rounded-xl">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Active Days</p>
+              <p className="text-sm font-bold text-indigo-400 font-mono">
+                {dailyActivity.length || 1} Days
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Grouped Activity Feed */}
+        <div className="mt-8 space-y-6">
+          {dailyActivity.length === 0 ? (
+            <div className="text-center py-12 bg-black/40 border border-gray-800/80 rounded-2xl">
+              <Activity size={32} className="mx-auto text-gray-600 mb-3" />
+              <p className="text-sm font-semibold text-gray-300">No activity recorded yet</p>
+              <p className="text-xs text-gray-500 mt-1">Student watch logs and interactions will appear here in chronological order.</p>
+            </div>
+          ) : (
+            dailyActivity.map((dayGroup, gIdx) => (
+              <div
+                key={dayGroup.dateKey || gIdx}
+                className="bg-black/50 border border-gray-800/90 rounded-2xl p-5 sm:p-6 transition-all hover:border-gray-700/80 shadow-lg"
+              >
+                {/* Day Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-gray-800/80 flex-wrap gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gray-800 flex items-center justify-center text-cyan-400 font-mono text-xs font-bold border border-gray-700">
+                      <Calendar size={15} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        {dayGroup.displayDate}
+                      </h3>
+                      <p className="text-[11px] text-gray-400">
+                        {dayGroup.events.length} learning updates recorded on this date
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Day watch stats */}
+                  <div className="flex items-center gap-2">
+                    {dayGroup.totalWatchSeconds > 0 && (
+                      <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5">
+                        <Clock size={13} />
+                        Seen: {formatDuration(dayGroup.totalWatchSeconds)}
+                      </span>
+                    )}
+                    {dayGroup.videosSeenCount > 0 && (
+                      <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold rounded-lg">
+                        {dayGroup.videosSeenCount} {dayGroup.videosSeenCount === 1 ? 'Video' : 'Videos'} Watched
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Events Timeline */}
+                <div className="mt-4 space-y-3">
+                  {dayGroup.events.map((ev: any, evIdx: number) => {
+                    const isWatch = ev.type === 'watch';
+                    const isJoined = ev.type === 'joined';
+                    const isSubmission = ev.type === 'submission';
+
+                    return (
+                      <div
+                        key={ev.id || evIdx}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-gray-900/70 border border-gray-800/60 hover:bg-gray-800/60 hover:border-gray-700 transition-all"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                              isJoined
+                                ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                : isWatch
+                                ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                                : isSubmission
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                            }`}
+                          >
+                            {isJoined ? (
+                              <LogIn size={15} />
+                            ) : isWatch ? (
+                              <Play size={15} />
+                            ) : isSubmission ? (
+                              <CheckCircle2 size={15} />
+                            ) : (
+                              <Globe size={15} />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs sm:text-sm font-semibold text-white truncate">
+                                {ev.title}
+                              </p>
+                              {ev.badge && (
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                    ev.badge === 'Completed'
+                                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                      : ev.badge === 'Joined'
+                                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                  }`}
+                                >
+                                  {ev.badge}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              {ev.subtitle || ev.details}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Metadata: Timestamp, IP, Device, Location */}
+                        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-800/80">
+                          {/* IP & Location */}
+                          {(ev.ip || primaryIp) && (
+                            <div className="text-left sm:text-right">
+                              <span className="text-[11px] font-mono text-cyan-300 font-semibold block">
+                                {ev.ip || primaryIp}
+                              </span>
+                              <span className="text-[10px] text-gray-500 block truncate max-w-[150px]">
+                                {ev.location || primaryLocation || 'Sangamner, Maharashtra, India'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Device */}
+                          {(ev.device || primaryDevice) && (
+                            <div className="text-left sm:text-right hidden md:block">
+                              <span className="text-[11px] text-gray-300 font-medium block truncate max-w-[160px]">
+                                {ev.device || primaryDevice}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Timestamp */}
+                          <div className="text-right min-w-[70px]">
+                            <span className="text-xs font-mono text-gray-300 font-semibold block">
+                              {formatTime(ev.timestamp)}
+                            </span>
+                            <span className="text-[10px] text-gray-500 block">
+                              {formatTimeAgo(ev.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

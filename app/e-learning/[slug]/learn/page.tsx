@@ -285,6 +285,13 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [videoAskError, setVideoAskError] = useState('');
   const [videoAskMessages, setVideoAskMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [currentPlaybackTime, setCurrentPlaybackTime] = useState<number>(0);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [videoProgressMap, setVideoProgressMap] = useState<Record<string, number>>({});
+  const currentPlaybackTimeRef = useRef<number>(0);
+  const videoDurationRef = useRef<number>(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastVideoTimeRef = useRef<number | undefined>(undefined);
   // Populated further down, once handleVideoEnded/updateProgress are declared
@@ -377,6 +384,14 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         setEnrollment(data.enrollment);
         setCanAccessPaidContent(data.canAccessPaidContent);
 
+        if (data.enrollment?.data?.videoProgress) {
+          const map: Record<string, number> = {};
+          for (const [vid, p] of Object.entries(data.enrollment.data.videoProgress)) {
+            map[vid] = typeof p === 'object' ? Number((p as any).watchedSeconds || 0) : Number(p || 0);
+          }
+          setVideoProgressMap(map);
+        }
+
         // Expand all sections
         if (data.sections?.length > 0) {
           setExpandedSections(new Set(data.sections.map((s: Section) => s._id)));
@@ -448,20 +463,31 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
       setVideoLoading(true);
       try {
-        const token = localStorage.getItem('token');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+        let studentEmail = '';
+        if (typeof window !== 'undefined') {
+          try {
+            const leadUser = JSON.parse(localStorage.getItem('swar_lead_user') || '{}');
+            studentEmail = leadUser.email || '';
+          } catch {}
+        }
         const device = getLearningDevice();
         const query = new URLSearchParams({
           fingerprint: device.fingerprint,
           deviceName: device.deviceName,
+          ...(studentEmail ? { email: studentEmail } : {}),
         });
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-device-fingerprint': device.fingerprint,
+          'x-device-name': device.deviceName,
+          'x-device-info': device.deviceInfo,
+        };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (studentEmail) headers['x-student-email'] = studentEmail;
+
         const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}?${query.toString()}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            'x-device-fingerprint': device.fingerprint,
-            'x-device-name': device.deviceName,
-            'x-device-info': device.deviceInfo,
-          },
+          headers,
         });
         const data = await response.json();
 
@@ -525,68 +551,220 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     }
   };
 
-  // Attach event listeners to video ref for progress tracking
+  // Sync refs with state
+  currentPlaybackTimeRef.current = currentPlaybackTime;
+  videoDurationRef.current = videoDuration || currentVideo?.duration || 0;
+
+  // Load Player.js helper from Bunny CDN
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const scriptId = 'bunny-player-js';
+    if (!document.getElementById(scriptId)) {
+      const s = document.createElement('script');
+      s.id = scriptId;
+      s.src = 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js';
+      s.async = true;
+      document.body.appendChild(s);
+    }
+  }, []);
+
+  // When switching videos, reset/load playback position
+  useEffect(() => {
+    if (!currentVideo) return;
+    const initialSeen = videoProgressMap[currentVideo._id] || 0;
+    setCurrentPlaybackTime(initialSeen);
+    currentPlaybackTimeRef.current = initialSeen;
+    const dur = currentVideo.duration || 0;
+    setVideoDuration(dur);
+    videoDurationRef.current = dur;
+    setIsPlaying(false);
+  }, [currentVideo?._id]);
+
+  // Second-by-Second Playback Ticker: updates progress every single second
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setCurrentPlaybackTime((prev) => {
+        const dur = videoDurationRef.current || currentVideo?.duration || 180;
+        const next = prev + 1;
+        const clamped = next <= dur ? next : dur;
+        currentPlaybackTimeRef.current = clamped;
+        if (currentVideo) {
+          setVideoProgressMap((pmap) => ({
+            ...pmap,
+            [currentVideo._id]: Math.max(pmap[currentVideo._id] || 0, clamped),
+          }));
+        }
+        return clamped;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying, currentVideo]);
+
+  // Cross-frame Bunny Stream postMessage & Player.js listener
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      try {
+        let payload = event.data;
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            return;
+          }
+        }
+        if (typeof payload !== 'object' || !payload) return;
+
+        const eventName = payload.event || payload.type;
+        const val = payload.value ?? payload.data;
+
+        if (eventName === 'play') {
+          setIsPlaying(true);
+        } else if (eventName === 'pause') {
+          setIsPlaying(false);
+          updateProgressRef.current(false);
+        } else if (eventName === 'ended') {
+          setIsPlaying(false);
+          handleVideoEndedRef.current();
+        } else if (eventName === 'timeupdate') {
+          const sec = typeof val === 'number' ? val : (val?.seconds ?? val?.currentTime);
+          const dur = typeof val === 'object' ? (val?.duration ?? currentVideo?.duration) : currentVideo?.duration;
+          if (typeof sec === 'number' && !isNaN(sec)) {
+            const rounded = Math.floor(sec);
+            setCurrentPlaybackTime(rounded);
+            currentPlaybackTimeRef.current = rounded;
+            if (currentVideo) {
+              setVideoProgressMap((pmap) => ({
+                ...pmap,
+                [currentVideo._id]: Math.max(pmap[currentVideo._id] || 0, rounded),
+              }));
+            }
+          }
+          if (typeof dur === 'number' && dur > 0) {
+            setVideoDuration(dur);
+            videoDurationRef.current = dur;
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [currentVideo]);
+
+  // Direct HTML5 video event listeners
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const onEnded = () => handleVideoEndedRef.current();
-    const onPause = () => updateProgressRef.current(false);
+    const onPlay = () => setIsPlaying(true);
+    const onEnded = () => {
+      setIsPlaying(false);
+      handleVideoEndedRef.current();
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      updateProgressRef.current(false);
+    };
+    const onTimeUpdate = () => {
+      const sec = Math.floor(video.currentTime);
+      setCurrentPlaybackTime(sec);
+      currentPlaybackTimeRef.current = sec;
+      if (video.duration && !isNaN(video.duration)) {
+        setVideoDuration(video.duration);
+        videoDurationRef.current = video.duration;
+      }
+      if (currentVideo) {
+        setVideoProgressMap((pmap) => ({
+          ...pmap,
+          [currentVideo._id]: Math.max(pmap[currentVideo._id] || 0, sec),
+        }));
+      }
+    };
+
+    video.addEventListener('play', onPlay);
     video.addEventListener('ended', onEnded);
-    video.addEventListener('timeupdate', handleTimeUpdate as any);
+    video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('pause', onPause);
 
     return () => {
+      video.removeEventListener('play', onPlay);
       video.removeEventListener('ended', onEnded);
-      video.removeEventListener('timeupdate', handleTimeUpdate as any);
+      video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('pause', onPause);
     };
-  }, [currentVideo, autoplay]);
+  }, [currentVideo]);
 
-  // Update progress periodically
+  // Periodic Progress Sync to Server (every 5 seconds while playing)
   useEffect(() => {
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
+    if (!isPlaying) return;
+    const syncInterval = setInterval(() => {
+      if (currentVideo) {
+        updateProgressRef.current(false);
+      }
+    }, 5000);
+    return () => clearInterval(syncInterval);
+  }, [isPlaying, currentVideo]);
+
+  // Page unload beacon to ensure no watch time is lost
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentVideo && currentPlaybackTimeRef.current > 0) {
+        let studentEmail = '';
+        try {
+          const leadUser = JSON.parse(localStorage.getItem('swar_lead_user') || '{}');
+          studentEmail = leadUser.email || '';
+        } catch {}
+        const payload = JSON.stringify({
+          watchedSeconds: Math.floor(currentPlaybackTimeRef.current),
+          totalSeconds: Math.floor(videoDurationRef.current || currentVideo.duration || 1),
+          completed: false,
+          email: studentEmail,
+        });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(`/api/recorded-courses/video/${currentVideo._id}`, payload);
+        }
       }
     };
-  }, []);
-
-  const startProgressTracking = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-    progressIntervalRef.current = setInterval(() => {
-      if (videoRef.current && currentVideo) {
-        updateProgress(false);
-      }
-    }, 30000); // Update every 30 seconds
-  };
-
-  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    if (video && lastVideoTimeRef.current !== undefined && video.currentTime > lastVideoTimeRef.current + 5) {
-      video.currentTime = lastVideoTimeRef.current;
-    }
-    lastVideoTimeRef.current = video.currentTime;
-  };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [currentVideo]);
 
   const updateProgress = async (completed: boolean) => {
-    if (!currentVideo || !videoRef.current) return;
+    if (!currentVideo) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+      let studentEmail = '';
+      if (typeof window !== 'undefined') {
+        try {
+          const leadUser = JSON.parse(localStorage.getItem('swar_lead_user') || '{}');
+          studentEmail = leadUser.email || '';
+        } catch {}
+      }
+
+      const watchedSec = Math.floor(currentPlaybackTimeRef.current || 0);
+      const totalSec = Math.floor(videoDurationRef.current || currentVideo.duration || 1);
+      const isDone = completed || (totalSec > 0 && watchedSec >= totalSec * 0.9);
+
       const device = getLearningDevice();
       const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(studentEmail ? { 'x-student-email': studentEmail } : {}),
         },
         body: JSON.stringify({
-          watchedSeconds: Math.floor(videoRef.current.currentTime),
-          totalSeconds: Math.floor(videoRef.current.duration),
-          completed,
+          watchedSeconds: watchedSec,
+          totalSeconds: totalSec,
+          completed: isDone,
+          email: studentEmail,
           watchLogId: videoStream?.watchLogId,
           deviceFingerprint: device.fingerprint,
           deviceInfo: device.deviceInfo,
@@ -595,12 +773,40 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
       const data = await response.json();
       if (data.success && enrollment) {
-        setEnrollment((prev: Enrollment | null) => prev ? { ...prev, progress: data.progress } : null);
+        setEnrollment((prev: Enrollment | null) =>
+          prev ? { ...prev, progress: data.progress ?? prev.progress } : null
+        );
       }
     } catch (err) {
       console.error('Error updating progress:', err);
     }
   };
+
+  // Workshop & Single Video live calculations
+  const currentVideoProgressPercent = (videoDuration || currentVideo?.duration || 0) > 0
+    ? Math.min(100, Math.round((currentPlaybackTime / (videoDuration || currentVideo?.duration || 1)) * 100))
+    : 0;
+
+  const totalWorkshopDuration = videos.reduce((acc, v) => acc + (v.duration || 0), 0);
+  const totalWorkshopWatched = videos.reduce((acc, v) => {
+    if (isVideoCompleted(v._id)) return acc + (v.duration || 0);
+    const seen = v._id === currentVideo?._id
+      ? Math.max(videoProgressMap[v._id] || 0, currentPlaybackTime)
+      : (videoProgressMap[v._id] || 0);
+    return acc + Math.min(seen, v.duration || 0);
+  }, 0);
+
+  const liveWorkshopProgress = totalWorkshopDuration > 0
+    ? Math.min(100, Math.round((totalWorkshopWatched / totalWorkshopDuration) * 100))
+    : (enrollment?.progress || 0);
+
+  const liveCompletedCount = videos.filter((v) => {
+    if (isVideoCompleted(v._id)) return true;
+    const seen = v._id === currentVideo?._id
+      ? Math.max(videoProgressMap[v._id] || 0, currentPlaybackTime)
+      : (videoProgressMap[v._id] || 0);
+    return v.duration > 0 && seen >= v.duration * 0.9;
+  }).length;
 
   const handleVideoEnded = async () => {
     await updateProgress(true);
@@ -1126,16 +1332,16 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           <div className="mt-3">
             <div className="flex items-center justify-between text-sm text-gray-400 mb-1">
               <span>{t.progress}</span>
-              <span>{enrollment?.progress || 0}%</span>
+              <span className="font-mono font-bold text-orange-400">{liveWorkshopProgress}%</span>
             </div>
             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-orange-500 rounded-full transition-all"
-                style={{ width: `${enrollment?.progress || 0}%` }}
+                className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-300"
+                style={{ width: `${liveWorkshopProgress}%` }}
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {completedCount}/{videos.length} {t.videos} {t.completed}
+              {liveCompletedCount}/{videos.length} {t.videos} {t.completed}
             </p>
           </div>
 
@@ -1472,6 +1678,54 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                                 </span>
                               )}
                             </div>
+
+                            {/* Video Seen & Progress Bar */}
+                            <div className="mt-2 w-full">
+                              <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5 font-mono">
+                                <span>
+                                  {formatDuration(
+                                    currentVideo?._id === video._id
+                                      ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                      : (videoProgressMap[video._id] || 0)
+                                  )} / {formatDuration(video.duration)}
+                                </span>
+                                <span className="text-orange-400 font-semibold">
+                                  {video.duration > 0
+                                    ? Math.min(
+                                        100,
+                                        Math.round(
+                                          ((currentVideo?._id === video._id
+                                            ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                            : (videoProgressMap[video._id] || 0)) /
+                                            video.duration) *
+                                            100
+                                        )
+                                      )
+                                    : (isVideoCompleted(video._id) ? 100 : 0)}%
+                                </span>
+                              </div>
+                              <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${
+                                      video.duration > 0
+                                        ? Math.min(
+                                            100,
+                                            Math.round(
+                                              ((currentVideo?._id === video._id
+                                                ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                                : (videoProgressMap[video._id] || 0)) /
+                                                video.duration) *
+                                                100
+                                            )
+                                          )
+                                        : (isVideoCompleted(video._id) ? 100 : 0)
+                                    }%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </button>
                       );
@@ -1591,6 +1845,54 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                               Playing
                             </span>
                           )}
+                        </div>
+
+                        {/* Video Seen & Progress Bar */}
+                        <div className="mt-2 w-full">
+                          <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5 font-mono">
+                            <span>
+                              {formatDuration(
+                                currentVideo?._id === video._id
+                                  ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                  : (videoProgressMap[video._id] || 0)
+                              )} / {formatDuration(video.duration)}
+                            </span>
+                            <span className="text-orange-400 font-semibold">
+                              {video.duration > 0
+                                ? Math.min(
+                                    100,
+                                    Math.round(
+                                      ((currentVideo?._id === video._id
+                                        ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                        : (videoProgressMap[video._id] || 0)) /
+                                        video.duration) *
+                                        100
+                                    )
+                                  )
+                                : (isVideoCompleted(video._id) ? 100 : 0)}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${
+                                  video.duration > 0
+                                    ? Math.min(
+                                        100,
+                                        Math.round(
+                                          ((currentVideo?._id === video._id
+                                            ? Math.max(videoProgressMap[video._id] || 0, currentPlaybackTime)
+                                            : (videoProgressMap[video._id] || 0)) /
+                                            video.duration) *
+                                            100
+                                        )
+                                      )
+                                    : (isVideoCompleted(video._id) ? 100 : 0)
+                                }%`,
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -2490,6 +2792,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     onContextMenu={(e) => { e.preventDefault(); return false; }}
                   >
                     <iframe
+                      ref={iframeRef}
+                      id="bunny-stream-player"
                       src={videoStream.streaming.playerUrl}
                       className="w-full h-full border-0 block"
                       allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
@@ -2506,7 +2810,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     muted={currentVideo.isFree}
                     className="w-full h-full"
                     videoRef={videoRef as any}
-                    onPlay={startProgressTracking}
                     onError={(err) => console.error('Video error:', err)}
                   />
                 ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
@@ -2531,10 +2834,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       muted={currentVideo.isFree}
                       playsInline
                       controls
-                      onPlay={startProgressTracking}
                       onEnded={handleVideoEnded}
                       onPause={() => updateProgress(false)}
-                      onTimeUpdate={handleTimeUpdate}
                       className="w-full h-full"
                       style={{ display: 'block' }}
                       crossOrigin="anonymous"
@@ -2545,6 +2846,46 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     Unable to load video
                   </div>
                 )}
+              </div>
+
+              {/* Second-to-Second Live Video & Workshop Progress Bar */}
+              <div className="w-full bg-gray-900 border-t border-gray-800 px-3 sm:px-6 py-2.5 flex flex-col gap-1.5 shadow-inner">
+                <div className="flex items-center justify-between text-xs font-mono text-gray-300 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      {isPlaying ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="text-emerald-400 font-bold">Watching Live</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-gray-500" />
+                          <span className="text-gray-400">Paused</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-gray-600">•</span>
+                    <span className="text-gray-200">
+                      Seen: <strong className="text-white font-bold">{formatDuration(currentPlaybackTime)}</strong> / {formatDuration(videoDuration || currentVideo.duration)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 ml-auto">
+                    <span className="text-xs font-bold text-orange-400 font-mono">
+                      {currentVideoProgressPercent}% Watched
+                    </span>
+                    <span className="text-gray-700">|</span>
+                    <span className="text-xs text-gray-400">
+                      Full Workshop: <strong className="text-emerald-400 font-bold">{liveWorkshopProgress}%</strong>
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden relative">
+                  <div
+                    className="h-full bg-gradient-to-r from-orange-500 via-amber-400 to-emerald-400 rounded-full transition-all duration-300"
+                    style={{ width: `${currentVideoProgressPercent}%` }}
+                  />
+                </div>
               </div>
 
               {/* Bottom Controls */}

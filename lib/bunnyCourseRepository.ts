@@ -1509,8 +1509,50 @@ export async function registerDevice(data: {
   ip?: string;
 }): Promise<BunnyCourseDevice> {
   await initCourseSchema();
-  const deviceId = id();
   const timestamp = now();
+
+  // Check if device already exists for this user and fingerprint
+  const existing = await bunnyExecute({
+    sql: 'SELECT * FROM course_devices_sql WHERE user_id = ? AND device_fingerprint = ? LIMIT 1',
+    args: [data.userId, data.deviceFingerprint],
+  });
+
+  if (existing.rows[0]) {
+    const existingId = String((existing.rows[0] as any).id);
+    await bunnyExecute({
+      sql: `UPDATE course_devices_sql SET
+        ip = CASE WHEN ? != '' THEN ? ELSE ip END,
+        device_name = CASE WHEN ? != '' THEN ? ELSE device_name END,
+        browser = CASE WHEN ? != '' THEN ? ELSE browser END,
+        os = CASE WHEN ? != '' THEN ? ELSE os END,
+        device_type = CASE WHEN ? != '' THEN ? ELSE device_type END,
+        last_active_at = ?,
+        updated_at = ?
+      WHERE id = ?`,
+      args: [
+        data.ip || '',
+        data.ip || '',
+        data.deviceName || '',
+        data.deviceName || '',
+        data.browser || '',
+        data.browser || '',
+        data.os || '',
+        data.os || '',
+        data.deviceType || '',
+        data.deviceType || '',
+        timestamp,
+        timestamp,
+        existingId,
+      ],
+    });
+    const updated = await bunnyExecute({
+      sql: 'SELECT * FROM course_devices_sql WHERE id = ? LIMIT 1',
+      args: [existingId],
+    });
+    return deviceRowToObj(updated.rows[0]);
+  }
+
+  const deviceId = id();
   await bunnyExecute({
     sql: `INSERT INTO course_devices_sql (
       id, user_id, course_id, device_fingerprint, device_name, device_type,
