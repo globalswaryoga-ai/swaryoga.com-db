@@ -599,11 +599,11 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 
                   {/* Thumbnail */}
                   {item.type === 'video' && item.thumbnail && (
-                    <div className="w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                    <div className="w-16 h-12 bg-gray-950 rounded-lg flex-shrink-0 overflow-hidden border border-gray-700 flex items-center justify-center">
                       <img
                         src={item.thumbnail}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         onError={(e) => (e.currentTarget.style.display = 'none')}
                       />
                     </div>
@@ -3105,6 +3105,11 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
               placeholder="https://example.com/thumbnail.jpg"
             />
+            {thumbnail && (
+              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              </div>
+            )}
             <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail</p>
           </div>
 
@@ -3568,6 +3573,11 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
               placeholder="https://example.com/thumbnail.jpg"
             />
+            {thumbnail && (
+              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

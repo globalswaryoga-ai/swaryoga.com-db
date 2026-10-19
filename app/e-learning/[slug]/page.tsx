@@ -247,8 +247,12 @@ export default function CourseDetailPage() {
       ) : (
       <div className="max-w-4xl mx-auto px-4 py-6 sm:p-6 md:p-8">
         {course.thumbnail && (
-          <div className="mb-8 rounded-2xl overflow-hidden">
-            <img src={course.thumbnail} alt={course.title} className="w-full h-48 sm:h-64 md:h-96 object-cover" />
+          <div className="mb-8 rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 shadow-sm flex items-center justify-center">
+            <img
+              src={course.thumbnail}
+              alt={course.title}
+              className="w-full h-auto max-h-[520px] object-contain block rounded-2xl"
+            />
           </div>
         )}
 

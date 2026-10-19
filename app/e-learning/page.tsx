@@ -530,13 +530,21 @@ export default function CoursesPage() {
                       className="group relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 h-full flex flex-col"
                     >
                       {/* Folder Thumbnail */}
-                      <div className="relative w-full aspect-video bg-gradient-to-br from-green-800 to-green-900 overflow-hidden">
+                      <div className="relative w-full aspect-video bg-gradient-to-br from-green-950 via-gray-900 to-green-900 overflow-hidden flex items-center justify-center">
                         {folder.thumbnail ? (
-                          <img
-                            src={folder.thumbnail}
-                            alt={folder.name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          />
+                          <>
+                            <img
+                              src={folder.thumbnail}
+                              alt=""
+                              aria-hidden="true"
+                              className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 pointer-events-none"
+                            />
+                            <img
+                              src={folder.thumbnail}
+                              alt={folder.name}
+                              className="relative z-10 w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                            />
+                          </>
                         ) : (
                           <div className="flex items-center justify-center h-full">
                             <svg className="w-16 h-16 text-green-400/50" fill="currentColor" viewBox="0 0 24 24">
@@ -546,7 +554,7 @@ export default function CoursesPage() {
                         )}
 
                         {/* Language Badge */}
-                        <div className="absolute top-3 right-3 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                        <div className="absolute top-3 right-3 z-20 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1 shadow-md">
                           <span className="text-lg">{folder.flag}</span>
                           <span>{folder.code.toUpperCase()}</span>
                         </div>
@@ -670,14 +678,22 @@ export default function CoursesPage() {
                 >
                   <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
                     {/* Thumbnail */}
-                    <div className="relative aspect-video bg-gradient-to-br from-green-800 to-green-900">
+                    <div className="relative aspect-video bg-gradient-to-br from-green-950 via-gray-900 to-green-900 overflow-hidden flex items-center justify-center">
                       {course.thumbnail && !course.thumbnail.includes('placehold') ? (
-                        <img
-                          src={course.thumbnail}
-                          alt={course.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          loading="lazy"
-                        />
+                        <>
+                          <img
+                            src={course.thumbnail}
+                            alt=""
+                            aria-hidden="true"
+                            className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 pointer-events-none"
+                          />
+                          <img
+                            src={course.thumbnail}
+                            alt={course.title}
+                            className="relative z-10 w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        </>
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
                           <svg className="w-12 h-12 text-green-400 mb-2" fill="currentColor" viewBox="0 0 24 24">
@@ -688,7 +704,7 @@ export default function CoursesPage() {
                       )}
 
                       {/* Badges */}
-                      <div className="absolute top-3 left-3 flex gap-2">
+                      <div className="absolute top-3 left-3 flex gap-2 z-20">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getLevelBadgeColor(course.level)}`}>
                           {getLevelLabel(course.level)}
                         </span>
@@ -706,7 +722,7 @@ export default function CoursesPage() {
 
                       {/* Gift Hours Badge */}
                       {course.giftHours?.enabled && !course.isEnrolled && (
-                        <div className="absolute bottom-3 left-3">
+                        <div className="absolute bottom-3 left-3 z-20">
                           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1">
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -718,7 +734,7 @@ export default function CoursesPage() {
 
                       {/* Progress overlay if enrolled */}
                       {course.isEnrolled && course.progress !== undefined && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 z-20">
                           <div className="flex items-center justify-between text-white text-sm mb-1">
                             <span>{t.progress}</span>
                             <span>{course.progress}%</span>

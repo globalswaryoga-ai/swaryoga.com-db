@@ -455,9 +455,12 @@ export default function ELearningPage() {
                   onClick={() => setSelectedFolder(folder)}
                   className="w-full block"
                 >
-                  <div className="relative h-40 bg-gradient-to-br from-green-800 to-green-900">
+                  <div className="relative h-40 bg-gradient-to-br from-green-950 via-gray-900 to-green-900 overflow-hidden flex items-center justify-center">
                     {folder.thumbnail ? (
-                      <img src={folder.thumbnail} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <>
+                        <img src={folder.thumbnail} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 scale-110 pointer-events-none" />
+                        <img src={folder.thumbnail} alt={folder.name} className="relative z-10 w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                      </>
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <Folder className="w-12 h-12 text-green-400/50" />
@@ -565,9 +568,9 @@ export default function ELearningPage() {
                 <tr key={course._id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-10 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 border border-gray-700">
+                      <div className="w-16 h-12 bg-gray-950 rounded-lg overflow-hidden flex-shrink-0 border border-gray-700 flex items-center justify-center">
                         {course.thumbnail ? (
-                          <img src={course.thumbnail} alt="" className="w-full h-full object-cover" />
+                          <img src={course.thumbnail} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Video className="w-5 h-5 text-gray-500" />
@@ -964,6 +967,11 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                 placeholder="https://example.com/thumb.jpg"
               />
+              {thumbnail && (
+                <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                  <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1557,6 +1565,11 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                 placeholder="https://example.com/thumb.jpg"
               />
+              {thumbnail && (
+                <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                  <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -2070,6 +2083,11 @@ function LanguageFolderModal({ token, folder, onClose, onSaved }: { token: strin
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
               placeholder="https://example.com/image.jpg"
             />
+            {thumbnail && (
+              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              </div>
+            )}
           </div>
 
           <div>

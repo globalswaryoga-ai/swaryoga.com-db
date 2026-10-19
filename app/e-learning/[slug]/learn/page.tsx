@@ -1588,12 +1588,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                           }`}
                         >
                           {/* Video Thumbnail */}
-                          <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
+                          <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-950 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors flex items-center justify-center">
                             {video.thumbnail ? (
                               <img
                                 src={video.thumbnail}
                                 alt={video.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                                 loading="lazy"
                                 onError={(e) => {
                                   const target = e.currentTarget as HTMLImageElement;
@@ -1756,12 +1756,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       }`}
                     >
                       {/* Video Thumbnail */}
-                      <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-900 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors">
+                      <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-lg overflow-hidden bg-gray-950 flex-shrink-0 border border-gray-700/80 shadow-md group-hover:border-gray-500 transition-colors flex items-center justify-center">
                         {video.thumbnail ? (
                           <img
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
                             onError={(e) => {
                               const target = e.currentTarget as HTMLImageElement;

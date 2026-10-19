@@ -169,29 +169,31 @@ export default function CourseVideosPage() {
                   }`}
                 >
                   {/* Video Thumbnail */}
-                  <div className="relative h-48 bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden group">
-                    {video.thumbnail && video.thumbnail.trim() ? (
-                      <img
-                        src={video.thumbnail}
-                        alt={video.title}
-                        className={`w-full h-full object-cover transition-transform duration-300 ${
-                          isLocked ? 'brightness-90 group-hover:scale-105' : 'group-hover:scale-105'
-                        }`}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          if (course.thumbnail && target.src !== course.thumbnail) {
-                            target.src = course.thumbnail;
-                          } else {
-                            target.style.display = 'none';
-                          }
-                        }}
-                      />
-                    ) : course.thumbnail ? (
-                      <img
-                        src={course.thumbnail}
-                        alt={video.title}
-                        className="w-full h-full object-cover"
-                      />
+                  <div className="relative aspect-video bg-gradient-to-br from-gray-950 to-gray-900 overflow-hidden group flex items-center justify-center">
+                    {(video.thumbnail && video.thumbnail.trim()) || course.thumbnail ? (
+                      <>
+                        <img
+                          src={video.thumbnail && video.thumbnail.trim() ? video.thumbnail : course.thumbnail}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 scale-110 pointer-events-none"
+                        />
+                        <img
+                          src={video.thumbnail && video.thumbnail.trim() ? video.thumbnail : course.thumbnail}
+                          alt={video.title}
+                          className={`relative z-10 w-full h-full object-contain transition-transform duration-300 ${
+                            isLocked ? 'brightness-90 group-hover:scale-105' : 'group-hover:scale-105'
+                          }`}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (course.thumbnail && target.src !== course.thumbnail) {
+                              target.src = course.thumbnail;
+                            } else {
+                              target.style.display = 'none';
+                            }
+                          }}
+                        />
+                      </>
                     ) : (
                       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
                         <Play size={48} className="text-white/60" />
@@ -200,7 +202,7 @@ export default function CourseVideosPage() {
 
                     {/* Overlay */}
                     <div
-                      className={`absolute inset-0 flex items-center justify-center transition-all ${
+                      className={`absolute inset-0 z-20 flex items-center justify-center transition-all ${
                         isLocked ? 'bg-black/35 group-hover:bg-black/20' : 'bg-black/0 group-hover:bg-black/25'
                       }`}
                     >
@@ -216,7 +218,7 @@ export default function CourseVideosPage() {
                     </div>
 
                     {/* Badges */}
-                    <div className="absolute top-3 right-3 flex gap-2">
+                    <div className="absolute top-3 right-3 z-20 flex gap-2">
                       {isVideo1 ? (
                         <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                           <Sparkles size={12} /> FREE • INSTANT PLAY
@@ -234,7 +236,7 @@ export default function CourseVideosPage() {
 
                     {/* Duration */}
                     {video.duration ? (
-                      <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded shadow">
+                      <div className="absolute bottom-2 right-2 z-20 bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded shadow">
                         {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
                       </div>
                     ) : null}

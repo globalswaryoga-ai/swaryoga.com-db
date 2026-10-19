@@ -460,6 +460,11 @@ export default function EditCoursePage() {
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                 placeholder="https://example.com/thumb.jpg"
               />
+              {thumbnail && (
+                <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
+                  <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                </div>
+              )}
             </div>
           </div>
 
