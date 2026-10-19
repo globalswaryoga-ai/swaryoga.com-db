@@ -797,8 +797,10 @@ export async function GET(request: NextRequest) {
     // List all enrollments
     const userId = request.nextUrl.searchParams.get('userId');
     const courseId = request.nextUrl.searchParams.get('courseId');
+    const folderId = request.nextUrl.searchParams.get('folderId');
+    const timeframe = request.nextUrl.searchParams.get('timeframe') || 'all';
     const page = parseInt(request.nextUrl.searchParams.get('page') || '1');
-    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '20');
+    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50');
 
     const conditions: string[] = [];
     const args: any[] = [];
@@ -810,6 +812,39 @@ export async function GET(request: NextRequest) {
     if (courseId) {
       conditions.push('course_id = ?');
       args.push(courseId);
+    } else if (folderId) {
+      const folderCourses = await bunnyExecute({
+        sql: 'SELECT id FROM recorded_courses_sql WHERE folder_id = ?',
+        args: [folderId],
+      }).catch(() => ({ rows: [] }));
+      const ids = folderCourses.rows.map((r: any) => String(r.id));
+      if (ids.length > 0) {
+        conditions.push(`course_id IN (${ids.map(() => '?').join(',')})`);
+        args.push(...ids);
+      } else {
+        conditions.push('1 = 0');
+      }
+    }
+
+    // Base conditions for timeframe stats (scoped to user/course/folder)
+    const baseConditions = [...conditions];
+    const baseArgs = [...args];
+    const baseWhere = baseConditions.length > 0 ? `WHERE ${baseConditions.join(' AND ')}` : '';
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startOfWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    if (timeframe === 'today') {
+      conditions.push('enrolled_at >= ?');
+      args.push(startOfToday);
+    } else if (timeframe === 'week') {
+      conditions.push('enrolled_at >= ?');
+      args.push(startOfWeek);
+    } else if (timeframe === 'month') {
+      conditions.push('enrolled_at >= ?');
+      args.push(startOfMonth);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -818,6 +853,33 @@ export async function GET(request: NextRequest) {
       args,
     });
     const total = Number(countRes.rows[0]?.cnt || 0);
+
+    // Compute stats for all 4 cards
+    const [allCountRes, todayCountRes, weekCountRes, monthCountRes] = await Promise.all([
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere}`,
+        args: baseArgs,
+      }).catch(() => ({ rows: [{ cnt: 0 }] })),
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
+        args: [...baseArgs, startOfToday],
+      }).catch(() => ({ rows: [{ cnt: 0 }] })),
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
+        args: [...baseArgs, startOfWeek],
+      }).catch(() => ({ rows: [{ cnt: 0 }] })),
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as cnt FROM course_enrollments_sql ${baseWhere ? `${baseWhere} AND` : 'WHERE'} enrolled_at >= ?`,
+        args: [...baseArgs, startOfMonth],
+      }).catch(() => ({ rows: [{ cnt: 0 }] })),
+    ]);
+
+    const stats = {
+      all: Number(allCountRes.rows[0]?.cnt || 0),
+      today: Number(todayCountRes.rows[0]?.cnt || 0),
+      week: Number(weekCountRes.rows[0]?.cnt || 0),
+      month: Number(monthCountRes.rows[0]?.cnt || 0),
+    };
 
     const offset = (page - 1) * limit;
     const listRes = await bunnyExecute({
@@ -851,6 +913,8 @@ export async function GET(request: NextRequest) {
       success: true,
       enrollments,
       total,
+      stats,
+      timeframe,
       page,
       pages: Math.ceil(total / limit) || 1,
     });

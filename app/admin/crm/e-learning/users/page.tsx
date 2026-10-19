@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon } from 'lucide-react';
+import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon, Calendar, Globe, Sparkles } from 'lucide-react';
 
 interface Enrollment {
   _id: string;
@@ -60,6 +60,15 @@ export default function ELearningUsersPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Timeframe filter state (All Students, Today, Week, Month)
+  const [timeframe, setTimeframe] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [stats, setStats] = useState({
+    all: 0,
+    today: 0,
+    week: 0,
+    month: 0,
+  });
 
   // Hierarchical navigation state
   const [folders, setFolders] = useState<LanguageFolder[]>([]);
@@ -147,7 +156,7 @@ export default function ELearningUsersPage() {
     }
   }, [token]);
 
-  // Fetch enrollments for selected course or all
+  // Fetch enrollments for selected course, folder, timeframe or search
   const fetchEnrollments = useCallback(async () => {
     if (!token) return;
 
@@ -155,11 +164,13 @@ export default function ELearningUsersPage() {
       setLoading(true);
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '20',
+        limit: '50',
       });
 
-      if (search) params.append('search', search);
+      if (search.trim()) params.append('search', search.trim());
+      if (selectedFolderId && !selectedCourseId) params.append('folderId', selectedFolderId);
       if (selectedCourseId) params.append('courseId', selectedCourseId);
+      if (timeframe && timeframe !== 'all') params.append('timeframe', timeframe);
 
       const res = await fetch(`/api/admin/e-learning/enrollments?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -171,13 +182,16 @@ export default function ELearningUsersPage() {
         setEnrollments(data.enrollments || []);
         setTotal(data.total);
         setTotalPages(data.pages);
+        if (data.stats) {
+          setStats(data.stats);
+        }
       }
     } catch (err) {
       console.error('Error fetching enrollments:', err);
     } finally {
       setLoading(false);
     }
-  }, [token, page, search, selectedCourseId]);
+  }, [token, page, search, selectedFolderId, selectedCourseId, timeframe]);
 
   // Load folders on mount
   useEffect(() => {
@@ -438,6 +452,27 @@ export default function ELearningUsersPage() {
     }
   };
 
+  const availableCourses = (selectedFolderId && courses.length > 0)
+    ? courses
+    : (selectedFolderId
+        ? allCourses.filter((c: any) => c.folderId === selectedFolderId || (c as any).folder_id === selectedFolderId)
+        : allCourses);
+
+  const filteredEnrollments = enrollments.filter((e) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    const nameMatch = (e.userId?.name || '').toLowerCase().includes(q);
+    const emailMatch = (e.userId?.email || '').toLowerCase().includes(q);
+    const phoneMatch = (e.userId?.phone || '').toLowerCase().includes(q);
+    const courseMatch = (
+      (e.courseId as any)?.title ||
+      (e.courseId as any)?.content?.en?.title ||
+      e.courseId?.slug ||
+      ''
+    ).toLowerCase().includes(q);
+    return nameMatch || emailMatch || phoneMatch || courseMatch;
+  });
+
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
@@ -502,129 +537,363 @@ export default function ELearningUsersPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="max-w-md relative">
-          <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search by name, email, or phone..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-900/50 border border-gray-800 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-          />
+      </div>
+
+            {/* 4 Quick Filter Cards: All Students, Today, Week, Month with View Button */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Card 1: All Students */}
+        <div
+          onClick={() => {
+            setTimeframe('all');
+            setPage(1);
+          }}
+          className={`relative p-5 rounded-2xl border transition-all cursor-pointer group flex flex-col justify-between ${
+            timeframe === 'all'
+              ? 'bg-gradient-to-br from-emerald-950/60 via-gray-900/90 to-gray-950 border-emerald-500 ring-2 ring-emerald-500/40 shadow-xl shadow-emerald-500/10'
+              : 'bg-[#0e1522] border-gray-800/90 hover:border-gray-700 hover:bg-[#131c2d]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">All Students</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-mono">
+                {stats.all || total || enrollments.length}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">Total registered database</p>
+            </div>
+            <div className={`p-3 rounded-xl border ${timeframe === 'all' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-emerald-400'}`}>
+              <Users className="w-6 h-6" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-800/60 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-gray-400">
+              {timeframe === 'all' ? 'Active view' : 'Filter all time'}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTimeframe('all');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                timeframe === 'all'
+                  ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/30 font-extrabold'
+                  : 'bg-gray-800 text-gray-200 hover:bg-emerald-600 hover:text-white'
+              }`}
+            >
+              <span>{timeframe === 'all' ? 'Viewing ✓' : 'View All ↗'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Today */}
+        <div
+          onClick={() => {
+            setTimeframe('today');
+            setPage(1);
+          }}
+          className={`relative p-5 rounded-2xl border transition-all cursor-pointer group flex flex-col justify-between ${
+            timeframe === 'today'
+              ? 'bg-gradient-to-br from-cyan-950/60 via-gray-900/90 to-gray-950 border-cyan-500 ring-2 ring-cyan-500/40 shadow-xl shadow-cyan-500/10'
+              : 'bg-[#0e1522] border-gray-800/90 hover:border-gray-700 hover:bg-[#131c2d]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Today</p>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  New
+                </span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-mono">
+                {stats.today}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">Enrolled today</p>
+            </div>
+            <div className={`p-3 rounded-xl border ${timeframe === 'today' ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-cyan-400'}`}>
+              <Calendar className="w-6 h-6" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-800/60 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-gray-400">
+              {timeframe === 'today' ? 'Active view' : 'Filter today only'}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTimeframe('today');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                timeframe === 'today'
+                  ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/30 font-extrabold'
+                  : 'bg-gray-800 text-gray-200 hover:bg-cyan-600 hover:text-white'
+              }`}
+            >
+              <span>{timeframe === 'today' ? 'Viewing ✓' : 'View Today ↗'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 3: This Week */}
+        <div
+          onClick={() => {
+            setTimeframe('week');
+            setPage(1);
+          }}
+          className={`relative p-5 rounded-2xl border transition-all cursor-pointer group flex flex-col justify-between ${
+            timeframe === 'week'
+              ? 'bg-gradient-to-br from-purple-950/60 via-gray-900/90 to-gray-950 border-purple-500 ring-2 ring-purple-500/40 shadow-xl shadow-purple-500/10'
+              : 'bg-[#0e1522] border-gray-800/90 hover:border-gray-700 hover:bg-[#131c2d]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">This Week</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-mono">
+                {stats.week}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">Past 7 days enrollments</p>
+            </div>
+            <div className={`p-3 rounded-xl border ${timeframe === 'week' ? 'bg-purple-500/20 border-purple-500/40 text-purple-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-purple-400'}`}>
+              <Clock className="w-6 h-6" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-800/60 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-gray-400">
+              {timeframe === 'week' ? 'Active view' : 'Filter past 7 days'}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTimeframe('week');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                timeframe === 'week'
+                  ? 'bg-purple-500 text-white shadow-md shadow-purple-500/30 font-extrabold'
+                  : 'bg-gray-800 text-gray-200 hover:bg-purple-600 hover:text-white'
+              }`}
+            >
+              <span>{timeframe === 'week' ? 'Viewing ✓' : 'View Week ↗'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 4: This Month */}
+        <div
+          onClick={() => {
+            setTimeframe('month');
+            setPage(1);
+          }}
+          className={`relative p-5 rounded-2xl border transition-all cursor-pointer group flex flex-col justify-between ${
+            timeframe === 'month'
+              ? 'bg-gradient-to-br from-amber-950/60 via-gray-900/90 to-gray-950 border-amber-500 ring-2 ring-amber-500/40 shadow-xl shadow-amber-500/10'
+              : 'bg-[#0e1522] border-gray-800/90 hover:border-gray-700 hover:bg-[#131c2d]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">This Month</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 font-mono">
+                {stats.month}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">Current month enrollments</p>
+            </div>
+            <div className={`p-3 rounded-xl border ${timeframe === 'month' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-gray-800/80 border-gray-700 text-gray-400 group-hover:text-amber-400'}`}>
+              <TrendingUp className="w-6 h-6" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-800/60 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-gray-400">
+              {timeframe === 'month' ? 'Active view' : 'Filter current month'}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTimeframe('month');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                timeframe === 'month'
+                  ? 'bg-amber-500 text-black shadow-md shadow-amber-500/30 font-extrabold'
+                  : 'bg-gray-800 text-gray-200 hover:bg-amber-600 hover:text-white'
+              }`}
+            >
+              <span>{timeframe === 'month' ? 'Viewing ✓' : 'View Month ↗'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* HIERARCHICAL NAVIGATION SECTION */}
-      {/* Step 1: Language Folders */}
-      {!selectedFolderId ? (
-        <div className="mb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Select Language</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {folders.map((folder) => (
-              <button
-                key={folder._id}
-                onClick={() => setSelectedFolderId(folder._id)}
-                className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl hover:border-green-500/50 hover:bg-gray-900 transition-all"
+      {/* Side-by-side Filter Panel: Select Language, Select Workshop Name, and Search */}
+      <div className="bg-[#0b1019] border border-gray-800 rounded-2xl p-4 sm:p-5 mb-6 shadow-xl space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Select Language (Col 4) */}
+          <div className="md:col-span-4 space-y-1.5">
+            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Globe size={14} className="text-emerald-400" />
+              <span>Select Language</span>
+              {selectedFolderId && (
+                <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                  Active
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <select
+                value={selectedFolderId || ''}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  setSelectedFolderId(val);
+                  setSelectedCourseId(null);
+                  setPage(1);
+                }}
+                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
               >
-                <div className="text-3xl mb-2">{LANGUAGE_FLAGS[folder.code] || '🌍'}</div>
-                <div className="text-sm font-semibold text-white">{folder.name}</div>
-              </button>
-            ))}
+                <option value="">🌐 All Languages ({folders.length} available)</option>
+                {folders.map((folder) => (
+                  <option key={folder._id} value={folder._id}>
+                    {LANGUAGE_FLAGS[folder.code] || '🌍'} {folder.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
+                ▼
+              </div>
+            </div>
           </div>
-        </div>
-      ) : !selectedCourseId ? (
-        // Step 2: Workshops in selected language
-        <div className="mb-8">
-          <button
-            onClick={() => {
-              setSelectedFolderId(null);
-              setCourses([]);
-            }}
-            className="mb-4 flex items-center gap-2 text-green-400 hover:text-green-300"
-          >
-            ← Back to Languages
-          </button>
-          <h2 className="text-xl font-bold text-white mb-4">
-            {folders.find(f => f._id === selectedFolderId)?.name} Workshops
-          </h2>
-          {hierarchyLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader className="w-6 h-6 animate-spin text-green-500" />
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="text-center py-8 bg-gray-900/50 rounded-xl border border-gray-800">
-              <p className="text-gray-400">No workshops in this language</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {courses.map((course) => (
-                <button
-                  key={course._id}
-                  onClick={() => setSelectedCourseId(course._id)}
-                  className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl hover:border-green-500/50 hover:bg-gray-900 transition-all text-left"
-                >
-                  <div className="font-semibold text-white">{course.content.en.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">{course.slug}</div>
-                  <div className="text-xs text-gray-500 mt-2">{course.level}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        // Step 3: Enrolled users in selected workshop
-        <div className="mb-8">
-          <button
-            onClick={() => {
-              setSelectedCourseId(null);
-              setPage(1);
-            }}
-            className="mb-2 flex items-center gap-2 text-green-400 hover:text-green-300 text-sm"
-          >
-            ← Back to Workshops
-          </button>
-          <div className="mb-4 flex items-center gap-2 text-gray-400 text-sm">
-            <span>Users</span>
-            <ChevronRight size={16} />
-            <span>{folders.find(f => f._id === selectedFolderId)?.name}</span>
-            <ChevronRight size={16} />
-            <span>{courses.find(c => c._id === selectedCourseId)?.content.en.title}</span>
-          </div>
-        </div>
-      )}
 
-      {/* Show stats and enrollments table only in flat view or when course selected */}
-      {(selectedCourseId || (!selectedFolderId && !selectedCourseId)) && (
-        <>
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Total Enrollments</p>
-              <p className="text-3xl font-bold text-white mt-2">{total}</p>
+          {/* Select Workshop Name (Col 4) */}
+          <div className="md:col-span-4 space-y-1.5">
+            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Award size={14} className="text-emerald-400" />
+              <span>Select Workshop Name</span>
+              {selectedCourseId && (
+                <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                  Active
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCourseId || ''}
+                onChange={(e) => {
+                  setSelectedCourseId(e.target.value || null);
+                  setPage(1);
+                }}
+                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
+              >
+                <option value="">
+                  🎓 All Workshops ({availableCourses.length} available)
+                </option>
+                {availableCourses.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.content?.en?.title || c.slug} ({c.level || 'All'})
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
+                ▼
+              </div>
             </div>
-            <Users className="w-10 h-10 text-green-500/30" />
+          </div>
+
+          {/* Search by Name, Email, Phone (Col 4) */}
+          <div className="md:col-span-4 space-y-1.5">
+            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Search size={14} className="text-emerald-400" />
+              <span>Search Student</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by name, email, or phone..."
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+              />
+              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => handleSearch('')}
+                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-white p-0.5"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Active Users</p>
-              <p className="text-3xl font-bold text-white mt-2">{enrollments.filter(e => e.status === 'active').length}</p>
-            </div>
-            <TrendingUp className="w-10 h-10 text-blue-500/30" />
+
+        {/* Quick Language Pill Buttons for 1-Click filter */}
+        <div className="pt-2 border-t border-gray-800/70 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+              Languages:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFolderId(null);
+                setSelectedCourseId(null);
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                !selectedFolderId
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
+              }`}
+            >
+              All Languages
+            </button>
+            {folders.map((folder) => {
+              const isSelected = selectedFolderId === folder._id;
+              return (
+                <button
+                  key={folder._id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFolderId(isSelected ? null : folder._id);
+                    setSelectedCourseId(null);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    isSelected
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
+                  }`}
+                >
+                  <span>{LANGUAGE_FLAGS[folder.code] || '🌍'}</span>
+                  <span>{folder.name}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Page</p>
-              <p className="text-3xl font-bold text-white mt-2">{page} of {totalPages}</p>
-            </div>
-            <Clock className="w-10 h-10 text-yellow-500/30" />
-          </div>
+
+          {/* Reset Filters button if any active */}
+          {(timeframe !== 'all' || selectedFolderId || selectedCourseId || search) && (
+            <button
+              type="button"
+              onClick={() => {
+                setTimeframe('all');
+                setSelectedFolderId(null);
+                setSelectedCourseId(null);
+                setSearch('');
+                setPage(1);
+              }}
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 transition-all font-semibold ml-auto"
+            >
+              <X size={12} />
+              <span>Clear All Filters</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -700,7 +969,7 @@ export default function ELearningUsersPage() {
                   </td>
                 </tr>
               )}
-              {enrollments.map((enrollment) => {
+              {filteredEnrollments.map((enrollment) => {
                 // Skip rows where userId or courseId is null
                 if (!enrollment.userId || !enrollment.courseId) {
                   return null;
@@ -814,8 +1083,6 @@ export default function ELearningUsersPage() {
             Next
           </button>
         </div>
-      )}
-        </>
       )}
 
       {/* ADD STUDENT MODAL */}
