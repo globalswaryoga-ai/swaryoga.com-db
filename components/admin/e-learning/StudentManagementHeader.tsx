@@ -88,33 +88,54 @@ export default function StudentManagementHeader({
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate">
-                {studentName}
-              </h1>
-              <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 capitalize">
-                {enrollment?.status || 'Active'}
-              </span>
-              <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 capitalize">
-                {enrollment?.purchaseType || 'Paid'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-gray-300">{studentEmail}</span>
-              {studentPhone && <span className="text-gray-300">• {studentPhone}</span>}
-              <span>• Course: <strong className="text-emerald-400 font-semibold">{currentCourseTitle}</strong></span>
-            </p>
-            {(displayIp || displayDevice || displayLocation) && (
-              <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
-                {displayDevice && <span>Device: <span className="text-gray-400">{displayDevice}</span></span>}
-                {displayIp && (
-                  <span className="flex items-center gap-1">
-                    • <Wifi size={11} className="text-cyan-400" />
-                    IP: <span className="text-cyan-300 font-mono">{displayIp}</span>
+            {activePage === 'videos' ? (
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Award className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate">
+                    {currentCourseTitle}
+                  </h1>
+                  <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 capitalize">
+                    {enrollment?.status || 'Active'}
                   </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                  <span>Student: <strong className="text-gray-200 font-semibold">{studentName}</strong></span>
+                  <span className="text-gray-600">•</span>
+                  <span>Workshop Video Controls & Watching Progress Hub</span>
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate">
+                    {studentName}
+                  </h1>
+                  <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 capitalize">
+                    {enrollment?.status || 'Active'}
+                  </span>
+                  <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 capitalize">
+                    {enrollment?.purchaseType || 'Paid'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-gray-300">{studentEmail}</span>
+                  {studentPhone && <span className="text-gray-300">• {studentPhone}</span>}
+                  <span>• Course: <strong className="text-emerald-400 font-semibold">{currentCourseTitle}</strong></span>
+                </p>
+                {(displayIp || displayDevice || displayLocation) && (
+                  <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                    {displayDevice && <span>Device: <span className="text-gray-400">{displayDevice}</span></span>}
+                    {displayIp && (
+                      <span className="flex items-center gap-1">
+                        • <Wifi size={11} className="text-cyan-400" />
+                        IP: <span className="text-cyan-300 font-mono">{displayIp}</span>
+                      </span>
+                    )}
+                    {displayLocation && <span>• Location: <span className="text-gray-400">{displayLocation}</span></span>}
+                  </p>
                 )}
-                {displayLocation && <span>• Location: <span className="text-gray-400">{displayLocation}</span></span>}
-              </p>
+              </div>
             )}
           </div>
         </div>
