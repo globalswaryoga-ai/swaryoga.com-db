@@ -782,6 +782,21 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     }
   };
 
+  const isVideoCompleted = (videoId: string) => {
+    const watched = enrollment?.videosWatched?.some((watchedVideo) => {
+      const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
+      return String(watchedId) === videoId;
+    });
+    const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
+    return watched || completed || false;
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Workshop & Single Video live calculations
   const currentVideoProgressPercent = (videoDuration || currentVideo?.duration || 0) > 0
     ? Math.min(100, Math.round((currentPlaybackTime / (videoDuration || currentVideo?.duration || 1)) * 100))
@@ -915,21 +930,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       newExpanded.add(sectionId);
     }
     setExpandedSections(newExpanded);
-  };
-
-  const isVideoCompleted = (videoId: string) => {
-    const watched = enrollment?.videosWatched?.some((watchedVideo) => {
-      const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
-      return String(watchedId) === videoId;
-    });
-    const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
-    return watched || completed || false;
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const completedCount = enrollment?.videosWatched?.length || enrollment?.completedVideos?.length || 0;

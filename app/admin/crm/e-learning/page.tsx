@@ -760,6 +760,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
   const [discount, setDiscount] = useState(String(course.discount || 0));
   const [promoCode, setPromoCode] = useState(course.promoCode || '');
   const [promoDiscount, setPromoDiscount] = useState(String((course as any).promoDiscount || 0));
+  const [promoSubmitted, setPromoSubmitted] = useState(Boolean(course.promoCode));
   const [isFree, setIsFree] = useState(course.isFree || false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1125,13 +1126,35 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                 {/* ───────────────────────────────────────────────────────────── */}
                 <div className="bg-gradient-to-br from-gray-900 to-blue-950/40 rounded-xl p-4 border border-blue-500/40 mb-5 shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
                         Way 2
                       </span>
                       <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
+                      {promoSubmitted && promoCode.trim() && parseInt(promoDiscount) > 0 && (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF)</span>
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-blue-300">Circulate to people • Applied at payment option</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-blue-300 hidden md:inline">Circulate to people • Applied at payment option</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!promoCode.trim()) {
+                            alert('Please enter a promo code first.');
+                            return;
+                          }
+                          setPromoSubmitted(true);
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1.5 border border-blue-400/40"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{promoSubmitted && promoCode.trim() ? '✓ Added' : 'Submit'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
@@ -1141,7 +1164,10 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                         <label className="text-xs font-medium text-gray-300">Promo Code to Circulate</label>
                         <button
                           type="button"
-                          onClick={() => setPromoCode('SWAR010')}
+                          onClick={() => {
+                            setPromoCode('SWAR010');
+                            setPromoSubmitted(true);
+                          }}
                           className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2"
                         >
                           Use SWAR010
@@ -1150,7 +1176,10 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                       <input
                         type="text"
                         value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                        onChange={(e) => {
+                          setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''));
+                          setPromoSubmitted(false);
+                        }}
                         className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none uppercase font-mono tracking-wider text-sm"
                         placeholder="e.g. SWAR010"
                       />
@@ -1169,6 +1198,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                           onChange={(e) => {
                             const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                             setPromoDiscount(String(val));
+                            setPromoSubmitted(false);
                           }}
                           className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                           placeholder="20"
@@ -1190,7 +1220,10 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                         <button
                           key={pct}
                           type="button"
-                          onClick={() => setPromoDiscount(String(pct))}
+                          onClick={() => {
+                            setPromoDiscount(String(pct));
+                            if (promoCode.trim()) setPromoSubmitted(true);
+                          }}
                           className={`py-1.5 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
                             parseInt(promoDiscount) === pct
                               ? 'bg-blue-500/30 border-blue-500 text-blue-300 ring-2 ring-blue-500/50'
@@ -1201,6 +1234,34 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Submit / Add Promo Code Action Bar */}
+                  <div className="flex items-center justify-between gap-3 mb-3 p-2.5 bg-blue-950/30 border border-blue-500/30 rounded-lg">
+                    <div className="text-xs text-gray-300">
+                      {promoSubmitted && promoCode.trim() ? (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          Promo code added &amp; active in header!
+                        </span>
+                      ) : (
+                        <span>Ready to add? Click Submit to activate and show in header.</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!promoCode.trim()) {
+                          alert('Please enter a promo code first.');
+                          return;
+                        }
+                        setPromoSubmitted(true);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1.5 border border-blue-400/40"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{promoSubmitted && promoCode.trim() ? '✓ Promo Code Added' : 'Submit & Add Promo Code'}</span>
+                    </button>
                   </div>
 
                   {/* Promo Live Preview */}
@@ -1292,6 +1353,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
   const [discount, setDiscount] = useState('0');
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState('0');
+  const [promoSubmitted, setPromoSubmitted] = useState(false);
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1657,13 +1719,35 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                 {/* ───────────────────────────────────────────────────────────── */}
                 <div className="bg-gradient-to-br from-gray-900 to-blue-950/40 rounded-xl p-4 border border-blue-500/40 mb-5 shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-700/60">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">
                         Way 2
                       </span>
                       <h4 className="text-sm font-bold text-white">Secret Circulated Promo Code</h4>
+                      {promoSubmitted && promoCode.trim() && parseInt(promoDiscount) > 0 && (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Added: <span className="font-mono text-white underline">{promoCode.trim()}</span> ({promoDiscount}% OFF)</span>
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-blue-300">Circulate to people • Applied at payment option</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-blue-300 hidden md:inline">Circulate to people • Applied at payment option</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!promoCode.trim()) {
+                            alert('Please enter a promo code first.');
+                            return;
+                          }
+                          setPromoSubmitted(true);
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1.5 border border-blue-400/40"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{promoSubmitted && promoCode.trim() ? '✓ Added' : 'Submit'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
@@ -1673,7 +1757,10 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                         <label className="text-xs font-medium text-gray-300">Promo Code to Circulate</label>
                         <button
                           type="button"
-                          onClick={() => setPromoCode('SWAR010')}
+                          onClick={() => {
+                            setPromoCode('SWAR010');
+                            setPromoSubmitted(true);
+                          }}
                           className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2"
                         >
                           Use SWAR010
@@ -1682,7 +1769,10 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                       <input
                         type="text"
                         value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                        onChange={(e) => {
+                          setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''));
+                          setPromoSubmitted(false);
+                        }}
                         className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none uppercase font-mono tracking-wider text-sm"
                         placeholder="e.g. SWAR010"
                       />
@@ -1701,6 +1791,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                           onChange={(e) => {
                             const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                             setPromoDiscount(String(val));
+                            setPromoSubmitted(false);
                           }}
                           className="w-full px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                           placeholder="20"
@@ -1722,7 +1813,10 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                         <button
                           key={pct}
                           type="button"
-                          onClick={() => setPromoDiscount(String(pct))}
+                          onClick={() => {
+                            setPromoDiscount(String(pct));
+                            if (promoCode.trim()) setPromoSubmitted(true);
+                          }}
                           className={`py-1.5 px-1 text-xs font-bold rounded-lg border transition-all text-center ${
                             parseInt(promoDiscount) === pct
                               ? 'bg-blue-500/30 border-blue-500 text-blue-300 ring-2 ring-blue-500/50'
@@ -1733,6 +1827,34 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Submit / Add Promo Code Action Bar */}
+                  <div className="flex items-center justify-between gap-3 mb-3 p-2.5 bg-blue-950/30 border border-blue-500/30 rounded-lg">
+                    <div className="text-xs text-gray-300">
+                      {promoSubmitted && promoCode.trim() ? (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          Promo code added &amp; active in header!
+                        </span>
+                      ) : (
+                        <span>Ready to add? Click Submit to activate and show in header.</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!promoCode.trim()) {
+                          alert('Please enter a promo code first.');
+                          return;
+                        }
+                        setPromoSubmitted(true);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1.5 border border-blue-400/40"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{promoSubmitted && promoCode.trim() ? '✓ Promo Code Added' : 'Submit & Add Promo Code'}</span>
+                    </button>
                   </div>
 
                   {/* Promo Live Preview */}
