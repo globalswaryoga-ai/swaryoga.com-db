@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
     try {
       const cohort = await getCohort(cohortId);
       if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      if (!isSuperAdmin(decoded, request) && cohort.createdByUserId !== decoded.userId) {
+        return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      }
       const [students, attendance, recordings, zoomMappings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId), listBunnyZoomMappings()]);
       const zoomMapping = cohort.zoomMeetingId ? zoomMappings.find(m => m.zoomMeetingId === cohort.zoomMeetingId) || null : null;
       return NextResponse.json({ cohort, students, attendance, recordings, zoomMapping });
@@ -28,7 +31,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshop' }, { status: 500 });
     }
   }
-  try { return NextResponse.json({ cohorts: await listCohorts() }); }
+  try {
+    const superAdmin = isSuperAdmin(decoded, request);
+    const cohorts = await listCohorts(superAdmin ? undefined : decoded.userId);
+    return NextResponse.json({ cohorts });
+  }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshops' }, { status: 500 }); }
 }
 
@@ -50,7 +57,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const existing = await getCohort(body.cohortId);
     if (!existing) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-    if (!isSuperAdmin(decoded) && existing.createdByUserId !== decoded.userId)
+    if (!isSuperAdmin(decoded, request) && existing.createdByUserId !== decoded.userId)
       return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
     if (body.recordingAccess !== undefined) {
       let policy;
@@ -239,6 +246,11 @@ export async function DELETE(request: NextRequest) {
   const cohortId = request.nextUrl.searchParams.get('cohortId');
   if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
   try {
+    const existing = await getCohort(cohortId);
+    if (!existing) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    if (!isSuperAdmin(decoded, request) && existing.createdByUserId !== decoded.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     await deleteCohort(cohortId);
     return NextResponse.json({ success: true });
   } catch (error) {

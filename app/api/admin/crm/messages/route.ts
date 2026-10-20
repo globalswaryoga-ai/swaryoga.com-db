@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const viewerUserId = verifyAdminAccess(request);
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
@@ -74,6 +74,11 @@ export async function GET(request: NextRequest) {
     });
 
     if (!superAdmin) {
+      const tenantCreds = await getMetaCredentialsForTenant(viewerUserId);
+      if (!tenantCreds) {
+        return formatCrmSuccess({ messages: [], total: 0, needsSetup: true }, buildMetadata(0, limit, skip));
+      }
+
       let isAccessible = false;
       if (filterParams.leadId) {
         const lead = await getBunnyLeadById(filterParams.leadId);
@@ -147,7 +152,7 @@ export async function POST(request: NextRequest) {
     const userId = verifyAdminAccess(request);
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const body = await request.json().catch(() => null);
 
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -167,6 +172,14 @@ export async function POST(request: NextRequest) {
 
     if (!leadId || !phoneNumber || (!messageContent && !mediaUrl)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
+    if (!superAdmin && !tenantCreds) {
+      return NextResponse.json(
+        { error: 'Meta WhatsApp account setup required. Please connect your Meta WhatsApp credentials in CRM settings before sending messages.' },
+        { status: 400 }
+      );
     }
 
     const lead = (await getBunnyLeadById(String(leadId))) || (await getBunnyLeadByPhone(normalizePhone(String(phoneNumber))));
@@ -216,7 +229,6 @@ export async function POST(request: NextRequest) {
 
     try {
       let apiResult;
-      const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
       if (mediaUrl) {
         apiResult = await sendWhatsAppMedia(normalizedPhone, mediaUrl, (providedMediaType as any) || 'image', messageWithAdmin, tenantCreds);
       } else {

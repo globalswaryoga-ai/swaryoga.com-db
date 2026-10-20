@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     const decoded: any = verifyAdmin(request);
     const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || '');
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
   try {
     const decoded: any = verifyAdmin(request);
     const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || '');
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const url = new URL(request.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 25), 1), 100);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0), 0);

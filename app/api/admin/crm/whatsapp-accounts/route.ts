@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
-import { Types } from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { encryptCredential } from '@/lib/encryption';
+import {
+  getBunnyWhatsAppAccount,
+  saveBunnyWhatsAppAccount,
+  deleteBunnyWhatsAppAccount,
+} from '@/lib/bunnyWhatsAppAccounts';
 import { resubscribeWABAWebhooks } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
+export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,48 +21,20 @@ export async function GET(request: NextRequest) {
     }
 
     const viewerUserId = getViewerUserId(decoded);
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
-    await connectDB();
+    const bunnyAccount = await getBunnyWhatsAppAccount(viewerUserId);
+    const accounts = bunnyAccount ? [bunnyAccount] : [];
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const skip = parseInt(searchParams.get('skip') || '0', 10);
-    const accountType = searchParams.get('accountType');
-    const isActive = searchParams.get('isActive');
-
-    const filter: any = {};
-    
-    // Non-superadmins only see their own WhatsApp accounts
-    if (!superAdmin) {
-      filter.$or = [
-        { createdByUserId: viewerUserId },
-        { managedByUserIds: viewerUserId }
-      ];
-    }
-    
-    if (accountType) filter.accountType = accountType;
-    if (isActive !== null) filter.isActive = isActive === 'true';
-
-    const rawAccounts = await WhatsAppAccount.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .skip(skip)
-      .lean();
-
-    // Never return raw/encrypted secrets — just flag whether a token is on file
-    // so the UI can show "connected" without exposing the value.
-    const accounts = rawAccounts.map((a: any) => {
-      const { metaAccessToken, metaVerifyToken, commonApiKey, commonApiSecret, ...rest } = a;
-      return { ...rest, hasAccessToken: !!metaAccessToken };
-    });
-
-    const total = await WhatsAppAccount.countDocuments(filter);
-
-    return NextResponse.json(
-      { success: true, data: { accounts, total, limit, skip } },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: {
+        accounts,
+        total: accounts.length,
+        webhookUrl: 'https://crm.swaryoga.com/api/whatsapp/webhook',
+        verifyToken: 'swaryoga_verify_token',
+      },
+    }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to fetch accounts';
     console.error('❌ GET /whatsapp-accounts error:', message);
@@ -80,111 +51,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-
-    const body = await request.json();
+    const viewerUserId = getViewerUserId(decoded);
+    const body = await request.json().catch(() => ({}));
     const {
       accountName,
-      accountType,
-      commonProvider,
-      commonPhoneNumber,
-      commonProviderId,
-      commonApiKey,
-      commonApiSecret,
-      metaPhoneNumberId,
       metaPhoneNumber,
+      metaPhoneNumberId,
       metaBusinessAccountId,
+      metaAppId,
+      metaAppSecret,
       metaAccessToken,
       metaVerifyToken,
-      isDefault,
-      isActive,
     } = body;
 
-    // Validation
-    if (!accountName || !accountType) {
+    if (!metaPhoneNumberId || !metaAccessToken) {
       return NextResponse.json(
-        { error: 'Account name and type are required' },
+        { error: 'Meta Phone Number ID and Permanent Access Token are required.' },
         { status: 400 }
       );
     }
 
-    if (accountType === 'common' && !commonPhoneNumber) {
-      return NextResponse.json(
-        { error: 'Phone number required for common gateway' },
-        { status: 400 }
-      );
-    }
-
-    if (accountType === 'meta' && !metaPhoneNumber) {
-      return NextResponse.json(
-        { error: 'Phone number required for Meta account' },
-        { status: 400 }
-      );
-    }
-
-    // Check for duplicate phone numbers
-    const existingPhone = await WhatsAppAccount.findOne({
-      $or: [
-        { commonPhoneNumber: accountType === 'common' ? commonPhoneNumber : null },
-        { metaPhoneNumber: accountType === 'meta' ? metaPhoneNumber : null },
-      ],
+    const saved = await saveBunnyWhatsAppAccount({
+      userId: viewerUserId,
+      accountName: accountName || `Meta WhatsApp (${metaPhoneNumber || metaPhoneNumberId})`,
+      metaPhoneNumber: metaPhoneNumber ? String(metaPhoneNumber).trim() : '',
+      metaPhoneNumberId: String(metaPhoneNumberId).trim(),
+      metaBusinessAccountId: metaBusinessAccountId ? String(metaBusinessAccountId).trim() : '',
+      metaAppId: metaAppId ? String(metaAppId).trim() : '',
+      metaAppSecret: metaAppSecret ? String(metaAppSecret).trim() : '',
+      metaAccessToken: String(metaAccessToken).trim(),
+      metaVerifyToken: metaVerifyToken ? String(metaVerifyToken).trim() : '',
     });
 
-    if (existingPhone) {
-      return NextResponse.json(
-        { error: 'This phone number is already registered', data: existingPhone },
-        { status: 409 }
-      );
+    // Optionally auto-subscribe webhook if business account id provided
+    if (metaBusinessAccountId && metaAccessToken) {
+      resubscribeWABAWebhooks({
+        accessToken: metaAccessToken,
+        wabaId: metaBusinessAccountId,
+      }).catch((err) => {
+        console.warn('WABA resubscription warning:', err);
+      });
     }
 
-    // If setting as default, unset other defaults
-    if (isDefault) {
-      await WhatsAppAccount.updateMany(
-        { accountType, isDefault: true },
-        { isDefault: false }
-      );
-    }
-
-    const newAccount = await WhatsAppAccount.create({
-      accountName,
-      accountType,
-      commonProvider,
-      commonPhoneNumber,
-      commonProviderId,
-      commonApiKey: commonApiKey ? encryptCredential(commonApiKey) : commonApiKey,
-      commonApiSecret: commonApiSecret ? encryptCredential(commonApiSecret) : commonApiSecret,
-      metaPhoneNumberId,
-      metaPhoneNumber,
-      metaBusinessAccountId,
-      metaAccessToken: metaAccessToken ? encryptCredential(metaAccessToken) : metaAccessToken,
-      metaVerifyToken: metaVerifyToken ? encryptCredential(metaVerifyToken) : metaVerifyToken,
-      isDefault: isDefault || false,
-      isActive: isActive !== false,
-      createdByUserId: decoded.userId || decoded.username,
-    });
-
-    // For tenant-owned Meta accounts, subscribe our app to their WABA so
-    // inbound webhooks for their number are delivered to our callback URL.
-    if (accountType === 'meta' && metaAccessToken && metaBusinessAccountId) {
-      const sub = await resubscribeWABAWebhooks({ accessToken: metaAccessToken, wabaId: metaBusinessAccountId });
-      if (!sub.success) {
-        await WhatsAppAccount.updateOne(
-          { _id: newAccount._id },
-          { connectionError: `Webhook subscription failed: ${sub.error}` }
-        );
-      }
-    }
-
-    const accountObj = newAccount.toObject();
-    const { metaAccessToken: _t, metaVerifyToken: _v, commonApiKey: _ck, commonApiSecret: _cs, ...safeAccount } = accountObj;
-
-    return NextResponse.json(
-      { success: true, data: { ...safeAccount, hasAccessToken: !!accountObj.metaAccessToken } },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: saved.account,
+      message: 'Meta WhatsApp account connected successfully',
+    }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create account';
+    const message = error instanceof Error ? error.message : 'Failed to save account';
     console.error('❌ POST /whatsapp-accounts error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const viewerUserId = getViewerUserId(decoded);
+    await deleteBunnyWhatsAppAccount(viewerUserId);
+
+    return NextResponse.json({
+      success: true,
+      message: 'WhatsApp account disconnected',
+    }, { status: 200 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete account';
+    console.error('❌ DELETE /whatsapp-accounts error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

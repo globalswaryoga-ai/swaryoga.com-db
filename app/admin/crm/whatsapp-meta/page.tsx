@@ -1,8 +1,7 @@
-'use client';
-
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import MetaWhatsAppSetupCard from '@/components/admin/crm/MetaWhatsAppSetupCard';
 
 export default function WhatsAppSetupPage() {
   const token = useAuth();
@@ -47,7 +46,7 @@ export default function WhatsAppSetupPage() {
 
   return (
       <main className="flex-1 p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-8">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 border-none">WhatsApp Setup & Health</h1>
@@ -61,6 +60,9 @@ export default function WhatsAppSetupPage() {
               {waDiagnosticsLoading ? 'Refreshing...' : '🔄 Refresh Status'}
             </button>
           </div>
+
+          {/* Primary Meta WhatsApp Cloud API Setup Card */}
+          <MetaWhatsAppSetupCard token={token} onConnected={fetchWhatsAppDiagnostics} />
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* QUICK TEST CARD */}

@@ -35,9 +35,9 @@ import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
  * - Super admin: returns empty object (no filter - see all)
  * - Regular tenant: returns { createdByUserId: tenantId }
  */
-export function getTenantFilter(decoded: any): Record<string, any> {
-  if (isSuperAdmin(decoded)) {
-    return {}; // Super admin sees all
+export function getTenantFilter(decoded: any, request?: any): Record<string, any> {
+  if (isSuperAdmin(decoded, request)) {
+    return {}; // Super admin sees all on main domain
   }
   const tenantId = getViewerUserId(decoded);
   if (!tenantId) {

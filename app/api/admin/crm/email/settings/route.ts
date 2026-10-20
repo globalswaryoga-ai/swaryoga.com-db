@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
     let settings = await listEmailSettings();
     
     if (tf.createdBy) {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const envSmtpUser = process.env.SMTP_USER;
     const envSmtpConfigured = !!(process.env.SMTP_HOST && envSmtpUser && process.env.SMTP_PASS);
 
-    if (settings.length === 0 && envSmtpConfigured && isSuperAdmin(decoded)) {
+    if (settings.length === 0 && envSmtpConfigured && isSuperAdmin(decoded, request)) {
       const doc = await saveEmailSettings({
         senderEmail: envSmtpUser!.toLowerCase(),
         senderName: 'Swar Yoga',
@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email address');
     }
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const isSuper = isSuperAdmin(decoded, request);
+    const tf = tenantFilter(decoded, 'createdBy', request);
     const allSettings = await listEmailSettings();
     let existing = allSettings.find(s => s.senderEmail.toLowerCase() === senderEmail.trim().toLowerCase());
     
@@ -106,9 +107,9 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Sender email already used by another tenant');
     }
 
-    const host = smtpHost?.trim() || process.env.SMTP_HOST || 'smtp.hostinger.com';
+    const host = smtpHost?.trim() || (isSuper ? process.env.SMTP_HOST : '') || 'smtp.hostinger.com';
     const port = smtpPort || parseInt(process.env.SMTP_PORT || '465');
-    const user = smtpUser?.trim() || process.env.SMTP_USER || senderEmail.trim();
+    const user = smtpUser?.trim() || (isSuper ? process.env.SMTP_USER : '') || senderEmail.trim();
     const pass = realPass(smtpPass, existing?.smtpPass);
     const secure = smtpSecure !== undefined ? smtpSecure : true;
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
       isDefault: isDefault || false,
       isActive: true,
       isVerified,
-      createdBy: existing?.createdBy || decoded.userId || 'unknown'
+      createdBy: existing?.createdBy || decoded.userId || decoded.username || 'unknown'
     };
 
     const doc = await saveEmailSettings(updateData);
@@ -155,7 +156,8 @@ export async function PUT(request: NextRequest) {
 
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const isSuper = isSuperAdmin(decoded, request);
+    const tf = tenantFilter(decoded, 'createdBy', request);
     let doc = await getEmailSettings(id);
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
     
@@ -184,9 +186,9 @@ export async function PUT(request: NextRequest) {
     const pass = realPass(smtpPass, doc.smtpPass);
     if (pass && pass !== MASKED) doc.smtpPass = pass;
 
-    const host = doc.smtpHost || process.env.SMTP_HOST || 'smtp.hostinger.com';
+    const host = doc.smtpHost || (isSuper ? process.env.SMTP_HOST : '') || 'smtp.hostinger.com';
     const port = doc.smtpPort || parseInt(process.env.SMTP_PORT || '465');
-    const user = doc.smtpUser || process.env.SMTP_USER || '';
+    const user = doc.smtpUser || (isSuper ? process.env.SMTP_USER : '') || '';
 
     let isVerifiedNow = false;
     if (user && pass) {
@@ -216,7 +218,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
     let doc = await getEmailSettings(id);
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
     

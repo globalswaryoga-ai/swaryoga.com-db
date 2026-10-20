@@ -14,6 +14,7 @@ import { FormModal } from '@/components/admin/crm';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import LanguageSelector from './_components/LanguageSelector'; // Imported new component
 import SpellCheckTextarea from '@/components/admin/crm/SpellCheckTextarea';
+import MetaWhatsAppSetupCard from '@/components/admin/crm/MetaWhatsAppSetupCard';
 
 type MetaInboxDiagnostics = {
   ok: boolean;
@@ -205,6 +206,7 @@ export default function MetaInboxPage() {
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false); // Dropdown for header
   const [lightboxImage, setLightboxImage] = useState<string | null>(null); // Lightbox for media zoom
   const [avatarZoom, setAvatarZoom] = useState(false); // Avatar zoom modal
+  const [needsMetaSetup, setNeedsMetaSetup] = useState(false); // Tenant Meta WhatsApp setup requirement
 
   // Diagnostics UI state
   const [diagPhone, setDiagPhone] = useState('');
@@ -657,6 +659,11 @@ export default function MetaInboxPage() {
         params: { q, limit: 500, provider: providerScope },
         silent, // Pass silent flag to crmFetch
       });
+      if (data?.needsSetup) {
+        setNeedsMetaSetup(true);
+      } else if (data?.conversations && data.conversations.length > 0) {
+        setNeedsMetaSetup(false);
+      }
       if (data?.conversations) {
         const currentSelectedPhone = selectedRef.current?.phoneNumber;
         const mapped = currentSelectedPhone
@@ -2166,6 +2173,14 @@ export default function MetaInboxPage() {
             >
               <i className="ph ph-plus-bold text-base"></i>
             </button>
+            <button
+              className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-emerald-600 hover:border-emerald-300 shadow-sm transition-all duration-200 active:scale-90"
+              title="Meta WhatsApp Setup & Settings"
+              onClick={() => { setSelected(null); setNeedsMetaSetup(true); }}
+              type="button"
+            >
+              <i className="ph ph-gear text-base"></i>
+            </button>
           </div>
 
           {/* Filters Row - Compact Dropdowns */}
@@ -2556,6 +2571,23 @@ export default function MetaInboxPage() {
           <div className="flex-1 overflow-y-auto">
             {crmLoading && conversations.length === 0 ? (
               <div className="p-10 flex justify-center"><LoadingSpinner /></div>
+            ) : needsMetaSetup ? (
+              <div className="p-5 m-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-center">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                  <i className="ph ph-whatsapp-logo text-2xl"></i>
+                </div>
+                <div className="text-sm font-bold text-emerald-950">Setup Required</div>
+                <div className="text-xs text-emerald-700 mt-1 mb-4 leading-relaxed">
+                  Connect your official Meta WhatsApp Business account to send & receive messages.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSelected(null); setNeedsMetaSetup(true); }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                  Configure WhatsApp
+                </button>
+              </div>
             ) : filteredConversations.length === 0 ? (
               <div className="p-10 flex flex-col items-center justify-center text-center">
                 <i className={`ph ${showBlocked ? 'ph-prohibit' : showArchived ? 'ph-archive' : dateFilter !== 'all' ? 'ph-calendar-x' : 'ph-chat-circle-dots'} text-4xl text-slate-300 mb-3`}></i>
@@ -3954,6 +3986,18 @@ export default function MetaInboxPage() {
                 </div>
               ) : null}
             </>
+          ) : needsMetaSetup ? (
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center justify-start bg-slate-50">
+              <div className="w-full max-w-3xl">
+                <MetaWhatsAppSetupCard
+                  token={token}
+                  onConnected={() => {
+                    setNeedsMetaSetup(false);
+                    loadConversations();
+                  }}
+                />
+              </div>
+            </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4" style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F0F7F2 100%)' }}>
               <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(30,127,67,0.08) 0%, rgba(30,127,67,0.18) 100%)', boxShadow: '0 8px 24px rgba(30,127,67,0.1), inset 0 1px 2px rgba(255,255,255,0.5)' }}>

@@ -84,6 +84,7 @@ export async function initEmailBunnySchema() {
         is_default INTEGER NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
         is_verified INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`, args: []
@@ -101,6 +102,9 @@ export async function initEmailBunnySchema() {
       )`, args: []
     }
   ]);
+  try {
+    await bunnyExecute('ALTER TABLE email_settings_sql ADD COLUMN created_by TEXT');
+  } catch {}
   schemaInitialized = true;
 }
 
@@ -313,6 +317,7 @@ function mapSettings(row: any) {
     isDefault: bool(row.is_default),
     isActive: bool(row.is_active),
     isVerified: bool(row.is_verified),
+    createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -341,15 +346,16 @@ export async function saveEmailSettings(input: any) {
   }
   
   await bunnyExecute({
-    sql: `INSERT INTO email_settings_sql (id, sender_email, sender_name, resend_api_key, smtp_host, smtp_port, smtp_user, smtp_pass, is_default, is_active, is_verified, created_at, updated_at) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+    sql: `INSERT INTO email_settings_sql (id, sender_email, sender_name, resend_api_key, smtp_host, smtp_port, smtp_user, smtp_pass, is_default, is_active, is_verified, created_by, created_at, updated_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
           ON CONFLICT(id) DO UPDATE SET 
             sender_email=excluded.sender_email, sender_name=excluded.sender_name, resend_api_key=excluded.resend_api_key, 
             smtp_host=excluded.smtp_host, smtp_port=excluded.smtp_port, smtp_user=excluded.smtp_user, smtp_pass=excluded.smtp_pass, 
-            is_default=excluded.is_default, is_active=excluded.is_active, is_verified=excluded.is_verified, updated_at=excluded.updated_at`,
+            is_default=excluded.is_default, is_active=excluded.is_active, is_verified=excluded.is_verified, 
+            created_by=COALESCE(excluded.created_by, email_settings_sql.created_by), updated_at=excluded.updated_at`,
     args: [
       settingsId, input.senderEmail, input.senderName, input.resendApiKey || null, input.smtpHost || null, input.smtpPort || null,
-      input.smtpUser || null, input.smtpPass || null, bool(input.isDefault), bool(input.isActive), bool(input.isVerified), ts, ts
+      input.smtpUser || null, input.smtpPass || null, bool(input.isDefault), bool(input.isActive), bool(input.isVerified), input.createdBy || null, ts, ts
     ]
   });
   return getEmailSettings(settingsId);

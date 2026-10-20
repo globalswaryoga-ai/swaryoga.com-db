@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { listEmailLogs } from '@/lib/emailBunnyRepository';
 import { hasPermission } from '@/lib/permissions';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,11 +18,9 @@ export async function GET(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    const isSuperAdmin = decoded?.userId === 'admin' || 
-                        decoded?.userId === 'admincrm' ||
-                        (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    const superAdmin = isSuperAdmin(decoded, request);
 
-    if (!isSuperAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
+    if (!superAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
       return apiError('FORBIDDEN', 'You do not have permission to view email logs');
     }
 
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
         (l.subject && l.subject.toLowerCase().includes(s))
       );
     }
-    if (!isSuperAdmin) {
+    if (!superAdmin) {
       filtered = filtered.filter(l => l.sentBy === decoded.userId);
     }
 
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // Build status summary
     const statusCounts = allLogs
-      .filter(l => isSuperAdmin ? true : l.sentBy === decoded.userId)
+      .filter(l => superAdmin ? true : l.sentBy === decoded.userId)
       .reduce((acc: any, l) => {
         acc[l.status] = (acc[l.status] || 0) + 1;
         return acc;

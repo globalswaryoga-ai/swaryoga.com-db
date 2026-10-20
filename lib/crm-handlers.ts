@@ -141,10 +141,33 @@ const normalizeAdminIdentifier = (value: unknown): string => {
  */
 export const META_WHATSAPP_OWNER_IDS: string[] = Array.from(SUPER_ADMIN_IDS);
 
-export const isSuperAdmin = (decoded: any): boolean => {
+/**
+ * Detects if a request is coming from crm.swaryoga.com or the CRM subdomain
+ */
+export const isCrmDomain = (request?: Request | NextRequest | null): boolean => {
+  if (!request) return false;
+  try {
+    const host = (
+      request.headers.get('x-forwarded-host') ||
+      request.headers.get('host') ||
+      ''
+    ).toLowerCase();
+    if (host.includes('crm.swaryoga.com') || host.startsWith('crm.')) return true;
+    const referer = (request.headers.get('referer') || request.headers.get('origin') || '').toLowerCase();
+    if (referer.includes('crm.swaryoga.com') || referer.includes('://crm.')) return true;
+  } catch {
+    // ignore
+  }
+  return false;
+};
+
+export const isSuperAdmin = (decoded: any, request?: Request | NextRequest | null): boolean => {
   if (!decoded) return false;
-  if (decoded?.role === 'superadmin') return true;
-  // Super admin is ONLY the CRM owner — identified by a known userId/username/email.
+  // If the request is from crm.swaryoga.com, NEVER grant super admin access!
+  // crm.swaryoga.com is strictly a tenant portal — no super admin data must ever leak there.
+  if (request && isCrmDomain(request)) {
+    return false;
+  }
   // Check userId (regular admin users stored in DB)
   const uid = normalizeAdminIdentifier(decoded?.userId);
   if (SUPER_ADMIN_IDS.has(uid)) return true;
@@ -177,15 +200,19 @@ export const isManager = (decoded: any): boolean => {
 
 /**
  * Get list of user IDs that the current user can view data for
- * - Super Admin: returns null (means ALL users)
- * - Manager: returns [self, ...managedUserIds]
- * - Admin: returns [self]
+ * - Super Admin (on main domain): returns null (means ALL users)
+ * - CRM Domain / Manager / Admin: strictly scoped to visible users
  */
-export const getVisibleUserIds = (decoded: any): string[] | null => {
+export const getVisibleUserIds = (decoded: any, request?: Request | NextRequest | null): string[] | null => {
   const viewerUserId = getViewerUserId(decoded);
   
-  // Super admin can see ALL data
-  if (isSuperAdmin(decoded)) {
+  // On crm.swaryoga.com, strict tenant isolation: never return null
+  if (request && isCrmDomain(request)) {
+    return [viewerUserId];
+  }
+
+  // Super admin on main swaryoga.com domain can see ALL data
+  if (isSuperAdmin(decoded, request)) {
     return null; // null means no filter - see all
   }
   
@@ -371,8 +398,9 @@ export const buildMetadata = (
 export const tenantFilter = (
   decoded: any,
   field: string = 'createdByUserId',
+  request?: Request | NextRequest | null
 ): Record<string, any> => {
-  if (isSuperAdmin(decoded)) return {};
+  if (isSuperAdmin(decoded, request)) return {};
   const viewerId = getViewerUserId(decoded);
   return viewerId ? { [field]: viewerId } : { [field]: '__never_match__' };
 };
@@ -381,8 +409,8 @@ export const tenantFilter = (
  * Same as tenantFilter but checks both assignedToUserId AND createdByUserId.
  * Useful for leads and messages that can be owned OR assigned.
  */
-export const tenantOrFilter = (decoded: any): Record<string, any> => {
-  if (isSuperAdmin(decoded)) return {};
+export const tenantOrFilter = (decoded: any, request?: Request | NextRequest | null): Record<string, any> => {
+  if (isSuperAdmin(decoded, request)) return {};
   const viewerId = getViewerUserId(decoded);
   if (!viewerId) return { createdByUserId: '__never_match__' };
   return {

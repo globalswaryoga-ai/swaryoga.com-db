@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return apiError('FORBIDDEN', 'You do not have permission to view follow-up sequences');
     }
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
 
     const { searchParams } = new URL(request.url);
     const active = searchParams.get('active');
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
     const allSequences = await listFollowUpSequences();
 
     const existing = allSequences.find(s => s.name === name && (!tf.createdBy || s.createdBy === tf.createdBy));

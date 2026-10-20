@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleCrmError, isSuperAdmin } from '@/lib/crm-handlers';
+import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import {
   listSadhanaSchedules,
@@ -22,9 +22,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
+
     const filter: any = {};
-    if (!isSuperAdmin(decoded)) {
-      filter.userId = decoded.userId;
+    if (!superAdmin) {
+      filter.userId = viewerUserId;
     }
 
     const schedules = await listSadhanaSchedules(filter);
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest) {
       zoomMeetingId: body.zoomMeetingId || null,
       schedule: body.schedule,
       status: body.status || 'active',
-      userId: decoded.userId,
+      userId: getViewerUserId(decoded),
       tenantId: decoded.tenantId,
     });
 

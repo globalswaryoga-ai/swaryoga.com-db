@@ -28,6 +28,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 
     const bunnyRun = await broadcastRunFindOne(id);
     if (bunnyRun) {
+      const viewerId = String(getViewerUserId(decoded) || decoded?.userId || '');
+      if (!isSuperAdmin(decoded, request) && String(bunnyRun.createdByUserId || '') !== viewerId) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
       const stats = await markRunStatsBunny(id);
       const url = new URL(request.url);
       const limit = Math.min(Number(url.searchParams.get('limit') || 200) || 200, 500);
@@ -67,7 +71,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     const bunnyRun = await broadcastRunFindOne(id);
     if (bunnyRun) {
       const viewerId = String(getViewerUserId(decoded) || decoded?.userId || '');
-      if (!isSuperAdmin(decoded) && String(bunnyRun.createdByUserId || '') !== viewerId) {
+      if (!isSuperAdmin(decoded, request) && String(bunnyRun.createdByUserId || '') !== viewerId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
@@ -137,7 +141,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
     const bunnyRun = await broadcastRunFindOne(id);
     if (bunnyRun) {
       const viewerId = String(getViewerUserId(decoded) || decoded?.userId || '');
-      if (!isSuperAdmin(decoded) && String(bunnyRun.createdByUserId || '') !== viewerId) {
+      if (!isSuperAdmin(decoded, request) && String(bunnyRun.createdByUserId || '') !== viewerId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 

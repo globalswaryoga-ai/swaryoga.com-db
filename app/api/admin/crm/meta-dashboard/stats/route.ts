@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const superAdmin = isSuperAdmin(decoded);
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
 
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'daily';

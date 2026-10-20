@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (status) filtered = filtered.filter(c => c.status === status);
     
     // Check tenant filter
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
     if (tf.createdBy) {
       filtered = filtered.filter(c => c.createdBy === tf.createdBy);
     }

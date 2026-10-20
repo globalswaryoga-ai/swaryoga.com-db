@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       return apiError('FORBIDDEN', 'You do not have permission to manage email templates');
     }
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Name, subject, and body are required');
     }
 
-    const tf = tenantFilter(decoded, 'createdBy');
+    const tf = tenantFilter(decoded, 'createdBy', request);
     const templates = await listEmailTemplates();
 
     const existing = templates.find(t => t.name === name && (!tf.createdBy || t.createdBy === tf.createdBy));

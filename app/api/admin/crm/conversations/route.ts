@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       viewerUserId = verifyAdminAccess(request);
       const token = request.headers.get('authorization')?.slice('Bearer '.length);
       const decoded = verifyToken(token);
-      superAdmin = isSuperAdmin(decoded);
+      superAdmin = isSuperAdmin(decoded, request);
       const pag = parsePagination(request);
       limit = pag.limit;
       skip = pag.skip;
@@ -45,6 +45,21 @@ export async function GET(request: NextRequest) {
       return formatCrmSuccess({ conversations: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR conversations.' }, buildMetadata(0, limit, skip));
     }
 
+    const { getBunnyWhatsAppAccount } = await import('@/lib/bunnyWhatsAppAccounts');
+    let tenantAccount: any = null;
+    if (!superAdmin) {
+      tenantAccount = await getBunnyWhatsAppAccount(viewerUserId);
+      if (!tenantAccount || !tenantAccount.hasAccessToken) {
+        return formatCrmSuccess({
+          conversations: [],
+          total: 0,
+          needsSetup: true,
+          webhookUrl: 'https://crm.swaryoga.com/api/whatsapp/webhook',
+          metaPhoneNumber: '',
+        }, buildMetadata(0, limit, skip));
+      }
+    }
+
     const q = url.searchParams.get('q')?.trim().toLowerCase();
 
     // Bunny SQL is the new runtime source.
@@ -54,7 +69,7 @@ export async function GET(request: NextRequest) {
     const leads = await loadBunnyLeads();
     let visibleLeads = leads;
     
-    // Meta accounts and message ownership are now tenant-scoped in Bunny SQL.
+    // Meta accounts and message ownership are strictly tenant-scoped in Bunny SQL.
     if (!superAdmin) {
       visibleLeads = leads.filter((lead: any) =>
         String(lead.assignedToUserId || '') === viewerUserId ||

@@ -33,11 +33,19 @@ const isSuperAdminId = (value: unknown): boolean => {
   );
 };
 
+export function isCrmSubdomain(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  return host === 'crm.swaryoga.com' || host.startsWith('crm.');
+}
+
 /**
  * Check if current user is a super admin based on localStorage data.
+ * Always returns false on crm.swaryoga.com to enforce pure tenant mode.
  */
 export function checkIsSuperAdmin(): boolean {
   if (typeof window === 'undefined') return false;
+  if (isCrmSubdomain()) return false;
   try {
     const userStr = localStorage.getItem('admin_user');
     let userId = '';
