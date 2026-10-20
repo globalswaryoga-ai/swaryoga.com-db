@@ -514,7 +514,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
     if (rule.actionType === 'send_text') {
       const body = String(rule.actionText || '').trim();
       if (!body || body.length > 4096) throw new ChatbotRuntimeError('invalid_rule_text', 'Automation requires 1–4096 text characters');
-      await send(ctx, { type: 'text', text: { body } }, `${ctx.scope}:${ctx.eventId}:rule:${id}`);
+      await send(ctx, { type: 'text', text: { body, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:rule:${id}`);
     } else if (rule.actionType === 'send_template') {
       await send(ctx, await templatePayload({
         templateId: rule.actionTemplateId, templateVariables: rule.actionTemplateVariables,
@@ -599,7 +599,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
         });
         if (recording?.handled) {
           if (recording.message?.trim()) {
-            await send(ctx, { type: 'text', text: { body: recording.message } },
+            await send(ctx, { type: 'text', text: { body: recording.message, preview_url: true } },
               `${ctx.scope}:${ctx.eventId}:recording-access`);
           }
         } else {
@@ -607,7 +607,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
           if (settings.chatbotEnabled === true) {
           if (!isChatbotOfficeOpen(settings, now())) {
             if (String(settings.afterHoursMessage || '').trim()) {
-              await send(ctx, { type: 'text', text: { body: settings.afterHoursMessage } }, `${ctx.scope}:${ctx.eventId}:after-hours`);
+              await send(ctx, { type: 'text', text: { body: settings.afterHoursMessage, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:after-hours`);
             }
           } else {
           const automationRules = (await deps.automationRules?.(owner) || [])
@@ -633,7 +633,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
             if (keyword.flowId) await startFlow(ctx, await flow(identity(keyword.flowId), owner));
             else if ((keyword.action || 'reply') === 'reply') {
               if (!String(keyword.response || '').trim()) throw new ChatbotRuntimeError('empty_keyword_reply', 'Matched keyword has no response');
-              await send(ctx, { type: 'text', text: { body: keyword.response } }, `${ctx.scope}:${ctx.eventId}:keyword`);
+              await send(ctx, { type: 'text', text: { body: keyword.response, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:keyword`);
             } else if (keyword.action === 'send_template') {
               await send(ctx, await templatePayload(keyword, ctx), `${ctx.scope}:${ctx.eventId}:keyword-template`);
             } else throw new ChatbotRuntimeError('unsupported_keyword_action', `Keyword action "${keyword.action}" is unsupported`);
@@ -654,12 +654,12 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
             } else if (settings.welcomeEnabled === true && eligible && (settings.welcomeFlowId || String(settings.welcomeMessage || '').trim())) {
               ctx.state.welcomeAt = timestamp;
               if (settings.welcomeFlowId) await startFlow(ctx, await flow(identity(settings.welcomeFlowId), owner));
-              else await send(ctx, { type: 'text', text: { body: settings.welcomeMessage } }, `${ctx.scope}:${ctx.eventId}:welcome`);
+              else await send(ctx, { type: 'text', text: { body: settings.welcomeMessage, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:welcome`);
             } else if (anyRule) await runAutomation(ctx, anyRule);
             else if (settings.aiEnabled === true && input.messageBody.trim()) {
               const reply = await deps.ai(input.messageBody, settings, ctx.lead);
               if (!reply?.trim()) throw new ChatbotRuntimeError('ai_no_reply', 'Configured AI fallback returned no response', 502);
-              await send(ctx, { type: 'text', text: { body: reply } }, `${ctx.scope}:${ctx.eventId}:ai`);
+              await send(ctx, { type: 'text', text: { body: reply, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:ai`);
               }
               }
             }
