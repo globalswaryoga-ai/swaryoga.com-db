@@ -8,8 +8,26 @@ function getStoredAdminToken(): string | null {
     localStorage.getItem('adminToken') ||
     localStorage.getItem('admin_token') ||
     localStorage.getItem('token');
-  if (!token || token === 'null' || token === 'undefined') return null;
-  return token;
+  if (token && token !== 'null' && token !== 'undefined') {
+    return token.trim();
+  }
+
+  // Fallback to checking cookies
+  if (typeof document !== 'undefined' && document.cookie) {
+    const parts = document.cookie.split(';');
+    for (const part of parts) {
+      const [k, ...v] = part.trim().split('=');
+      const key = k.trim();
+      if (['admin_token', 'crm_token', 'adminToken', 'token', 'auth_token'].includes(key)) {
+        const val = decodeURIComponent(v.join('=')).trim();
+        if (val && val !== 'null' && val !== 'undefined') {
+          return val;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function isCrmSubdomain(): boolean {

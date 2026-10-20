@@ -102,11 +102,23 @@ export async function initSadhanaBunnySchema() {
   ]);
   
   // Try to add columns if they don't exist
-  try {
-    await bunnyExecute({ sql: 'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_link TEXT' });
-    await bunnyExecute({ sql: 'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_id TEXT' });
-    await bunnyExecute({ sql: 'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_password TEXT' });
-  } catch (e) {}
+  const alterColumns = [
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_link TEXT',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_id TEXT',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_password TEXT',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN player_mode TEXT NOT NULL DEFAULT \'player\'',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN player_url TEXT',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN video_calendar_json TEXT NOT NULL DEFAULT \'{}\'',
+    'ALTER TABLE sadhana_programs_sql ADD COLUMN created_by_user_id TEXT',
+  ];
+
+  for (const sql of alterColumns) {
+    try {
+      await bunnyExecute({ sql });
+    } catch {
+      // Column may already exist
+    }
+  }
 }
 
 // Map db row to JS object

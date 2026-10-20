@@ -1,30 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { listPrograms, insertProgram, getProgram } from '@/lib/bunnySadhanaRepository';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, extractTokenFromRequest } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 function slugify(s: string): string {
-  return String(s)
+  const base = String(s || '')
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
+  return base || `program-${Date.now().toString(36)}`;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractTokenFromRequest(request);
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const token = authHeader.slice(7);
     const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
     // All authenticated admins have access to platform sadhana programs from Bunny Database
@@ -41,15 +41,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractTokenFromRequest(request);
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const token = authHeader.slice(7);
     const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
     const body = await request.json();

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getProgram, updateProgram, deleteProgram, listProgramVideos } from '@/lib/bunnySadhanaRepository';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, extractTokenFromRequest } from '@/lib/auth';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 async function authorizeProgramMutation(request: NextRequest, id: string): Promise<{ program: any } | { error: NextResponse }> {
-  const decoded = verifyToken(request.headers.get('authorization')?.replace('Bearer ', '') || '');
-  if (!decoded?.isAdmin && !decoded?.userId) {
+  const token = extractTokenFromRequest(request);
+  if (!token) {
+    return { error: NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 }) };
+  }
+  const decoded = verifyToken(token);
+  if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
     return { error: NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 }) };
   }
   
@@ -41,13 +45,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         sql: 'SELECT COUNT(*) as c FROM sadhana_live_participants_sql WHERE program_slug = ? AND last_seen >= ?',
         args: [program.slug, activeThreshold]
       });
-      activeParticipants = partRes.rows[0]?.c || 0;
+      activeParticipants = Number((partRes.rows[0] as any)?.c || 0);
       
       const chatRes = await bunnyExecute({
         sql: 'SELECT COUNT(*) as c FROM sadhana_live_chat_sql WHERE program_slug = ? AND created_at >= ?',
         args: [program.slug, new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()]
       });
-      chatMessages24h = chatRes.rows[0]?.c || 0;
+      chatMessages24h = Number((chatRes.rows[0] as any)?.c || 0);
     } catch (e) {
       // Ignored if tables not created yet
     }

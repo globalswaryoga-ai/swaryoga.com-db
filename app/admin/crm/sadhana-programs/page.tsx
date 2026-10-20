@@ -78,6 +78,8 @@ export default function SadhanaProgramsPage() {
 
   const [effectiveToken, setEffectiveToken] = useState<string | null>(null);
 
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (token) {
       setEffectiveToken(token);
@@ -87,7 +89,22 @@ export default function SadhanaProgramsPage() {
         localStorage.getItem('adminToken') ||
         localStorage.getItem('admin_token') ||
         localStorage.getItem('token');
-      if (stored) setEffectiveToken(stored);
+      if (stored && stored !== 'null' && stored !== 'undefined') {
+        setEffectiveToken(stored);
+      } else if (typeof document !== 'undefined' && document.cookie) {
+        const parts = document.cookie.split(';');
+        for (const part of parts) {
+          const [k, ...v] = part.trim().split('=');
+          const key = k.trim();
+          if (['admin_token', 'crm_token', 'adminToken', 'token', 'auth_token'].includes(key)) {
+            const val = decodeURIComponent(v.join('=')).trim();
+            if (val && val !== 'null' && val !== 'undefined') {
+              setEffectiveToken(val);
+              break;
+            }
+          }
+        }
+      }
     }
   }, [token]);
 
@@ -105,9 +122,10 @@ export default function SadhanaProgramsPage() {
       const res = await fetch('/api/admin/sadhana-scheduler/restart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
+        credentials: 'include',
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setToast('✅ Sadhana Scheduler restarted successfully!');
         load();
       } else {
@@ -122,41 +140,49 @@ export default function SadhanaProgramsPage() {
   };
 
   const load = async () => {
-    if (!activeToken) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/sadhana-programs', { headers: authHeader });
+      const res = await fetch('/api/admin/crm/sadhana-programs', {
+        headers: authHeader,
+        credentials: 'include',
+      });
       const data = await res.json();
-      if (data.success && Array.isArray(data.programs)) {
+      if (res.ok && data.success && Array.isArray(data.programs)) {
         setPrograms(data.programs);
+      } else if (res.status === 401) {
+        console.warn('Unauthorized when loading programs:', data.error);
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (activeToken) load();
+    load();
   }, [activeToken]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     const timeSlots = newProgram.timeSlots.filter(t => t.trim());
     if (!timeSlots.length) {
       setToast('⚠️ Add at least one time slot');
       setTimeout(() => setToast(''), 3000);
       return;
     }
+    setSubmitting(true);
     try {
       const res = await fetch('/api/admin/crm/sadhana-programs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
+        credentials: 'include',
         body: JSON.stringify({ ...newProgram, timeSlots }),
       });
       const data = await res.json();
-      if (data.success) {
-        setToast('✅ Program created');
+      if (res.ok && data.success) {
+        setToast('✅ Program created successfully');
         setShowCreate(false);
         setNewProgram({
           name: '', description: '', timeSlots: ['22:00', '', '', ''], timezone: 'Asia/Kolkata',
@@ -165,9 +191,17 @@ export default function SadhanaProgramsPage() {
           botJoinMinutes: 5, enableBotAutomation: true, zoomLink: '', zoomId: '', zoomPassword: '',
         });
         load();
-        setTimeout(() => setToast(''), 3000);
+      } else {
+        const errorMsg = data.error || (res.status === 401 ? 'Unauthorized: Please check admin login.' : 'Failed to create program');
+        setToast(`❌ ${errorMsg}`);
       }
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      setToast(`❌ Error: ${err?.message || 'Failed to create'}`);
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setToast(''), 4000);
+    }
   };
 
   const openEdit = (p: Program) => {
@@ -195,34 +229,57 @@ export default function SadhanaProgramsPage() {
 
   const update = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingId) return;
+    if (!editingId || submitting) return;
     const timeSlots = editProgram.timeSlots.filter(t => t.trim());
     if (!timeSlots.length) {
       setToast('⚠️ Add at least one time slot');
       setTimeout(() => setToast(''), 3000);
       return;
     }
+    setSubmitting(true);
     try {
       const res = await fetch(`/api/admin/crm/sadhana-programs/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeader },
+        credentials: 'include',
         body: JSON.stringify({ ...editProgram, timeSlots }),
       });
       const data = await res.json();
-      if (data.success) {
-        setToast('✅ Program updated');
+      if (res.ok && data.success) {
+        setToast('✅ Program updated successfully');
         setEditingId(null);
         load();
-        setTimeout(() => setToast(''), 3000);
+      } else {
+        const errorMsg = data.error || (res.status === 401 ? 'Unauthorized: Please check admin login.' : 'Failed to update program');
+        setToast(`❌ ${errorMsg}`);
       }
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      setToast(`❌ Error: ${err?.message || 'Failed to update'}`);
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setToast(''), 4000);
+    }
   };
 
   const del = async (id: string, name: string) => {
     if (!confirm(`Delete program "${name}"? All videos will be removed.`)) return;
-    await fetch(`/api/admin/crm/sadhana-programs/${id}`, { method: 'DELETE', headers: authHeader });
-    setToast('🗑️ Program deleted');
-    load();
+    try {
+      const res = await fetch(`/api/admin/crm/sadhana-programs/${id}`, {
+        method: 'DELETE',
+        headers: authHeader,
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast('🗑️ Program deleted');
+        load();
+      } else {
+        setToast(`❌ ${data.error || 'Failed to delete'}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ Error: ${e.message}`);
+    }
     setTimeout(() => setToast(''), 3000);
   };
 
@@ -599,8 +656,10 @@ export default function SadhanaProgramsPage() {
             </div>
 
             <div className="flex gap-2.5 pt-3 border-t border-slate-100">
-              <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer">Cancel</button>
-              <button type="submit" className="flex-1 bg-gradient-to-r from-pink-600 to-indigo-600 hover:opacity-95 text-white py-2.5 rounded-xl font-bold text-sm shadow-md shadow-pink-500/20 transition cursor-pointer">Create</button>
+              <button type="button" disabled={submitting} onClick={() => setShowCreate(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={submitting} className="flex-1 bg-gradient-to-r from-pink-600 to-indigo-600 hover:opacity-95 text-white py-2.5 rounded-xl font-bold text-sm shadow-md shadow-pink-500/20 transition cursor-pointer disabled:opacity-50">
+                {submitting ? 'Creating...' : 'Create'}
+              </button>
             </div>
           </form>
         </div>
@@ -813,8 +872,10 @@ export default function SadhanaProgramsPage() {
             </div>
 
             <div className="flex gap-2.5 pt-3 border-t border-slate-100">
-              <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer">Cancel</button>
-              <button type="submit" className="flex-1 bg-gradient-to-r from-pink-600 to-indigo-600 hover:opacity-95 text-white py-2.5 rounded-xl font-bold text-sm shadow-md shadow-pink-500/20 transition cursor-pointer">Update</button>
+              <button type="button" disabled={submitting} onClick={() => setEditingId(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-bold text-sm transition cursor-pointer disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={submitting} className="flex-1 bg-gradient-to-r from-pink-600 to-indigo-600 hover:opacity-95 text-white py-2.5 rounded-xl font-bold text-sm shadow-md shadow-pink-500/20 transition cursor-pointer disabled:opacity-50">
+                {submitting ? 'Updating...' : 'Update'}
+              </button>
             </div>
           </form>
         </div>

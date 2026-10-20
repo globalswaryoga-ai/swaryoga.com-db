@@ -1,7 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Copy, AlertCircle, Loader, Upload, Eye, EyeOff, X, CheckCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import {
+  Upload,
+  Loader,
+  AlertCircle,
+  CheckCircle,
+  X,
+  Video,
+  Bot,
+  Calendar,
+  Clock,
+  Radio,
+  Users,
+  Sparkles,
+  Link as LinkIcon,
+  KeyRound,
+  MessageSquare,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 
 interface SadhanaFormProps {
   initialData?: any;
@@ -12,13 +30,13 @@ interface SadhanaFormProps {
 }
 
 const daysOptions = [
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
-  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Mon', full: 'Monday' },
+  { value: 2, label: 'Tue', full: 'Tuesday' },
+  { value: 3, label: 'Wed', full: 'Wednesday' },
+  { value: 4, label: 'Thu', full: 'Thursday' },
+  { value: 5, label: 'Fri', full: 'Friday' },
+  { value: 6, label: 'Sat', full: 'Saturday' },
+  { value: 0, label: 'Sun', full: 'Sunday' },
 ];
 
 export default function SadhanaForm({
@@ -31,7 +49,7 @@ export default function SadhanaForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
-    botName: initialData?.botName || 'Swar Sadhana',
+    botName: initialData?.botName || 'Swar Sadhana Bot',
     chatMessages: (() => {
       const existing = Array.isArray(initialData?.chatMessages) ? initialData.chatMessages : [];
       const slots = [0, 1, 2, 3].map((i) => existing[i] || { message: '', delayMinutes: 0 });
@@ -82,19 +100,19 @@ export default function SadhanaForm({
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.name.trim()) newErrors.name = 'Schedule name is required';
     if (!formData.videoUrl.trim()) newErrors.videoUrl = 'Video URL is required';
 
     if (formData.zoomType === 'link' && !formData.zoomLink.trim()) {
-      newErrors.zoomLink = 'Zoom link is required';
+      newErrors.zoomLink = 'Zoom meeting link is required';
     }
     if (formData.zoomType === 'credentials') {
       if (!formData.zoomId.trim()) newErrors.zoomId = 'Zoom ID is required';
       if (!formData.zoomPassword.trim()) newErrors.zoomPassword = 'Zoom password is required';
     }
 
-    if (formData.times.length === 0) newErrors.times = 'At least one time is required';
-    if (formData.days.length === 0) newErrors.days = 'At least one day is required';
+    if (formData.times.length === 0) newErrors.times = 'At least one delivery time is required';
+    if (formData.days.length === 0) newErrors.days = 'Select at least one active day';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -102,32 +120,24 @@ export default function SadhanaForm({
 
   const handleVideoUpload = async (file: File) => {
     try {
-      console.log('[Sadhana Upload] Starting upload for:', file.name);
       setUploading(true);
       setUploadError(null);
       setUploadProgress(0);
 
-      // Validate file type
       const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
       if (!allowedTypes.includes(file.type)) {
-        console.error('[Sadhana Upload] Invalid file type:', file.type);
-        setUploadError('Invalid video type. Please upload MP4, WebM, MOV, or AVI.');
+        setUploadError('Invalid video format. Please upload MP4, WebM, MOV, or AVI.');
         setUploading(false);
         return;
       }
 
-      // Validate file size (50MB max - realistic Vercel limit after multipart overhead)
-      // Files > 50MB will fail with FUNCTION_PAYLOAD_TOO_LARGE error
       const maxSize = 50 * 1024 * 1024;
       if (file.size > maxSize) {
         const sizeMB = Math.round(file.size / 1024 / 1024);
-        console.error('[Sadhana Upload] File too large:', sizeMB, 'MB');
-        setUploadError(`Video too large (${sizeMB}MB). Maximum size is 50MB. For larger videos, please compress or use chunked upload.`);
+        setUploadError(`Video file too large (${sizeMB}MB). Maximum allowed is 50MB.`);
         setUploading(false);
         return;
       }
-
-      console.log('[Sadhana Upload] File validated:', { name: file.name, size: Math.round(file.size / 1024 / 1024) + 'MB', type: file.type });
 
       const formDataToSend = new FormData();
       formDataToSend.append('file', file);
@@ -136,79 +146,44 @@ export default function SadhanaForm({
 
       const xhr = new XMLHttpRequest();
 
-      // Track upload progress
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
-          const percentComplete = Math.round((e.loaded / e.total) * 100);
-          console.log(`[Sadhana Upload] Progress: ${percentComplete}%`);
-          setUploadProgress(percentComplete);
+          const percent = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percent);
         }
       });
 
       xhr.addEventListener('load', () => {
         try {
-          console.log('[Sadhana Upload] Load event fired, status:', xhr.status);
-          console.log('[Sadhana Upload] Response headers:', {
-            contentType: xhr.getResponseHeader('content-type'),
-            contentLength: xhr.getResponseHeader('content-length'),
-          });
-
           if (!xhr.responseText) {
-            console.error('[Sadhana Upload] Empty response text');
-            setUploadError('Empty response from server (HTTP ' + xhr.status + ')');
+            setUploadError(`Empty response from server (HTTP ${xhr.status})`);
             setUploading(false);
             return;
           }
 
-          console.log('[Sadhana Upload] Raw response text (first 500 chars):', xhr.responseText.substring(0, 500));
-          console.log('[Sadhana Upload] Raw response text (all):', xhr.responseText);
-
-          let response;
-          try {
-            response = JSON.parse(xhr.responseText);
-            console.log('[Sadhana Upload] ✅ Parsed response:', JSON.stringify(response, null, 2));
-          } catch (parseErr) {
-            console.error('[Sadhana Upload] ❌ JSON parse error:', parseErr);
-            console.error('[Sadhana Upload] Failed to parse response:', xhr.responseText);
-            console.error('[Sadhana Upload] Response length:', xhr.responseText.length);
-            console.error('[Sadhana Upload] Response type:', typeof xhr.responseText);
-            console.error('[Sadhana Upload] Response starts with:', xhr.responseText.charAt(0), xhr.responseText.charCodeAt(0));
-            setUploadError(`Server error (Status ${xhr.status}): Invalid response format. Check browser console for details.`);
-            setUploading(false);
-            return;
-          }
-
+          const response = JSON.parse(xhr.responseText);
           if (xhr.status === 200 && response.success && response.data?.url) {
-            console.log('[Sadhana Upload] ✅ Success! URL:', response.data.url);
-            setFormData({ ...formData, videoUrl: response.data.url });
+            setFormData((prev) => ({ ...prev, videoUrl: response.data.url }));
             setUploading(false);
             setUploadProgress(0);
-          } else if (xhr.status >= 400) {
+          } else {
             const errorMsg = response.error || response.message || `Upload failed (${xhr.status})`;
-            console.error('[Sadhana Upload] ❌ Server error:', errorMsg);
             setUploadError(errorMsg);
             setUploading(false);
-          } else {
-            console.warn('[Sadhana Upload] ⚠️ Unexpected response:', response);
-            setUploadError(response.error || 'Upload failed - unknown error');
-            setUploading(false);
           }
-        } catch (err) {
-          console.error('[Sadhana Upload] ❌ Load handler error:', err);
-          setUploadError('Error processing upload response');
+        } catch {
+          setUploadError('Error processing upload response.');
           setUploading(false);
         }
       });
 
       xhr.addEventListener('error', () => {
-        console.error('[Sadhana Upload] Network error');
-        setUploadError('Network error during upload');
+        setUploadError('Network error during video upload.');
         setUploading(false);
       });
 
       xhr.addEventListener('abort', () => {
-        console.warn('[Sadhana Upload] Upload aborted');
-        setUploadError('Upload was cancelled');
+        setUploadError('Video upload was cancelled.');
         setUploading(false);
       });
 
@@ -216,25 +191,19 @@ export default function SadhanaForm({
       const cleanToken = (token || '').trim().replace(/^Bearer\s+/i, '');
       xhr.setRequestHeader('Authorization', `Bearer ${cleanToken}`);
 
-      console.log('[Sadhana Upload] XHR opened, sending file...');
-
-      // Add timeout handler (30 seconds)
       const uploadTimeout = setTimeout(() => {
         if (xhr.readyState !== XMLHttpRequest.DONE) {
-          console.error('[Sadhana Upload] Upload timeout after 30s');
           xhr.abort();
-          setUploadError('Upload timeout - please try again with a smaller file');
+          setUploadError('Upload timed out. Please try again with a smaller file.');
           setUploading(false);
         }
       }, 30000);
 
       xhr.addEventListener('loadend', () => {
-        console.log('[Sadhana Upload] loadend event fired');
         clearTimeout(uploadTimeout);
       });
 
       xhr.send(formDataToSend);
-      console.log('[Sadhana Upload] FormData sent');
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
       setUploading(false);
@@ -248,63 +217,59 @@ export default function SadhanaForm({
   };
 
   const handleDayToggle = (day: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      days: prev.days.includes(day)
-        ? prev.days.filter((d) => d !== day)
-        : [...prev.days, day].sort(),
-    }));
+    const newDays = formData.days.includes(day)
+      ? formData.days.filter((d) => d !== day)
+      : [...formData.days, day].sort((a, b) => a - b);
+    setFormData({ ...formData, days: newDays });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    const submitData = {
+    const payload = {
       name: formData.name,
-      botName: formData.botName || 'Swar Sadhana',
+      botName: formData.botName,
       chatMessages: formData.chatMessages.filter((m) => m.message.trim()),
       enableAiChatReplies: formData.enableAiChatReplies,
       videoUrl: formData.videoUrl,
-      videoDuration: formData.videoDuration || 40,
-      botJoinMinutes: formData.botJoinMinutes || 5,
-      autoCloseMinutes: formData.autoCloseMinutes || 40,
-      enableBotAutomation: formData.enableBotAutomation !== false,
+      videoDuration: formData.videoDuration,
+      botJoinMinutes: formData.botJoinMinutes,
+      autoCloseMinutes: formData.autoCloseMinutes,
+      enableBotAutomation: formData.enableBotAutomation,
+      zoomLink: formData.zoomType === 'link' ? formData.zoomLink : undefined,
+      zoomId: formData.zoomType === 'credentials' ? formData.zoomId : undefined,
+      zoomPassword: formData.zoomType === 'credentials' ? formData.zoomPassword : undefined,
       schedule: {
-        times: formData.times.sort(),
+        times: formData.times.filter(Boolean),
         days: formData.days,
         repeatFrequency: formData.repeatFrequency,
         startDate: formData.startDate,
         timezone: formData.timezone,
       },
-      ...(formData.zoomType === 'link'
-        ? { zoomLink: formData.zoomLink, zoomId: null, zoomPassword: null }
-        : { zoomId: formData.zoomId, zoomPassword: formData.zoomPassword, zoomLink: null }),
-      // Participant information
-      participantEmails,
-      participantPhones,
+      participantEmails: enableEmailReminders ? participantEmails : [],
+      participantPhones: enableWhatsAppReminders ? participantPhones : [],
       enableEmailReminders,
       enableWhatsAppReminders,
       whatsappProvider,
     };
 
-    onSubmit(submitData);
+    onSubmit(payload);
   };
 
-  // Helper functions for participant management
   const addEmail = () => {
     if (emailInput.trim() && !participantEmails.includes(emailInput.trim())) {
       if (participantEmails.length < 299) {
         setParticipantEmails([...participantEmails, emailInput.trim()]);
         setEmailInput('');
       } else {
-        alert('Maximum 299 emails allowed');
+        alert('Maximum 299 email recipients allowed.');
       }
     }
   };
 
   const removeEmail = (email: string) => {
-    setParticipantEmails(participantEmails.filter(e => e !== email));
+    setParticipantEmails(participantEmails.filter((e) => e !== email));
   };
 
   const addPhone = () => {
@@ -315,717 +280,743 @@ export default function SadhanaForm({
           setParticipantPhones([...participantPhones, normalized]);
           setPhoneInput('');
         } else {
-          alert('Maximum 299 phone numbers allowed');
+          alert('Maximum 299 phone recipients allowed.');
         }
       }
     }
   };
 
   const removePhone = (phone: string) => {
-    setParticipantPhones(participantPhones.filter(p => p !== phone));
+    setParticipantPhones(participantPhones.filter((p) => p !== phone));
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Basic Information */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4">📋 Basic Information</h3>
-        <div className="space-y-4">
-          {/* Name */}
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-200">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span>{initialData ? '✏️ Edit Sadhana Schedule' : '✨ Create Sadhana Schedule'}</span>
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            Configure automated morning routines, Zoom bot joining, and participant engagement.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-5 py-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-95 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md shadow-indigo-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? <Loader size={15} className="animate-spin" /> : null}
+            <span>{initialData ? 'Update Schedule' : 'Save & Activate'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 1. Basic Details */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+            <Radio size={16} />
+          </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Schedule Name *
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">1. Routine Identity</h3>
+            <p className="text-[11px] text-slate-500">Name your routine and customize how the automated bot appears in Zoom.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Schedule Routine Name *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g., Morning Sadhana - Mon to Fri"
-              className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                errors.name ? 'border-red-500' : 'border-gray-600'
-              }`}
+              placeholder="e.g., Morning 6AM Swar Sadhana"
+              className={`w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border ${
+                errors.name ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'
+              } outline-none text-sm transition shadow-2xs`}
             />
-            {errors.name && (
-              <p className="text-red-400 text-sm mt-1">{errors.name}</p>
-            )}
+            {errors.name && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.name}</p>}
           </div>
 
-          {/* Bot Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              🤖 Bot Name (Appears in Zoom meeting)
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Bot size={13} className="text-indigo-600" />
+              <span>Bot Display Name (In Zoom)</span>
             </label>
             <input
               type="text"
               value={formData.botName}
               onChange={(e) => setFormData({ ...formData, botName: e.target.value })}
-              placeholder="e.g., Swar Sadhana"
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+              placeholder="e.g., 🤖 Swar Sadhana Host"
+              className="w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm transition shadow-2xs"
             />
-            <p className="text-gray-500 text-xs mt-1">
-              This is the name the bot will display as in your Zoom meeting.
-            </p>
+            <p className="text-[11px] text-slate-400 mt-1">This name will be shown in the Zoom participants list.</p>
           </div>
+        </div>
+      </div>
 
-          {/* Chat Messages (up to 4, each with its own delay) */}
+      {/* 2. Schedule & Recurrence */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center">
+            <Clock size={16} />
+          </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              💬 Chat Messages <span className="text-gray-500 text-xs ml-1">(optional — up to 4, each posted at its own time)</span>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">2. Timing & Delivery Days</h3>
+            <p className="text-[11px] text-slate-500">Pick active weekdays, multiple session times, and repeat frequency.</p>
+          </div>
+        </div>
+
+        {/* Days selector */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            Active Days *
+          </label>
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            {daysOptions.map((day) => {
+              const active = formData.days.includes(day.value);
+              return (
+                <button
+                  key={day.value}
+                  type="button"
+                  onClick={() => handleDayToggle(day.value)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center cursor-pointer ${
+                    active
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200/60'
+                  }`}
+                >
+                  <span>{day.label}</span>
+                  <span className={`text-[10px] font-normal ${active ? 'text-indigo-100' : 'text-slate-400'}`}>
+                    {day.full.slice(0, 3)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {errors.days && <p className="text-rose-500 text-xs mt-1.5 font-semibold">{errors.days}</p>}
+        </div>
+
+        {/* Times & Recurrence */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+          {/* Times */}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              Daily Time Slots *
             </label>
-            <div className="space-y-3">
-              {formData.chatMessages.map((slot, idx) => (
-                <div key={idx} className="p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
-                  <textarea
-                    value={slot.message}
-                    onChange={(e) => {
-                      const next = [...formData.chatMessages];
-                      next[idx] = { ...next[idx], message: e.target.value };
-                      setFormData({ ...formData, chatMessages: next });
-                    }}
-                    placeholder={idx === 0 ? 'e.g., Welcome all! Be connected — Mohan sir 🙏' : 'e.g., Reminder text...'}
-                    rows={2}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none text-sm"
-                  />
-                  <div className="flex items-center gap-2 mt-2">
-                    <label className="text-xs text-gray-400 whitespace-nowrap">Send after</label>
+            <div className="space-y-2">
+              {formData.times.map((time, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <div className="relative flex-1">
                     <input
-                      type="number"
-                      min="0"
-                      value={slot.delayMinutes}
-                      onChange={(e) => {
-                        const next = [...formData.chatMessages];
-                        next[idx] = { ...next[idx], delayMinutes: parseInt(e.target.value) || 0 };
-                        setFormData({ ...formData, chatMessages: next });
-                      }}
-                      className="w-20 px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                      type="time"
+                      value={time}
+                      onChange={(e) => handleTimeChange(idx, e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-semibold transition"
                     />
-                    <span className="text-xs text-gray-400">minute(s) of joining</span>
                   </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-gray-500 text-xs mt-2">
-              Leave a message blank to skip that slot. 0 minutes sends it as soon as the bot joins.
-            </p>
-          </div>
-
-          {/* AI Chat Replies */}
-          <div className="flex items-start gap-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
-            <input
-              type="checkbox"
-              id="enableAiChatReplies"
-              checked={formData.enableAiChatReplies}
-              onChange={(e) => setFormData({ ...formData, enableAiChatReplies: e.target.checked })}
-              className="mt-1 h-4 w-4 accent-purple-500"
-            />
-            <label htmlFor="enableAiChatReplies" className="text-sm text-gray-300">
-              🤖 <span className="font-medium">AI answers participant questions</span>
-              <p className="text-gray-500 text-xs mt-0.5">
-                When someone asks a question in the meeting chat, the bot automatically posts a short AI-generated answer.
-              </p>
-            </label>
-          </div>
-
-        {/* Video URL or Upload */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Sadhana Video URL * 
-              <span className="text-gray-500 text-xs ml-1">(Upload or paste link)</span>
-            </label>
-
-            {/* Upload Section */}
-            {!formData.videoUrl && (
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files[0];
-                  if (file) handleVideoUpload(file);
-                }}
-                className="mb-4 border-2 border-dashed border-purple-500/50 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 transition bg-purple-900/10"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleVideoUpload(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
-
-                {uploading ? (
-                  <div className="space-y-3">
-                    <Loader className="mx-auto text-purple-400 animate-spin" size={32} />
-                    <p className="text-purple-300 font-medium">
-                      Uploading to Bunny CDN... {uploadProgress}%
-                    </p>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-purple-600 h-2 rounded-full transition-all"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <Upload className="mx-auto text-purple-400 mb-2" size={32} />
-                    <p className="text-gray-300 font-medium mb-1">
-                      Drag and drop your video here
-                    </p>
-                    <p className="text-gray-500 text-sm mb-3">
-                      or click to select (MP4, WebM, MOV, AVI - Max 50MB)
-                    </p>
+                  {formData.times.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          times: formData.times.filter((_, i) => i !== idx),
+                        })
+                      }
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                      title="Remove time slot"
                     >
-                      Choose File
+                      <X size={16} />
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Error Message */}
-            {uploadError && (
-              <div className="mb-4 bg-red-900/50 border border-red-700 rounded-lg p-3 flex items-start gap-2">
-                <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={18} />
-                <p className="text-red-300 text-sm">{uploadError}</p>
-              </div>
-            )}
-
-            {/* Video URL Input */}
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={formData.videoUrl}
-                  onChange={(e) => {
-                    setFormData({ ...formData, videoUrl: e.target.value });
-                    setUploadError(null);
-                  }}
-                  placeholder="https://yourcdn.com/video.mp4"
-                  className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                    errors.videoUrl
-                      ? 'border-red-500'
-                      : 'border-gray-600'
-                  }`}
-                />
-                {formData.videoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, videoUrl: '' })}
-                    className="px-3 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 rounded-lg transition"
-                    title="Clear video URL"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-
-              {/* Video URL Success Indicator */}
-              {formData.videoUrl && (
-                <div className="flex items-center gap-2 text-green-400 text-sm">
-                  <CheckCircle size={16} />
-                  <span>Video ready</span>
+                  )}
                 </div>
+              ))}
+              {formData.times.length < 4 && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, times: [...formData.times, '18:00'] })}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  <span>+ Add Another Time Slot (Up to 4)</span>
+                </button>
               )}
+            </div>
+            {errors.times && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.times}</p>}
+          </div>
 
-              {errors.videoUrl && (
-                <p className="text-red-400 text-sm mt-1">{errors.videoUrl}</p>
-              )}
+          {/* Timezone & Frequency */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Timezone
+              </label>
+              <select
+                value={formData.timezone}
+                onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm transition"
+              >
+                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                <option value="America/New_York">America/New_York (EST)</option>
+                <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Repeat Cadence
+              </label>
+              <select
+                value={formData.repeatFrequency}
+                onChange={(e) => setFormData({ ...formData, repeatFrequency: e.target.value as any })}
+                className="w-full px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm transition"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Zoom Configuration */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4">🎥 Zoom Configuration</h3>
-
-        {/* Zoom Type Selection */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Zoom Connection Type
-          </label>
-          <div className="flex gap-4">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="zoomType"
-                value="link"
-                checked={formData.zoomType === 'link'}
-                onChange={(e) =>
-                  setFormData({ ...formData, zoomType: e.target.value })
-                }
-                className="mr-2"
-              />
-              <span className="text-gray-300">Zoom Link</span>
-            </label>
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="zoomType"
-                value="credentials"
-                checked={formData.zoomType === 'credentials'}
-                onChange={(e) =>
-                  setFormData({ ...formData, zoomType: e.target.value })
-                }
-                className="mr-2"
-              />
-              <span className="text-gray-300">ID & Password</span>
-            </label>
+      {/* 3. Video & CDN Source */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-pink-50 border border-pink-100 text-pink-600 flex items-center justify-center">
+            <Video size={16} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">3. Sadhana Video Source</h3>
+            <p className="text-[11px] text-slate-500">Provide high-speed MP4/HLS URL or upload directly to Bunny CDN.</p>
           </div>
         </div>
 
-        {/* Zoom Link */}
-        {formData.zoomType === 'link' && (
+        {!formData.videoUrl && (
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files[0];
+              if (file) handleVideoUpload(file);
+            }}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            className="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/40 hover:bg-indigo-50/80 rounded-2xl p-6 text-center cursor-pointer transition group"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleVideoUpload(e.target.files[0]);
+              }}
+              className="hidden"
+            />
+            {uploading ? (
+              <div className="space-y-2">
+                <Loader className="mx-auto text-indigo-600 animate-spin" size={28} />
+                <p className="text-slate-800 font-bold text-sm">Uploading to Bunny CDN... {uploadProgress}%</p>
+                <div className="w-full max-w-xs mx-auto bg-slate-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-indigo-600 to-pink-500 h-2 transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Upload className="mx-auto text-indigo-500 group-hover:scale-110 transition duration-150 mb-2" size={28} />
+                <p className="text-slate-800 font-bold text-sm">Drag & drop your Sadhana video here, or click to browse</p>
+                <p className="text-slate-400 text-xs mt-0.5">Supports MP4, WebM, MOV (Max 50MB direct)</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {uploadError && (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5">
+            <AlertCircle size={16} className="text-rose-600 mt-0.5 flex-shrink-0" />
+            <p className="text-rose-700 text-xs font-semibold">{uploadError}</p>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Video Direct Link (MP4 / HLS / CDN) *
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={formData.videoUrl}
+              onChange={(e) => {
+                setFormData({ ...formData, videoUrl: e.target.value });
+                setUploadError(null);
+              }}
+              placeholder="https://vz-xxx.b-cdn.net/sadhana-session.mp4"
+              className={`flex-1 px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border ${
+                errors.videoUrl ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'
+              } outline-none text-sm transition font-mono`}
+            />
+            {formData.videoUrl && (
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, videoUrl: '' })}
+                className="px-3.5 py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl text-xs font-bold transition cursor-pointer"
+                title="Clear video URL"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {formData.videoUrl && (
+            <p className="text-emerald-700 text-xs mt-1.5 font-semibold flex items-center gap-1.5">
+              <CheckCircle size={14} /> Video URL validated and ready for automated streaming
+            </p>
+          )}
+          {errors.videoUrl && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.videoUrl}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Zoom Meeting Link *
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Video Duration (Minutes)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="240"
+              value={formData.videoDuration}
+              onChange={(e) => setFormData({ ...formData, videoDuration: parseInt(e.target.value) || 40 })}
+              className="w-full px-3.5 py-2 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-semibold"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Expected session runtime for countdowns & progress sync.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Auto-Close Room (Minutes after start)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="240"
+              value={formData.autoCloseMinutes}
+              onChange={(e) => setFormData({ ...formData, autoCloseMinutes: parseInt(e.target.value) || 40 })}
+              className="w-full px-3.5 py-2 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-semibold"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Bot automatically closes the meeting room after this duration.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Zoom Meeting Connectivity */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center">
+            <Radio size={16} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">4. Zoom Connection</h3>
+            <p className="text-[11px] text-slate-500">Provide direct Zoom invite link or Meeting ID with passcode.</p>
+          </div>
+        </div>
+
+        {/* Radio toggle */}
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+            <input
+              type="radio"
+              name="zoomType"
+              value="link"
+              checked={formData.zoomType === 'link'}
+              onChange={() => setFormData({ ...formData, zoomType: 'link' })}
+              className="text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>Full Zoom Link (Recommended)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+            <input
+              type="radio"
+              name="zoomType"
+              value="credentials"
+              checked={formData.zoomType === 'credentials'}
+              onChange={() => setFormData({ ...formData, zoomType: 'credentials' })}
+              className="text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>Meeting ID & Password</span>
+          </label>
+        </div>
+
+        {formData.zoomType === 'link' ? (
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Zoom Meeting URL *
             </label>
             <input
               type="url"
               value={formData.zoomLink}
               onChange={(e) => setFormData({ ...formData, zoomLink: e.target.value })}
-              placeholder="https://zoom.us/j/..."
-              className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                errors.zoomLink ? 'border-red-500' : 'border-gray-600'
-              }`}
+              placeholder="https://us02web.zoom.us/j/1234567890?pwd=..."
+              className={`w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border ${
+                errors.zoomLink ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'
+              } outline-none text-sm transition font-mono`}
             />
-            {errors.zoomLink && (
-              <p className="text-red-400 text-sm mt-1">{errors.zoomLink}</p>
-            )}
+            {errors.zoomLink && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.zoomLink}</p>}
           </div>
-        )}
-
-        {/* Zoom Credentials */}
-        {formData.zoomType === 'credentials' && (
-          <div className="space-y-4">
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Zoom Meeting ID *
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Meeting ID *
               </label>
               <input
                 type="text"
                 value={formData.zoomId}
                 onChange={(e) => setFormData({ ...formData, zoomId: e.target.value })}
-                placeholder="e.g., 123456789"
-                className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                  errors.zoomId ? 'border-red-500' : 'border-gray-600'
-                }`}
+                placeholder="123 4567 8901"
+                className={`w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border ${
+                  errors.zoomId ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'
+                } outline-none text-sm transition font-mono`}
               />
-              {errors.zoomId && (
-                <p className="text-red-400 text-sm mt-1">{errors.zoomId}</p>
-              )}
+              {errors.zoomId && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.zoomId}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Zoom Password *
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Meeting Passcode *
               </label>
-              <div className="flex gap-2">
+              <div className="relative">
                 <input
                   type={showZoomCreds ? 'text' : 'password'}
                   value={formData.zoomPassword}
-                  onChange={(e) =>
-                    setFormData({ ...formData, zoomPassword: e.target.value })
-                  }
-                  placeholder="e.g., 123456"
-                  className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                    errors.zoomPassword ? 'border-red-500' : 'border-gray-600'
-                  }`}
+                  onChange={(e) => setFormData({ ...formData, zoomPassword: e.target.value })}
+                  placeholder="Passcode"
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 focus:bg-white text-slate-800 rounded-xl border ${
+                    errors.zoomPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500'
+                  } outline-none text-sm transition pr-10`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowZoomCreds(!showZoomCreds)}
-                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                 >
-                  {showZoomCreds ? '🙈' : '👁'}
+                  {showZoomCreds ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {errors.zoomPassword && (
-                <p className="text-red-400 text-sm mt-1">{errors.zoomPassword}</p>
-              )}
+              {errors.zoomPassword && <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.zoomPassword}</p>}
             </div>
           </div>
         )}
       </div>
 
-      {/* Bot Automation Configuration */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4">🤖 Bot Automation</h3>
-        
-        {/* Enable Bot Automation */}
-        <div className="mb-6">
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.enableBotAutomation}
-              onChange={(e) => setFormData({ ...formData, enableBotAutomation: e.target.checked })}
-              className="mr-3 w-4 h-4 bg-gray-700 border border-gray-600 rounded accent-purple-600"
-            />
-            <span className="text-gray-300 font-medium">Enable Bot Automation</span>
-          </label>
-          <p className="text-gray-500 text-sm mt-1 ml-7">
-            When enabled, the bot will automatically join, send countdown messages, and play the video.
-          </p>
+      {/* 5. Automated Bot & Live Chat Controls */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">5. Bot Join & In-Meeting Chat</h3>
+            <p className="text-[11px] text-slate-500">Configure bot join lead time, scheduled welcome messages, and AI responses.</p>
+          </div>
+        </div>
+
+        {/* Master bot switch */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-4">
+          <div>
+            <span className="text-sm font-bold text-slate-900 block">Enable Automated Bot Joining</span>
+            <span className="text-xs text-slate-500 block mt-0.5">
+              Bot automatically starts at the scheduled time, sends messages, and streams the Sadhana video.
+            </span>
+          </div>
+          <input
+            type="checkbox"
+            checked={formData.enableBotAutomation}
+            onChange={(e) => setFormData({ ...formData, enableBotAutomation: e.target.checked })}
+            className="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
         </div>
 
         {formData.enableBotAutomation && (
-          <>
-            {/* Bot Join Minutes */}
-            <div className="mb-4 p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bot Join Time (minutes before scheduled time)
+          <div className="space-y-4 pt-2">
+            {/* Join lead time */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Bot Join Lead Time (Minutes before session)
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {[2, 3, 5].map((mins) => (
                   <button
                     key={mins}
                     type="button"
                     onClick={() => setFormData({ ...formData, botJoinMinutes: mins })}
-                    className={`px-3 py-2 rounded-lg font-medium transition ${
+                    className={`py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                       formData.botJoinMinutes === mins
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/60'
                     }`}
                   >
-                    {mins} min
+                    {mins} Minutes Before
                   </button>
                 ))}
               </div>
-              <p className="text-gray-500 text-xs mt-2">
-                🤖 Bot will join and send "Ready" message this many minutes before the scheduled time.
-              </p>
             </div>
 
-            {/* Video Duration */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Video Duration (minutes)
+            {/* Scheduled Chat Messages */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <MessageSquare size={13} className="text-indigo-600" />
+                <span>Scheduled Chat Messages (Up to 4)</span>
               </label>
-              <input
-                type="number"
-                min="1"
-                max="180"
-                value={formData.videoDuration}
-                onChange={(e) => setFormData({ ...formData, videoDuration: parseInt(e.target.value) || 40 })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-              />
-              <p className="text-gray-500 text-xs mt-1">How long the video plays (used for auto-close)</p>
+              <div className="space-y-3">
+                {formData.chatMessages.map((slot, idx) => (
+                  <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700">Message Slot #{idx + 1}</span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <span>Send at:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={slot.delayMinutes}
+                          onChange={(e) => {
+                            const next = [...formData.chatMessages];
+                            next[idx] = { ...next[idx], delayMinutes: parseInt(e.target.value) || 0 };
+                            setFormData({ ...formData, chatMessages: next });
+                          }}
+                          className="w-14 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-bold text-center"
+                        />
+                        <span>min after join</span>
+                      </div>
+                    </div>
+                    <textarea
+                      value={slot.message}
+                      onChange={(e) => {
+                        const next = [...formData.chatMessages];
+                        next[idx] = { ...next[idx], message: e.target.value };
+                        setFormData({ ...formData, chatMessages: next });
+                      }}
+                      placeholder={idx === 0 ? 'e.g. Welcome to Sadhana! Please keep your audio muted 🙏' : 'e.g. In case of issues, check the community feed...'}
+                      rows={2}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-slate-800 text-xs outline-none resize-none transition"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Auto-Close Time */}
-            <div className="mb-4 p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Auto-Close Meeting (minutes after video starts)
-              </label>
+            {/* AI Chat Replies Switch */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-bold text-slate-900 block flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-purple-600" />
+                  <span>AI In-Meeting Q&A Helper</span>
+                </span>
+                <span className="text-[11px] text-slate-500 block mt-0.5">
+                  When enabled, the bot automatically answers simple attendee questions asked in Zoom chat.
+                </span>
+              </div>
               <input
-                type="number"
-                min="1"
-                max="180"
-                value={formData.autoCloseMinutes}
-                onChange={(e) => setFormData({ ...formData, autoCloseMinutes: parseInt(e.target.value) || 40 })}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                type="checkbox"
+                checked={formData.enableAiChatReplies}
+                onChange={(e) => setFormData({ ...formData, enableAiChatReplies: e.target.checked })}
+                className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
               />
-              <p className="text-gray-500 text-xs mt-2">
-                🔒 Meeting will automatically close this many minutes after the video starts. E.g., enter 40 to close after 40 minutes.
-              </p>
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Schedule Configuration */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-4">⏰ Schedule Configuration</h3>
-
-        {/* Times */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Delivery Times * (24-hour format)
-          </label>
-          <div className="space-y-2">
-            {formData.times.map((time, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => handleTimeChange(index, e.target.value)}
-                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({
-                      ...formData,
-                      times: formData.times.filter((_, i) => i !== index),
-                    });
-                  }}
-                  className="px-3 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 rounded-lg transition"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() =>
-                setFormData({ ...formData, times: [...formData.times, '12:00'] })
-              }
-              className="mt-2 px-4 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-300 rounded-lg transition"
-            >
-              + Add Time
-            </button>
+      {/* 6. Participant Reminders (Email & WhatsApp) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
+            <Users size={16} />
           </div>
-          {errors.times && (
-            <p className="text-red-400 text-sm mt-1">{errors.times}</p>
-          )}
-        </div>
-
-        {/* Days */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-300 mb-3">
-            Repeat Days * (Select at least one)
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {daysOptions.map((day) => (
-              <button
-                key={day.value}
-                type="button"
-                onClick={() => handleDayToggle(day.value)}
-                className={`px-3 py-2 rounded-lg font-medium transition ${
-                  formData.days.includes(day.value)
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                }`}
-              >
-                {day.label}
-              </button>
-            ))}
-          </div>
-          {errors.days && (
-            <p className="text-red-400 text-sm mt-2">{errors.days}</p>
-          )}
-        </div>
-
-        {/* Repeat Frequency */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Repeat Frequency
-          </label>
-          <select
-            value={formData.repeatFrequency}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                repeatFrequency: e.target.value as any,
-              })
-            }
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-
-        {/* Start Date & Timezone */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={formData.startDate}
-              onChange={(e) =>
-                setFormData({ ...formData, startDate: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Timezone
-            </label>
-            <select
-              value={formData.timezone}
-              onChange={(e) =>
-                setFormData({ ...formData, timezone: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-            >
-              <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-              <option value="UTC">UTC</option>
-              <option value="America/New_York">America/New_York (EST)</option>
-              <option value="Europe/London">Europe/London (GMT)</option>
-            </select>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">6. Participant Reminders</h3>
+            <p className="text-[11px] text-slate-500">Auto-dispatch session alerts via WhatsApp & Email before every routine.</p>
           </div>
         </div>
-      </div>
 
-      {/* Participant Management */}
-      <div className="bg-gray-800 rounded-lg p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-white mb-4">👥 Participant Management</h3>
-
-        {/* Email Reminders Section */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="emailReminders"
-              checked={enableEmailReminders}
-              onChange={(e) => setEnableEmailReminders(e.target.checked)}
-              className="w-4 h-4 rounded cursor-pointer"
-            />
-            <label htmlFor="emailReminders" className="text-sm font-medium text-gray-300">
-              📧 Enable Email Reminders (30 & 15 min before)
+        {/* Email Reminders */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+              <input
+                type="checkbox"
+                checked={enableEmailReminders}
+                onChange={(e) => setEnableEmailReminders(e.target.checked)}
+                className="w-4 h-4 rounded text-indigo-600"
+              />
+              <span>Send Email Reminders (30m & 15m before)</span>
             </label>
+            <span className="text-xs text-slate-400 font-semibold">{participantEmails.length}/299 recipients</span>
           </div>
 
           {enableEmailReminders && (
-            <div className="space-y-2 pl-7">
-              <label className="block text-sm text-gray-400">Add Email Addresses (Max 299)</label>
+            <div className="space-y-2">
               <div className="flex gap-2">
                 <input
                   type="email"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addEmail()}
-                  placeholder="participant@example.com"
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEmail())}
+                  placeholder="Enter email address..."
+                  className="flex-1 px-3 py-2 bg-white text-slate-800 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={addEmail}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition"
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Add
                 </button>
               </div>
 
-              {/* Email List */}
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {participantEmails.map((email) => (
-                  <div key={email} className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded text-sm">
-                    <span className="text-gray-300">{email}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeEmail(email)}
-                      className="text-red-400 hover:text-red-300"
+              {participantEmails.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pt-1">
+                  {participantEmails.map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-medium"
                     >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500">{participantEmails.length}/299 emails added</p>
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeEmail(email)}
+                        className="text-slate-400 hover:text-rose-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* WhatsApp Reminders Section */}
-        <div className="space-y-3 pt-4 border-t border-gray-700">
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="whatsappReminders"
-              checked={enableWhatsAppReminders}
-              onChange={(e) => setEnableWhatsAppReminders(e.target.checked)}
-              className="w-4 h-4 rounded cursor-pointer"
-            />
-            <label htmlFor="whatsappReminders" className="text-sm font-medium text-gray-300">
-              💬 Enable WhatsApp Reminders (15 min before)
+        {/* WhatsApp Reminders */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+              <input
+                type="checkbox"
+                checked={enableWhatsAppReminders}
+                onChange={(e) => setEnableWhatsAppReminders(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600"
+              />
+              <span>Send WhatsApp Alerts (15m before)</span>
             </label>
+            <span className="text-xs text-slate-400 font-semibold">{participantPhones.length}/299 recipients</span>
           </div>
 
           {enableWhatsAppReminders && (
-            <div className="space-y-2 pl-7">
-              {/* WhatsApp Provider Selection */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">WhatsApp Provider</label>
-                <select
-                  value={whatsappProvider}
-                  onChange={(e) => setWhatsappProvider(e.target.value as 'qr' | 'meta' | 'both')}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
-                >
-                  <option value="qr">🔗 QR WhatsApp Bridge (Recommended)</option>
-                  <option value="meta">📱 Meta Business API</option>
-                  <option value="both">🔄 Both (Auto-Fallback - Most Reliable)</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {whatsappProvider === 'qr' && 'Uses your existing QR WhatsApp service'}
-                  {whatsappProvider === 'meta' && 'Uses official Meta WhatsApp Business API'}
-                  {whatsappProvider === 'both' && 'Tries QR first, then Meta if QR fails'}
-                </p>
-              </div>
-
-              {/* Phone Input */}
-              <label className="block text-sm text-gray-400">Add WhatsApp Numbers (Max 299)</label>
-              <div className="flex gap-2">
-                <input
-                  type="tel"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addPhone()}
-                  placeholder="91-9876543210 or 919876543210"
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
-                />
-                <button
-                  type="button"
-                  onClick={addPhone}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition"
-                >
-                  Add
-                </button>
-              </div>
-
-              {/* Phone List */}
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {participantPhones.map((phone) => (
-                  <div key={phone} className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded text-sm">
-                    <span className="text-gray-300">+91 {phone.slice(-10)}</span>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    WhatsApp Gateway Provider
+                  </label>
+                  <select
+                    value={whatsappProvider}
+                    onChange={(e) => setWhatsappProvider(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-white text-slate-800 rounded-xl border border-slate-200 text-xs outline-none"
+                  >
+                    <option value="qr">🔗 QR WhatsApp Bridge (Recommended)</option>
+                    <option value="meta">📱 Official Meta Cloud API</option>
+                    <option value="both">🔄 Smart Fallback (QR + Meta)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Add Phone (e.g. 919876543210)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPhone())}
+                      placeholder="919876543210"
+                      className="flex-1 px-3 py-2 bg-white text-slate-800 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-500 font-mono"
+                    />
                     <button
                       type="button"
-                      onClick={() => removePhone(phone)}
-                      className="text-red-400 hover:text-red-300"
+                      onClick={addPhone}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                     >
-                      <X size={16} />
+                      Add
                     </button>
                   </div>
-                ))}
+                </div>
               </div>
-              <p className="text-xs text-gray-500">{participantPhones.length}/299 phone numbers added</p>
+
+              {participantPhones.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pt-1">
+                  {participantPhones.map((phone) => (
+                    <span
+                      key={phone}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-mono font-medium"
+                    >
+                      <span>+{phone}</span>
+                      <button
+                        type="button"
+                        onClick={() => removePhone(phone)}
+                        className="text-slate-400 hover:text-rose-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Form Actions */}
-      <div className="flex gap-3 justify-end pt-4 border-t border-gray-700">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition"
-          disabled={loading}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition flex items-center gap-2 disabled:opacity-50"
-        >
-          {loading ? <Loader size={18} className="animate-spin" /> : null}
-          {initialData ? 'Update Schedule' : 'Create Schedule'}
-        </button>
+      {/* Bottom Sticky Action Bar */}
+      <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4">
+        <p className="text-xs text-slate-500 hidden sm:block">
+          All routine parameters and bot timings are synced into Bunny Database.
+        </p>
+        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 sm:flex-initial px-6 py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-95 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-500/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? <Loader size={16} className="animate-spin" /> : null}
+            <span>{initialData ? 'Update Schedule' : 'Create & Activate'}</span>
+          </button>
+        </div>
       </div>
     </form>
   );
