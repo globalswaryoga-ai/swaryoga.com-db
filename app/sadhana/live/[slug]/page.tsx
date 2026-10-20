@@ -121,6 +121,7 @@ export default function ProgramLivePage() {
   const [nowTick, setNowTick] = useState<Date>(new Date());
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
+  const [showUpcoming, setShowUpcoming] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [fullscreenMode, setFullscreenMode] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
@@ -130,16 +131,18 @@ export default function ProgramLivePage() {
   const [videoStarted, setVideoStarted] = useState(false);
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+  const mobileChatMessagesRef = useRef<HTMLDivElement>(null);
   const urlSetRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Mobile viewport optimization
+    // Viewport optimization - ensure natural scrolling when needed
     if (typeof window !== 'undefined') {
       document.documentElement.style.height = '100%';
-      document.body.style.height = '100%';
-      document.body.style.overflow = 'hidden';
+      document.body.style.minHeight = '100%';
+      document.body.style.overflow = 'auto';
     }
   }, []);
 
@@ -247,7 +250,14 @@ export default function ProgramLivePage() {
     return () => clearInterval(i);
   }, []);
 
-  useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat.length]);
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+    if (mobileChatMessagesRef.current) {
+      mobileChatMessagesRef.current.scrollTop = mobileChatMessagesRef.current.scrollHeight;
+    }
+  }, [chat.length]);
 
   const sendChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -545,89 +555,122 @@ export default function ProgramLivePage() {
                 )}
               </div>
 
-            {showSidebar && !fullscreenMode && <div className="hidden md:flex flex-col space-y-3 sm:space-y-4">
-            <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/20">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-sm sm:text-base">👥 Participants ({count})</h2>
-                <button
-                  onClick={() => setShowParticipants(!showParticipants)}
-                  className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
-                  title={showParticipants ? 'Hide' : 'Show'}
-                >
-                  {showParticipants ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-              </div>
-              {showParticipants && (
-                <div className="space-y-1 max-h-40 sm:max-h-48 overflow-y-auto">
-                  {participants.map((p, i) => (
-                    <div key={i} className="flex items-center gap-2 px-2 sm:px-3 py-2 bg-white/5 rounded-lg text-xs sm:text-sm">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {p.name[0]?.toUpperCase() || '?'}
-                      </div>
-                      <span className="truncate">{p.name}</span>
-                    </div>
-                  ))}
-                  {participants.length === 0 && (
-                    <p className="text-purple-200 text-xs sm:text-sm text-center py-4">No participants yet</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {upcoming.length > 0 && (
-              <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/20">
-                <h2 className="font-semibold text-sm sm:text-base mb-3">📅 Upcoming</h2>
-                <div className="space-y-1">
-                  {upcoming.slice(0, 4).map((v, i) => (
-                    <div key={i} className="px-2 sm:px-3 py-2 bg-white/5 rounded-lg text-xs sm:text-sm">
-                      <div className="text-purple-200 text-[11px] sm:text-xs">{fmtDate(v.date)}</div>
-                      {v.title && <div className="text-white text-xs sm:text-sm">{v.title}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {session?.status !== 'ended' && (
-              <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/20 flex flex-col h-64 sm:h-80 md:h-96">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="font-semibold text-sm sm:text-base">💬 Live Chat</h2>
-                  <button
-                    onClick={() => setShowChat(!showChat)}
-                    className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
-                    title={showChat ? 'Hide' : 'Show'}
-                  >
-                    {showChat ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-                {showChat && (
-                  <>
-                    <div className="flex-1 overflow-y-auto space-y-2 mb-3 min-h-0">
-                      {chat.map((msg) => (
-                        <div key={msg.id} className="text-xs sm:text-sm">
-                          <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
-                          <span className="text-white break-words">{msg.message}</span>
+            {showSidebar && !fullscreenMode && (
+              <div className="hidden md:flex flex-col space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
+                {/* 1. Participants */}
+                <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                      <span>👥</span> Participants <span className="text-purple-300 font-normal">({count})</span>
+                    </h2>
+                    <button
+                      onClick={() => setShowParticipants(!showParticipants)}
+                      className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
+                      title={showParticipants ? 'Hide' : 'Show'}
+                    >
+                      {showParticipants ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                  </div>
+                  {showParticipants && (
+                    <div className="mt-2 space-y-1 max-h-28 overflow-y-auto pr-1">
+                      {participants.map((p, i) => (
+                        <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded-lg text-xs">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                            {p.name[0]?.toUpperCase() || '?'}
+                          </div>
+                          <span className="truncate">{p.name}</span>
                         </div>
                       ))}
-                      {chat.length === 0 && (
-                        <p className="text-purple-200 text-xs sm:text-sm text-center py-4">Be the first to say Namaste 🙏</p>
+                      {participants.length === 0 && (
+                        <p className="text-purple-200 text-xs text-center py-2">No participants yet</p>
                       )}
-                      <div ref={chatEnd} />
                     </div>
-                    <form onSubmit={sendChat} className="flex gap-1 sm:gap-2 mt-2">
-                      <input
-                        type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="Message..." maxLength={300}
-                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-white/20 rounded text-xs sm:text-sm placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white"
-                      />
-                      <button type="submit" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-pink-500 to-violet-500 rounded font-semibold text-xs sm:text-sm hover:opacity-90">Send</button>
-                    </form>
-                  </>
+                  )}
+                </div>
+
+                {/* 2. Live Chat (UPPER SIDE for easy access during live session) */}
+                {session?.status !== 'ended' && (
+                  <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex flex-col h-[340px] md:h-[380px] flex-shrink-0 shadow-lg">
+                    <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/10 flex-shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h2 className="font-semibold text-xs sm:text-sm">💬 Live Chat</h2>
+                      </div>
+                      <button
+                        onClick={() => setShowChat(!showChat)}
+                        className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
+                        title={showChat ? 'Hide' : 'Show'}
+                      >
+                        {showChat ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                    {showChat && (
+                      <>
+                        <div 
+                          ref={chatMessagesRef}
+                          className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 min-h-0"
+                        >
+                          {chat.map((msg) => (
+                            <div key={msg.id} className="text-xs">
+                              <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
+                              <span className="text-white break-words">{msg.message}</span>
+                            </div>
+                          ))}
+                          {chat.length === 0 && (
+                            <p className="text-purple-200 text-xs text-center py-6">Be the first to say Namaste 🙏</p>
+                          )}
+                          <div ref={chatEnd} />
+                        </div>
+                        <form onSubmit={sendChat} className="flex gap-1.5 pt-2 border-t border-white/10 flex-shrink-0">
+                          <input
+                            type="text" 
+                            value={chatInput} 
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder="Type a message..." 
+                            maxLength={300}
+                            className="flex-1 px-2.5 py-1.5 bg-white/20 rounded-lg text-xs placeholder-purple-200 border border-white/30 focus:outline-none focus:border-pink-400"
+                          />
+                          <button 
+                            type="submit" 
+                            className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-xs hover:opacity-90 transition cursor-pointer flex-shrink-0 shadow-sm"
+                          >
+                            Send
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Upcoming Schedule (KEPT IN BOTTOM) */}
+                {upcoming.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                        <span>📅</span> Upcoming Schedule <span className="text-purple-300 font-normal">({upcoming.length})</span>
+                      </h2>
+                      <button
+                        onClick={() => setShowUpcoming(!showUpcoming)}
+                        className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
+                        title={showUpcoming ? 'Hide' : 'Show'}
+                      >
+                        {showUpcoming ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                    {showUpcoming && (
+                      <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                        {upcoming.slice(0, 4).map((v, i) => (
+                          <div key={i} className="px-2.5 py-1.5 bg-white/5 rounded-lg text-xs">
+                            <div className="text-purple-300 text-[10px] font-medium">{fmtDate(v.date)}</div>
+                            {v.title && <div className="text-white text-xs truncate">{v.title}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
-            </div>
-            }
 
             {showSidebar && !fullscreenMode && (
               <div className="fixed inset-0 md:hidden bg-black/50 z-40" onClick={() => setShowSidebar(false)}></div>
@@ -640,21 +683,22 @@ export default function ProgramLivePage() {
                   <button onClick={() => setShowSidebar(false)} className="text-gray-300 hover:text-white">✕</button>
                 </div>
                 <div className="p-3 space-y-3">
+                  {/* 1. Mobile Participants */}
                   <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-sm">👥 Participants ({count})</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-xs sm:text-sm flex items-center gap-1">👥 Participants ({count})</h3>
                       <button
                         onClick={() => setShowParticipants(!showParticipants)}
-                        className="text-gray-300 hover:text-white p-1 rounded transition"
+                        className="text-gray-300 hover:text-white p-1 rounded transition cursor-pointer"
                       >
                         {showParticipants ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
                     </div>
                     {showParticipants && (
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
                         {participants.map((p, i) => (
-                          <div key={i} className="flex items-center gap-2 px-2 py-2 bg-white/5 rounded text-xs">
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded text-xs">
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                               {p.name[0]?.toUpperCase() || '?'}
                             </div>
                             <span className="truncate">{p.name}</span>
@@ -664,38 +708,53 @@ export default function ProgramLivePage() {
                     )}
                   </div>
 
-                  {upcoming.length > 0 && (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20">
-                      <h3 className="font-semibold text-sm mb-2">📅 Upcoming</h3>
-                      <div className="space-y-1 max-h-24 overflow-y-auto">
-                        {upcoming.slice(0, 3).map((v, i) => (
-                          <div key={i} className="px-2 py-1.5 bg-white/5 rounded text-xs">
-                            <div className="text-purple-200 text-[10px]">{fmtDate(v.date)}</div>
-                            {v.title && <div className="text-white text-xs">{v.title}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
+                  {/* 2. Mobile Live Chat (UPPER SIDE) */}
                   {session?.status !== 'ended' && (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20 flex flex-col max-h-64">
-                      <h3 className="font-semibold text-sm mb-2">💬 Chat</h3>
-                      <div className="flex-1 overflow-y-auto space-y-2 mb-2 min-h-0">
-                        {chat.slice(-10).map((msg) => (
+                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20 flex flex-col h-64">
+                      <h3 className="font-semibold text-xs sm:text-sm mb-2 pb-1 border-b border-white/10">💬 Live Chat</h3>
+                      <div ref={mobileChatMessagesRef} className="flex-1 overflow-y-auto space-y-2 mb-2 min-h-0 pr-1">
+                        {chat.map((msg) => (
                           <div key={msg.id} className="text-xs">
                             <span className="font-semibold text-pink-300">{msg.name}:</span> <span className="text-white break-words">{msg.message}</span>
                           </div>
                         ))}
+                        {chat.length === 0 && (
+                          <p className="text-purple-200 text-xs text-center py-4">Be the first to say Namaste 🙏</p>
+                        )}
                       </div>
-                      <form onSubmit={sendChat} className="flex gap-1 mt-2">
+                      <form onSubmit={sendChat} className="flex gap-1.5 pt-1.5 border-t border-white/10">
                         <input
                           type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                           placeholder="Say Namaste..." maxLength={300}
-                          className="flex-1 px-2 py-1.5 bg-white/20 rounded text-xs placeholder-purple-300 border border-white/30 focus:outline-none focus:border-white"
+                          className="flex-1 px-2.5 py-1.5 bg-white/20 rounded text-xs placeholder-purple-300 border border-white/30 focus:outline-none focus:border-white"
                         />
                         <button type="submit" className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-violet-500 rounded font-semibold text-xs hover:opacity-90">Send</button>
                       </form>
+                    </div>
+                  )}
+
+                  {/* 3. Mobile Upcoming Schedule (BOTTOM) */}
+                  {upcoming.length > 0 && (
+                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-xs sm:text-sm">📅 Upcoming Schedule</h3>
+                        <button
+                          onClick={() => setShowUpcoming(!showUpcoming)}
+                          className="text-gray-300 hover:text-white p-1 rounded transition cursor-pointer"
+                        >
+                          {showUpcoming ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+                      {showUpcoming && (
+                        <div className="space-y-1 max-h-28 overflow-y-auto">
+                          {upcoming.slice(0, 3).map((v, i) => (
+                            <div key={i} className="px-2 py-1.5 bg-white/5 rounded text-xs">
+                              <div className="text-purple-200 text-[10px]">{fmtDate(v.date)}</div>
+                              {v.title && <div className="text-white text-xs truncate">{v.title}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
