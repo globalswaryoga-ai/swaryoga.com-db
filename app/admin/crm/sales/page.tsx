@@ -42,6 +42,9 @@ import {
   Tag,
   ArrowLeft,
   ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 function toDateInputValue(v: string | undefined | null): string {
@@ -243,6 +246,20 @@ export default function SalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'summary' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('list');
+  // Open / Hide Sections State
+  const [sectionsOpen, setSectionsOpen] = useState({
+    kpi: true,
+    filters: true,
+    ledger: true,
+  });
+  const toggleSection = (key: 'kpi' | 'filters' | 'ledger') => {
+    setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const areAllSectionsOpen = sectionsOpen.kpi && sectionsOpen.filters && sectionsOpen.ledger;
+  const toggleAllSections = () => {
+    const next = !areAllSectionsOpen;
+    setSectionsOpen({ kpi: next, filters: next, ledger: next });
+  };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -1050,9 +1067,9 @@ export default function SalesPage() {
       render: (_: any, sale: SaleRecord) => {
         const displayId = sale.customerId || sale.leadId?.leadNumber || (typeof sale.leadId === 'object' && sale.leadId?._id ? String(sale.leadId._id).slice(-8) : '') || '-';
         return (
-          <div className="border border-white/20 rounded-xl px-3 py-2 bg-white/5 text-center">
-            <div className="text-xs font-bold text-green-400 mb-1">LEAD ID</div>
-            <div className="font-mono font-bold text-white">{displayId}</div>
+          <div className="border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 text-center">
+            <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-0.5">LEAD ID</div>
+            <div className="font-mono font-bold text-slate-900 text-xs">{displayId}</div>
           </div>
         );
       },
@@ -1068,9 +1085,9 @@ export default function SalesPage() {
         const isPlaceholderPhone = /^91?9999900\d{3}$/.test(leadPhone);
         const displayPhone = sale.customerPhone || (isPlaceholderPhone ? '' : leadPhone) || 'N/A';
         return (
-          <div className="space-y-1">
-            <div className="font-semibold text-white break-words">{displayName}</div>
-            <div className="text-xs text-gray-400 break-words">{displayPhone}</div>
+          <div className="space-y-0.5">
+            <div className="font-semibold text-slate-900 break-words text-xs">{displayName}</div>
+            <div className="text-xs text-slate-500 break-words">{displayPhone}</div>
           </div>
         );
       }
@@ -1087,7 +1104,7 @@ export default function SalesPage() {
         <div className="flex flex-col gap-1">
           <StatusBadge status={String(sale.status || '—')} size="sm" />
           {sale.superAdminApproved && (
-            <span className="text-xs bg-emerald-600/30 text-emerald-400 px-1.5 py-0.5 rounded font-medium border border-emerald-500/30">
+            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
               ✓ Amount Received
             </span>
           )}
@@ -1099,20 +1116,20 @@ export default function SalesPage() {
       label: 'Label',
       render: (_: any, sale: SaleRecord) => {
         const labels = Array.isArray(sale.labels) ? sale.labels : [];
-        if (!labels.length) return <span className="text-white/40">-</span>;
+        if (!labels.length) return <span className="text-slate-400">-</span>;
         return (
           <div className="flex flex-wrap gap-1">
             {labels.slice(0, 4).map((l) => (
               <span
                 key={l}
-                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-white border border-white/20"
+                className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
                 title={l}
               >
                 {l}
               </span>
             ))}
             {labels.length > 4 && (
-              <span className="text-xs text-white/50">+{labels.length - 4}</span>
+              <span className="text-xs text-slate-500">+{labels.length - 4}</span>
             )}
           </div>
         );
@@ -1142,7 +1159,7 @@ export default function SalesPage() {
       render: (_: any, sale: SaleRecord) => (
         <div className="flex items-center gap-2">
           {sale.tallySynced ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/40 text-emerald-400 border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
               ✓ Synced
             </span>
           ) : (
@@ -1170,7 +1187,7 @@ export default function SalesPage() {
                 }
               }}
               disabled={tallySyncingId === sale._id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-900/40 text-amber-400 border border-amber-500/30 hover:bg-amber-800/60 transition cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer disabled:opacity-50"
               title="Click to sync to Tally & generate receipt"
             >
               {tallySyncingId === sale._id ? '⏳' : '⚡'} Sync Tally
@@ -1187,10 +1204,10 @@ export default function SalesPage() {
           {/* Receipt + messaging actions */}
 
           {/* Receipts Button Group */}
-          <div className="inline-flex rounded-lg shadow-xs">
+          <div className="inline-flex rounded-lg shadow-2xs">
             <button
               onClick={() => setReceiptSaleId(sale._id)}
-              className="px-2.5 py-1.5 bg-black border border-yellow-500/80 text-yellow-400 rounded-l-lg text-xs font-semibold transition-colors hover:bg-yellow-400 hover:text-black flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-l-lg text-xs font-semibold transition-colors hover:bg-amber-100 flex items-center gap-1 cursor-pointer"
               title="View & Share Receipt"
             >
               {sale.receiptNumber ? `📄 ${sale.receiptNumber}` : '📄 Receipt'}
@@ -1200,7 +1217,7 @@ export default function SalesPage() {
                 e.stopPropagation();
                 handleDownloadReceiptDirect(sale._id, sale.receiptNumber);
               }}
-              className="px-1.5 py-1.5 bg-black border-y border-r border-yellow-500/80 text-yellow-400 rounded-r-lg text-xs font-bold transition-colors hover:bg-yellow-400 hover:text-black cursor-pointer"
+              className="px-1.5 py-1.5 bg-amber-50 border-y border-r border-amber-300 text-amber-900 rounded-r-lg text-xs font-bold transition-colors hover:bg-amber-100 cursor-pointer"
               title="Download Receipt PDF Directly"
             >
               ⬇️
@@ -1208,10 +1225,10 @@ export default function SalesPage() {
           </div>
 
           {/* Certificate Button Group */}
-          <div className="inline-flex rounded-lg shadow-xs">
+          <div className="inline-flex rounded-lg shadow-2xs">
             <button
               onClick={() => setCertificateSale(sale)}
-              className="px-2.5 py-1.5 bg-black border border-purple-500/80 text-purple-300 rounded-l-lg text-xs font-semibold transition-colors hover:bg-purple-600 hover:text-white flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 bg-purple-50 border border-purple-300 text-purple-900 rounded-l-lg text-xs font-semibold transition-colors hover:bg-purple-100 flex items-center gap-1 cursor-pointer"
               title="Preview & Download Certificate"
             >
               🎓 Certificate
@@ -1221,7 +1238,7 @@ export default function SalesPage() {
                 e.stopPropagation();
                 router.push(`/admin/crm/sales/${sale._id}/certificate`);
               }}
-              className="px-1.5 py-1.5 bg-black border-y border-r border-purple-500/80 text-purple-300 rounded-r-lg text-xs font-bold transition-colors hover:bg-purple-600 hover:text-white cursor-pointer"
+              className="px-1.5 py-1.5 bg-purple-50 border-y border-r border-purple-300 text-purple-900 rounded-r-lg text-xs font-bold transition-colors hover:bg-purple-100 cursor-pointer"
               title="Open Certificate Full Page Editor"
             >
               ✏️
@@ -1246,7 +1263,7 @@ export default function SalesPage() {
 
               router.push(`/admin/crm/meta?phone=${phone}`);
             }}
-            className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg text-sm font-medium transition-colors hover:bg-emerald-600 hover:text-white"
+            className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-semibold transition-colors hover:bg-emerald-100 cursor-pointer"
             title="Meta WhatsApp"
           >
             WhatsApp
@@ -1255,7 +1272,7 @@ export default function SalesPage() {
           {/* Edit Button */}
           <button
             onClick={() => openEdit(sale)}
-            className="px-3 py-1.5 bg-black border border-yellow-500 text-yellow-400 rounded-lg text-sm font-medium transition-colors hover:bg-yellow-400 hover:text-black"
+            className="px-2.5 py-1.5 bg-blue-50 border border-blue-300 text-blue-800 rounded-lg text-xs font-semibold transition-colors hover:bg-blue-100 cursor-pointer"
             title="Edit sale"
           >
             Edit
@@ -1264,7 +1281,7 @@ export default function SalesPage() {
           {/* View Button */}
           <button
             onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
-            className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg text-sm font-medium transition-colors hover:bg-emerald-600 hover:text-white"
+            className="px-2.5 py-1.5 bg-teal-50 border border-teal-300 text-teal-800 rounded-lg text-xs font-semibold transition-colors hover:bg-teal-100 cursor-pointer"
             title="View sale details"
           >
             View
@@ -1273,7 +1290,7 @@ export default function SalesPage() {
           {/* Delete Button */}
           <button
             onClick={() => handleDeleteSale(sale._id)}
-            className="px-3 py-1.5 bg-white border border-red-500 text-red-600 rounded-lg text-sm font-medium transition-colors hover:bg-red-600 hover:text-white"
+            className="px-2.5 py-1.5 bg-rose-50 border border-rose-300 text-rose-800 rounded-lg text-xs font-semibold transition-colors hover:bg-rose-100 cursor-pointer"
             title="Delete sale"
           >
             Delete
@@ -1316,6 +1333,23 @@ export default function SalesPage() {
             </div>
 
             <div className="flex gap-2.5 flex-wrap items-center">
+              <button
+                onClick={toggleAllSections}
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                title={areAllSectionsOpen ? 'Hide all sections' : 'Open all sections'}
+              >
+                {areAllSectionsOpen ? (
+                  <>
+                    <EyeOff className="w-4 h-4 text-slate-500" />
+                    <span>Hide All</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4 text-emerald-600" />
+                    <span>Open All</span>
+                  </>
+                )}
+              </button>
               <button
                 onClick={() => router.push('/admin/crm/sales/events')}
                 className="bg-white hover:bg-slate-50 text-purple-700 border border-purple-200 px-3.5 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
@@ -1436,59 +1470,121 @@ export default function SalesPage() {
           </div>
         </div>
 
-        {/* Real-time KPI Summary Metrics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Revenue</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                <DollarSign className="w-5 h-5" />
+        {/* SECTION 1: Real-time Revenue & KPI Summary Metrics */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden transition-all">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    Revenue &amp; Performance Metrics
+                  </h2>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Live Analytics
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">Real-time aggregate financial KPIs across filtered records</p>
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900">
-              ₹{Number(summary?.totalSales || 0).toLocaleString()}
-            </p>
-            <span className="text-xs text-slate-400 mt-1 block">Accumulated Volume</span>
+
+            <button
+              onClick={() => toggleSection('kpi')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer"
+            >
+              {sectionsOpen.kpi ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Hide Metrics</span>
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Open Metrics</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </>
+              )}
+            </button>
           </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Total Transactions</span>
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                <Receipt className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900">
-              {String(summary?.totalTransactions || filteredSales.length || 0)}
-            </p>
-            <span className="text-xs text-slate-400 mt-1 block">Recorded Receipts</span>
-          </div>
+          {sectionsOpen.kpi ? (
+            <div className="p-4 sm:p-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 shadow-2xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Total Revenue</span>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <DollarSign className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900">
+                    ₹{Number(summary?.totalSales || 0).toLocaleString()}
+                  </p>
+                  <span className="text-xs text-slate-400 mt-1 block">Accumulated Volume</span>
+                </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-600">Average Sale</span>
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900">
-              ₹{Number(summary?.averageSale || 0).toLocaleString()}
-            </p>
-            <span className="text-xs text-slate-400 mt-1 block">Per Enrollee Average</span>
-          </div>
+                <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 shadow-2xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Total Transactions</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900">
+                    {String(summary?.totalTransactions || filteredSales.length || 0)}
+                  </p>
+                  <span className="text-xs text-slate-400 mt-1 block">Recorded Receipts</span>
+                </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Top Sale Record</span>
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
+                <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 shadow-2xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-purple-700">Average Sale</span>
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900">
+                    ₹{Number(summary?.averageSale || 0).toLocaleString()}
+                  </p>
+                  <span className="text-xs text-slate-400 mt-1 block">Per Enrollee Average</span>
+                </div>
+
+                <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 shadow-2xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Top Sale Record</span>
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-slate-900">
+                    ₹{Number(summary?.maxSale || 0).toLocaleString()}
+                  </p>
+                  <span className="text-xs text-slate-400 mt-1 block">Highest Ticket Amount</span>
+                </div>
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900">
-              ₹{Number(summary?.maxSale || 0).toLocaleString()}
-            </p>
-            <span className="text-xs text-slate-400 mt-1 block">Highest Ticket Amount</span>
-          </div>
+          ) : (
+            <div className="px-5 py-3.5 bg-slate-50/60 flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                <span>Revenue: <strong className="text-slate-900 font-bold">₹{Number(summary?.totalSales || 0).toLocaleString()}</strong></span>
+                <span className="text-slate-300">|</span>
+                <span>Transactions: <strong className="text-slate-900 font-bold">{String(summary?.totalTransactions || filteredSales.length || 0)}</strong></span>
+                <span className="text-slate-300">|</span>
+                <span>Avg: <strong className="text-slate-900 font-bold">₹{Number(summary?.averageSale || 0).toLocaleString()}</strong></span>
+                <span className="text-slate-300">|</span>
+                <span>Max: <strong className="text-slate-900 font-bold">₹{Number(summary?.maxSale || 0).toLocaleString()}</strong></span>
+              </div>
+              <button
+                onClick={() => toggleSection('kpi')}
+                className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+              >
+                Open Metrics &rarr;
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Error Alert */}
@@ -1507,424 +1603,545 @@ export default function SalesPage() {
           </div>
         )}
 
-        {/* View Selector Tabs */}
-        <div className="flex gap-2 flex-wrap bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-2xs w-fit">
-          {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                view === v
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              {v === 'list' && '📋 Transactions List'}
-              {v === 'summary' && '📊 Summary Overview'}
-              {v === 'yearly' && '🧾 Yearly Trends'}
-              {v === 'monthly' && '📅 Monthly Breakdown'}
-              {v === 'weekly' && '🗓️ Weekly Cycles'}
-              {v === 'daily' && '⏱️ Daily Timeline'}
-            </button>
-          ))}
+
+        {/* SECTION 2: Search & Filter Records Card */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden transition-all">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                <Filter className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    Search &amp; Filter Records
+                  </h2>
+                  {(draftFilters.workshop.length > 0 || draftFilters.batchFrom || draftFilters.batchTo || searchQuery || draftFilters.reportedByUserId) && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Filters Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">Filter transactions by workshop program, date intervals, or search queries</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearFilters}
+                className="text-xs text-slate-500 hover:text-amber-600 transition flex items-center gap-1 cursor-pointer font-medium px-2.5 py-1.5 rounded-xl hover:bg-slate-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset All</span>
+              </button>
+              <button
+                onClick={() => toggleSection('filters')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer"
+              >
+                {sectionsOpen.filters ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Hide Filters</span>
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Open Filters</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {sectionsOpen.filters ? (
+            <div className="p-5 sm:p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                {/* Program / Workshop Multi-select */}
+                <div className="relative" ref={workshopFilterRef}>
+                  <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Program / Workshop</label>
+                  <button
+                    type="button"
+                    onClick={() => setWorkshopFilterOpen((o) => !o)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 font-medium text-sm text-left flex items-center justify-between gap-2 focus:bg-white focus:outline-none focus:border-emerald-500 transition cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {draftFilters.workshop.length === 0
+                        ? 'All Workshops'
+                        : draftFilters.workshop.length === 1
+                        ? draftFilters.workshop[0]
+                        : `${draftFilters.workshop.length} selected`}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  </button>
+                  {workshopFilterOpen && (
+                    <div className="absolute z-30 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setDraftFilters((p) => ({ ...p, workshop: [...workshopOptions] }))}
+                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDraftFilters((p) => ({ ...p, workshop: [] }))}
+                          className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      {workshopOptions.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-slate-400">No workshops found</div>
+                      ) : (
+                        workshopOptions.map((w) => {
+                          const checked = draftFilters.workshop.includes(w);
+                          return (
+                            <label
+                              key={w}
+                              className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setDraftFilters((p) => ({
+                                    ...p,
+                                    workshop: e.target.checked
+                                      ? [...p.workshop, w]
+                                      : p.workshop.filter((x) => x !== w),
+                                  }));
+                                }}
+                                className="h-4 w-4 accent-emerald-600 rounded"
+                              />
+                              <span className="truncate">{w}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Date Range From */}
+                <div>
+                  <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Date Range From</label>
+                  {(() => {
+                    const isAll = !draftFilters.batchFrom;
+                    const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <select
+                            value={isAll ? 'all' : fromMonth}
+                            onChange={(e) => setDraftFilters((p) => ({
+                              ...p,
+                              batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
+                            }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                          >
+                            <option value="all">All Months</option>
+                            {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
+                          </select>
+                          <select
+                            value={fromYear}
+                            disabled={isAll}
+                            onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
+                          >
+                            {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                          </select>
+                        </div>
+                        <input
+                          type="date"
+                          value={draftFilters.batchFrom}
+                          onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                          title="Pick an exact day instead of a whole month"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Date Range To */}
+                <div>
+                  <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Date Range To</label>
+                  {(() => {
+                    const isAll = !draftFilters.batchTo;
+                    const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <select
+                            value={isAll ? 'all' : toMonth}
+                            onChange={(e) => setDraftFilters((p) => ({
+                              ...p,
+                              batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
+                            }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                          >
+                            <option value="all">All Months</option>
+                            {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
+                          </select>
+                          <select
+                            value={toYear}
+                            disabled={isAll}
+                            onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
+                          >
+                            {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                          </select>
+                        </div>
+                        <input
+                          type="date"
+                          value={draftFilters.batchTo}
+                          onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                          title="Pick an exact day instead of a whole month"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Reported By & Search */}
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Search Records</label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-slate-900 font-medium text-xs placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                        placeholder="ID, name, mobile, amount..."
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={draftFilters.reportedByUserId}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 text-slate-900 font-medium text-xs placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="Filter by Admin User ID..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={applyFilters}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl font-bold text-xs transition shadow-xs cursor-pointer"
+                >
+                  ✓ Apply Filters
+                </button>
+                <button
+                  onClick={clearFilters}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-6 py-2.5 rounded-xl font-semibold text-xs transition cursor-pointer"
+                >
+                  ✕ Clear
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-5 py-3.5 bg-slate-50/60 flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
+              <span className="truncate">
+                {draftFilters.workshop.length > 0 ? `Workshops (${draftFilters.workshop.length})` : 'All Workshops'} &bull;{' '}
+                {draftFilters.batchFrom || draftFilters.batchTo ? `Dates: ${draftFilters.batchFrom || 'Any'} to ${draftFilters.batchTo || 'Any'}` : 'All Dates'}
+                {searchQuery ? ` &bull; Query: "${searchQuery}"` : ''}
+                {draftFilters.reportedByUserId ? ` &bull; Reported By: "${draftFilters.reportedByUserId}"` : ''}
+              </span>
+              <button
+                onClick={() => toggleSection('filters')}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+              >
+                Open Filters &rarr;
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Bulk actions (header) */}
-        {view === 'list' && selectedSaleIds.size > 0 && (
-          <div className="bg-white border border-emerald-200 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-xs">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="font-bold text-slate-900 text-sm">Selected: <span className="text-emerald-600 font-extrabold">{selectedSaleIds.size}</span></div>
-
-              <button
-                onClick={clearSaleSelection}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-100 transition cursor-pointer"
-              >
-                Clear
-              </button>
-
-              <button
-                onClick={() => toggleSelectAllOnPage()}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-100 transition cursor-pointer"
-                title="Select/deselect all on this page"
-              >
-                Select Page
-              </button>
-
-              <button
-                onClick={() => setBulkActionsOpen(true)}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                Bulk Actions
-              </button>
-
-              <button
-                onClick={openAddToEvent}
-                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-                title="Add selected sales to an Event"
-              >
-                📅 Add to Event
-              </button>
+        {/* SECTION 3: Transactions & Financial Ledger Card */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden transition-all">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    Transactions &amp; Financial Ledger
+                  </h2>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                    {filteredSales.length} {filteredSales.length === 1 ? 'Record' : 'Records'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Student transactions, digital receipts, certification credentials, and grouped periods
+                </p>
+              </div>
             </div>
 
-            <div className="text-xs text-slate-500">
-              Tip: Select multiple transactions to batch assign or export.
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* View Selector Tabs */}
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => {
+                      setView(v);
+                      if (!sectionsOpen.ledger) setSectionsOpen((p) => ({ ...p, ledger: true }));
+                    }}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      view === v
+                        ? 'bg-white text-emerald-800 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    {v === 'list' && '📋 List'}
+                    {v === 'summary' && '📊 Summary'}
+                    {v === 'yearly' && '🧾 Yearly'}
+                    {v === 'monthly' && '📅 Monthly'}
+                    {v === 'weekly' && '🗓️ Weekly'}
+                    {v === 'daily' && '⏱️ Daily'}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => toggleSection('ledger')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer"
+              >
+                {sectionsOpen.ledger ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Hide Ledger</span>
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Open Ledger</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Filters Card */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-emerald-600" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Search &amp; Filter Records</h2>
-            </div>
-            <button
-              onClick={clearFilters}
-              className="text-xs text-slate-500 hover:text-amber-600 transition flex items-center gap-1 cursor-pointer font-medium"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset All</span>
-            </button>
-          </div>
+          {sectionsOpen.ledger ? (
+            <div className="p-4 sm:p-6 space-y-5">
+              {/* Bulk actions (header) */}
+              {view === 'list' && selectedSaleIds.size > 0 && (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-2xs">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="font-bold text-slate-900 text-sm">
+                      Selected: <span className="text-emerald-700 font-extrabold">{selectedSaleIds.size}</span>
+                    </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Program / Workshop Multi-select */}
-            <div className="relative" ref={workshopFilterRef}>
-              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Program / Workshop</label>
-              <button
-                type="button"
-                onClick={() => setWorkshopFilterOpen((o) => !o)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 font-medium text-sm text-left flex items-center justify-between gap-2 focus:bg-white focus:outline-none focus:border-emerald-500 transition cursor-pointer"
-              >
-                <span className="truncate">
-                  {draftFilters.workshop.length === 0
-                    ? 'All Workshops'
-                    : draftFilters.workshop.length === 1
-                    ? draftFilters.workshop[0]
-                    : `${draftFilters.workshop.length} selected`}
-                </span>
-                <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-              </button>
-              {workshopFilterOpen && (
-                <div className="absolute z-30 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                     <button
-                      type="button"
-                      onClick={() => setDraftFilters((p) => ({ ...p, workshop: [...workshopOptions] }))}
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDraftFilters((p) => ({ ...p, workshop: [] }))}
-                      className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer"
+                      onClick={clearSaleSelection}
+                      className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-50 transition cursor-pointer"
                     >
                       Clear
                     </button>
+
+                    <button
+                      onClick={() => toggleSelectAllOnPage()}
+                      className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold hover:bg-slate-50 transition cursor-pointer"
+                      title="Select/deselect all on this page"
+                    >
+                      Select Page
+                    </button>
+
+                    <button
+                      onClick={() => setBulkActionsOpen(true)}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      Bulk Actions
+                    </button>
+
+                    <button
+                      onClick={openAddToEvent}
+                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                      title="Add selected sales to an Event"
+                    >
+                      📅 Add to Event
+                    </button>
                   </div>
-                  {workshopOptions.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-slate-400">No workshops found</div>
-                  ) : (
-                    workshopOptions.map((w) => {
-                      const checked = draftFilters.workshop.includes(w);
-                      return (
-                        <label
-                          key={w}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setDraftFilters((p) => ({
-                                ...p,
-                                workshop: e.target.checked
-                                  ? [...p.workshop, w]
-                                  : p.workshop.filter((x) => x !== w),
-                              }));
-                            }}
-                            className="h-4 w-4 accent-emerald-600 rounded"
-                          />
-                          <span className="truncate">{w}</span>
-                        </label>
-                      );
-                    })
-                  )}
+
+                  <div className="text-xs text-slate-500">
+                    Tip: Select multiple transactions to batch assign or export receipts.
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Date Range From */}
-            <div>
-              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">Date Range From</label>
-              {(() => {
-                const isAll = !draftFilters.batchFrom;
-                const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
-                return (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <select
-                        value={isAll ? 'all' : fromMonth}
-                        onChange={(e) => setDraftFilters((p) => ({
-                          ...p,
-                          batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
-                        }))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition"
-                      >
-                        <option value="all">All Months</option>
-                        {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
-                      </select>
-                      <select
-                        value={fromYear}
-                        disabled={isAll}
-                        onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:bg-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
-                      >
-                        {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
-                      </select>
-                    </div>
-                    <input
-                      type="date"
-                      value={draftFilters.batchFrom}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
-                      title="Pick an exact day instead of a whole month"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Date Range To */}
-            <div>
-              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Date Range To</label>
-              {(() => {
-                const isAll = !draftFilters.batchTo;
-                const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
-                return (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <select
-                        value={isAll ? 'all' : toMonth}
-                        onChange={(e) => setDraftFilters((p) => ({
-                          ...p,
-                          batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
-                        }))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition"
-                      >
-                        <option value="all">All Months</option>
-                        {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
-                      </select>
-                      <select
-                        value={toYear}
-                        disabled={isAll}
-                        onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium text-sm focus:outline-none focus:border-emerald-500 transition disabled:opacity-40"
-                      >
-                        {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
-                      </select>
-                    </div>
-                    <input
-                      type="date"
-                      value={draftFilters.batchTo}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
-                      title="Pick an exact day instead of a whole month"
-                    />
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Reported By & Search */}
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Search Records</label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-white font-medium text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-                    placeholder="ID, name, mobile, amount..."
-                  />
+              {/* Loading State */}
+              {crm.loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <LoadingSpinner />
                 </div>
-              </div>
-              <div>
-                <input
-                  type="text"
-                  value={draftFilters.reportedByUserId}
-                  onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-white font-medium text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-                  placeholder="Filter by Admin User ID..."
-                />
-              </div>
-            </div>
-          </div>
+              ) : (
+                <>
+                  {/* Summary View */}
+                  {view === 'summary' && summary && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                      <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Total Transactions</h3>
+                          <Receipt className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-4">{String(summary.totalTransactions || 0)}</p>
+                      </div>
 
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={applyFilters}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-2.5 rounded-xl font-bold text-sm transition shadow-md shadow-emerald-500/20 cursor-pointer"
-            >
-              ✓ Apply Filters
-            </button>
-            <button
-              onClick={clearFilters}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-6 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer"
-            >
-              ✕ Clear
-            </button>
-          </div>
-        </div>
+                      <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-amber-700 text-xs font-bold uppercase tracking-wider">Total Revenue</h3>
+                          <DollarSign className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-4">₹{Number(summary.totalSales || 0).toLocaleString()}</p>
+                      </div>
 
-        {/* Loading State */}
-        {crm.loading ? (
-          <div className="flex items-center justify-center py-20">
-            <LoadingSpinner />
-          </div>
-        ) : (
-          <>
-            {/* Summary View */}
-            {view === 'summary' && summary && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-emerald-400 text-xs font-bold uppercase tracking-wider">Total Transactions</h3>
-                    <Receipt className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <p className="text-4xl font-black text-white mt-4">{String(summary.totalTransactions || 0)}</p>
-                </div>
-                
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-yellow-400 text-xs font-bold uppercase tracking-wider">Total Revenue</h3>
-                    <DollarSign className="w-5 h-5 text-yellow-400" />
-                  </div>
-                  <p className="text-4xl font-black text-yellow-400 mt-4">₹{Number(summary.totalSales || 0).toLocaleString()}</p>
-                </div>
-                
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-purple-400 text-xs font-bold uppercase tracking-wider">Average Sale</h3>
-                    <TrendingUp className="w-5 h-5 text-purple-400" />
-                  </div>
-                  <p className="text-4xl font-black text-purple-300 mt-4">₹{Number(summary.averageSale || 0).toLocaleString()}</p>
-                </div>
-                
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <div className="text-blue-400 font-bold mb-3 text-xs uppercase tracking-wider">
-                    Range Summary
-                  </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Max Sale:</span>
-                      <span className="font-bold text-yellow-400">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Min Sale:</span>
-                      <span className="font-bold text-emerald-400">₹{Number(summary.minSale || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Target Count:</span>
-                      <span className="font-bold text-white">{Number(summary.targetAchieved || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                      <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-purple-700 text-xs font-bold uppercase tracking-wider">Average Sale</h3>
+                          <TrendingUp className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-4">₹{Number(summary.averageSale || 0).toLocaleString()}</p>
+                      </div>
 
-            {/* Daily / Weekly / Monthly / Yearly: real transactions grouped per period */}
-            {(view === 'daily' || view === 'weekly' || view === 'monthly' || view === 'yearly') && (
-              <div className="space-y-6">
-                {(view === 'daily' ? daily : view === 'weekly' ? weekly : view === 'monthly' ? monthly : yearly).map((row) => {
-                  const periodSales = filteredSales.filter((s) => periodKeyForSale(s, view) === String(row._id));
-                  return (
-                    <div key={String(row._id)} className="space-y-3">
-                      <div className="flex items-center justify-between bg-gradient-to-r from-purple-950/80 via-slate-900 to-slate-900 rounded-xl px-5 py-3.5 border border-purple-500/30 shadow-md">
-                        <span className="text-purple-200 font-bold text-base">{String(row._id)}</span>
-                        <div className="flex items-center gap-6 text-sm">
-                          <span className="text-slate-300">{Number(row.count ?? 0)} transactions</span>
-                          <span className="text-yellow-400 font-bold text-base">₹{Number(row.totalSales || 0).toLocaleString()}</span>
+                      <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+                        <div className="text-blue-700 font-bold mb-3 text-xs uppercase tracking-wider">
+                          Range Summary
+                        </div>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Max Sale:</span>
+                            <span className="font-bold text-amber-700">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Min Sale:</span>
+                            <span className="font-bold text-emerald-700">₹{Number(summary.minSale || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Target Count:</span>
+                            <span className="font-bold text-slate-900">{Number(summary.targetAchieved || 0)}</span>
+                          </div>
                         </div>
                       </div>
-                      {periodSales.length === 0 ? (
-                        <div className="text-center text-slate-500 py-6 text-sm bg-slate-900/30 rounded-xl border border-slate-800">
-                          No transactions in this period
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl border border-slate-800 overflow-hidden shadow-xl bg-slate-900/60">
-                          <DataTable
-                            columns={columns}
-                            data={periodSales}
-                            loading={crm.loading}
-                            empty={false}
-                            striped
-                            hover
-                          />
+                    </div>
+                  )}
+
+                  {/* Daily / Weekly / Monthly / Yearly: real transactions grouped per period */}
+                  {(view === 'daily' || view === 'weekly' || view === 'monthly' || view === 'yearly') && (
+                    <div className="space-y-6">
+                      {(view === 'daily' ? daily : view === 'weekly' ? weekly : view === 'monthly' ? monthly : yearly).map((row) => {
+                        const periodSales = filteredSales.filter((s) => periodKeyForSale(s, view) === String(row._id));
+                        return (
+                          <div key={String(row._id)} className="space-y-3">
+                            <div className="flex items-center justify-between bg-gradient-to-r from-purple-50 via-slate-50 to-white rounded-xl px-5 py-3.5 border border-purple-200 shadow-2xs">
+                              <span className="text-purple-900 font-bold text-base">{String(row._id)}</span>
+                              <div className="flex items-center gap-6 text-sm">
+                                <span className="text-slate-600">{Number(row.count ?? 0)} transactions</span>
+                                <span className="text-purple-700 font-bold text-base">₹{Number(row.totalSales || 0).toLocaleString()}</span>
+                              </div>
+                            </div>
+                            {periodSales.length === 0 ? (
+                              <div className="text-center text-slate-500 py-6 text-sm bg-slate-50 rounded-xl border border-slate-200">
+                                No transactions in this period
+                              </div>
+                            ) : (
+                              <div className="rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs bg-white">
+                                <DataTable
+                                  columns={columns}
+                                  data={periodSales}
+                                  loading={crm.loading}
+                                  empty={false}
+                                  striped
+                                  hover
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {((view === 'daily' && daily.length === 0) ||
+                        (view === 'weekly' && weekly.length === 0) ||
+                        (view === 'monthly' && monthly.length === 0) ||
+                        (view === 'yearly' && yearly.length === 0)) && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-12 text-center my-6 shadow-xs">
+                          <Receipt className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                          <h3 className="text-lg font-bold text-slate-900">No data available for this period</h3>
+                          <p className="text-sm text-slate-500 mt-1">Try widening your date filters.</p>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-                {((view === 'daily' && daily.length === 0) ||
-                  (view === 'weekly' && weekly.length === 0) ||
-                  (view === 'monthly' && monthly.length === 0) ||
-                  (view === 'yearly' && yearly.length === 0)) && (
-                  <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-3xl p-12 text-center my-6 shadow-2xl">
-                    <Receipt className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-                    <h3 className="text-lg font-bold text-white">No data available for this period</h3>
-                    <p className="text-sm text-slate-400 mt-1">Try widening your date filters.</p>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
 
-            {/* Sales List */}
-            {view === 'list' && (
-              filteredSales.length === 0 ? (
-                <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-3xl p-12 text-center my-6 shadow-2xl">
-                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mx-auto mb-4 shadow-inner">
-                    <Receipt className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-xl font-black text-white">No Sales Transactions Recorded</h3>
-                  <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-                    There are no sales entries matching your selected workshop or date filter. Try widening your dates or record a new sale.
-                  </p>
-                  <div className="mt-6 flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Record Sale</span>
-                    </button>
-                    <button
-                      onClick={clearFilters}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
-                    >
-                      Clear Filter Range
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-800 overflow-hidden shadow-2xl bg-slate-900/60">
-                  <DataTable
-                    columns={columns}
-                    data={filteredSales}
-                    loading={crm.loading}
-                    empty={false}
-                    striped
-                    hover
-                  />
-                </div>
-              )
-            )}
-          </>
-        )}
+                  {/* Sales List */}
+                  {view === 'list' && (
+                    filteredSales.length === 0 ? (
+                      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-12 text-center my-6 shadow-xs">
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto mb-4">
+                          <Receipt className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900">No Sales Transactions Recorded</h3>
+                        <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
+                          There are no sales entries matching your selected workshop or date filter. Try widening your dates or record a new sale.
+                        </p>
+                        <div className="mt-6 flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => setShowCreateModal(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Record Sale</span>
+                          </button>
+                          <button
+                            onClick={clearFilters}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
+                          >
+                            Clear Filter Range
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs bg-white">
+                        <DataTable
+                          columns={columns}
+                          data={filteredSales}
+                          loading={crm.loading}
+                          empty={false}
+                          striped
+                          hover
+                        />
+                      </div>
+                    )
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="px-5 py-6 bg-slate-50/50 text-center">
+              <p className="text-xs text-slate-500">
+                Transactions Ledger is currently hidden ({filteredSales.length} {filteredSales.length === 1 ? 'record' : 'records'} matching filter).
+              </p>
+              <button
+                onClick={() => toggleSection('ledger')}
+                className="mt-2 text-xs font-bold text-purple-600 hover:text-purple-700 cursor-pointer"
+              >
+                Open Ledger &amp; Records &rarr;
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Create Sale Modal */}
@@ -1939,7 +2156,7 @@ export default function SalesPage() {
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Customer ID *</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Customer ID *</label>
               <input
                 type="text"
                 required
@@ -1953,7 +2170,7 @@ export default function SalesPage() {
                 onBlur={(e) => {
                   if (e.target.value.trim()) lookupCustomer();
                 }}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 placeholder="Enter customer id / phone / email"
               />
               <div className="mt-2 flex items-center gap-2">
@@ -1961,12 +2178,12 @@ export default function SalesPage() {
                   type="button"
                   onClick={() => lookupCustomer()}
                   disabled={lookupBusy}
-                  className="px-3 py-1.5 rounded-lg bg-black border border-yellow-500 text-yellow-400 text-sm hover:bg-yellow-400 hover:text-black disabled:opacity-60 font-medium"
+                  className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-xs hover:bg-amber-100 disabled:opacity-60 font-semibold cursor-pointer"
                 >
                   {lookupBusy ? 'Loading...' : 'Load Customer'}
                 </button>
                 {lookupMsg && (
-                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-emerald-400 text-xs font-medium' : 'text-white/70 text-xs'}>
+                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-emerald-700 text-xs font-medium' : 'text-slate-500 text-xs'}>
                     {lookupMsg}
                   </span>
                 )}
@@ -1975,17 +2192,17 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Name</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Name</label>
                 <input
                   type="text"
                   value={formData.customerName}
                   onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                   placeholder="Customer name"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Mobile</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Mobile</label>
                 <input
                   type="text"
                   value={formData.customerPhone}
@@ -1998,16 +2215,16 @@ export default function SalesPage() {
                       lookupCustomer(normalized || e.target.value.trim());
                     }
                   }}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                   placeholder="Phone number"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Workshop Name</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Workshop Name</label>
                 <select
                   value={formData.workshopName}
                   onChange={(e) => setFormData({ ...formData, workshopName: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 >
                   <option value="">(select)</option>
                   {workshopOptions.map((w) => (
@@ -2018,32 +2235,32 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Batch Date</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Batch Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(formData.batchDate)}
                   onChange={(e) => setFormData({ ...formData, batchDate: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Amount (₹) *</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Amount (₹) *</label>
               <input
                 type="number"
                 required
                 value={formData.saleAmount}
                 onChange={(e) => setFormData({ ...formData, saleAmount: Number(e.target.value) })}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 placeholder="5000"
               />
             </div>
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Payment Mode</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Payment Mode</label>
               <select
                 value={formData.paymentMode}
                 onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
               >
                 <option value="payu">PayU</option>
                 <option value="cashfree">Cashfree</option>
@@ -2056,12 +2273,12 @@ export default function SalesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Bank Name</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Bank Name</label>
               <input
                 type="text"
                 value={formData.bankName}
                 onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 placeholder="e.g. Axis Bank, Union Bank"
                 list="bank-name-options"
               />
@@ -2071,12 +2288,12 @@ export default function SalesPage() {
               </datalist>
             </div>
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Payment Reference / Transaction ID</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Payment Reference / Transaction ID</label>
               <input
                 type="text"
                 value={formData.transactionId}
                 onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 placeholder="Cashfree order ID, UPI ref no, bank UTR, etc."
               />
             </div>
@@ -2087,20 +2304,20 @@ export default function SalesPage() {
                 type="checkbox"
                 checked={Boolean(formData.targetAchieved)}
                 onChange={(e) => setFormData({ ...formData, targetAchieved: e.target.checked })}
-                className="h-4 w-4 rounded border-white/20"
+                className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
               />
-              <label htmlFor="targetAchieved" className="text-white text-sm font-medium">
+              <label htmlFor="targetAchieved" className="text-slate-800 text-xs font-semibold">
                 Target achieved
               </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Status</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Status</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 >
                   {SALE_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
@@ -2110,11 +2327,11 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-white text-sm mb-2 font-semibold">Label</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Label</label>
                 <select
                   value={formData.labelsText}
                   onChange={(e) => setFormData({ ...formData, labelsText: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
                 >
                   <option value="">(select)</option>
                   {labelOptions.map((l) => (
@@ -2127,11 +2344,11 @@ export default function SalesPage() {
             </div>
 
             <div>
-              <label className="block text-white text-sm mb-2 font-semibold">Admin User (Reported by)</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Admin User (Reported by)</label>
               <select
                 value={formData.reportedByUserId}
                 onChange={(e) => setFormData({ ...formData, reportedByUserId: e.target.value })}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
               >
                 <option value="">(use logged-in admin)</option>
                 {ADMIN_USERID_OPTIONS.map((u) => (
@@ -2147,10 +2364,10 @@ export default function SalesPage() {
 
       {/* Upload Sales Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-emerald-400">📄 Bulk Import Sales</h2>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-2xl w-full space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">📄 Bulk Import Sales</h2>
               <button
                 onClick={() => {
                   if (csvImporting) return;
@@ -2159,7 +2376,7 @@ export default function SalesPage() {
                   setCsvColumnMap(null);
                   setCsvFileName('');
                 }}
-                className="text-white/40 hover:text-white text-2xl leading-none"
+                className="text-slate-400 hover:text-slate-700 text-2xl leading-none cursor-pointer"
               >
                 ×
               </button>
@@ -2167,7 +2384,7 @@ export default function SalesPage() {
 
             {/* CSV/Excel Upload */}
             <div className="space-y-3">
-              <h3 className="text-white font-semibold">CSV or Excel File</h3>
+              <h3 className="text-slate-800 text-xs font-bold uppercase tracking-wider">CSV or Excel File</h3>
               <CSVUploadPanel
                 previewColumns={['name', 'phone', 'email', 'workshop', 'amount', 'date', 'customerId']}
                 contacts={csvContacts}
@@ -2189,10 +2406,10 @@ export default function SalesPage() {
             </div>
 
             {/* PDF Upload */}
-            <div className="space-y-3 border-t border-white/20 pt-4">
-              <h3 className="text-white font-semibold">Or Upload Bank Statement PDF</h3>
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <h3 className="text-slate-800 text-xs font-bold uppercase tracking-wider">Or Upload Bank Statement PDF</h3>
               <label className="block">
-                <div className="border-2 border-dashed border-blue-500/50 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                <div className="border-2 border-dashed border-blue-200 bg-blue-50/30 hover:bg-blue-50/70 rounded-xl p-6 text-center cursor-pointer transition">
                   <input
                     type="file"
                     accept=".pdf"
@@ -2244,21 +2461,21 @@ export default function SalesPage() {
                       }
                     }}
                   />
-                  <div className="text-blue-400">
+                  <div className="text-blue-600">
                     <div className="text-2xl mb-2">📄</div>
-                    <p className="font-semibold">Drop PDF here or click to select</p>
-                    <p className="text-sm text-white/50 mt-1">Bank statements auto-extract: Amount, Date, Name</p>
+                    <p className="font-semibold text-sm text-slate-800">Drop PDF here or click to select</p>
+                    <p className="text-xs text-slate-500 mt-1">Bank statements auto-extract: Amount, Date, Name</p>
                   </div>
                 </div>
               </label>
             </div>
 
             {csvContacts.length > 0 && (
-              <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-500/30">
-                <p className="text-emerald-300 text-sm font-semibold">
+              <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200">
+                <p className="text-emerald-800 text-xs font-bold">
                   Ready to import {csvContacts.length} sale records
                 </p>
-                <p className="text-emerald-400/70 text-xs mt-1">
+                <p className="text-emerald-700 text-xs mt-0.5">
                   Records without a valid amount will be skipped. Missing fields can be updated later.
                 </p>
               </div>
@@ -2267,18 +2484,18 @@ export default function SalesPage() {
             {/* Reported By override for super admin */}
             {isSuperAdmin && (
               <div>
-                <label className="block text-emerald-400 text-sm mb-1 font-semibold">Reported By (optional)</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Reported By (optional)</label>
                 <input
                   type="text"
                   value={uploadReportedByUserId}
                   onChange={(e) => setUploadReportedByUserId(e.target.value)}
-                  className="w-full bg-black border border-white/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                   placeholder="Leave blank for logged-in admin"
                 />
               </div>
             )}
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <button
                 disabled={csvContacts.length === 0 || csvImporting}
                 onClick={async () => {
@@ -2362,7 +2579,7 @@ export default function SalesPage() {
                     setCsvImporting(false);
                   }
                 }}
-                className="flex-1 bg-black border border-emerald-500 text-emerald-400 px-4 py-2 rounded-lg hover:bg-emerald-600 hover:text-white transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {csvImporting ? '⏳ Importing...' : `Import ${csvContacts.length} Sales`}
               </button>
@@ -2376,7 +2593,7 @@ export default function SalesPage() {
                   setUploadReportedByUserId('');
                 }}
                 disabled={csvImporting}
-                className="flex-1 bg-black border border-white/30 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors font-medium disabled:opacity-40"
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-semibold text-xs transition cursor-pointer disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -2398,20 +2615,20 @@ export default function SalesPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2">Customer ID</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Customer ID</label>
                 <input
                   type="text"
                   value={editData.customerId}
                   onChange={(e) => setEditData({ ...editData, customerId: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Admin User (Reported by)</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Admin User (Reported by)</label>
                 <select
                   value={editData.reportedByUserId}
                   onChange={(e) => setEditData({ ...editData, reportedByUserId: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   <option value="">(use logged-in admin)</option>
                   {ADMIN_USERID_OPTIONS.map((u) => (
@@ -2425,16 +2642,16 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2">Name</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Name</label>
                 <input
                   type="text"
                   value={editData.customerName}
                   onChange={(e) => setEditData({ ...editData, customerName: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Mobile</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Mobile</label>
                 <input
                   type="text"
                   value={editData.customerPhone}
@@ -2443,15 +2660,15 @@ export default function SalesPage() {
                     const normalized = normalizePhoneForMeta(e.target.value);
                     if (normalized) setEditData({ ...editData, customerPhone: normalized });
                   }}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Workshop Name</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Workshop Name</label>
                 <select
                   value={editData.workshopName}
                   onChange={(e) => setEditData({ ...editData, workshopName: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   <option value="">(select)</option>
                   {workshopOptions.map((w) => (
@@ -2462,12 +2679,12 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Batch Date</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Batch Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(editData.batchDate)}
                   onChange={(e) => setEditData({ ...editData, batchDate: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
             </div>
@@ -2478,46 +2695,46 @@ export default function SalesPage() {
                 type="checkbox"
                 checked={Boolean((editData as any).targetAchieved)}
                 onChange={(e) => setEditData({ ...(editData as any), targetAchieved: e.target.checked })}
-                className="h-4 w-4"
+                className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
               />
-              <label htmlFor="targetAchievedEdit" className="text-white text-sm">
+              <label htmlFor="targetAchievedEdit" className="text-slate-800 text-xs font-semibold">
                 Target achieved
               </label>
             </div>
 
             {/* Super Admin Approval Checkbox - Only visible to super admins */}
             {isSuperAdmin && (
-              <div className="flex items-center gap-3 p-3 bg-green-900/30 border border-green-500/30 rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                 <input
                   id="superAdminApprovedEdit"
                   type="checkbox"
                   checked={Boolean((editData as any).superAdminApproved)}
                   onChange={(e) => setEditData({ ...(editData as any), superAdminApproved: e.target.checked })}
-                  className="h-4 w-4"
+                  className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
                 />
-                <label htmlFor="superAdminApprovedEdit" className="text-emerald-400 text-sm font-medium">
-                  Amount Received ✓ <span className="text-xs text-gray-400">(sends confirmation email to customer)</span>
+                <label htmlFor="superAdminApprovedEdit" className="text-emerald-800 text-xs font-semibold">
+                  Amount Received ✓ <span className="text-xs text-slate-500 font-normal">(sends confirmation email to customer)</span>
                 </label>
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2">Amount (₹) *</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Amount (₹) *</label>
                 <input
                   type="number"
                   required
                   value={editData.saleAmount}
                   onChange={(e) => setEditData({ ...editData, saleAmount: Number(e.target.value) })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Payment Mode</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Payment Mode</label>
                 <select
                   value={editData.paymentMode}
                   onChange={(e) => setEditData({ ...editData, paymentMode: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   <option value="payu">PayU</option>
                   <option value="cashfree">Cashfree</option>
@@ -2530,44 +2747,44 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Bank Name</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Bank Name</label>
                 <input
                   type="text"
                   value={editData.bankName}
                   onChange={(e) => setEditData({ ...editData, bankName: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                   placeholder="e.g. Axis Bank, Union Bank"
                   list="bank-name-options"
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Payment Reference / Transaction ID</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Payment Reference / Transaction ID</label>
                 <input
                   type="text"
                   value={editData.transactionId}
                   onChange={(e) => setEditData({ ...editData, transactionId: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                   placeholder="Cashfree order ID, UPI ref no, bank UTR, etc."
                 />
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Sale Date</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Sale Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(editData.saleDate)}
                   onChange={(e) => setEditData({ ...editData, saleDate: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white text-sm mb-2">Status</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Status</label>
                 <select
                   value={editData.status}
                   onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   {SALE_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
@@ -2577,11 +2794,11 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-white text-sm mb-2">Label</label>
+                <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Label</label>
                 <select
                   value={editData.labelsText}
                   onChange={(e) => setEditData({ ...editData, labelsText: e.target.value })}
-                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   <option value="">(select)</option>
                   {labelOptions.map((l) => (
@@ -2598,31 +2815,31 @@ export default function SalesPage() {
 
       {/* ── Add to Event Modal ── */}
       {addToEventOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-lg w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-purple-400">📅 Add to Event</h2>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">📅 Add to Event</h2>
               <button
                 onClick={() => setAddToEventOpen(false)}
-                className="text-white/40 hover:text-white text-2xl leading-none"
+                className="text-slate-400 hover:text-slate-700 text-2xl leading-none cursor-pointer"
               >
                 ×
               </button>
             </div>
 
-            <p className="text-white/60 text-sm">
+            <p className="text-slate-600 text-xs">
               Add {selectedSaleIds.size} selected sale(s) as participants to an existing event.
             </p>
 
             {loadingEventOptions ? (
-              <div className="text-white/60 text-sm">Loading events...</div>
+              <div className="text-slate-500 text-xs">Loading events...</div>
             ) : eventOptions.length === 0 ? (
-              <div className="text-white/60 text-sm">No events found. Create one on the Events page first.</div>
+              <div className="text-slate-500 text-xs">No events found. Create one on the Events page first.</div>
             ) : (
               <select
                 value={selectedEventId}
                 onChange={(e) => setSelectedEventId(e.target.value)}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-purple-500 text-xs"
               >
                 <option value="">Select an event...</option>
                 {eventOptions.map((evt) => (
@@ -2636,14 +2853,14 @@ export default function SalesPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setAddToEventOpen(false)}
-                className="px-4 py-2 border border-white/30 rounded-lg text-white font-medium hover:bg-white/10 transition-colors"
+                className="px-4 py-2 border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={() => addSelectedToEvent({ clearAfter: clearSaleSelection })}
                 disabled={!selectedEventId || addingToEvent}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs transition shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {addingToEvent ? 'Adding...' : 'Add to Event'}
               </button>

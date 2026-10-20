@@ -34,31 +34,31 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       {backdrop && (
         <div
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
           onClick={onClose}
         />
       )}
 
-      <div className={`relative bg-gray-950 border border-white/30 rounded-lg shadow-xl w-full mx-4 ${sizeClasses[size]}`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
-          <h2 className="text-xl font-bold text-emerald-400">{title}</h2>
+      <div className={`relative bg-white border border-slate-200/90 rounded-2xl shadow-2xl w-full mx-auto overflow-hidden text-slate-800 ${sizeClasses[size]}`}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">{title}</h2>
           {closeButton && (
             <button
               onClick={onClose}
-              className="text-white/40 hover:text-white transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               ✕
             </button>
           )}
         </div>
 
-        <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
+        <div className="px-6 py-5 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/20 bg-gray-950">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/80">
             {footer}
           </div>
         )}
@@ -105,7 +105,7 @@ export function FormModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded bg-black border border-white/30 text-white hover:bg-white/10 transition-colors font-medium"
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
           >
             {cancelLabel}
           </button>
@@ -113,7 +113,7 @@ export function FormModal({
             type="submit"
             form="form-modal"
             disabled={loading}
-            className="px-4 py-2 rounded bg-black border border-emerald-500 text-emerald-400 hover:bg-emerald-600 hover:text-white disabled:opacity-50 transition-colors font-medium"
+            className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs transition shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Saving...' : submitLabel}
           </button>
@@ -149,22 +149,22 @@ export function ConfirmModal({
 }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      {message && <p className="text-white mb-6 font-medium">{message}</p>}
+      {message && <p className="text-slate-700 mb-6 font-medium text-sm leading-relaxed">{message}</p>}
 
-      <div className="flex gap-3 justify-end">
+      <div className="flex gap-2.5 justify-end">
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded bg-black border border-white/30 text-white hover:bg-white/10 transition-colors font-medium"
+          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
         >
           {cancelText}
         </button>
         <button
           onClick={onConfirm}
           disabled={loading}
-          className={`px-4 py-2 rounded text-white transition-colors disabled:opacity-50 font-medium ${
+          className={`px-4 py-2 rounded-xl text-white font-bold text-xs shadow-xs transition disabled:opacity-50 cursor-pointer ${
             danger
-              ? 'bg-black border border-red-500 text-red-400 hover:bg-red-600 hover:text-white'
-              : 'bg-black border border-emerald-500 text-emerald-400 hover:bg-emerald-600 hover:text-white'
+              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'
+              : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
           }`}
         >
           {loading ? 'Processing...' : confirmText}

@@ -42,7 +42,7 @@ export function BulkActionsModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+            className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-semibold transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -54,9 +54,9 @@ export function BulkActionsModal({
           {actions.map((a) => {
             const base =
               a.variant === 'danger'
-                ? 'bg-red-600 hover:bg-red-700 text-white'
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
                 : a.variant === 'secondary'
-                  ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
                   : 'bg-purple-600 hover:bg-purple-700 text-white';
             return (
               <button
