@@ -442,14 +442,6 @@ export default function ProgramLivePage() {
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <button
-              onClick={() => setPreviewMode(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-purple-200 hover:text-white rounded-lg text-xs font-medium transition cursor-pointer border border-white/20"
-            >
-              <Play size={14} /> Preview Today's Practice Video
-            </button>
-          </div>
         </div>
       </div>
     );
