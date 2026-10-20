@@ -14,50 +14,62 @@ function admin(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const decoded = admin(request);
-  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  const cohortId = request.nextUrl.searchParams.get('cohortId');
-  if (cohortId) {
-    try {
+  try {
+    const decoded = admin(request);
+    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const cohortId = request.nextUrl.searchParams.get('cohortId');
+    if (cohortId) {
       const cohort = await getCohort(cohortId);
       if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-      if (!isSuperAdmin(decoded, request) && cohort.createdByUserId !== decoded.userId) {
+      const viewerId = decoded.userId || decoded.username;
+      if (!isSuperAdmin(decoded, request) && cohort.createdByUserId && cohort.createdByUserId !== viewerId) {
         return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
       }
-      const [students, attendance, recordings, zoomMappings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId), listBunnyZoomMappings()]);
-      const zoomMapping = cohort.zoomMeetingId ? zoomMappings.find(m => m.zoomMeetingId === cohort.zoomMeetingId) || null : null;
+      const [students, attendance, recordings, zoomMappings] = await Promise.all([
+        listStudents(cohortId).catch(() => []),
+        listAttendance(cohortId).catch(() => []),
+        listRecordings(cohortId).catch(() => []),
+        listBunnyZoomMappings().catch(() => [])
+      ]);
+      const cleanedZoomId = cohort.zoomMeetingId ? String(cohort.zoomMeetingId).replace(/\D+/g, '') : '';
+      const zoomMapping = cleanedZoomId ? zoomMappings.find(m => String(m.zoomMeetingId || '').replace(/\D+/g, '') === cleanedZoomId) || null : null;
       return NextResponse.json({ cohort, students, attendance, recordings, zoomMapping });
-    } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshop' }, { status: 500 });
     }
-  }
-  try {
     const superAdmin = isSuperAdmin(decoded, request);
-    const cohorts = await listCohorts(superAdmin ? undefined : decoded.userId);
+    const viewerId = decoded.userId || decoded.username;
+    const cohorts = await listCohorts(superAdmin ? undefined : viewerId);
     return NextResponse.json({ cohorts });
+  } catch (error) {
+    console.error('[workshop-management] GET error:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshops' }, { status: 500 });
   }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshops' }, { status: 500 }); }
 }
 
 export async function POST(request: NextRequest) {
-  const decoded = admin(request);
-  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  const body = await request.json();
-  if (body.autoSyncWhatsappGroup === undefined && body.whatsappGroupLink) body.autoSyncWhatsappGroup = true;
-  try { return NextResponse.json({ cohort: await saveCohort(body, decoded.userId) }, { status: 201 }); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not save workshop' }, { status: 500 }); }
+  try {
+    const decoded = admin(request);
+    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const body = await request.json();
+    if (body.autoSyncWhatsappGroup === undefined && body.whatsappGroupLink) body.autoSyncWhatsappGroup = true;
+    const viewerId = decoded.userId || decoded.username;
+    return NextResponse.json({ cohort: await saveCohort(body, viewerId) }, { status: 201 });
+  } catch (error) {
+    console.error('[workshop-management] POST error:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not save workshop' }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const decoded = admin(request);
-  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  const body = await request.json();
-  if (!body.cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
-
   try {
+    const decoded = admin(request);
+    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const body = await request.json();
+    if (!body.cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
+
     const existing = await getCohort(body.cohortId);
     if (!existing) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-    if (!isSuperAdmin(decoded, request) && existing.createdByUserId !== decoded.userId)
+    const viewerId = decoded.userId || decoded.username;
+    if (!isSuperAdmin(decoded, request) && existing.createdByUserId && existing.createdByUserId !== viewerId)
       return NextResponse.json({ error: 'This workshop belongs to another admin' }, { status: 403 });
     if (body.recordingAccess !== undefined) {
       let policy;
@@ -241,19 +253,21 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const decoded = admin(request);
-  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  const cohortId = request.nextUrl.searchParams.get('cohortId');
-  if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
   try {
+    const decoded = admin(request);
+    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const cohortId = request.nextUrl.searchParams.get('cohortId');
+    if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
     const existing = await getCohort(cohortId);
     if (!existing) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-    if (!isSuperAdmin(decoded, request) && existing.createdByUserId !== decoded.userId) {
+    const viewerId = decoded.userId || decoded.username;
+    if (!isSuperAdmin(decoded, request) && existing.createdByUserId && existing.createdByUserId !== viewerId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     await deleteCohort(cohortId);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('[workshop-management] DELETE error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to delete workshop' }, { status: 500 });
   }
 }

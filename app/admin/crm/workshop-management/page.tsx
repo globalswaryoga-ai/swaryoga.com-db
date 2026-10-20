@@ -493,8 +493,14 @@ export default function WorkshopManagementPage() {
       if (requestSequence !== loadSequenceRef.current) return;
       const draftSequence = draftChangeSequenceRef.current;
       const res = await fetch(`/api/admin/crm/workshop-management${cohortId ? `?cohortId=${cohortId}` : ''}`, { headers });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Workshop API returned ${res.status}`);
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        const text = await res.text().catch(() => '');
+        data = { error: text || `Workshop API returned ${res.status}` };
+      }
+      if (!res.ok) throw new Error(data.error || data.message || `Workshop API returned ${res.status}`);
       if (requestSequence !== loadSequenceRef.current) return;
       if (draftSequence !== draftChangeSequenceRef.current) {
         void load(cohortId);

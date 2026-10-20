@@ -56,7 +56,10 @@ async function initializeWorkshopBunnySchema() {
   for (const statement of additiveColumns) {
     try { await bunnyExecute(statement); }
     catch (error) {
-      if (!/duplicate column name/i.test(error instanceof Error ? error.message : String(error))) throw error;
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!/duplicate|already exists/i.test(msg)) {
+        console.warn('[workshop-schema] Additive column warning:', msg);
+      }
     }
   }
 }

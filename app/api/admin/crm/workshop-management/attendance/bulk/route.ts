@@ -9,24 +9,29 @@ function isAdmin(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  const body = await request.json();
-  const { cohortId, studentId, classDurationMinutes, rows } = body;
-  if (!cohortId || !studentId || !Array.isArray(rows)) return NextResponse.json({ error: 'cohortId, studentId and rows are required' }, { status: 400 });
-  const cohort = await getCohort(cohortId);
-  if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-  const dates = new Set(workshopSessionCalendar(cohort.startDate, cohort.holidayDates || []).filter(row => !row.holiday).map(row => row.classDate));
-  const sessionRows = rows.filter(row => !row.holiday);
-  if (sessionRows.some(row => !dates.has(row.classDate) || !Number.isFinite(Number(row.durationMinutes || 0)) || Number(row.durationMinutes || 0) < 0)) {
-    return NextResponse.json({ error: 'Attendance requires a scheduled session date and a valid non-negative duration' }, { status: 400 });
+  try {
+    if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const body = await request.json();
+    const { cohortId, studentId, classDurationMinutes, rows } = body;
+    if (!cohortId || !studentId || !Array.isArray(rows)) return NextResponse.json({ error: 'cohortId, studentId and rows are required' }, { status: 400 });
+    const cohort = await getCohort(cohortId);
+    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    const dates = new Set(workshopSessionCalendar(cohort.startDate, cohort.holidayDates || []).filter(row => !row.holiday).map(row => row.classDate));
+    const sessionRows = rows.filter(row => !row.holiday);
+    if (sessionRows.some(row => !dates.has(row.classDate) || !Number.isFinite(Number(row.durationMinutes || 0)) || Number(row.durationMinutes || 0) < 0)) {
+      return NextResponse.json({ error: 'Attendance requires a scheduled session date and a valid non-negative duration' }, { status: 400 });
+    }
+    const classDurationSeconds = Math.max(1, Number(classDurationMinutes || 60) * 60);
+    let saved = 0;
+    for (const row of sessionRows) {
+      if (!row.classDate || row.holiday) continue;
+      const durationSeconds = Math.max(0, Number(row.durationMinutes || 0) * 60);
+      await upsertAttendance({ cohortId, studentId, classDate: row.classDate, joined: row.status === 'joined' || durationSeconds > 0, durationSeconds, attendancePercent: Math.min(100, Math.round(durationSeconds / classDurationSeconds * 100)), source: 'manual' });
+      saved++;
+    }
+    return NextResponse.json({ success: true, saved });
+  } catch (error) {
+    console.error('[workshop-attendance-bulk] POST error:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to save attendance' }, { status: 500 });
   }
-  const classDurationSeconds = Math.max(1, Number(classDurationMinutes || 60) * 60);
-  let saved = 0;
-  for (const row of sessionRows) {
-    if (!row.classDate || row.holiday) continue;
-    const durationSeconds = Math.max(0, Number(row.durationMinutes || 0) * 60);
-    await upsertAttendance({ cohortId, studentId, classDate: row.classDate, joined: row.status === 'joined' || durationSeconds > 0, durationSeconds, attendancePercent: Math.min(100, Math.round(durationSeconds / classDurationSeconds * 100)), source: 'manual' });
-    saved++;
-  }
-  return NextResponse.json({ success: true, saved });
 }
