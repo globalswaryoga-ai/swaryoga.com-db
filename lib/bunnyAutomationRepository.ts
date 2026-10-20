@@ -47,7 +47,11 @@ export async function saveBunnyAutomationRule(input: Record<string, any>, owner:
   if (typeof name !== 'string' || !name.trim()) throw new Error('Rule name is required.');
   if (!['keyword', 'welcome', 'any_message'].includes(value.triggerType)) throw new Error('Unsupported automation trigger.');
   if (!['send_text', 'send_template', 'update_lead'].includes(actionType)) throw new Error('Unsupported automation action.');
-  if (keywords && (!Array.isArray(keywords) || keywords.some((k: unknown) => typeof k !== 'string' || !k.trim()))) throw new Error('Keywords must be nonempty strings.');
+  if (value.triggerType === 'keyword' && (!value.keywords || !value.keywords.length) && name?.trim()) {
+    value.keywords = [name.trim()];
+  }
+  const effectiveKeywords = value.keywords;
+  if (effectiveKeywords && (!Array.isArray(effectiveKeywords) || effectiveKeywords.some((k: unknown) => typeof k !== 'string' || !k.trim()))) throw new Error('Keywords must be nonempty strings.');
   if (typeof value.enabled !== 'boolean' || !Number.isFinite(value.throttleMinutesPerLead) || value.throttleMinutesPerLead < 0) throw new Error('Invalid enabled state or throttle minutes.');
   await bunnyExecute({ sql: `INSERT INTO chatbot_automation_rules_sql (document_id,owner_id,data_json,created_at,updated_at) VALUES (?,?,?,?,?)
     ON CONFLICT(document_id) DO UPDATE SET data_json=excluded.data_json,updated_at=excluded.updated_at WHERE owner_id=excluded.owner_id`,

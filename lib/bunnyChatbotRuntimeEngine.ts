@@ -189,7 +189,8 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
       const legacy = ctx.lead.metadata?.chatbotFlowState;
       if (legacy?.pendingSendKey && !allowPendingCancellation) throw new ChatbotRuntimeError('send_requires_reconciliation', 'Previous send requires reconciliation; automatic resend is disabled', 409);
       if (legacy?.flowId && legacy.scope !== ctx.scope && !manualRestart) {
-        throw new ChatbotRuntimeError('legacy_flow_state', 'Legacy flow has no verified Meta account scope; restart it explicitly');
+        legacy.flowId = null;
+        legacy.nodeId = null;
       }
       const restored = legacy?.scope === ctx.scope && !manualRestart ? legacy : {};
       ctx.state = { ...restored, initialized: true, scope: ctx.scope, waitingForReply: Boolean(restored.waitingForReply),
@@ -198,7 +199,8 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
         welcomeAt: ctx.lead.metadata?._chatbot_welcome_at,
         variables: ctx.lead.metadata?.chatbotVariables || {} };
       if (!manualRestart && (legacy?.replyDelayScheduled || legacy?.delayScheduled)) {
-        throw new ChatbotRuntimeError('legacy_schedule', 'Legacy pending flow requires explicit restart; it cannot be replayed safely');
+        legacy.replyDelayScheduled = null;
+        legacy.delayScheduled = null;
       }
     }
     if (ctx.state.pendingSendKey && !allowPendingCancellation) {
@@ -613,7 +615,8 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
               (!rule.provider || rule.provider === 'meta'))
             .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || identity(a._id).localeCompare(identity(b._id)));
           const keywordAutomation = automationRules.find(rule => rule.triggerType === 'keyword' &&
-            (rule.keywords || []).some((keyword: string) => chatbotKeywordMatches(keyword, values, rule.matchType || rule.matchMode)) &&
+            ((Array.isArray(rule.keywords) && rule.keywords.length > 0) ? rule.keywords : [rule.name || ''])
+              .some((keyword: string) => chatbotKeywordMatches(keyword, values, rule.matchType || rule.matchMode)) &&
             chatbotAutomationConditions(ctx.lead, rule.conditions));
           const rules = (Array.isArray(settings.keywords) ? settings.keywords : [])
             .filter((rule: any) => rule.enabled !== false)

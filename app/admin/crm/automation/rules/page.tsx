@@ -88,6 +88,7 @@ export default function AutomationPage() {
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleTrigger, setNewRuleTrigger] = useState('welcome');
+  const [newRuleKeywords, setNewRuleKeywords] = useState('');
   const [newRuleAction, setNewRuleAction] = useState('send_text');
   const [newRuleContent, setNewRuleContent] = useState('');
 
@@ -200,6 +201,10 @@ export default function AutomationPage() {
       return;
     }
 
+    const keywordsList = newRuleKeywords
+      ? newRuleKeywords.split(',').map((k) => k.trim()).filter(Boolean)
+      : (newRuleTrigger === 'keyword' && newRuleName.trim() ? [newRuleName.trim()] : []);
+
     try {
       setLoadingScope('save');
       await crm.fetch('/api/admin/crm/automations', {
@@ -207,6 +212,7 @@ export default function AutomationPage() {
         body: {
           name: newRuleName,
           triggerType: newRuleTrigger,
+          keywords: keywordsList,
           actionType: newRuleAction,
           actionText: newRuleContent,
           enabled: true,
@@ -216,6 +222,7 @@ export default function AutomationPage() {
       setSuccess('Automation rule created successfully!');
       setShowNewRuleModal(false);
       setNewRuleName('');
+      setNewRuleKeywords('');
       setNewRuleAction('send_text');
       setNewRuleContent('');
       fetchRules();
@@ -676,7 +683,10 @@ export default function AutomationPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowNewRuleModal(true)}
+                  onClick={() => {
+                    setNewRuleTrigger('keyword');
+                    setShowNewRuleModal(true);
+                  }}
                   className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all"
                 >
                   + Add Keyword Rule
@@ -1034,6 +1044,24 @@ export default function AutomationPage() {
                   <option value="chatbot">Chatbot</option>
                 </select>
               </div>
+
+              {newRuleTrigger === 'keyword' && (
+                <div>
+                  <label htmlFor="new-rule-keywords" className="block text-purple-200 text-sm mb-2">
+                    Keywords (comma-separated)
+                  </label>
+                  <input
+                    id="new-rule-keywords"
+                    name="newRuleKeywords"
+                    type="text"
+                    value={newRuleKeywords}
+                    onChange={(e) => setNewRuleKeywords(e.target.value)}
+                    placeholder="e.g., Niwasi Shibir, Joining, Details"
+                    className="w-full bg-slate-700 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  />
+                  <p className="text-xs text-purple-300 mt-1">Leave blank to use Rule Name as keyword.</p>
+                </div>
+              )}
 
               <div>
                 <label htmlFor="new-action-type" className="block text-purple-200 text-sm mb-2">Action Type</label>
