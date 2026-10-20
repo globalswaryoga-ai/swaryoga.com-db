@@ -41,6 +41,13 @@ interface Offer {
   createdAt: string;
 }
 
+interface CatalogItem {
+  id: string;
+  name: string;
+  type: 'workshop' | 'course';
+  category: string;
+}
+
 export default function AdminOffers() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -51,6 +58,11 @@ export default function AdminOffers() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const [catalogWorkshops, setCatalogWorkshops] = useState<CatalogItem[]>([]);
+  const [catalogCourses, setCatalogCourses] = useState<CatalogItem[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [selectedCatalogKey, setSelectedCatalogKey] = useState<string>('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -83,6 +95,7 @@ export default function AdminOffers() {
     } else {
       setIsAuthenticated(true);
       fetchOffers(token);
+      fetchCatalog(token);
     }
   }, [router]);
 
@@ -112,6 +125,57 @@ export default function AdminOffers() {
       setMessage('Error fetching offers');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCatalog = async (token?: string) => {
+    const activeToken = token || getStoredToken();
+    if (!activeToken) return;
+
+    try {
+      setLoadingCatalog(true);
+      const authHeader = activeToken.startsWith('Bearer ') ? activeToken : `Bearer ${activeToken}`;
+      const response = await fetch('/api/admin/offers/catalog', {
+        headers: {
+          Authorization: authHeader,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCatalogWorkshops(data.workshops || []);
+        setCatalogCourses(data.courses || []);
+      }
+    } catch (error) {
+      console.error('Error fetching catalog for offers:', error);
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
+  const handleCatalogSelection = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedCatalogKey(val);
+    if (!val || val === 'custom') return;
+
+    const item = [...catalogCourses, ...catalogWorkshops].find(
+      (x) => `${x.type}:${x.id}` === val
+    );
+    if (item) {
+      setFormData((prev) => {
+        let suggestedCode = prev.offerCode;
+        if (!suggestedCode) {
+          const initials = item.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
+          const discountPart = prev.discountPercentage > 0 ? String(prev.discountPercentage) : '25';
+          suggestedCode = `${initials}${discountPart}`;
+        }
+        return {
+          ...prev,
+          title: item.name,
+          description: prev.description || `Special promotional offer for ${item.name}`,
+          offerCode: suggestedCode,
+        };
+      });
     }
   };
 
@@ -211,6 +275,10 @@ export default function AdminOffers() {
 
   const handleEdit = (offer: Offer) => {
     setEditingOffer(offer);
+    const matchedItem = [...catalogCourses, ...catalogWorkshops].find(
+      (x) => x.name.toLowerCase().trim() === offer.title.toLowerCase().trim()
+    );
+    setSelectedCatalogKey(matchedItem ? `${matchedItem.type}:${matchedItem.id}` : 'custom');
     setFormData({
       title: offer.title,
       description: offer.description,
@@ -371,6 +439,7 @@ export default function AdminOffers() {
               onClick={() => {
                 setShowForm(!showForm);
                 setEditingOffer(null);
+                setSelectedCatalogKey('');
                 setFormData({
                   title: '',
                   description: '',
@@ -509,17 +578,63 @@ export default function AdminOffers() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Offer Title *</label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleInputChange}
-                    placeholder="e.g. Swar Yoga Level 1 Special Discount"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    required
-                  />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="catalog-dropdown" className="block text-xs font-semibold text-slate-700">
+                      Select Workshop / E-Learning Course *
+                    </label>
+                    {loadingCatalog && (
+                      <span className="text-[11px] text-rose-500 animate-pulse flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
+                      </span>
+                    )}
+                  </div>
+
+                  <select
+                    id="catalog-dropdown"
+                    value={selectedCatalogKey}
+                    onChange={handleCatalogSelection}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer shadow-xs"
+                  >
+                    <option value="">-- Choose from Created Workshops / Courses --</option>
+
+                    {catalogCourses.length > 0 && (
+                      <optgroup label="🎓 E-Learning Courses (Recorded)">
+                        {catalogCourses.map((c) => (
+                          <option key={`course:${c.id}`} value={`course:${c.id}`}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    {catalogWorkshops.length > 0 && (
+                      <optgroup label="🔴 Live Workshops & Batches">
+                        {catalogWorkshops.map((w) => (
+                          <option key={`workshop:${w.id}`} value={`workshop:${w.id}`}>
+                            {w.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    <option value="custom">✏️ Custom / Type Manual Title</option>
+                  </select>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      Offer Title * (Auto-filled from selection or edit as needed)
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      value={formData.title}
+                      onChange={handleInputChange}
+                      placeholder="e.g. Swar Yoga Level 1 Special Discount"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>
