@@ -19,6 +19,8 @@ interface AutomationRule {
   actionType: 'send_text' | 'send_template' | 'update_lead' | string;
   actionText?: string;
   actionTemplateId?: string;
+  imageUrl?: string;
+  mediaUrl?: string;
   throttleMinutesPerLead: number;
   createdAt: string;
   updatedAt: string;
@@ -91,6 +93,7 @@ export default function AutomationPage() {
   const [newRuleKeywords, setNewRuleKeywords] = useState('');
   const [newRuleAction, setNewRuleAction] = useState('send_text');
   const [newRuleContent, setNewRuleContent] = useState('');
+  const [newRuleImageUrl, setNewRuleImageUrl] = useState('');
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
@@ -102,6 +105,7 @@ export default function AutomationPage() {
     actionType: 'send_text',
     actionText: '',
     actionTemplateId: '',
+    imageUrl: '',
     throttleMinutesPerLead: 5,
   });
 
@@ -215,6 +219,7 @@ export default function AutomationPage() {
           keywords: keywordsList,
           actionType: newRuleAction,
           actionText: newRuleContent,
+          imageUrl: newRuleImageUrl.trim() || undefined,
           enabled: true,
         },
       });
@@ -225,6 +230,7 @@ export default function AutomationPage() {
       setNewRuleKeywords('');
       setNewRuleAction('send_text');
       setNewRuleContent('');
+      setNewRuleImageUrl('');
       fetchRules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create rule');
@@ -280,6 +286,7 @@ export default function AutomationPage() {
       actionType: String(r.actionType || 'send_text'),
       actionText: String(r.actionText || ''),
       actionTemplateId: String(r.actionTemplateId || ''),
+      imageUrl: String(r.imageUrl || r.mediaUrl || ''),
       throttleMinutesPerLead: typeof r.throttleMinutesPerLead === 'number' ? r.throttleMinutesPerLead : 5,
     });
     setShowEditModal(true);
@@ -304,6 +311,7 @@ export default function AutomationPage() {
         enabled: !!editRuleForm.enabled,
         triggerType,
         actionType,
+        imageUrl: editRuleForm.imageUrl.trim() || undefined,
         throttleMinutesPerLead: Math.max(0, Number(editRuleForm.throttleMinutesPerLead) || 0),
       };
 
@@ -536,6 +544,32 @@ export default function AutomationPage() {
                       />
                     </div>
                   )}
+
+                  <div className="md:col-span-2">
+                    <label htmlFor="edit-image-url" className="block text-sm font-bold text-purple-100 mb-2">
+                      Image URL (Bunny CDN / Media URL - optional)
+                    </label>
+                    <input
+                      id="edit-image-url"
+                      name="imageUrl"
+                      type="url"
+                      value={editRuleForm.imageUrl || ''}
+                      onChange={(e) => setEditRuleForm((p) => ({ ...p, imageUrl: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                      placeholder="https://swaryogacrm.b-cdn.net/uploads/image.jpg"
+                    />
+                    {editRuleForm.imageUrl && (
+                      <div className="mt-2 flex items-center gap-3 p-2 bg-slate-950/60 rounded border border-purple-500/20">
+                        <img
+                          src={editRuleForm.imageUrl}
+                          alt="Preview"
+                          className="w-10 h-10 rounded object-cover border border-white/20"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                        <span className="text-xs text-purple-300 truncate">{editRuleForm.imageUrl}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -743,6 +777,20 @@ export default function AutomationPage() {
                         <p>
                           <strong>Action:</strong> {rule.actionType}
                         </p>
+                        {(rule.imageUrl || rule.mediaUrl) && (
+                          <div className="flex items-center gap-2 p-2 bg-slate-900/60 rounded-lg border border-purple-500/20">
+                            <img
+                              src={rule.imageUrl || rule.mediaUrl}
+                              alt="Attachment"
+                              className="w-10 h-10 rounded object-cover border border-white/20"
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
+                            <div className="text-xs text-purple-200 truncate flex-1">
+                              <span className="font-semibold text-white block">Image Attached</span>
+                              <span className="text-purple-400 truncate block text-[11px]">{rule.imageUrl || rule.mediaUrl}</span>
+                            </div>
+                          </div>
+                        )}
                         {rule.actionText && (
                           <p>
                             <strong>Reply:</strong> {rule.actionText.substring(0, 80)}
@@ -1088,6 +1136,32 @@ export default function AutomationPage() {
                   placeholder="Enter message text or action details"
                   className="w-full bg-slate-700 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 h-24 resize-none"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="new-rule-image-url" className="block text-purple-200 text-sm mb-2">
+                  Image URL (Bunny CDN / Media URL - optional)
+                </label>
+                <input
+                  id="new-rule-image-url"
+                  name="newRuleImageUrl"
+                  type="url"
+                  value={newRuleImageUrl}
+                  onChange={(e) => setNewRuleImageUrl(e.target.value)}
+                  placeholder="e.g. https://swaryogacrm.b-cdn.net/uploads/image.jpg"
+                  className="w-full bg-slate-700 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                />
+                {newRuleImageUrl && (
+                  <div className="mt-2 flex items-center gap-3 p-2 bg-slate-900/60 rounded border border-purple-500/20">
+                    <img
+                      src={newRuleImageUrl}
+                      alt="Preview"
+                      className="w-10 h-10 rounded object-cover border border-white/20"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                    <span className="text-xs text-purple-300 truncate">{newRuleImageUrl}</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3">

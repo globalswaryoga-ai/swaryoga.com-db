@@ -18,6 +18,7 @@ interface TriggerMessage {
   id: string;
   keyword: string;
   response: string;
+  imageUrl?: string;
   enabled: boolean;
 }
 
@@ -517,6 +518,21 @@ function ChatbotSection({
                       onChange={v => updateTrigger(trigger.id, 'keyword', v)} placeholder="e.g. price, hello" />
                     <Field label="Reply" value={trigger.response}
                       onChange={v => updateTrigger(trigger.id, 'response', v)} placeholder="Auto-reply message" />
+                    <div className="sm:col-span-2">
+                      <Field label="Image URL (Bunny CDN - optional)" value={trigger.imageUrl || ''}
+                        onChange={v => updateTrigger(trigger.id, 'imageUrl', v)} placeholder="https://swaryogacrm.b-cdn.net/uploads/image.jpg" />
+                      {trigger.imageUrl && (
+                        <div className="mt-2 flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                          <img
+                            src={trigger.imageUrl}
+                            alt="Preview"
+                            className="w-10 h-10 rounded object-cover border border-gray-300"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <span className="text-xs text-gray-500 truncate">{trigger.imageUrl}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 mt-6">
                     <button onClick={() => updateTrigger(trigger.id, 'enabled', !trigger.enabled)}

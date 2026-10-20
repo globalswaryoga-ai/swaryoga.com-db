@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { bunnyExecute, bunnyBatch, cleanMongoJson } from '@/lib/bunnyDatabase';
 
 const fields = ['name', 'enabled', 'triggerType', 'keywords', 'conditions', 'throttleMinutesPerLead',
-  'actionType', 'actionText', 'actionTemplateId', 'actionTemplateVariables', 'actionLeadUpdates', 'provider'];
+  'actionType', 'actionText', 'actionTemplateId', 'actionTemplateVariables', 'actionLeadUpdates', 'provider', 'imageUrl', 'mediaUrl'];
 
 async function schema() {
   await bunnyExecute(`CREATE TABLE IF NOT EXISTS chatbot_automation_rules_sql (
@@ -46,7 +46,7 @@ export async function saveBunnyAutomationRule(input: Record<string, any>, owner:
   const keywords = patch.keywords ?? existing?.keywords;
   if (typeof name !== 'string' || !name.trim()) throw new Error('Rule name is required.');
   if (!['keyword', 'welcome', 'any_message'].includes(value.triggerType)) throw new Error('Unsupported automation trigger.');
-  if (!['send_text', 'send_template', 'update_lead'].includes(actionType)) throw new Error('Unsupported automation action.');
+  if (!['send_text', 'send_template', 'update_lead', 'send_image'].includes(actionType)) throw new Error('Unsupported automation action.');
   if (value.triggerType === 'keyword' && (!value.keywords || !value.keywords.length) && name?.trim()) {
     value.keywords = [name.trim()];
   }

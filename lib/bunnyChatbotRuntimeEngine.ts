@@ -655,7 +655,18 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
             if (keyword.flowId) await startFlow(ctx, await flow(identity(keyword.flowId), owner));
             else if ((keyword.action || 'reply') === 'reply') {
               if (!String(keyword.response || '').trim()) throw new ChatbotRuntimeError('empty_keyword_reply', 'Matched keyword has no response');
-              await send(ctx, { type: 'text', text: { body: keyword.response, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:keyword`);
+              const imageUrl = keyword.imageUrl || keyword.mediaUrl || null;
+              if (imageUrl) {
+                await send(ctx, {
+                  type: 'image',
+                  image: {
+                    link: imageUrl,
+                    ...(keyword.response?.trim() ? { caption: keyword.response.trim() } : {}),
+                  }
+                }, `${ctx.scope}:${ctx.eventId}:keyword`);
+              } else {
+                await send(ctx, { type: 'text', text: { body: keyword.response, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:keyword`);
+              }
             } else if (keyword.action === 'send_template') {
               await send(ctx, await templatePayload(keyword, ctx), `${ctx.scope}:${ctx.eventId}:keyword-template`);
             } else throw new ChatbotRuntimeError('unsupported_keyword_action', `Keyword action "${keyword.action}" is unsupported`);
