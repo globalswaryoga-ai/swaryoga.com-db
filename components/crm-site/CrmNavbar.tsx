@@ -30,7 +30,7 @@ export default function CrmNavbar() {
           <Link href="/crm-site" className="flex items-center gap-2.5 group select-none">
             {!logoError ? (
               <img
-                src="/logo.png"
+                src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                 alt="Swar Yoga CRM"
                 className="h-9 w-9 rounded-xl object-contain transition-transform group-hover:scale-105"
                 onError={() => setLogoError(true)}

@@ -184,9 +184,12 @@ export default function LifePlannerTopNav({
           {/* Logo and Title */}
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <img
-              src="/logo.png"
+              src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
               alt="Swar Yoga Logo"
-              className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg shadow-sm flex-shrink-0"
+              className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg shadow-sm flex-shrink-0 object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/logo.png';
+              }}
             />
             <h1 className="text-sm sm:text-2xl font-bold text-swar-primary flex items-center gap-1 sm:gap-2 whitespace-nowrap truncate">
               <span className="hidden sm:inline">🗓️</span>

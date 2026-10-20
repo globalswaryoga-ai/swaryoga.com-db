@@ -173,10 +173,13 @@ export default function Navigation() {
               {/* Logo Image - Enhanced Size */}
               <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center flex-shrink-0">
                 <img 
-                  src="/logo with mohan sir.png"
+                  src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                   alt="Swar Yoga Logo"
                   className="w-full h-full object-contain"
                   loading="eager"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                  }}
                 />
               </div>
               

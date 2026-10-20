@@ -120,9 +120,10 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
         <div className="p-4 md:p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <img
-              src="/logo.png"
+              src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
               alt="Swar Yoga Logo"
-              className="w-10 h-10 rounded-xl bg-white/10 p-1 shadow-lg"
+              className="w-10 h-10 rounded-xl bg-white/10 p-1 shadow-lg object-contain"
             />
             <div>
               <h2 className="font-bold text-lg text-white">Life Planner</h2>

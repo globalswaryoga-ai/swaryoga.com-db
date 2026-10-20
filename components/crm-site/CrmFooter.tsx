@@ -34,7 +34,7 @@ export default function CrmFooter() {
             <Link href="/crm-site" className="flex items-center gap-2 mb-4 group">
               {!logoError ? (
                 <img
-                  src="/logo.png"
+                  src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                   alt="Swar Yoga CRM"
                   className="h-8 w-8 rounded-lg object-contain"
                   onError={() => setLogoError(true)}

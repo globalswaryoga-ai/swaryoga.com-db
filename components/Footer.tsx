@@ -114,12 +114,14 @@ export default function Footer() {
             {/* Company Info */}
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-4 mb-6">
-                {/* Logo Image */}
                 <div className="relative w-16 h-16 flex-shrink-0">
                   <img 
-                    src="/logo.png"
+                    src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                     alt="Swar Yoga Logo"
                     className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                    }}
                   />
                 </div>
                 

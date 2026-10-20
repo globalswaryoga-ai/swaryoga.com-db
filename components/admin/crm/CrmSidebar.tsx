@@ -287,11 +287,11 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-0.5 shadow-md shadow-emerald-500/25 flex-shrink-0 flex items-center justify-center">
                   <div className="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center overflow-hidden">
                     <img
-                      src="/logo.png"
+                      src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                       alt="Swar Yoga"
-                      className="w-6 h-6 object-contain"
+                      className="w-7 h-7 object-contain"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        (e.currentTarget as HTMLImageElement).src = '/logo.png';
                       }}
                     />
                   </div>
@@ -310,11 +310,11 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-0.5 shadow-md shadow-emerald-500/25 flex items-center justify-center">
                   <div className="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center overflow-hidden">
                     <img
-                      src="/logo.png"
+                      src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
                       alt="Swar Yoga"
-                      className="w-6 h-6 object-contain"
+                      className="w-7 h-7 object-contain"
                       onError={(e) => {
-                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        (e.currentTarget as HTMLImageElement).src = '/logo.png';
                       }}
                     />
                   </div>
