@@ -56,7 +56,16 @@ export async function GET(request: NextRequest) {
         startDate,
         endDate,
       });
-      return NextResponse.json({ success: true, data: { overview } });
+      return NextResponse.json(
+        { success: true, data: { overview } },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        }
+      );
     }
 
     // Legacy detailed analytics views still use Mongo-backed models below.

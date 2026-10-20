@@ -434,9 +434,11 @@ export default function CRMDashboard() {
 
       const response = await fetch('/api/admin/crm/analytics?view=overview', {
         method: 'GET',
+        cache: 'no-store',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       });
 

@@ -82,7 +82,7 @@ export async function getBunnyAnalyticsOverview(input: { visibleUserIds: string[
       salesArgs.push(...allowed, ...allowed);
     }
     const salesRes = await bunnyExecute({ sql: salesSql, args: salesArgs });
-    totalSales = Number(salesRes.rows[0]?.total || salesRes.rows[0]?.count || 0);
+    totalSales = Number(salesRes.rows[0]?.total || 0);
   } catch {}
 
   let metaMessagesSent = 0;
