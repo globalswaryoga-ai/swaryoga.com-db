@@ -257,11 +257,11 @@ export async function POST(request: NextRequest) {
             if (isSpeaker) {
               if (syncedFile.youtubeVideoId) current.youtubeSpeakerId = syncedFile.youtubeVideoId;
               if (syncedFile.youtubeUrl) current.youtubeSpeakerUrl = syncedFile.youtubeUrl;
-              if (syncedFile.bunnyEmbedUrl) current.bunnySpeakerUrl = syncedFile.bunnyEmbedUrl;
+              if (syncedFile.bunnyPlayUrl || syncedFile.bunnyEmbedUrl) current.bunnySpeakerUrl = syncedFile.bunnyPlayUrl || syncedFile.bunnyEmbedUrl;
             } else if (isGallery) {
               if (syncedFile.youtubeVideoId) current.youtubeGalleryId = syncedFile.youtubeVideoId;
               if (syncedFile.youtubeUrl) current.youtubeGalleryUrl = syncedFile.youtubeUrl;
-              if (syncedFile.bunnyEmbedUrl) current.bunnyGalleryUrl = syncedFile.bunnyEmbedUrl;
+              if (syncedFile.bunnyPlayUrl || syncedFile.bunnyEmbedUrl) current.bunnyGalleryUrl = syncedFile.bunnyPlayUrl || syncedFile.bunnyEmbedUrl;
             }
             
             dateToUrls.set(dateStr, current);

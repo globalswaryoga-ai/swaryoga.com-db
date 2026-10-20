@@ -5,7 +5,7 @@
  * Only syncs: speaker_view and gallery_view MP4 files.
  */
 
-import { uploadToBunnyStream, generateBunnyTitle, isBunnyConfigured } from './bunny-stream';
+import { uploadToBunnyStream, generateBunnyTitle, isBunnyConfigured, getBunnyCollectionForTopic } from './bunny-stream';
 import { uploadToYouTube } from './youtube-upload';
 import { getYouTubeAccessToken } from './youtube-auth';
 
@@ -65,6 +65,7 @@ export interface SyncedFile {
   fileSize: number;
   bunnyVideoId?: string;
   bunnyEmbedUrl?: string;
+  bunnyPlayUrl?: string;
   youtubeVideoId?: string;
   youtubeUrl?: string;
   dayNumber: number;       // Which session day (1-based)
@@ -281,8 +282,9 @@ export async function syncZoomToBunny(
         let bunnyResult;
         // On Bunny: ONLY speaker view (with or without screen sharing)
         if (isSpeakerView) {
-          console.log(`[Zoom→Bunny] Uploading to Bunny Stream (Speaker View): ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
-          bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
+          const collectionId = getBunnyCollectionForTopic(meetingRecording.topic);
+          console.log(`[Zoom→Bunny] Uploading to Bunny Stream (${bunnyTitle}) [Collection: ${collectionId}] (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+          bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle, collectionId);
           if (!bunnyResult.success) {
             throw new Error(`Bunny upload failed: ${bunnyResult.error}`);
           }
@@ -311,6 +313,7 @@ export async function syncZoomToBunny(
           fileSize: recording.file_size,
           bunnyVideoId: bunnyResult?.videoId,
           bunnyEmbedUrl: bunnyResult?.embedUrl,
+          bunnyPlayUrl: bunnyResult?.playUrl,
           youtubeVideoId: ytResult?.videoId,
           youtubeUrl: ytResult?.url,
           dayNumber,

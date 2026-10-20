@@ -3977,13 +3977,13 @@ export default function WorkshopManagementPage() {
                 </div>
                 <input 
                   type="text" 
-                  placeholder="https://swaryogacrm.b-cdn.net/... or embed link" 
+                  placeholder="https://iframe.mediadelivery.net/play/606386/... or Bunny URL" 
                   value={editingRecordingUrls.bunnySpeakerUrl} 
                   onChange={(e) => handleUrlsInputChange('bunnySpeakerUrl', e.target.value)} 
                   onBlur={handleUrlsInputBlur}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500" 
                 />
-                <p className="text-[11px] text-slate-500 mt-1">Bunny stores Speaker video and MP3 audio; historical Gallery links are preserved.</p>
+                <p className="text-[11px] text-slate-500 mt-1">Direct Bunny Stream player URL (Hindi / English / Marathi) or Bunny CDN video.</p>
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">

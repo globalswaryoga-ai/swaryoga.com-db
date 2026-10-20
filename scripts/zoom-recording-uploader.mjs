@@ -391,6 +391,75 @@ async function autoAddYoutubeToConfiguredCommunity(youtubeVideoId, topic, dateLa
   }
 }
 
+// Dedicated language collections in Bunny Stream Library 606386
+const BUNNY_STREAM_COLLECTIONS = {
+  HINDI: process.env.BUNNY_STREAM_COLLECTION_HINDI || '563e0c4c-a1d4-490f-a5ba-f9b2073c51b5',
+  ENGLISH: process.env.BUNNY_STREAM_COLLECTION_ENGLISH || '015d1b9e-1f88-4f83-b1cd-aaa3ffb0cfdb',
+  MARATHI: process.env.BUNNY_STREAM_COLLECTION_MARATHI || '1c320b6a-d9f5-4ddf-9708-8601d05a838e',
+};
+
+function getCollectionIdForTopic(topicOrName = '') {
+  const text = String(topicOrName).toLowerCase();
+  if (text.includes('marathi')) return BUNNY_STREAM_COLLECTIONS.MARATHI;
+  if (text.includes('english')) return BUNNY_STREAM_COLLECTIONS.ENGLISH;
+  if (text.includes('hindi')) return BUNNY_STREAM_COLLECTIONS.HINDI;
+  return BUNNY_STREAM_COLLECTIONS.HINDI;
+}
+
+// Upload video directly to Bunny Stream inside designated language collection
+// Streams Zoom MP4 directly without temporary files on disk
+async function bunnyStreamSave(srcUrl, size, title, collectionId) {
+  const apiKey = process.env.BUNNY_API_KEY;
+  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || '606386';
+  if (!apiKey) throw new Error('BUNNY_API_KEY is required for Bunny Stream');
+
+  const createRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
+    method: 'POST',
+    headers: {
+      AccessKey: apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title,
+      ...(collectionId ? { collectionId } : {}),
+    }),
+  });
+
+  const video = await createRes.json();
+  if (!createRes.ok || !video?.guid) {
+    throw new Error(`Bunny Stream create failed (${createRes.status}): ${JSON.stringify(video)}`);
+  }
+
+  const src = await fetch(srcUrl, { signal: AbortSignal.timeout(60 * 60 * 1000) });
+  if (!src.ok) throw new Error(`Zoom download failed: ${src.status}`);
+
+  const put = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${video.guid}`, {
+    method: 'PUT',
+    headers: {
+      AccessKey: apiKey,
+      'Content-Type': 'application/octet-stream',
+      ...(size ? { 'Content-Length': String(size) } : {}),
+    },
+    body: src.body,
+    duplex: 'half',
+    signal: AbortSignal.timeout(60 * 60 * 1000),
+  });
+
+  if (!put.ok) {
+    const errorText = await put.text();
+    throw new Error(`Bunny Stream upload failed (${put.status}): ${errorText}`);
+  }
+
+  const playUrl = `https://iframe.mediadelivery.net/play/${libraryId}/${video.guid}`;
+  const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${video.guid}`;
+
+  return {
+    guid: video.guid,
+    playUrl,
+    embedUrl,
+  };
+}
+
 // Save the MP4 into the Bunny STORAGE zone under zoom-videos/ (a real folder),
 // streaming straight from Zoom — no temp file on disk.
 async function bunnyStorageSave(srcUrl, size, fileName) {
@@ -432,8 +501,10 @@ async function listZoomRecordings(host, token, from, to, includeTrash = false) {
   return meetings;
 }
 
-// Public CDN URL for a Bunny Storage path (storage zone is fronted by this pull zone).
+// Public CDN URL for a Bunny Storage path or Bunny Stream direct URL.
 function bunnyCdnUrl(dest) {
+  if (!dest) return null;
+  if (dest.startsWith('http://') || dest.startsWith('https://')) return dest;
   const host = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
   return `https://${host}/${encodeURI(dest)}`;
 }
@@ -492,6 +563,12 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
       await bunnyClient.execute({
         sql: "UPDATE workshop_recordings_sql SET metadata_json = json_set(metadata_json, '$.bunnyAudioUrl', ?), updated_at = CURRENT_TIMESTAMP WHERE cohort_id = ? AND class_date = ?",
         args: [bunnyCdnUrl(bunnyResults.audio), cohortId, dateLabel],
+      });
+    }
+    if (bunnyResults?.streamVideoId || bunnyResults?.streamEmbedUrl) {
+      await bunnyClient.execute({
+        sql: "UPDATE workshop_recordings_sql SET metadata_json = json_set(metadata_json, '$.bunnyStreamVideoId', ?, '$.bunnyStreamEmbedUrl', ?), updated_at = CURRENT_TIMESTAMP WHERE cohort_id = ? AND class_date = ?",
+        args: [bunnyResults.streamVideoId || null, bunnyResults.streamEmbedUrl || null, cohortId, dateLabel],
       });
     }
     log(`  Workshop sync OK: updated workshop_recordings_sql for cohort ${cohortId} date ${dateLabel}`);
@@ -633,7 +710,19 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
     const youtubeId = (url) => String(url || '').match(/youtu\.be\/([^?/#]+)/)?.[1] || String(url || '').match(/[?&]v=([^&#]+)/)?.[1] || null;
     if (prior.youtube_speaker_url) { result.youtube.speaker = youtubeId(prior.youtube_speaker_url); result.youtubeUrls.speaker = prior.youtube_speaker_url; }
     if (prior.youtube_gallery_url) { result.youtube.gallery = youtubeId(prior.youtube_gallery_url); result.youtubeUrls.gallery = prior.youtube_gallery_url; }
-    const storagePath = url => url ? decodeURI(new URL(String(url)).pathname).replace(/^\//, '') : null;
+    const storagePath = (url) => {
+      if (!url) return null;
+      const s = String(url);
+      if (s.includes('mediadelivery.net') || s.includes('video.bunnycdn.com')) return s;
+      if (s.startsWith('http://') || s.startsWith('https://')) {
+        try {
+          return decodeURI(new URL(s).pathname).replace(/^\//, '');
+        } catch {
+          return s;
+        }
+      }
+      return s;
+    };
     if (prior.bunny_speaker_url) result.bunny.speaker = storagePath(prior.bunny_speaker_url);
     const metadata = JSON.parse(String(prior.metadata_json || '{}'));
     if (metadata.bunnyAudioUrl) result.bunny.audio = storagePath(metadata.bunnyAudioUrl);
@@ -669,20 +758,55 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
 
     if (!YOUTUBE_ONLY) {
       // Historical Gallery URLs remain stored; new Bunny uploads are Speaker only.
+      // Route video into dedicated Bunny Stream language collection (Hindi, English, or Marathi)
+      const collectionId = getCollectionIdForTopic(`${cohort?.name || ''} ${m.topic || ''}`);
+      const langName = collectionId === BUNNY_STREAM_COLLECTIONS.MARATHI ? 'Marathi'
+        : collectionId === BUNNY_STREAM_COLLECTIONS.ENGLISH ? 'English'
+        : 'Hindi';
+
       for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker']]) {
         if (!f || result.bunny[key]) continue;
-        try {
-          const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')} ${m.topic} (${key}).mp4`);
-          result.bunny[key] = bunnyPath;
-          await persist();
-          log(`  Bunny Storage OK ${view}:`, bunnyPath);
-          const ytId = result.youtube[key];
-          const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
-          await autoAddToConfiguredCommunity(
-            bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
-            bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
-          );
-        } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
+        const videoTitle = `${cohort?.name || m.topic} — ${view} — ${dateLabel}`;
+        let streamUploaded = false;
+
+        // 1. Bunny Stream: direct player URL in Hindi, English, or Marathi collection
+        if (process.env.BUNNY_API_KEY) {
+          try {
+            log(`  Bunny Stream uploading to [${langName}] collection: "${videoTitle}"...`);
+            const streamRes = await bunnyStreamSave(dl(f), f.file_size, videoTitle, collectionId);
+            result.bunny[key] = streamRes.playUrl;
+            result.bunny.streamVideoId = streamRes.guid;
+            result.bunny.streamEmbedUrl = streamRes.embedUrl;
+            streamUploaded = true;
+            await persist();
+            log(`  Bunny Stream OK ${view} [${langName}]:`, streamRes.playUrl);
+
+            const ytId = result.youtube[key];
+            const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+            await autoAddToConfiguredCommunity(
+              streamRes.playUrl, m.topic, dateLabel, String(m.id),
+              bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+            );
+          } catch (streamErr) {
+            log(`  Bunny Stream FAIL ${view}:`, streamErr.message);
+          }
+        }
+
+        // 2. Bunny Storage fallback (if Bunny Stream upload failed or was skipped)
+        if (!streamUploaded && process.env.BUNNY_ZOOM_STORAGE_KEY) {
+          try {
+            const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.uuid.replace(/[^a-zA-Z0-9_-]/g, '-')} ${m.topic} (${key}).mp4`);
+            result.bunny[key] = bunnyPath;
+            await persist();
+            log(`  Bunny Storage OK ${view}:`, bunnyPath);
+            const ytId = result.youtube[key];
+            const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+            await autoAddToConfiguredCommunity(
+              bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
+              bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+            );
+          } catch (e) { log(`  Bunny Storage FAIL ${view}:`, e.message); }
+        }
       }
       if (!result.bunny.audio) {
         try {

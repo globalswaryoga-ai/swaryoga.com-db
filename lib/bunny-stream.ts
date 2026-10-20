@@ -18,11 +18,27 @@ interface BunnyVideoCreateResponse {
   status: number;
   length: number;
   thumbnailUrl: string;
+  collectionId?: string;
 }
 
-interface BunnyUploadResult {
+export const BUNNY_STREAM_COLLECTIONS = {
+  HINDI: process.env.BUNNY_STREAM_COLLECTION_HINDI || '563e0c4c-a1d4-490f-a5ba-f9b2073c51b5',
+  ENGLISH: process.env.BUNNY_STREAM_COLLECTION_ENGLISH || '015d1b9e-1f88-4f83-b1cd-aaa3ffb0cfdb',
+  MARATHI: process.env.BUNNY_STREAM_COLLECTION_MARATHI || '1c320b6a-d9f5-4ddf-9708-8601d05a838e',
+};
+
+export function getBunnyCollectionForTopic(topic: string = ''): string {
+  const t = String(topic).toLowerCase();
+  if (t.includes('marathi')) return BUNNY_STREAM_COLLECTIONS.MARATHI;
+  if (t.includes('english')) return BUNNY_STREAM_COLLECTIONS.ENGLISH;
+  if (t.includes('hindi')) return BUNNY_STREAM_COLLECTIONS.HINDI;
+  return BUNNY_STREAM_COLLECTIONS.HINDI;
+}
+
+export interface BunnyUploadResult {
   success: boolean;
   videoId: string;       // Bunny video GUID
+  playUrl: string;       // Direct standalone player URL for mobile/desktop browsers
   embedUrl: string;      // Direct embed URL for iframe
   thumbnailUrl: string;  // Auto-generated thumbnail
   error?: string;
@@ -33,7 +49,7 @@ interface BunnyUploadResult {
  */
 function getBunnyConfig() {
   const apiKey = process.env.BUNNY_API_KEY;
-  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
+  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || '606386';
 
   if (!apiKey || !libraryId) {
     throw new Error('Missing BUNNY_API_KEY or BUNNY_STREAM_LIBRARY_ID in environment');
@@ -43,10 +59,9 @@ function getBunnyConfig() {
 }
 
 /**
- * Create a video entry in Bunny Stream library
- * This creates a placeholder that we then upload the actual file to
+ * Create a video entry in Bunny Stream library with optional collection assignment
  */
-async function createBunnyVideo(title: string): Promise<BunnyVideoCreateResponse> {
+async function createBunnyVideo(title: string, collectionId?: string): Promise<BunnyVideoCreateResponse> {
   const { apiKey, libraryId } = getBunnyConfig();
 
   const response = await fetch(
@@ -57,7 +72,10 @@ async function createBunnyVideo(title: string): Promise<BunnyVideoCreateResponse
         'AccessKey': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({
+        title,
+        ...(collectionId ? { collectionId } : {}),
+      }),
     }
   );
 
@@ -71,7 +89,6 @@ async function createBunnyVideo(title: string): Promise<BunnyVideoCreateResponse
 
 /**
  * Upload video buffer to Bunny Stream
- * Uses the TUS-based upload for reliability with large files
  */
 async function uploadVideoToBunny(videoId: string, buffer: Buffer): Promise<void> {
   const { apiKey, libraryId } = getBunnyConfig();
@@ -95,10 +112,17 @@ async function uploadVideoToBunny(videoId: string, buffer: Buffer): Promise<void
 }
 
 /**
- * Get the embed/playback URL for a Bunny Stream video
- * Bunny provides iframe embed and direct HLS URLs
+ * Direct standalone playback URL (players on mobile & desktop)
  */
-function getBunnyEmbedUrl(videoId: string): string {
+export function getBunnyPlayUrl(videoId: string): string {
+  const { libraryId } = getBunnyConfig();
+  return `https://iframe.mediadelivery.net/play/${libraryId}/${videoId}`;
+}
+
+/**
+ * Get the embed/playback URL for an iframe
+ */
+export function getBunnyEmbedUrl(videoId: string): string {
   const { libraryId } = getBunnyConfig();
   return `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}`;
 }
@@ -108,29 +132,33 @@ function getBunnyEmbedUrl(videoId: string): string {
  * 
  * @param buffer - Video file buffer (already downloaded from Zoom)
  * @param title - Video title (e.g., "Swar Yoga Workshop - Speaker View - 2024-04-15")
- * @returns Upload result with video ID and embed URL
+ * @param collectionId - Target Bunny Stream collection ID (Hindi, English, or Marathi)
+ * @returns Upload result with video ID, playUrl and embedUrl
  */
 export async function uploadToBunnyStream(
   buffer: Buffer,
-  title: string
+  title: string,
+  collectionId?: string
 ): Promise<BunnyUploadResult> {
   try {
-    console.log(`[Bunny Stream] Creating video: ${title}`);
+    console.log(`[Bunny Stream] Creating video: ${title} (Collection: ${collectionId || 'default'})`);
     
-    // Step 1: Create video entry
-    const video = await createBunnyVideo(title);
-    console.log(`[Bunny Stream] Created video ID: ${video.guid}`);
+    // Step 1: Create video entry in designated collection
+    const video = await createBunnyVideo(title, collectionId);
+    console.log(`[Bunny Stream] Created video ID: ${video.guid} in collection ${video.collectionId || collectionId || 'none'}`);
 
     // Step 2: Upload the actual video data
     console.log(`[Bunny Stream] Uploading ${(buffer.length / 1024 / 1024).toFixed(1)} MB...`);
     await uploadVideoToBunny(video.guid, buffer);
 
+    const playUrl = getBunnyPlayUrl(video.guid);
     const embedUrl = getBunnyEmbedUrl(video.guid);
-    console.log(`[Bunny Stream] ✅ Upload complete: ${embedUrl}`);
+    console.log(`[Bunny Stream] ✅ Upload complete. Direct URL: ${playUrl}`);
 
     return {
       success: true,
       videoId: video.guid,
+      playUrl,
       embedUrl,
       thumbnailUrl: video.thumbnailUrl || '',
     };
@@ -139,6 +167,7 @@ export async function uploadToBunnyStream(
     return {
       success: false,
       videoId: '',
+      playUrl: '',
       embedUrl: '',
       thumbnailUrl: '',
       error: err.message,
