@@ -1,28 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Offer } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
+import { listOffers, getOfferByCode, saveOffer, deleteOffer } from '@/lib/bunnyOffersRepository';
 
 export const dynamic = 'force-dynamic';
 
+function checkAdmin(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (!rawToken) return false;
+  if (rawToken === 'admin_root' || authHeader.startsWith('admin_')) return true;
+  const payload = verifyToken(rawToken);
+  return Boolean(payload?.isAdmin || payload?.email === 'admin@swaryoga.com');
+}
 
-// Create a new offer (POST) - SUPERADMIN ONLY
-export async function POST(request: NextRequest) {
+// Get all offers (GET)
+export async function GET(request: NextRequest) {
   try {
-    // Verify admin token using proper JWT verification
-    const authHeader = request.headers.get('authorization') || '';
-    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-    if (!rawToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!checkAdmin(request)) {
+      return NextResponse.json({ error: 'Only admin can view offers' }, { status: 403 });
     }
 
-    const decoded = verifyToken(rawToken);
-    
-    if (!decoded?.isAdmin && rawToken !== 'admin_root') {
+    const offers = await listOffers();
+    return NextResponse.json(offers, { status: 200 });
+  } catch (error) {
+    console.error('Error fetching offers:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch offers' },
+      { status: 500 }
+    );
+  }
+}
+
+// Create a new offer (POST)
+export async function POST(request: NextRequest) {
+  try {
+    if (!checkAdmin(request)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
 
-    await connectDB();
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     const {
       title,
@@ -33,9 +52,8 @@ export async function POST(request: NextRequest) {
       validUntil,
       targetUsers,
       selectedUserEmails,
-    } = await request.json();
+    } = body;
 
-    // Validate required fields
     if (!title || !description || discountPercentage === undefined || !offerCode || !validFrom || !validUntil) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -43,16 +61,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if offer code already exists
-    const existingOffer = await Offer.findOne({ offerCode });
-    if (existingOffer) {
+    const existing = await getOfferByCode(offerCode);
+    if (existing) {
       return NextResponse.json(
         { error: 'Offer code already exists' },
         { status: 400 }
       );
     }
 
-    // Validate dates
     const fromDate = new Date(validFrom);
     const untilDate = new Date(validUntil);
     if (fromDate >= untilDate) {
@@ -62,7 +78,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate discount percentage
     if (discountPercentage < 0 || discountPercentage > 100) {
       return NextResponse.json(
         { error: 'Discount percentage must be between 0 and 100' },
@@ -70,21 +85,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new offer
-    const newOffer = new Offer({
+    const newOffer = await saveOffer({
       title,
       description,
-      discountPercentage,
-      offerCode: offerCode.toUpperCase(),
-      validFrom: fromDate,
-      validUntil: untilDate,
-      targetUsers: targetUsers || 'all',
-      selectedUserEmails: selectedUserEmails || [],
+      discountPercentage: Number(discountPercentage),
+      offerCode,
+      validFrom,
+      validUntil,
+      targetUsers,
+      selectedUserEmails: Array.isArray(selectedUserEmails) ? selectedUserEmails : [],
       isActive: true,
-      createdBy: 'admin@swaryoga.com', // Always admin email
+      createdBy: 'admin@swaryoga.com',
     });
-
-    await newOffer.save();
 
     return NextResponse.json(
       {
@@ -102,95 +114,36 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Get all offers (GET)
-export async function GET(request: NextRequest) {
-  try {
-    await connectDB();
-
-    // Verify admin token
-    const authHeader = request.headers.get('authorization') || '';
-    let isValidAdmin = false;
-    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-    const payload = verifyToken(rawToken);
-    
-    if (payload?.isAdmin || payload?.email === 'admin@swaryoga.com' || authHeader.startsWith('admin_')) {
-      isValidAdmin = true;
-    }
-
-    if (!isValidAdmin) {
-      return NextResponse.json({ error: 'Only admin can view offers' }, { status: 403 });
-    }
-
-    // Get all offers sorted by creation date
-    const offers = await Offer.find({}).sort({ createdAt: -1 });
-
-    return NextResponse.json(offers, { status: 200 });
-  } catch (error) {
-    console.error('Error fetching offers:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offers' },
-      { status: 500 }
-    );
-  }
-}
-
 // Update an offer (PUT)
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-
-
-    // Verify admin token
-    const authHeader = request.headers.get('authorization') || '';
-    let isValidAdmin = false;
-    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-    const payload = verifyToken(rawToken);
-    
-    if (payload?.isAdmin || payload?.email === 'admin@swaryoga.com' || authHeader.startsWith('admin_')) {
-      isValidAdmin = true;
-    }
-
-    if (!isValidAdmin) {
+    if (!checkAdmin(request)) {
       return NextResponse.json({ error: 'Only admin can update offers' }, { status: 403 });
     }
 
-    const { offerId, ...updateData } = await request.json();
-
-    if (!offerId) {
-      return NextResponse.json(
-        { error: 'Offer ID is required' },
-        { status: 400 }
-      );
+    const body = await request.json().catch(() => null);
+    if (!body || !body.offerId) {
+      return NextResponse.json({ error: 'Offer ID is required' }, { status: 400 });
     }
 
-    // Check if offer exists
-    const offer = await Offer.findById(offerId);
-    if (!offer) {
-      return NextResponse.json(
-        { error: 'Offer not found' },
-        { status: 404 }
-      );
+    const { offerId, ...updateData } = body;
+    const offers = await listOffers();
+    const existing = offers.find((o) => o._id === offerId);
+    if (!existing) {
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 });
     }
 
-    // Validate dates if provided
-    if (updateData.validFrom || updateData.validUntil) {
-      const fromDate = new Date(updateData.validFrom || offer.validFrom);
-      const untilDate = new Date(updateData.validUntil || offer.validUntil);
-      if (fromDate >= untilDate) {
-        return NextResponse.json(
-          { error: 'Valid until date must be after valid from date' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Update offer
-    const updatedOffer = await Offer.findByIdAndUpdate(offerId, updateData, { new: true });
+    const updated = await saveOffer({
+      ...existing,
+      ...updateData,
+      _id: offerId,
+      offerCode: updateData.offerCode || existing.offerCode,
+    });
 
     return NextResponse.json(
       {
         message: 'Offer updated successfully',
-        data: updatedOffer,
+        data: updated,
       },
       { status: 200 }
     );
@@ -206,42 +159,17 @@ export async function PUT(request: NextRequest) {
 // Delete an offer (DELETE)
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-
-    // Verify admin token
-    const authHeader = request.headers.get('authorization') || '';
-    const rawToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-    const payload = verifyToken(rawToken);
-    let isValidAdmin = false;
-    
-    if (payload?.isAdmin || payload?.email === 'admin@swaryoga.com' || authHeader.startsWith('admin_')) {
-      isValidAdmin = true;
-    }
-
-    if (!isValidAdmin) {
+    if (!checkAdmin(request)) {
       return NextResponse.json({ error: 'Only admin can delete offers' }, { status: 403 });
     }
 
-    const { offerId } = await request.json();
-
+    const body = await request.json().catch(() => null);
+    const offerId = body?.offerId;
     if (!offerId) {
-      return NextResponse.json(
-        { error: 'Offer ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Offer ID is required' }, { status: 400 });
     }
 
-    // Check if offer exists
-    const offer = await Offer.findById(offerId);
-    if (!offer) {
-      return NextResponse.json(
-        { error: 'Offer not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete offer
-    await Offer.findByIdAndDelete(offerId);
+    await deleteOffer(offerId);
 
     return NextResponse.json(
       { message: 'Offer deleted successfully' },

@@ -1020,7 +1020,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: Video,
           label: 'Private Video Vault',
-          href: '/admin/crm/private-videos',
+          href: '/admin/community/private-videos',
           color: 'text-purple-400',
           module: 'dashboard',
           description: 'Private video collection & hosting',
@@ -1028,7 +1028,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: Image,
           label: 'Media Upload',
-          href: '/admin/media/upload',
+          href: '/admin/media-upload',
           color: 'text-rose-400',
           module: 'dashboard',
           description: 'Upload posters, videos & graphics',

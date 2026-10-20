@@ -28,8 +28,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const notes = lead.notes || [];
-    return NextResponse.json({ success: true, data: notes.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) }, { status: 200 });
+    const rawNotes = lead.notes;
+    let notes: any[] = [];
+    if (Array.isArray(rawNotes)) {
+      notes = [...rawNotes];
+    } else if (typeof rawNotes === 'string' && rawNotes.trim()) {
+      notes = [{ _id: 'note_1', note: rawNotes, createdAt: lead.createdAt || new Date().toISOString() }];
+    }
+
+    notes.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return NextResponse.json({ success: true, data: notes, notes }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to get notes';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -74,7 +82,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       updatedAt: new Date().toISOString(),
     };
 
-    const notes = lead.notes || [];
+    const rawNotes = lead.notes;
+    let notes: any[] = [];
+    if (Array.isArray(rawNotes)) {
+      notes = [...rawNotes];
+    } else if (typeof rawNotes === 'string' && rawNotes.trim()) {
+      notes = [{ _id: 'note_1', note: rawNotes, createdAt: lead.createdAt || new Date().toISOString() }];
+    }
     notes.push(newNote);
     
     await saveBunnyLead({ ...lead, notes }, params.id);
@@ -113,7 +127,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    let notes = lead.notes || [];
+    const rawNotes = lead.notes;
+    let notes: any[] = [];
+    if (Array.isArray(rawNotes)) {
+      notes = [...rawNotes];
+    } else if (typeof rawNotes === 'string' && rawNotes.trim()) {
+      notes = [{ _id: 'note_1', note: rawNotes, createdAt: lead.createdAt || new Date().toISOString() }];
+    }
     const noteIndex = notes.findIndex((n: any) => n._id === noteId);
     if (noteIndex === -1) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
 
@@ -158,7 +178,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    let notes = lead.notes || [];
+    const rawNotes = lead.notes;
+    let notes: any[] = [];
+    if (Array.isArray(rawNotes)) {
+      notes = [...rawNotes];
+    } else if (typeof rawNotes === 'string' && rawNotes.trim()) {
+      notes = [{ _id: 'note_1', note: rawNotes, createdAt: lead.createdAt || new Date().toISOString() }];
+    }
     const noteIndex = notes.findIndex((n: any) => n._id === noteId);
     if (noteIndex === -1) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
 

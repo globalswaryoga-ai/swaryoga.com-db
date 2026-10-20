@@ -1,9 +1,8 @@
-import { connectDB, Contact, Message } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,46 +33,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    await connectDB();
+    // Fetch contact messages from BunnyDB
+    const rows = await bunnyExecute(
+      `SELECT document_json FROM mongo_documents WHERE collection_name='contacts' ORDER BY created_at DESC`
+    ).catch(() => ({ rows: [] }));
 
-    // Fetch contact messages from database
-    const contacts = await Contact.find().sort({ createdAt: -1 });
+    const mappedContacts = rows.rows.map((r: any) => {
+      const contact = cleanMongoJson(JSON.parse(String(r.document_json)));
+      return {
+        _id: contact._id || contact.id,
+        name: contact.name || 'Anonymous',
+        email: contact.email || '',
+        phone: contact.phone || '',
+        subject: contact.subject || '',
+        message: contact.message || '',
+        status: contact.status || 'new',
+        isRead: contact.isRead ?? false,
+        createdAt: contact.createdAt || new Date().toISOString(),
+        source: 'contact',
+      };
+    });
 
-    // Fetch direct messages sent to the admin so profile chat entries also appear
-    const adminMessages = await Message.find({ recipientEmail: 'admin@swaryoga.com', senderRole: 'user' }).sort({ createdAt: -1 });
-
-    const mappedContacts = contacts.map((contact) => ({
-      _id: contact._id,
-      name: contact.name,
-      email: contact.email,
-      phone: contact.phone,
-      subject: contact.subject,
-      message: contact.message,
-      status: contact.status,
-      isRead: contact.isRead ?? false,
-      createdAt: contact.createdAt,
-      source: 'contact',
-    }));
-
-    const mappedMessages = adminMessages.map((message) => ({
-      _id: message._id,
-      name: message.senderName,
-      email: message.senderEmail,
-      phone: '',
-      subject: message.subject,
-      message: message.message,
-      status: message.isRead ? 'replied' : 'new message',
-      isRead: message.isRead,
-      createdAt: message.createdAt,
-      source: 'profile-chat',
-      contactId: message.contactId,
-    }));
-
-    const combined = [...mappedContacts, ...mappedMessages].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    return NextResponse.json(combined, { status: 200 });
+    return NextResponse.json(mappedContacts, { status: 200 });
   } catch (error) {
     console.error('Error fetching contact data:', error);
     return NextResponse.json(
