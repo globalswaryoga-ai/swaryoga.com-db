@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getViewerUserId, tenantFilter } from '@/lib/crm-handlers';
+import { getViewerUserId, tenantFilter, isSuperAdmin, getVisibleUserIds } from '@/lib/crm-handlers';
 import { findMetaTemplate, createTemplate, updateTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import {
   fetchTemplatesFromMeta,
@@ -21,10 +21,13 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded, 'createdBy');
+    const superAdmin = isSuperAdmin(decoded, request);
+    const viewerUserId = getViewerUserId(decoded);
+    const allowed = getVisibleUserIds(decoded, request) || [viewerUserId];
 
     const url = new URL(request.url);
-    const importNew = url.searchParams.get('import') === 'true';
+    // Only superadmin can import new platform templates from Meta
+    const importNew = superAdmin && url.searchParams.get('import') === 'true';
 
     // Removed MongoDB
 
@@ -51,6 +54,10 @@ export async function GET(request: NextRequest) {
       const existing = await findMetaTemplate(metaTemplate.id, metaTemplate.name, metaTemplate.language);
 
       if (existing) {
+        // If non-superadmin, only update templates belonging to this tenant
+        if (!superAdmin && existing.createdBy && !allowed.includes(String(existing.createdBy))) {
+          continue;
+        }
         // Update ONLY status fields - preserve local content (headerUrl, etc.)
         const localStatus = mapMetaStatusToLocal(metaTemplate.status);
         const headerComponent = metaTemplate.components?.find(c => c.type === 'HEADER');
@@ -180,6 +187,13 @@ export async function POST(request: NextRequest) {
     // Removed MongoDB POST
     const template = await getTemplateById(templateId);
     if (!template) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded, request);
+    const viewerUserId = getViewerUserId(decoded);
+    const allowed = getVisibleUserIds(decoded, request) || [viewerUserId];
+    if (!superAdmin && template.createdBy && !allowed.includes(String(template.createdBy))) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
 

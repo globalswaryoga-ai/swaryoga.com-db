@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { listTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
-import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const viewerUserId = getViewerUserId(decoded);
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
@@ -37,12 +37,8 @@ export async function GET(request: NextRequest) {
 
     const filter: any = {};
     if (!superAdmin) {
-      if (provider === 'qr') {
-        filter.createdBy = viewerUserId;
-      } else {
-        // Sub-admins should see their own templates + all Meta templates
-        filter.createdByOrMeta = viewerUserId;
-      }
+      const allowed = getVisibleUserIds(decoded, request) || [viewerUserId];
+      filter.createdByIn = allowed;
     }
     if (category) filter.category = category;
     if (status) filter.status = status;
@@ -58,7 +54,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { success: true, templates, total, data: { templates, total, limit, skip } },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to fetch templates';
@@ -215,10 +218,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-  const { templateId, action, ...updates } = body;
+    const { templateId, action, ...updates } = body;
 
     if (!templateId) {
       return NextResponse.json({ error: 'Missing: templateId' }, { status: 400 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded, request);
+    const viewerUserId = getViewerUserId(decoded);
+    const allowed = getVisibleUserIds(decoded, request) || [viewerUserId];
+
+    const existingTemplate = await getTemplateById(templateId);
+    if (!existingTemplate) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+    if (!superAdmin && existingTemplate.createdBy && !allowed.includes(String(existingTemplate.createdBy))) {
+      return NextResponse.json({ error: 'Forbidden: You do not have permission to modify this template' }, { status: 403 });
     }
 
     if (action === 'approve') {
@@ -345,6 +360,13 @@ export async function DELETE(request: NextRequest) {
     const template = await getTemplateById(templateId);
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded, request);
+    const viewerUserId = getViewerUserId(decoded);
+    const allowed = getVisibleUserIds(decoded, request) || [viewerUserId];
+    if (!superAdmin && template.createdBy && !allowed.includes(String(template.createdBy))) {
+      return NextResponse.json({ error: 'Forbidden: You do not have permission to delete this template' }, { status: 403 });
     }
 
     // Delete files from S3

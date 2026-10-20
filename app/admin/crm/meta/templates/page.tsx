@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 type HeaderMedia =
   | null
@@ -158,6 +159,7 @@ function TemplatesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
+  const isSuper = checkIsSuperAdmin();
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
@@ -750,26 +752,28 @@ function TemplatesContent() {
           </div>
         </div>
 
-        {/* Meta Sync Buttons */}
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          <button
-            onClick={() => syncAllFromMeta(false)}
-            disabled={metaSyncing}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-sm transition-all"
-          >
-            {metaSyncing ? '⏳ Syncing...' : '🔄 Sync from Meta'}
-          </button>
-          <button
-            onClick={() => syncAllFromMeta(true)}
-            disabled={metaSyncing}
-            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-semibold text-sm transition-all"
-          >
-            {metaSyncing ? '⏳ Syncing...' : '📥 Import from Meta'}
-          </button>
-          <p className="text-xs text-gray-500 text-center">
-            Sync updates status. Import also creates new templates.
-          </p>
-        </div>
+        {/* Meta Sync Buttons (Super Admin Only) */}
+        {isSuper && (
+          <div className="p-4 border-t border-gray-200 space-y-2">
+            <button
+              onClick={() => syncAllFromMeta(false)}
+              disabled={metaSyncing}
+              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-sm transition-all"
+            >
+              {metaSyncing ? '⏳ Syncing...' : '🔄 Sync from Meta'}
+            </button>
+            <button
+              onClick={() => syncAllFromMeta(true)}
+              disabled={metaSyncing}
+              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-semibold text-sm transition-all"
+            >
+              {metaSyncing ? '⏳ Syncing...' : '📥 Import from Meta'}
+            </button>
+            <p className="text-xs text-gray-500 text-center">
+              Sync updates status. Import also creates new templates.
+            </p>
+          </div>
+        )}
 
         {/* Refresh Button */}
         <div className="p-4 border-t border-gray-200">

@@ -5,12 +5,16 @@ export async function listTemplates(filter: any, limit = 50, skip = 0) {
   let sql = 'SELECT * FROM whatsapp_templates_sql WHERE 1=1';
   const args: any[] = [];
   
-  if (filter.createdByOrMeta) {
-    sql += ' AND (created_by = ? OR provider = ? OR provider IS NULL)';
-    args.push(filter.createdByOrMeta, 'meta');
+  if (filter.createdByIn && filter.createdByIn.length > 0) {
+    const ph = filter.createdByIn.map(() => '?').join(',');
+    sql += ` AND created_by IN (${ph})`;
+    args.push(...filter.createdByIn);
   } else if (filter.createdBy) {
     sql += ' AND created_by = ?';
     args.push(filter.createdBy);
+  } else if (filter.createdByOrMeta) {
+    sql += ' AND (created_by = ? OR provider = ? OR provider IS NULL)';
+    args.push(filter.createdByOrMeta, 'meta');
   }
   
   if (filter.category) {
