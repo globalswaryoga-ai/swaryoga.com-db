@@ -22,8 +22,8 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
-    let viewerUserId = 'admin';
-    let superAdmin = true;
+    let viewerUserId: string;
+    let superAdmin = false;
     let limit = 500, skip = 0;
     try {
       viewerUserId = verifyAdminAccess(request);
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       limit = pag.limit;
       skip = pag.skip;
     } catch(e) {
-      // Mock for debug
+      return handleCrmError(e, 'GET /conversations');
     }
 
     const url = new URL(request.url);
