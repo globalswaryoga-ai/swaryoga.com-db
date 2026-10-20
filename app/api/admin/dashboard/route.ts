@@ -31,9 +31,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Super admin gate: dashboard is for the main admin only.
-    const isSuperAdmin = decoded.userId === 'admin' || decoded.userId === 'admincrm' || (Array.isArray(decoded.permissions) && decoded.permissions.includes('all'));
-    if (!isSuperAdmin) {
+    // Super admin gate: dashboard is strictly for the main admin on swaryoga.com.
+    // On crm.swaryoga.com, super admin access is always false.
+    const { isSuperAdmin } = await import('@/lib/crm-handlers');
+    if (!isSuperAdmin(decoded, request)) {
       return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
     }
 

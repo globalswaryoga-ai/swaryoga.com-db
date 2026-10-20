@@ -16,13 +16,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
-    // NOTE: Non-superadmin admins still need the admin list for CRM lead assignment dropdowns.
-    // We return a minimal, safe set of fields below.
+    const { getViewerUserId } = await import('@/lib/crm-handlers');
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const allAdmins = await bunnyAuth.getAdminUsers();
 
-    // Fetch all admin users (minimal fields for assignment UI)
-    const adminUsers = allAdmins.map((u) => ({
+    // Fetch admin users (minimal fields for assignment UI)
+    let adminUsers = allAdmins.map((u) => ({
       _id: u.id,
       userId: u.userId,
       email: u.email,
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
       permissionsV2: u.permissionsV2,
       isAdmin: u.isAdmin,
     }));
+
+    if (!superAdmin) {
+      adminUsers = adminUsers.filter(u => u.userId === viewerUserId || (Array.isArray(u.managedUserIds) && u.managedUserIds.includes(viewerUserId)));
+    }
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
   } catch (error) {
@@ -51,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
-    if (!isSuperAdmin(decoded)) {
+    if (!isSuperAdmin(decoded, request)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Only superadmins can see all admin users
-    if (!isSuperAdmin(decoded)) {
+    if (!isSuperAdmin(decoded, request)) {
       return NextResponse.json(
         { error: 'Access denied: Superadmin access required for user management' },
         { status: 403 }

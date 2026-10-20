@@ -19,8 +19,8 @@ function verifyAdmin(request: NextRequest) {
   return decoded;
 }
 
-function buildEventAccessFilter(decoded: any): Record<string, any> {
-  const visibleUserIds = getVisibleUserIds(decoded);
+function buildEventAccessFilter(decoded: any, request?: Request | NextRequest | null): Record<string, any> {
+  const visibleUserIds = getVisibleUserIds(decoded, request);
   if (visibleUserIds === null) return {};
   if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
   return { reportedByUserId: { $in: visibleUserIds } };
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded);
+    const accessFilter = buildEventAccessFilter(decoded, request);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 
@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded);
+    const accessFilter = buildEventAccessFilter(decoded, request);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 
@@ -100,7 +100,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const SalesReport = getSalesReport();
       const validIds = addSaleIds.filter((sid: any) => isValidObjectId(sid));
       const salesFilter: Record<string, any> = { _id: { $in: validIds.map((sid: string) => toObjectId(sid)) } };
-      const visibleUserIds = getVisibleUserIds(decoded);
+      const visibleUserIds = getVisibleUserIds(decoded, request);
       if (visibleUserIds !== null) {
         salesFilter.reportedByUserId = visibleUserIds.length === 1 ? visibleUserIds[0] : { $in: visibleUserIds };
       }
@@ -141,7 +141,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded);
+    const accessFilter = buildEventAccessFilter(decoded, request);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 

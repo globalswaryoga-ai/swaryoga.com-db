@@ -20,8 +20,8 @@ function computeTotals(participants: any[]) {
   return { totalAmount, participantCount: list.length };
 }
 
-function buildEventAccessFilter(decoded: any): Record<string, any> {
-  const visibleUserIds = getVisibleUserIds(decoded);
+function buildEventAccessFilter(decoded: any, request?: Request | NextRequest | null): Record<string, any> {
+  const visibleUserIds = getVisibleUserIds(decoded, request);
   if (visibleUserIds === null) return {};
   if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
   return { reportedByUserId: { $in: visibleUserIds } };
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) throw new Error('Unauthorized: Admin access required');
-    const accessFilter = buildEventAccessFilter(decoded);
+    const accessFilter = buildEventAccessFilter(decoded, request);
 
     const url = new URL(request.url);
     const id = url.searchParams.get('id');

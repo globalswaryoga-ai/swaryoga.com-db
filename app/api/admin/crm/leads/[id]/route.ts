@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const lead = await getBunnyLeadById(params.id);
     if (!lead) {
@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const body = await request.json().catch(() => null);
     if (!body) {
@@ -173,7 +173,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const existing = await getBunnyLeadById(params.id);
     if (!existing) {

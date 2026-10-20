@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     const userIdParam = url.searchParams.get('userId');
     const sourceParam = url.searchParams.get('source');
     const excludeSourceParam = url.searchParams.get('excludeSource') || '';
-    const superAdmin = isSuperAdmin(decoded);
-    const visibleUserIds = superAdmin ? null : getVisibleUserIds(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
+    const visibleUserIds = superAdmin ? null : getVisibleUserIds(decoded, request);
 
     const bunnyMetadata = await getBunnyLeadMetadata({
       visibleUserIds,

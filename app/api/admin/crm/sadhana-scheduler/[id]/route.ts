@@ -29,7 +29,8 @@ export async function GET(
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
-    if (!isSuperAdmin(decoded) && schedule.userId && schedule.userId !== decoded.userId) {
+    const viewerUserId = getViewerUserId(decoded) || decoded?.userId;
+    if (!isSuperAdmin(decoded, request) && schedule.userId && schedule.userId !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -59,7 +60,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
-    if (!isSuperAdmin(decoded) && existing.userId && existing.userId !== decoded.userId) {
+    const viewerUserId = getViewerUserId(decoded) || decoded?.userId;
+    if (!isSuperAdmin(decoded, request) && existing.userId && existing.userId !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -92,7 +94,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
-    if (!isSuperAdmin(decoded) && existing.userId && existing.userId !== decoded.userId) {
+    const viewerUserId = getViewerUserId(decoded) || decoded?.userId;
+    if (!isSuperAdmin(decoded, request) && existing.userId && existing.userId !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
 
     const url = new URL(request.url);
     const saleId = url.searchParams.get('id');
@@ -335,7 +335,7 @@ export async function PUT(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
     const superAdmin = visibleUserIds === null; 
 
     const body = await request.json().catch(() => null);
@@ -476,7 +476,7 @@ export async function DELETE(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
 
     const url = new URL(request.url);
     const saleId = url.searchParams.get('saleId');

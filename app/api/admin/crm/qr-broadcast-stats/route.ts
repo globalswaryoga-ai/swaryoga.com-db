@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const baseFilter: any = { provider: 'qr' };
-    if (!isSuperAdmin(decoded)) {
-      const visibleIds = getVisibleUserIds(decoded);
+    if (!isSuperAdmin(decoded, request)) {
+      const visibleIds = getVisibleUserIds(decoded, request);
       if (visibleIds && visibleIds.length > 0) {
         baseFilter.createdByUserId = { $in: visibleIds };
       } else {

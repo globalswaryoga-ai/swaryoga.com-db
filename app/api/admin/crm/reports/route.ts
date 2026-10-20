@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const startDate = dateRange(range);
     const now = new Date();
 
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const viewerUserId = getViewerUserId(decoded);
 
     // Scope filter: super admin sees all, tenant sees only their own

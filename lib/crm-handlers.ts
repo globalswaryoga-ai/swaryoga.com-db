@@ -145,19 +145,32 @@ export const META_WHATSAPP_OWNER_IDS: string[] = Array.from(SUPER_ADMIN_IDS);
  * Detects if a request is coming from crm.swaryoga.com or the CRM subdomain
  */
 export const isCrmDomain = (request?: Request | NextRequest | null): boolean => {
-  if (!request) return false;
-  try {
-    const host = (
-      request.headers.get('x-forwarded-host') ||
-      request.headers.get('host') ||
-      ''
-    ).toLowerCase();
-    if (host.includes('crm.swaryoga.com') || host.startsWith('crm.')) return true;
-    const referer = (request.headers.get('referer') || request.headers.get('origin') || '').toLowerCase();
-    if (referer.includes('crm.swaryoga.com') || referer.includes('://crm.')) return true;
-  } catch {
-    // ignore
+  let host = '';
+  let referer = '';
+  let origin = '';
+  if (request) {
+    try {
+      host = (
+        request.headers.get('x-forwarded-host') ||
+        request.headers.get('host') ||
+        ''
+      ).toLowerCase();
+      referer = (request.headers.get('referer') || '').toLowerCase();
+      origin = (request.headers.get('origin') || '').toLowerCase();
+    } catch {}
+  } else {
+    try {
+      // In Next.js App Router, fallback to reading server headers if request wasn't explicitly passed
+      const { headers } = require('next/headers');
+      const h = headers();
+      host = (h.get('x-forwarded-host') || h.get('host') || '').toLowerCase();
+      referer = (h.get('referer') || '').toLowerCase();
+      origin = (h.get('origin') || '').toLowerCase();
+    } catch {}
   }
+  if (host.includes('crm.swaryoga.com') || host.startsWith('crm.') || host.includes('.crm.')) return true;
+  if (referer.includes('crm.swaryoga.com') || referer.includes('://crm.')) return true;
+  if (origin.includes('crm.swaryoga.com') || origin.includes('://crm.')) return true;
   return false;
 };
 
@@ -165,7 +178,7 @@ export const isSuperAdmin = (decoded: any, request?: Request | NextRequest | nul
   if (!decoded) return false;
   // If the request is from crm.swaryoga.com, NEVER grant super admin access!
   // crm.swaryoga.com is strictly a tenant portal — no super admin data must ever leak there.
-  if (request && isCrmDomain(request)) {
+  if (isCrmDomain(request)) {
     return false;
   }
   // Check userId (regular admin users stored in DB)
@@ -207,7 +220,7 @@ export const getVisibleUserIds = (decoded: any, request?: Request | NextRequest 
   const viewerUserId = getViewerUserId(decoded);
   
   // On crm.swaryoga.com, strict tenant isolation: never return null
-  if (request && isCrmDomain(request)) {
+  if (isCrmDomain(request)) {
     return [viewerUserId];
   }
 
@@ -232,8 +245,8 @@ export const getVisibleUserIds = (decoded: any, request?: Request | NextRequest 
  * Build user filter for data access control
  * Returns a MongoDB filter for assignedToUserId/createdByUserId
  */
-export const buildUserAccessFilter = (decoded: any, fieldName: string = 'assignedToUserId'): Record<string, any> => {
-  const visibleUserIds = getVisibleUserIds(decoded);
+export const buildUserAccessFilter = (decoded: any, fieldName: string = 'assignedToUserId', request?: Request | NextRequest | null): Record<string, any> => {
+  const visibleUserIds = getVisibleUserIds(decoded, request);
   
   // Super admin - no filter
   if (visibleUserIds === null) {
@@ -428,8 +441,8 @@ export const tenantOrFilter = (decoded: any, request?: Request | NextRequest | n
  * - Regular admin: community must have createdByUserId matching the admin, or be legacy (no createdByUserId set)
  * Returns false only when the community clearly belongs to another tenant.
  */
-export const verifyCommunityTenant = async (decoded: any, communityId: string): Promise<boolean> => {
-  if (isSuperAdmin(decoded)) return true;
+export const verifyCommunityTenant = async (decoded: any, communityId: string, request?: Request | NextRequest | null): Promise<boolean> => {
+  if (isSuperAdmin(decoded, request)) return true;
   const viewerId = getViewerUserId(decoded);
   if (!viewerId) return false;
 
@@ -450,8 +463,8 @@ export const verifyCommunityTenant = async (decoded: any, communityId: string): 
  * - SuperAdmin: returns null (no restriction)
  * - Regular admin: returns communityIds they own + legacy communities (no createdByUserId)
  */
-export const getAccessibleCommunityIds = async (decoded: any): Promise<string[] | null> => {
-  if (isSuperAdmin(decoded)) return null;
+export const getAccessibleCommunityIds = async (decoded: any, request?: Request | NextRequest | null): Promise<string[] | null> => {
+  if (isSuperAdmin(decoded, request)) return null;
   const viewerId = getViewerUserId(decoded);
   if (!viewerId) return [];
 

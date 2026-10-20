@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
 
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const manager = isManager(decoded);
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
 
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const body = await request.json().catch(() => null);
     if (!body) {

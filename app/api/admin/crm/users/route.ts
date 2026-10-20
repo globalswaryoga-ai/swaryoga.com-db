@@ -20,11 +20,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    const Lead = getLead();
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
 
-    // Get all distinct assigned user IDs from leads
-    const assignedUserIds: string[] = await Lead.distinct('assignedToUserId');
+    let assignedUserIds: string[] = [];
+    if (superAdmin) {
+      await connectDB();
+      const Lead = getLead();
+      assignedUserIds = await Lead.distinct('assignedToUserId');
+    } else {
+      assignedUserIds = [viewerUserId];
+    }
 
     // Filter out null/empty values and build user list
     const users = assignedUserIds

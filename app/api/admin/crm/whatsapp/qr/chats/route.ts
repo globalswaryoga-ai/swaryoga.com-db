@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     }
 
     const viewerUserId = getViewerUserId(decoded);
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, req);
 
     // await connectDB();
 

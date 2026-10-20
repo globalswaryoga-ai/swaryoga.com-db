@@ -36,7 +36,15 @@ const isSuperAdminId = (value: unknown): boolean => {
 export function isCrmSubdomain(): boolean {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname.toLowerCase();
-  return host === 'crm.swaryoga.com' || host.startsWith('crm.');
+  const origin = (window.location.origin || '').toLowerCase();
+  const href = (window.location.href || '').toLowerCase();
+  return (
+    host === 'crm.swaryoga.com' ||
+    host.startsWith('crm.') ||
+    host.includes('.crm.') ||
+    origin.includes('crm.swaryoga.com') ||
+    href.includes('crm.swaryoga.com')
+  );
 }
 
 /**

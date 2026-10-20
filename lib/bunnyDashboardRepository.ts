@@ -73,26 +73,50 @@ export async function getBunnyAnalyticsOverview(input: { visibleUserIds: string[
   // Query actual Bunny Database SQL tables for sales & message volumes
   let totalSales = 0;
   try {
-    const salesRes = await bunnyExecute('SELECT COUNT(*) as count, SUM(sale_amount) as total FROM sales_reports_sql');
+    let salesSql = 'SELECT COUNT(*) as count, SUM(sale_amount) as total FROM sales_reports_sql';
+    const salesArgs: any[] = [];
+    if (!input.superAdmin) {
+      const allowed = input.visibleUserIds && input.visibleUserIds.length ? input.visibleUserIds : [input.viewerUserId];
+      const ph = allowed.map(() => '?').join(',');
+      salesSql += ` WHERE reported_by_user_id IN (${ph}) OR user_id IN (${ph})`;
+      salesArgs.push(...allowed, ...allowed);
+    }
+    const salesRes = await bunnyExecute({ sql: salesSql, args: salesArgs });
     totalSales = Number(salesRes.rows[0]?.total || salesRes.rows[0]?.count || 0);
   } catch {}
 
   let metaMessagesSent = 0;
   try {
-    const metaRes = await bunnyExecute("SELECT COUNT(*) as count FROM meta_messages_sql WHERE direction = 'outbound'");
+    let metaSql = "SELECT COUNT(*) as count FROM meta_messages_sql WHERE direction = 'outbound'";
+    const metaArgs: any[] = [];
+    if (!input.superAdmin) {
+      const allowed = input.visibleUserIds && input.visibleUserIds.length ? input.visibleUserIds : [input.viewerUserId];
+      const ph = allowed.map(() => '?').join(',');
+      metaSql += ` AND sent_by_user_id IN (${ph})`;
+      metaArgs.push(...allowed);
+    }
+    const metaRes = await bunnyExecute({ sql: metaSql, args: metaArgs });
     metaMessagesSent = Number(metaRes.rows[0]?.count || 0);
   } catch {}
 
   let qrWhatsappMessagesSent = 0;
   try {
-    const qrRes = await bunnyExecute('SELECT COUNT(*) as count FROM qr_whatsapp_messages_sql');
+    let qrSql = 'SELECT COUNT(*) as count FROM qr_whatsapp_messages_sql';
+    const qrArgs: any[] = [];
+    if (!input.superAdmin) {
+      const allowed = input.visibleUserIds && input.visibleUserIds.length ? input.visibleUserIds : [input.viewerUserId];
+      const ph = allowed.map(() => '?').join(',');
+      qrSql += ` WHERE user_id IN (${ph})`;
+      qrArgs.push(...allowed);
+    }
+    const qrRes = await bunnyExecute({ sql: qrSql, args: qrArgs });
     qrWhatsappMessagesSent = Number(qrRes.rows[0]?.count || 0);
   } catch {}
 
   const [messages, broadcasts] = await Promise.all([preferred('Message', 'messages'), archived('whatsapp_messages')]);
   const baseMessageCount = input.superAdmin ? messages.length + broadcasts.length : messages.filter((m: any) => String(m.senderId || m.sentByUserId || '') === input.viewerUserId).length;
   const totalMessages = (baseMessageCount || 0) + metaMessagesSent + qrWhatsappMessagesSent;
-  const runs = await archived('broadcast_runs');
+  const runs = input.superAdmin ? await archived('broadcast_runs') : [];
 
   return {
     totalLeads: leads.length,

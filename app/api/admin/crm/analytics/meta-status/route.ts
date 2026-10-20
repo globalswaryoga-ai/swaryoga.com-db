@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isSuperAdmin(decoded)) {
+    if (!isSuperAdmin(decoded, request)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required for Meta status' }, { status: 403 });
     }
 

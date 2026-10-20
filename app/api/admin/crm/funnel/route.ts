@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
 
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, req);
     const viewerUserId = getViewerUserId(decoded);
     
     // Get funnel config
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get stage distribution - scoped by visible leads
-    const visibleUserIds = getVisibleUserIds(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, req);
     
     // Get leads visible to this user to find their IDs
     const result = await listBunnyLeads({ 

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const filterEndStr = filterEnd.toISOString();
 
     const analytics: any = {};
-    const superAdmin = isSuperAdmin(decoded);
+    const superAdmin = isSuperAdmin(decoded, request);
     const viewerId = getViewerUserId(decoded);
 
     let accessibleLeadIds: string[] = [];

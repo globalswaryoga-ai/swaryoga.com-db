@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const visibleUserIds = getVisibleUserIds(decoded);
-    const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
+    const superAdmin = isSuperAdmin(decoded, request);
 
     const url = new URL(request.url);
     const view = url.searchParams.get('view') || 'overview'; // overview, leads, sales, messages, conversion, trends
