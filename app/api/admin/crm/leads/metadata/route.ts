@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { verifyToken, extractTokenFromRequest } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
 import { getLead, getCrmLeadSettings } from '@/lib/schemas/enterpriseSchemas';
 import { CANONICAL_LABELS } from '@/lib/crm/labels';
 import { getBunnyLeadMetadata } from '@/lib/bunnyLeadsRepository';
@@ -17,13 +17,13 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const token = extractTokenFromRequest(request);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded) || String(decoded.userId || decoded.username || decoded.email || 'admincrm').trim();
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
@@ -33,9 +33,10 @@ export async function GET(request: NextRequest) {
     const sourceParam = url.searchParams.get('source');
     const excludeSourceParam = url.searchParams.get('excludeSource') || '';
     const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = superAdmin ? null : getVisibleUserIds(decoded);
 
     const bunnyMetadata = await getBunnyLeadMetadata({
-      visibleUserIds: superAdmin ? null : [viewerUserId],
+      visibleUserIds,
       viewerUserId,
       source: sourceParam,
       excludeSource: excludeSourceParam || undefined,

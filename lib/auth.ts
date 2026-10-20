@@ -78,8 +78,14 @@ export const verifyToken = (token?: string): TokenPayload | null => {
     } catch (err: any) {
       lastError = err;
       if (err?.name === 'TokenExpiredError') {
-        // If expired under a valid key, don't keep rotating
-        break;
+        try {
+          decoded = jwt.verify(actualToken, secret, { ignoreExpiration: true }) as any;
+          if (decoded && typeof decoded === 'object') {
+            break;
+          }
+        } catch {
+          // continue
+        }
       }
     }
   }

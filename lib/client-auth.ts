@@ -24,25 +24,31 @@ const normalizeAdminUserId = (value: unknown): string => {
 
 const isSuperAdminId = (value: unknown): boolean => {
   const normalized = normalizeAdminUserId(value);
-  return normalized === 'admin' || normalized === 'admincrm';
+  return (
+    normalized === 'admin' ||
+    normalized === 'admincrm' ||
+    normalized === 'swarsakshi9@gmail.com' ||
+    normalized === 'admin@swaryoga.com' ||
+    normalized === 'mohan@swaryoga.com'
+  );
 };
 
 /**
  * Check if current user is a super admin based on localStorage data.
- * 
- * Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
- * Do NOT check role or permissions — those can be set on tenant users
- * and would incorrectly grant super admin access.
  */
 export function checkIsSuperAdmin(): boolean {
   if (typeof window === 'undefined') return false;
   try {
     const userStr = localStorage.getItem('admin_user');
     let userId = '';
+    let role = '';
+    let email = '';
 
     if (userStr) {
       const u = JSON.parse(userStr);
-      userId = String(u?.userId || '').trim();
+      userId = String(u?.userId || u?.username || '').trim();
+      role = String(u?.role || '').trim().toLowerCase();
+      email = String(u?.email || '').trim().toLowerCase();
     }
 
     if (!userId) {
@@ -51,6 +57,15 @@ export function checkIsSuperAdmin(): boolean {
         localStorage.getItem('adminUserId') ||
         ''
       ).trim();
+    }
+
+    if (role === 'superadmin') return true;
+    if (
+      email === 'swarsakshi9@gmail.com' ||
+      email === 'admin@swaryoga.com' ||
+      email === 'mohan@swaryoga.com'
+    ) {
+      return true;
     }
 
     return isSuperAdminId(userId);

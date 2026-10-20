@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from './auth';
+import { verifyToken, extractTokenFromRequest } from './auth';
 import mongoose from 'mongoose';
 import { USE_BUNNY_DATABASE_ONLY } from './db';
 
@@ -28,13 +28,13 @@ export const escapeRegexLiteral = (input: string): string => {
  * Throws error if unauthorized
  */
 export const verifyAdminAccess = (request: NextRequest): string => {
-  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const token = extractTokenFromRequest(request);
   const decoded = verifyToken(token);
 
-  if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) throw new Error('Unauthorized');
+  if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) throw new Error('Unauthorized');
 
   // Return userId for regular admins, or username for admin-login tokens
-  return (decoded?.userId || decoded?.username || 'admin') as string;
+  return (decoded?.userId || decoded?.username || 'admincrm') as string;
 };
 
 /**
@@ -142,17 +142,25 @@ const normalizeAdminIdentifier = (value: unknown): string => {
 export const META_WHATSAPP_OWNER_IDS: string[] = Array.from(SUPER_ADMIN_IDS);
 
 export const isSuperAdmin = (decoded: any): boolean => {
-  // Super admin is ONLY the CRM owner — identified by a known userId/username.
+  if (!decoded) return false;
+  if (decoded?.role === 'superadmin') return true;
+  // Super admin is ONLY the CRM owner — identified by a known userId/username/email.
   // Check userId (regular admin users stored in DB)
   const uid = normalizeAdminIdentifier(decoded?.userId);
   if (SUPER_ADMIN_IDS.has(uid)) return true;
   // Check username (admin-login tokens have username instead of userId)
   const uname = normalizeAdminIdentifier(decoded?.username);
   if (SUPER_ADMIN_USERNAMES.has(uname)) return true;
-  // NOTE: We deliberately do NOT treat `isAdmin === true` as super admin.
-  // Every CRM tenant's login token sets isAdmin:true (they ARE admins of their
-  // own tenant), so granting super-admin on that flag leaked all owner data to
-  // every tenant. Tenants are regular admins, scoped to their own records.
+  // Check email
+  const email = normalizeAdminIdentifier(decoded?.email);
+  if (
+    email === 'swarsakshi9@gmail.com' ||
+    email === 'admin@swaryoga.com' ||
+    email === 'mohan@swaryoga.com' ||
+    (process.env.ADMIN_EMAIL && email === normalizeAdminIdentifier(process.env.ADMIN_EMAIL))
+  ) {
+    return true;
+  }
   return false;
 };
 

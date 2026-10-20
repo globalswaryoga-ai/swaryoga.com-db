@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, extractTokenFromRequest } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
@@ -8,13 +8,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const token = extractTokenFromRequest(request);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded) || String(decoded.userId || decoded.username || decoded.email || 'admincrm').trim();
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
@@ -37,13 +37,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const token = extractTokenFromRequest(request);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded) || String(decoded.userId || decoded.username || decoded.email || 'admincrm').trim();
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
@@ -97,13 +97,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const token = extractTokenFromRequest(request);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded) || String(decoded.userId || decoded.username || decoded.email || 'admincrm').trim();
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
@@ -163,13 +163,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const token = extractTokenFromRequest(request);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded) || String(decoded.userId || decoded.username || decoded.email || 'admincrm').trim();
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }

@@ -74,8 +74,8 @@ function looksLikeRandomId(name: string): boolean {
 }
 
 export default function LeadsPage() {
-  const router = useRouter();
-  const token = useAuth();
+  const authHookToken = useAuth();
+  const token = authHookToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('token')) : null);
   const planCtx = usePlan();
 
   const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
@@ -230,13 +230,16 @@ export default function LeadsPage() {
       if (isSuperAdmin && userFilter) params.userId = userFilter;
       const response = await fetch('/api/admin/crm/leads/metadata' + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
         headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
-        setStatusCounts(data.data.statusCounts);
-        setWorkshops(data.data.workshops);
-        setWorkshopCounts(data.data.workshopCounts);
-        setTotal(data.data.total);
+        setStatusCounts(data.data.statusCounts || {});
+        setWorkshops(data.data.workshops || []);
+        setWorkshopCounts(data.data.workshopCounts || {});
+        if (typeof data?.data?.total === 'number') {
+          setTotal(data.data.total);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch metadata', err);
@@ -273,12 +276,14 @@ export default function LeadsPage() {
         '/api/admin/crm/leads?' + new URLSearchParams(params),
         {
           headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include',
         }
       );
       if (response.ok) {
         const data = await response.json();
         setLeads(data.data.leads || []);
         setTotal(data.data.total || 0);
+        setError(null);
       } else {
         // Log error response for debugging
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
