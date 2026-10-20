@@ -160,9 +160,20 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
     const lead = await deps.lead(leadId);
     if (!lead) throw new ChatbotRuntimeError('lead_not_found', 'Lead not found', 404);
     if (!chatbotOwnsLead(lead, owner)) throw new ChatbotRuntimeError('ownership', 'Lead does not belong to this Meta account owner', 403);
-    const to = phone(lead.phoneNumber);
-    if (!/^\d{10,15}$/.test(to) || (requestedPhone && phone(requestedPhone) !== to)) {
-      throw new ChatbotRuntimeError('phone_mismatch', 'Lead phone does not match the requested recipient', 400);
+    const reqPhone = requestedPhone ? phone(requestedPhone) : null;
+    const leadPhones = [lead.phoneNumber, ...(lead.contactPhones || []), lead.whatsappNumber, lead.phone].filter(Boolean).map(phone);
+    let to = phone(lead.phoneNumber);
+    if (reqPhone) {
+      if (leadPhones.includes(reqPhone)) {
+        to = reqPhone;
+      } else if (!to || !/^\d{10,15}$/.test(to)) {
+        to = reqPhone;
+      } else {
+        throw new ChatbotRuntimeError('phone_mismatch', 'Lead phone does not match the requested recipient', 400);
+      }
+    }
+    if (!/^\d{10,15}$/.test(to)) {
+      throw new ChatbotRuntimeError('phone_mismatch', 'Invalid recipient phone number', 400);
     }
     const credentials = await deps.credentials(owner);
     if (!credentials?.accessToken || !credentials?.phoneNumberId) throw new ChatbotRuntimeError('missing_credentials', 'Connect this owner’s Meta account before running a chatbot', 422);
@@ -511,10 +522,21 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
     if (!Number.isFinite(minutes) || minutes < 0) throw new ChatbotRuntimeError('invalid_rule_throttle', 'Automation throttle must be nonnegative minutes');
     const last = ctx.state.ruleLastExecuted?.[id] || ctx.lead.metadata?.[`automation:last:${id}`];
     if (minutes > 0 && last && now().getTime() - millis(last) < minutes * 60_000) return true;
-    if (rule.actionType === 'send_text') {
-      const body = String(rule.actionText || '').trim();
-      if (!body || body.length > 4096) throw new ChatbotRuntimeError('invalid_rule_text', 'Automation requires 1–4096 text characters');
-      await send(ctx, { type: 'text', text: { body, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:rule:${id}`);
+    if (rule.actionType === 'send_text' || rule.actionType === 'send_image') {
+      const body = String(rule.actionText || rule.caption || '').trim();
+      const imageUrl = rule.imageUrl || rule.mediaUrl || rule.actionMediaUrl || null;
+      if (imageUrl) {
+        await send(ctx, {
+          type: 'image',
+          image: {
+            link: imageUrl,
+            ...(body ? { caption: body } : {}),
+          }
+        }, `${ctx.scope}:${ctx.eventId}:rule:${id}`);
+      } else {
+        if (!body || body.length > 4096) throw new ChatbotRuntimeError('invalid_rule_text', 'Automation requires 1–4096 text characters');
+        await send(ctx, { type: 'text', text: { body, preview_url: true } }, `${ctx.scope}:${ctx.eventId}:rule:${id}`);
+      }
     } else if (rule.actionType === 'send_template') {
       await send(ctx, await templatePayload({
         templateId: rule.actionTemplateId, templateVariables: rule.actionTemplateVariables,
