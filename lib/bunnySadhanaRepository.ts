@@ -14,9 +14,14 @@ const parse = <T>(value: unknown, fallback: T): T => {
 };
 const bool = (value: unknown) => value === true || value === 1 || value === '1' || value === 'true';
 
-export async function initSadhanaBunnySchema() {
-  await bunnyBatch([
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_programs_sql (
+let schemaInitPromise: Promise<void> | null = null;
+
+export async function initSadhanaBunnySchema(): Promise<void> {
+  if (schemaInitPromise) return schemaInitPromise;
+
+  schemaInitPromise = (async () => {
+    await bunnyBatch([
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_programs_sql (
       id TEXT PRIMARY KEY,
       slug TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
@@ -119,6 +124,12 @@ export async function initSadhanaBunnySchema() {
       // Column may already exist
     }
   }
+  })().catch((err) => {
+    schemaInitPromise = null;
+    throw err;
+  });
+
+  return schemaInitPromise;
 }
 
 // Map db row to JS object

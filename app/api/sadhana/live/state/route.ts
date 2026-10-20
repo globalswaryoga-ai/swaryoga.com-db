@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import crypto from 'crypto';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
-
-async function getDb() {
-  await connectDB();
-  return mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-}
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { listPrograms, getProgram, initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
+import { listSadhanaSchedules } from '@/lib/bunnySadhanaSchedulerRepository';
 
 /**
  * For a given schedule and current time, determine the current session status:
@@ -213,119 +209,88 @@ function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): strin
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionId, scheduleId } = await request.json();
-    const db = await getDb();
-    const participants = db.collection('sadhana_live_participants');
-    const schedules = db.collection('sadhana_schedules');
-    const chatCol = db.collection('sadhana_live_chat');
+    const { sessionId, scheduleId } = await request.json().catch(() => ({}));
+    await initSadhanaBunnySchema();
 
     const now = new Date();
-    const activeThreshold = new Date(now.getTime() - 15 * 1000);
+    const nowIso = now.toISOString();
+    const activeThresholdIso = new Date(now.getTime() - 15 * 1000).toISOString();
+    const roomSlug = scheduleId || 'default';
 
     if (sessionId) {
-      await participants.updateOne({ sessionId }, { $set: { lastSeen: now } });
+      await bunnyExecute({
+        sql: `UPDATE sadhana_live_participants_sql SET last_seen = ? WHERE session_id = ?`,
+        args: [nowIso, sessionId]
+      });
     }
 
-    await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
+    // Clean up stale participants
+    await bunnyExecute({
+      sql: `DELETE FROM sadhana_live_participants_sql WHERE last_seen < ?`,
+      args: [activeThresholdIso]
+    });
 
+    // Find active schedule or program
+    const schedules = await listSadhanaSchedules({ status: 'active' });
     let activeSchedule: any = null;
     if (scheduleId && scheduleId !== 'default') {
-      try {
-        activeSchedule = await schedules.findOne({
-          _id: new mongoose.Types.ObjectId(scheduleId),
-        });
-      } catch {
-        activeSchedule = null;
-      }
+      activeSchedule = schedules.find((s: any) => s.id === scheduleId || s._id === scheduleId);
     }
     if (!activeSchedule) {
-      activeSchedule = await schedules.findOne(
-        { status: 'active' },
-        { sort: { updatedAt: -1 } }
-      );
+      activeSchedule = schedules[0] || null;
     }
 
-    const activeParticipants = await participants
-      .find({ lastSeen: { $gte: activeThreshold } })
-      .sort({ joinedAt: 1 })
-      .limit(200)
-      .toArray();
+    const participantsRes = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_live_participants_sql WHERE last_seen >= ? ORDER BY joined_at ASC LIMIT 200`,
+      args: [activeThresholdIso]
+    });
+    const activeParticipants = participantsRes.rows || [];
 
     let sessionInfo: any = null;
     let playableVideoUrl: any = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
 
-      // Auto-add bot when countdown/live starts, remove after session ends
-      if (activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
-        const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
-        const botExists = await participants.findOne({
-          scheduleId: activeSchedule._id.toString(),
-          name: botName
-        });
-        if (!botExists) {
-          await participants.insertOne({
-            scheduleId: activeSchedule._id.toString(),
-            sessionId: 'bot',
-            name: botName,
-            joinedAt: now,
-            lastSeen: now,
-          });
-        }
-      } else if (activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
-        const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
-        await participants.deleteOne({
-          scheduleId: activeSchedule._id.toString(),
-          name: botName
-        });
-      }
       if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
-        const converted = convertToHLSUrl(activeSchedule.videoUrl);
         playableVideoUrl = buildVideoUrlWithOffset(
           activeSchedule.videoUrl,
           sessionInfo.videoOffsetSeconds
         );
-        console.log('[Sadhana Live]', {
-          original: activeSchedule.videoUrl,
-          converted,
-          final: playableVideoUrl,
-          status: sessionInfo.status,
-          isHLS: converted.includes('.m3u8'),
-        });
       }
     }
 
-    const chatMessages = await chatCol
-      .find({ scheduleId: activeSchedule?._id?.toString() || 'default' })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .toArray();
+    const chatRes = await bunnyExecute({
+      sql: `SELECT * FROM sadhana_live_chat_sql WHERE program_slug = ? ORDER BY created_at DESC LIMIT 50`,
+      args: [roomSlug]
+    });
+    const chatMessages = chatRes.rows || [];
 
-    // Get program details (from sadhana_programs collection)
-    const programsDb = await getProgramsDb();
-    const programsCol = programsDb.collection('sadhana_programs');
+    // Get program details from Bunny Database sadhana_programs_sql
     let program: any = null;
     let todayVideo: any = null;
     let upcomingVideos: any[] = [];
 
+    const allPrograms = await listPrograms();
     if (activeSchedule?.programSlug) {
-      program = await programsCol.findOne({ slug: activeSchedule.programSlug });
+      program = allPrograms.find((p: any) => p && p.slug === activeSchedule.programSlug);
+    }
+    if (!program && allPrograms.length > 0) {
+      program = allPrograms[0];
+    }
 
-      if (program) {
-        const yyyymmdd = now.toISOString().split('T')[0];
-        const todayEntry = program.videoCalendar?.[yyyymmdd];
-        if (todayEntry) {
-          todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: todayEntry.videoUrl };
-        }
+    if (program) {
+      const yyyymmdd = now.toISOString().split('T')[0];
+      const todayEntry = program.videoCalendar?.[yyyymmdd];
+      if (todayEntry) {
+        todayVideo = { date: yyyymmdd, title: todayEntry.title || '', videoUrl: todayEntry.hlsUrl || todayEntry.videoUrl || '' };
+      }
 
-        // Get next 7 days of videos
-        for (let i = 1; i <= 7; i++) {
-          const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-          const futureDateStr = futureDate.toISOString().split('T')[0];
-          const entry = program.videoCalendar?.[futureDateStr];
-          if (entry) {
-            upcomingVideos.push({ date: futureDateStr, title: entry.title });
-          }
+      for (let i = 1; i <= 7; i++) {
+        const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+        const futureDateStr = futureDate.toISOString().split('T')[0];
+        const entry = program.videoCalendar?.[futureDateStr];
+        if (entry) {
+          upcomingVideos.push({ date: futureDateStr, title: entry.title || '' });
         }
       }
     }
@@ -335,26 +300,26 @@ export async function POST(request: NextRequest) {
       count: activeParticipants.length,
       participants: activeParticipants.map((p: any) => ({
         name: p.name,
-        joinedAt: p.joinedAt,
+        joinedAt: p.joined_at || p.joinedAt,
       })),
       program: program ? {
         slug: program.slug,
         name: program.name,
         description: program.description,
-        timezone: activeSchedule?.timezone || 'Asia/Kolkata',
-        scheduleTime: activeSchedule?.timeSlots?.[0] || activeSchedule?.scheduleTime,
+        timezone: activeSchedule?.timezone || program.timezone || 'Asia/Kolkata',
+        scheduleTime: activeSchedule?.timeSlots?.[0] || program.timeSlots?.[0] || '07:00',
       } : null,
       todayVideo,
       upcomingVideos,
       session: sessionInfo,
       playableVideoUrl,
-      chat: chatMessages.reverse().map((m: any) => ({
-        id: m._id.toString(),
-        name: m.name,
+      chat: [...chatMessages].reverse().map((m: any) => ({
+        id: String(m.id),
+        name: m.sender,
         message: m.message,
-        createdAt: m.createdAt,
+        createdAt: m.created_at || m.createdAt,
       })),
-      serverTime: now.toISOString(),
+      serverTime: nowIso,
     });
   } catch (error) {
     return handleCrmError(error, 'POST sadhana/live/state');

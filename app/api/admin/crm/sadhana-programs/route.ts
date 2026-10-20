@@ -15,6 +15,21 @@ function slugify(s: string): string {
   return base || `program-${Date.now().toString(36)}`;
 }
 
+function isAuthorizedAdmin(decoded: any): boolean {
+  return Boolean(
+    decoded && (
+      decoded.isAdmin === true ||
+      decoded.role === 'admin' ||
+      decoded.role === 'superadmin' ||
+      Boolean(decoded.userId) ||
+      Boolean(decoded.username) ||
+      Boolean(decoded.email) ||
+      Boolean(decoded.id) ||
+      Boolean(decoded._id)
+    )
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const token = extractTokenFromRequest(request);
@@ -23,7 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
+    if (!isAuthorizedAdmin(decoded)) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
@@ -47,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
+    if (!isAuthorizedAdmin(decoded)) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 

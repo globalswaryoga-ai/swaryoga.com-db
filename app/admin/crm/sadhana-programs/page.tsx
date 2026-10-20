@@ -34,6 +34,27 @@ const TIMEZONES = [
   'Australia/Sydney', 'UTC',
 ];
 
+function getAdminAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const keys = ['crm_token', 'adminToken', 'admin_token', 'token', 'auth_token'];
+  for (const k of keys) {
+    const v = localStorage.getItem(k);
+    if (v && v !== 'null' && v !== 'undefined' && v.trim()) return v.trim();
+  }
+  if (typeof document !== 'undefined' && document.cookie) {
+    const parts = document.cookie.split(';');
+    for (const part of parts) {
+      const [k, ...v] = part.trim().split('=');
+      const key = k.trim();
+      if (keys.includes(key)) {
+        const val = decodeURIComponent(v.join('=')).trim();
+        if (val && val !== 'null' && val !== 'undefined') return val;
+      }
+    }
+  }
+  return null;
+}
+
 export default function SadhanaProgramsPage() {
   const token = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -76,42 +97,26 @@ export default function SadhanaProgramsPage() {
     zoomPassword: '',
   });
 
-  const [effectiveToken, setEffectiveToken] = useState<string | null>(null);
-
+  const [effectiveToken, setEffectiveToken] = useState<string | null>(() => getAdminAuthToken());
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (token) {
       setEffectiveToken(token);
-    } else if (typeof window !== 'undefined') {
-      const stored =
-        localStorage.getItem('crm_token') ||
-        localStorage.getItem('adminToken') ||
-        localStorage.getItem('admin_token') ||
-        localStorage.getItem('token');
-      if (stored && stored !== 'null' && stored !== 'undefined') {
-        setEffectiveToken(stored);
-      } else if (typeof document !== 'undefined' && document.cookie) {
-        const parts = document.cookie.split(';');
-        for (const part of parts) {
-          const [k, ...v] = part.trim().split('=');
-          const key = k.trim();
-          if (['admin_token', 'crm_token', 'adminToken', 'token', 'auth_token'].includes(key)) {
-            const val = decodeURIComponent(v.join('=')).trim();
-            if (val && val !== 'null' && val !== 'undefined') {
-              setEffectiveToken(val);
-              break;
-            }
-          }
-        }
-      }
+    } else {
+      const stored = getAdminAuthToken();
+      if (stored) setEffectiveToken(stored);
     }
   }, [token]);
 
-  const activeToken = effectiveToken || token;
-  const authHeader: Record<string, string> = activeToken
-    ? { Authorization: `Bearer ${activeToken.trim().replace(/^Bearer\s+/i, '')}` }
-    : {};
+  const activeToken = effectiveToken || token || getAdminAuthToken();
+
+  const getAuthHeader = (overrideToken?: string): Record<string, string> => {
+    const t = overrideToken || activeToken || getAdminAuthToken();
+    return t ? { Authorization: `Bearer ${t.trim().replace(/^Bearer\s+/i, '')}` } : {};
+  };
+
+  const authHeader = getAuthHeader();
 
   const [restarting, setRestarting] = useState(false);
 
@@ -121,7 +126,7 @@ export default function SadhanaProgramsPage() {
     try {
       const res = await fetch('/api/admin/sadhana-scheduler/restart', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         credentials: 'include',
       });
       const data = await res.json();
@@ -139,11 +144,12 @@ export default function SadhanaProgramsPage() {
     }
   };
 
-  const load = async () => {
+  const load = async (tokenOverride?: string) => {
     setLoading(true);
     try {
+      const headers = getAuthHeader(tokenOverride);
       const res = await fetch('/api/admin/crm/sadhana-programs', {
-        headers: authHeader,
+        headers,
         credentials: 'include',
       });
       const data = await res.json();
@@ -151,6 +157,17 @@ export default function SadhanaProgramsPage() {
         setPrograms(data.programs);
       } else if (res.status === 401) {
         console.warn('Unauthorized when loading programs:', data.error);
+        const fresh = getAdminAuthToken();
+        if (fresh && (!headers.Authorization || headers.Authorization !== `Bearer ${fresh}`)) {
+          const retryRes = await fetch('/api/admin/crm/sadhana-programs', {
+            headers: { Authorization: `Bearer ${fresh.replace(/^Bearer\s+/i, '').trim()}` },
+            credentials: 'include',
+          });
+          const retryData = await retryRes.json();
+          if (retryRes.ok && retryData.success && Array.isArray(retryData.programs)) {
+            setPrograms(retryData.programs);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
