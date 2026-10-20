@@ -23,6 +23,7 @@ import {
   LoadingSpinner,
   AlertBox,
   AddToBroadcastModal,
+  LeadLabelsDropdown,
 } from '@/components/admin/crm';
 
 interface Lead {
@@ -410,6 +411,30 @@ export default function LeadsPage() {
     }
   };
 
+  const handleUpdateLabels = async (leadId: string, updatedLabels: string[]) => {
+    // Optimistic UI update
+    setLeads((prev) =>
+      prev.map((l) => (l._id === leadId ? { ...l, labels: updatedLabels } : l))
+    );
+    try {
+      const response = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ labels: updatedLabels }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update labels');
+      fetchMetadata();
+    } catch (err) {
+      console.error('Failed to update labels:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update labels');
+      fetchLeads();
+    }
+  };
+
   // ── Load / Save settings ──
   const loadSettings = async () => {
     if (!token) return;
@@ -545,7 +570,7 @@ export default function LeadsPage() {
   type LeadColumn = {
     key: string;
     label: string;
-    render?: (value: any, lead: Lead) => ReactNode;
+    render?: (value: any, lead: Lead, idx?: number) => ReactNode;
   };
 
   const getAssigneeLabel = (assignedToUserId?: string) => {
@@ -625,22 +650,17 @@ export default function LeadsPage() {
     {
       key: 'labels',
       label: 'Labels',
-      render: (labels: any) => (
-        <div className="flex flex-wrap gap-1">
-          {Array.isArray(labels) && labels.length > 0 ? (
-            labels.map((label: any) => (
-              <span
-                key={String(label)}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30"
-              >
-                {String(label)}
-              </span>
-            ))
-          ) : (
-            <span className="text-gray-500 text-xs">—</span>
-          )}
-        </div>
-      ),
+      render: (labels: any, lead: Lead, idx?: number) => {
+        const isNearBottom = typeof idx === 'number' && leads.length > 3 && idx >= leads.length - 2;
+        return (
+          <LeadLabelsDropdown
+            labels={lead.labels || labels || []}
+            allLabels={allLabels}
+            isNearBottom={isNearBottom}
+            onUpdate={(next) => handleUpdateLabels(lead._id, next)}
+          />
+        );
+      },
     },
     {
       key: 'status',
@@ -1412,7 +1432,7 @@ export default function LeadsPage() {
                       >
                         {columns.map((col) => (
                           <td key={col.key} className="px-3.5 sm:px-6 py-2.5 sm:py-4 text-xs sm:text-sm text-white">
-                            {col.render ? col.render((lead as any)[col.key], lead) : (lead as any)[col.key]}
+                            {col.render ? col.render((lead as any)[col.key], lead, idx) : (lead as any)[col.key]}
                           </td>
                         ))}
                       </tr>

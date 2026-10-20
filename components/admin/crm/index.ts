@@ -36,6 +36,7 @@ export {
 // ── Lead Management ─────────────────────────────────────────
 export { BulkActionsModal } from './BulkActionsModal';
 export { AddToBroadcastModal } from './AddToBroadcastModal';
+export { LeadLabelsDropdown } from './LeadLabelsDropdown';
 
 // ── WhatsApp / Messaging ────────────────────────────────────
 export {
