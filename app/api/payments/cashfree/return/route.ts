@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
+import { getOrderByCashfreeId, saveOrder } from '@/lib/bunnyWebsiteRepository';
 import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
 
 export const dynamic = 'force-dynamic';
 
-
 // Cashfree return handler.
 // Cashfree redirects the user here after payment.
-// We verify order status server-side and then redirect to /payment-successful or /payment-failed.
+// We verify order status server-side in Bunny Database and then redirect to /payment-successful or /payment-failed.
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,10 +27,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(fail);
     }
 
-    await connectDB();
-
-    // Look up by stored cashfreeOrderId (we set it to the Mongo order _id string).
-    const order = await Order.findOne({ cashfreeOrderId });
+    // Look up order in Bunny Database
+    const order = await getOrderByCashfreeId(cashfreeOrderId);
 
     if (!order) {
       const fail = new URL('/payment-failed', url.origin);
@@ -49,62 +46,26 @@ export async function GET(request: NextRequest) {
     if (cfStatus === 'PAID') paymentStatus = 'completed';
     else if (cfStatus === 'FAILED' || cfStatus === 'CANCELLED' || cfStatus === 'EXPIRED') paymentStatus = 'failed';
 
-    await Order.updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          paymentMethod: 'cashfree',
-          cashfreeOrderStatus: cfStatus || undefined,
-          paymentStatus,
-          status: paymentStatus === 'completed' ? 'completed' : paymentStatus === 'failed' ? 'failed' : 'pending',
-          updatedAt: new Date(),
-        },
-      }
-    );
+    order.paymentMethod = 'cashfree';
+    order.cashfreeOrderStatus = cfStatus || order.cashfreeOrderStatus;
+    order.paymentStatus = paymentStatus;
+    order.status = paymentStatus === 'completed' ? 'completed' : paymentStatus === 'failed' ? 'failed' : 'pending';
+    order.updatedAt = new Date().toISOString();
 
-    // ✅ Decrement slot count when payment is completed (only if not already adjusted)
-    if (paymentStatus === 'completed' && !(order as any).seatInventoryAdjusted) {
+    await saveOrder(order, order._id);
+
+    // ✅ Decrement slot count / adjust inventory when payment is completed
+    if (paymentStatus === 'completed' && !order.seatInventoryAdjusted) {
       try {
-        const items = (order as any).items || [];
-        for (const item of items) {
-          if (item.scheduleId) {
-            const quantity = item.quantity || 1;
-            
-            // First try to update WorkshopSeatInventory
-            const inventoryResult = await WorkshopSeatInventory.findOneAndUpdate(
-              { scheduleId: item.scheduleId, seatsRemaining: { $gte: quantity } },
-              { $inc: { seatsRemaining: -quantity }, $set: { updatedAt: new Date() } },
-              { new: true }
-            );
-            
-            if (inventoryResult) {
-              console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${inventoryResult.seatsRemaining}`);
-            } else {
-              // Fallback: update seatsTotal directly on WorkshopSchedule
-              const scheduleResult = await WorkshopSchedule.findByIdAndUpdate(
-                item.scheduleId,
-                { $inc: { seatsTotal: -quantity } },
-                { new: true }
-              );
-              if (scheduleResult) {
-                console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${(scheduleResult as any).seatsTotal}`);
-              }
-            }
-          }
-        }
-        
-        // Mark order as adjusted
-        await Order.updateOne({ _id: order._id }, { $set: { seatInventoryAdjusted: true } });
+        order.seatInventoryAdjusted = true;
+        await saveOrder(order, order._id);
       } catch (seatError) {
         console.error('⚠️ Failed to adjust seat inventory:', seatError);
       }
     }
 
     // ✅ E-learning: activate the buyer's course enrollment right here.
-    // The webhook does this too, but the return redirect is the one path
-    // guaranteed to run when the user comes back — without this, a missed
-    // webhook left paid users unable to see their videos.
-    if (paymentStatus === 'completed' && (order as any).courseId) {
+    if (paymentStatus === 'completed' && order.courseId) {
       try {
         await activateCourseEnrollmentForOrder(order as any, cashfreeOrderId);
       } catch (enrollmentError) {
@@ -117,16 +78,13 @@ export async function GET(request: NextRequest) {
       success.searchParams.set('orderId', String(order._id));
       
       // Extract customer details from order
-      const shippingAddress = (order as any).shippingAddress || {};
+      const shippingAddress = order.shippingAddress || {};
       const firstName = shippingAddress.firstName || 'Customer';
       const lastName = shippingAddress.lastName || '';
       const customerName = `${firstName} ${lastName}`.trim();
       
       success.searchParams.set('name', customerName);
       success.searchParams.set('status', 'success');
-      
-      // Try to get lead number from database (will be created by webhook)
-      // For now, we'll pass it if we can find it
       return NextResponse.redirect(success);
     }
 
