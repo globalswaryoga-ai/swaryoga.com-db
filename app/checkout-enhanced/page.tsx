@@ -7,6 +7,47 @@ import CashfreePaymentButton from '@/components/CashfreePaymentButton';
 import { CartItem, getStoredCart, updateCartItemQuantity, removeCartItem, persistCart } from '@/lib/cart';
 import { BANK_ACCOUNT_DETAILS, getWhatsAppLink } from '@/lib/bankTransferConfig';
 
+const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; currency: string }> = {
+  'swar-yoga-basic-program': { minPrice: 145, maxPrice: 145, currency: 'INR' },
+  'swar-yoga-basic': { minPrice: 96, maxPrice: 96, currency: 'INR' },
+  'master-swar-yoga': { minPrice: 1500, maxPrice: 1500, currency: 'INR' },
+  'yogasana-sadhana': { minPrice: 5400, maxPrice: 5400, currency: 'INR' },
+  'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'hindi-swar-yoga-l-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'niwasi-marathi-swar-yoga': { minPrice: 3600, maxPrice: 3600, currency: 'INR' },
+  'swar-yoga-level-3': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'swar-yoga-level-4': { minPrice: 6000, maxPrice: 6000, currency: 'INR' },
+  '96-days-weight-loss': { minPrice: 6600, maxPrice: 6600, currency: 'INR' },
+  '42-days-meditation': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'amrut-aahar': { minPrice: 7200, maxPrice: 7200, currency: 'INR' },
+  'bandhan-mukti': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'swar-yoga-level-2': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'swar-yoga-businessman': { minPrice: 4200, maxPrice: 4200, currency: 'INR' },
+  'personality-development': { minPrice: 3300, maxPrice: 5500, currency: 'INR' },
+  'garbh-sanskar': { minPrice: 1000, maxPrice: 9000, currency: 'INR' },
+  'teacher-training': { minPrice: 15000, maxPrice: 33000, currency: 'INR' },
+  'annual-satsang': { minPrice: 500, maxPrice: 1000, currency: 'INR' },
+  'nadi-parikshan': { minPrice: 500, maxPrice: 1000, currency: 'INR' },
+  'family-wellness': { minPrice: 2000, maxPrice: 4000, currency: 'INR' },
+  'advanced-breathing': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'life-transformation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'astavakra': { minPrice: 21000, maxPrice: 21000, currency: 'INR' },
+  'self-awareness': { minPrice: 35000, maxPrice: 35000, currency: 'INR' },
+  'swy-children': { minPrice: 4200, maxPrice: 4200, currency: 'INR' },
+  'corporate-swy': { minPrice: 15000, maxPrice: 15000, currency: 'INR' },
+  'happy-marriage': { minPrice: 8400, maxPrice: 8400, currency: 'INR' },
+  'gurukul-training': { minPrice: 51000, maxPrice: 51000, currency: 'INR' },
+  'swy-teacher': { minPrice: 12500, maxPrice: 12500, currency: 'INR' },
+  'gurukul-organiser-training': { minPrice: 25000, maxPrice: 25000, currency: 'INR' },
+  'naturopathy': { minPrice: 11000, maxPrice: 11000, currency: 'INR' },
+  'meditation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'weight-loss': { minPrice: 3500, maxPrice: 3500, currency: 'INR' },
+  'pre-pregnancy': { minPrice: 15000, maxPrice: 15000, currency: 'INR' },
+  'complete-health': { minPrice: 21000, maxPrice: 21000, currency: 'INR' },
+};
+
+export type PaymentPlanType = 'full' | 'part' | 'monthly' | '3month';
+
 export default function EnhancedCheckoutPage() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -15,8 +56,10 @@ export default function EnhancedCheckoutPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Pricing selection: track which items use 3-month pricing
-  const [pricingSelection, setPricingSelection] = useState<Record<string, '1month' | '3month'>>({});
+  // Pricing selection: 'full' | 'part' | 'monthly' | '3month'
+  const [pricingSelection, setPricingSelection] = useState<Record<string, PaymentPlanType>>({});
+  // Custom editable deposit amounts for part payment
+  const [customPartAmounts, setCustomPartAmounts] = useState<Record<string, number>>({});
   
   // Promo code state
   const [promoCode, setPromoCode] = useState('');
@@ -35,45 +78,84 @@ export default function EnhancedCheckoutPage() {
     zip: '',
   });
 
-  // Detect repeat purchases based on user's purchase history
+  // Detect repeat purchases based on user's purchase history and sync live schedules
   useEffect(() => {
     const loadCartAndDetectRepeatPurchases = async () => {
       let items = getStoredCart();
       
-      // Fetch latest schedule prices from API to ensure price3Month is up to date
+      // Fetch latest schedule data from API to ensure price, time, batch, and payment settings are fresh
       try {
-        const scheduleIds = items
-          .filter(item => item.scheduleId)
-          .map(item => item.scheduleId);
-        
-        if (scheduleIds.length > 0) {
-          const schedulesRes = await fetch('/api/workshops/schedules');
-          if (schedulesRes.ok) {
-            const schedulesData = await schedulesRes.json();
-            const schedules = schedulesData.data || [];
-            
-            // Update cart items with latest price3Month from API
-            items = items.map(item => {
-              const schedule = schedules.find((s: any) => s.id === item.scheduleId);
-              if (schedule && schedule.price3Month && schedule.price3Month > 0) {
-                return {
-                  ...item,
-                  metadata: {
-                    ...item.metadata,
-                    price3Month: schedule.price3Month,
-                  },
-                };
-              }
-              return item;
-            });
-            
-            // Persist updated items
+        const schedulesRes = await fetch(`/api/workshops/schedules?_t=${Date.now()}`, { cache: 'no-store' });
+        if (schedulesRes.ok) {
+          const schedulesData = await schedulesRes.json();
+          const schedules = schedulesData.data || [];
+          
+          let changed = false;
+          items = items.map(item => {
+            const schedule = schedules.find((s: any) => 
+              (item.scheduleId && s.id === item.scheduleId) ||
+              (item.workshopSlug && s.workshopSlug === item.workshopSlug)
+            );
+
+            if (schedule) {
+              const defaultFee = WORKSHOP_FEES[item.workshopSlug || '']?.minPrice || 0;
+              const rawPrice = Number(schedule.price);
+              const validPrice = Number.isFinite(rawPrice) && rawPrice > 0 
+                ? rawPrice 
+                : (defaultFee > 0 ? defaultFee : item.price);
+              
+              const updatedPrice = validPrice > 0 ? validPrice : item.price;
+              const allowPartPayment = schedule.allowPartPayment ?? schedule.metadata?.allowPartPayment ?? true;
+              const partPaymentMinAmount = Number(schedule.partPaymentMinAmount ?? schedule.metadata?.partPaymentMinAmount ?? 2000);
+              const pricingType = schedule.pricingType || schedule.metadata?.pricingType || 'one-time';
+
+              changed = true;
+              return {
+                ...item,
+                price: updatedPrice,
+                metadata: {
+                  ...item.metadata,
+                  time: schedule.time || (schedule.batch === 'full-day' ? 'Full Day' : item.metadata?.time),
+                  startDate: schedule.startDate || item.metadata?.startDate,
+                  price3Month: schedule.price3Month || item.metadata?.price3Month,
+                  pricingType,
+                  allowPartPayment,
+                  partPaymentMinAmount,
+                },
+              };
+            }
+            return item;
+          });
+
+          if (changed) {
             persistCart(items);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch latest schedule prices:', error);
+        console.error('Failed to sync schedule prices with checkout:', error);
       }
+
+      // Initialize default payment plans and default deposit amounts
+      const initialPricing: Record<string, PaymentPlanType> = {};
+      const initialPartAmounts: Record<string, number> = {};
+
+      items.forEach(item => {
+        const selected = (item.metadata?.selectedPricing as string | undefined);
+        if (selected === 'part' || selected === '3month' || selected === 'monthly' || selected === 'full') {
+          initialPricing[item.id] = selected as PaymentPlanType;
+        } else {
+          const pt = String(item.metadata?.pricingType || '').toLowerCase();
+          if (pt === 'monthly') initialPricing[item.id] = 'monthly';
+          else if (pt === '3month') initialPricing[item.id] = '3month';
+          else initialPricing[item.id] = 'full';
+        }
+
+        const minDeposit = Number(item.metadata?.partPaymentMinAmount || 2000);
+        initialPartAmounts[item.id] = Math.min(item.price, minDeposit > 0 ? minDeposit : 2000);
+      });
+
+      setPricingSelection(initialPricing);
+      setCustomPartAmounts(initialPartAmounts);
       
       try {
         // Try to fetch user's purchase history
@@ -127,24 +209,35 @@ export default function EnhancedCheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Get item price based on pricing selection (1-month, 3-month, or part-payment deposit)
+  // Get item price based on pricing selection (full, part, monthly, or 3-month)
   const getItemPrice = (item: CartItem) => {
-    const selection = pricingSelection[item.id] || '1month';
+    const selection = pricingSelection[item.id] || (
+      item.metadata?.selectedPricing === 'part' ? 'part' :
+      item.metadata?.pricingType === 'monthly' ? 'monthly' :
+      item.metadata?.pricingType === '3month' ? '3month' : 'full'
+    );
     const storedPrice3Month = item.metadata?.price3Month as number | undefined;
-    const partPaymentMinAmount = item.metadata?.partPaymentMinAmount as number | undefined;
 
     if (selection === 'part') {
-      return partPaymentMinAmount && partPaymentMinAmount > 0 ? partPaymentMinAmount : Math.min(item.price, 2000);
+      const minDeposit = Number(item.metadata?.partPaymentMinAmount || 2000);
+      const custom = customPartAmounts[item.id];
+      if (typeof custom === 'number' && Number.isFinite(custom) && custom > 0) {
+        return custom;
+      }
+      return Math.min(item.price, minDeposit > 0 ? minDeposit : 2000);
     }
     
     if (selection === '3month') {
-      // Use stored 3-month price if set, otherwise calculate default (15% discount)
       if (storedPrice3Month && storedPrice3Month > 0) {
         return storedPrice3Month;
       }
-      // Default: 3 months with 15% discount
       return Math.round(item.price * 3 * 0.85);
     }
+
+    if (selection === 'monthly') {
+      return item.price;
+    }
+
     return item.price;
   };
 
@@ -195,8 +288,13 @@ export default function EnhancedCheckoutPage() {
   };
 
   // Handle pricing selection change
-  const handlePricingChange = (itemId: string, selection: '1month' | '3month') => {
+  const handlePricingChange = (itemId: string, selection: PaymentPlanType) => {
     setPricingSelection(prev => ({ ...prev, [itemId]: selection }));
+  };
+
+  // Handle custom deposit change
+  const handleCustomPartChange = (itemId: string, amount: number) => {
+    setCustomPartAmounts(prev => ({ ...prev, [itemId]: amount }));
   };
 
   const isFormValid = 
@@ -360,15 +458,24 @@ export default function EnhancedCheckoutPage() {
                     
                     // Show pricing selector for all workshop items
                     const isWorkshopItem = !!item.workshopSlug || !!item.scheduleId;
-                    const selectedPricing = pricingSelection[item.id] || '1month';
+                    const selectedPricing: PaymentPlanType = pricingSelection[item.id] || (
+                      item.metadata?.selectedPricing === 'part' ? 'part' :
+                      item.metadata?.pricingType === 'monthly' ? 'monthly' :
+                      item.metadata?.pricingType === '3month' ? '3month' : 'full'
+                    );
                     const currentPrice = getItemPrice(item);
+                    const minDeposit = Number(item.metadata?.partPaymentMinAmount || 2000);
+                    const currentPartAmount = typeof customPartAmounts[item.id] === 'number' && Number.isFinite(customPartAmounts[item.id]) && customPartAmounts[item.id] > 0
+                      ? customPartAmounts[item.id]
+                      : Math.min(item.price, minDeposit > 0 ? minDeposit : 2000);
+                    const remainingBalance = Math.max(0, item.price - currentPartAmount);
                     
                     return (
-                      <div key={item.id} className="p-4 border-2 border-gray-200 rounded-lg hover:border-yoga-400 transition-colors">
+                      <div key={item.id} className="p-4 border-2 border-gray-200 rounded-xl hover:border-yoga-400 transition-colors bg-white">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <p className="font-semibold text-gray-900">{item.name}</p>
+                              <p className="font-bold text-gray-900 text-base">{item.name}</p>
                               {item.isRepeatPurchase && (
                                 <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
                                   40% OFF
@@ -376,7 +483,7 @@ export default function EnhancedCheckoutPage() {
                               )}
                             </div>
                             {(item.metadata?.startDate as string | undefined) && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-gray-600 mt-1">
                                 📅 Starts: {new Date(String(item.metadata!.startDate)).toLocaleDateString('en-IN')}
                                 {(item.metadata?.time as string | undefined) && ` • ⏰ ${String(item.metadata!.time)}`}
                               </p>
@@ -410,7 +517,7 @@ export default function EnhancedCheckoutPage() {
                             </div>
 
                             {/* Subtotal */}
-                            <span className="font-bold text-yoga-600 w-28 text-right">
+                            <span className="font-extrabold text-yoga-700 w-32 text-right text-base">
                               {item.currency || 'INR'} {(
                                 (item.isRepeatPurchase ? currentPrice * 0.6 : currentPrice) * item.quantity
                               ).toLocaleString('en-IN')}
@@ -423,88 +530,153 @@ export default function EnhancedCheckoutPage() {
                                 setCartItems(getStoredCart());
                               }}
                               className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                              title="Remove item"
                             >
                               ✕
                             </button>
                           </div>
                         </div>
                         
-                        {/* Pricing Selection (1-month vs 3-month) - Always show for workshops */}
+                        {/* 4 Payment Plan Options: Full Payment, Partly, Monthly, 3 Month */}
                         {isWorkshopItem && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
-                            <p className="text-sm font-semibold text-gray-700 mb-2">Select Payment Plan:</p>
-                            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-sm font-bold text-gray-800">Select Payment Plan:</p>
+                              <span className="text-[11px] text-gray-500 font-medium">Default auto-selected • Click to change</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                              {/* 1. Full Payment Option */}
                               <label 
-                                className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                  selectedPricing === '1month' 
-                                    ? 'border-yoga-600 bg-yoga-50' 
-                                    : 'border-gray-200 hover:border-gray-300'
+                                className={`flex flex-col justify-between p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                                  selectedPricing === 'full' 
+                                    ? 'border-yoga-600 bg-yoga-50/70 shadow-sm ring-1 ring-yoga-500' 
+                                    : 'border-gray-200 hover:border-gray-300 bg-white'
                                 }`}
                               >
-                                <input
-                                  type="radio"
-                                  name={`pricing-${item.id}`}
-                                  checked={selectedPricing === '1month'}
-                                  onChange={() => handlePricingChange(item.id, '1month')}
-                                  className="w-4 h-4"
-                                />
-                                <div>
-                                  <p className="font-bold text-gray-900">
-                                    {item.metadata?.pricingType === 'one-time' ? 'Full Payment' : '1 Month'}
-                                  </p>
-                                  <p className="text-sm text-gray-600">₹{item.price.toLocaleString('en-IN')}</p>
+                                <div className="flex items-start gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`pricing-${item.id}`}
+                                    checked={selectedPricing === 'full'}
+                                    onChange={() => handlePricingChange(item.id, 'full')}
+                                    className="w-4 h-4 mt-0.5 text-yoga-600 focus:ring-yoga-500"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-gray-900 text-sm">Full Payment</p>
+                                    <p className="text-base font-extrabold text-yoga-700 mt-0.5">₹{item.price.toLocaleString('en-IN')}</p>
+                                  </div>
                                 </div>
+                                <p className="text-[11px] text-gray-500 mt-2 font-medium">One-time complete program fee</p>
                               </label>
 
-                              {item.metadata?.allowPartPayment && (
-                                <label 
-                                  className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                    selectedPricing === 'part' 
-                                      ? 'border-emerald-600 bg-emerald-50' 
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                                >
+                              {/* 2. Part Payment (Deposit) Option */}
+                              <label 
+                                className={`flex flex-col justify-between p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                                  selectedPricing === 'part' 
+                                    ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500' 
+                                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2">
                                   <input
                                     type="radio"
                                     name={`pricing-${item.id}`}
                                     checked={selectedPricing === 'part'}
                                     onChange={() => handlePricingChange(item.id, 'part')}
-                                    className="w-4 h-4 text-emerald-600"
+                                    className="w-4 h-4 mt-0.5 text-emerald-600 focus:ring-emerald-500"
                                   />
-                                  <div>
-                                    <p className="font-bold text-emerald-900">Book Seat</p>
-                                    <p className="text-sm font-bold text-emerald-700">
-                                      ₹{Number(item.metadata.partPaymentMinAmount || 2000).toLocaleString('en-IN')}
-                                    </p>
-                                    <p className="text-[10px] text-emerald-600">
-                                      Bal. ₹{(item.price - Number(item.metadata.partPaymentMinAmount || 2000)).toLocaleString('en-IN')} payable later
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <p className="font-bold text-emerald-950 text-sm">Partly (Deposit)</p>
+                                      <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-1.5 py-0.2 rounded">Book Seat</span>
+                                    </div>
+                                    <p className="text-base font-extrabold text-emerald-700 mt-0.5">
+                                      ₹{currentPartAmount.toLocaleString('en-IN')}
                                     </p>
                                   </div>
-                                </label>
-                              )}
+                                </div>
 
-                              {item.metadata?.pricingType !== 'one-time' && (
-                                <label 
-                                  className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                    selectedPricing === '3month' 
-                                      ? 'border-yoga-600 bg-yoga-50' 
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                                >
+                                {selectedPricing === 'part' ? (
+                                  <div className="mt-2.5 pt-2 border-t border-emerald-200" onClick={(e) => e.stopPropagation()}>
+                                    <label className="text-[11px] font-bold text-emerald-900 block mb-1">
+                                      Editable Deposit Amount:
+                                    </label>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs font-bold text-emerald-800">₹</span>
+                                      <input
+                                        type="number"
+                                        min={minDeposit}
+                                        max={item.price}
+                                        value={currentPartAmount}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value);
+                                          handleCustomPartChange(item.id, val);
+                                        }}
+                                        className="w-full px-2 py-1 text-xs font-bold border-2 border-emerald-400 rounded-md bg-white text-emerald-950 focus:outline-none focus:border-emerald-600 shadow-inner"
+                                        title="Enter your desired advance deposit amount"
+                                      />
+                                    </div>
+                                    <p className="text-[10px] text-emerald-700 mt-1 font-semibold">
+                                      Bal. ₹{remainingBalance.toLocaleString('en-IN')} payable later
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-emerald-700 mt-2 font-medium">
+                                    Min ₹{minDeposit.toLocaleString('en-IN')} advance
+                                  </p>
+                                )}
+                              </label>
+
+                              {/* 3. Monthly Option */}
+                              <label 
+                                className={`flex flex-col justify-between p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                                  selectedPricing === 'monthly' 
+                                    ? 'border-yoga-600 bg-yoga-50/70 shadow-sm ring-1 ring-yoga-500' 
+                                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`pricing-${item.id}`}
+                                    checked={selectedPricing === 'monthly'}
+                                    onChange={() => handlePricingChange(item.id, 'monthly')}
+                                    className="w-4 h-4 mt-0.5 text-yoga-600 focus:ring-yoga-500"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-gray-900 text-sm">Monthly Plan</p>
+                                    <p className="text-base font-extrabold text-yoga-700 mt-0.5">₹{item.price.toLocaleString('en-IN')}</p>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-2 font-medium">1 Month recurring access</p>
+                              </label>
+
+                              {/* 4. 3 Months Option */}
+                              <label 
+                                className={`flex flex-col justify-between p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                                  selectedPricing === '3month' 
+                                    ? 'border-yoga-600 bg-yoga-50/70 shadow-sm ring-1 ring-yoga-500' 
+                                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2">
                                   <input
                                     type="radio"
                                     name={`pricing-${item.id}`}
                                     checked={selectedPricing === '3month'}
                                     onChange={() => handlePricingChange(item.id, '3month')}
-                                    className="w-4 h-4"
+                                    className="w-4 h-4 mt-0.5 text-yoga-600 focus:ring-yoga-500"
                                   />
                                   <div>
-                                    <p className="font-bold text-gray-900">3 Months</p>
-                                    <p className="text-sm text-green-600">₹{price3Month.toLocaleString('en-IN')} total</p>
-                                    <p className="text-xs text-green-700">Save ₹{((item.price * 3) - price3Month).toLocaleString('en-IN')}!</p>
+                                    <p className="font-bold text-gray-900 text-sm">3 Months</p>
+                                    <p className="text-base font-extrabold text-yoga-700 mt-0.5">₹{price3Month.toLocaleString('en-IN')}</p>
                                   </div>
-                                </label>
-                              )}
+                                </div>
+                                <p className="text-[11px] text-emerald-700 mt-2 font-semibold">
+                                  Save ₹{Math.max(0, (item.price * 3) - price3Month).toLocaleString('en-IN')}!
+                                </p>
+                              </label>
                             </div>
                           </div>
                         )}
@@ -603,17 +775,27 @@ export default function EnhancedCheckoutPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">📦 Order Items</h2>
                 
                 <div className="space-y-4">
-                  {cartItems.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                  {cartItems.map((item) => {
+                    const price = getItemPrice(item);
+                    const plan = pricingSelection[item.id] || (
+                      item.metadata?.selectedPricing === 'part' ? 'part' :
+                      item.metadata?.pricingType === 'monthly' ? 'monthly' :
+                      item.metadata?.pricingType === '3month' ? '3month' : 'full'
+                    );
+                    return (
+                      <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold text-gray-900">{item.name}</p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Qty: {item.quantity} • Plan: <span className="font-bold text-yoga-700 capitalize">{plan === 'part' ? 'Part Payment (Deposit)' : plan === '3month' ? '3 Months' : plan === 'monthly' ? 'Monthly' : 'Full Payment'}</span>
+                          </p>
+                        </div>
+                        <p className="font-bold text-yoga-700">
+                          {item.currency || 'INR'} {(price * item.quantity).toLocaleString('en-IN')}
+                        </p>
                       </div>
-                      <p className="font-bold text-yoga-600">
-                        {item.currency} {(item.price * item.quantity).toFixed(2)}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
