@@ -12,6 +12,7 @@ interface LanguageSelectorProps {
 const SUPPORTED_LANGUAGES = [
   { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
   { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada', flag: '🇮🇳' },
   { code: 'en', name: 'English', flag: '🇬🇧' },
   { code: 'it', name: 'Italian', flag: '🇮🇹' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
@@ -49,10 +50,10 @@ export default function LanguageSelector({ onTranslate, currentText, onTextTrans
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`p-2 rounded-lg transition-colors ${isOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
+        className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${isOpen ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
         title="Translate Message"
       >
-        <Languages size={20} />
+        <Languages size={14} />
       </button>
 
       {isOpen && (

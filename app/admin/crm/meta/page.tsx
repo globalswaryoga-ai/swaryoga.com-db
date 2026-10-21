@@ -197,7 +197,7 @@ export default function MetaInboxPage() {
   const [archivedPhones, setArchivedPhones] = useState<Set<string>>(new Set()); // Archived conversations
   const [showArchived, setShowArchived] = useState(false); // Toggle archived view
   const [composerText, setComposerText] = useState('');
-  const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document' } | null>(null);
+  const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document'; fileName?: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [showSidebar, setShowSidebar] = useState(true); // Added for sidebar toggle
@@ -1030,7 +1030,8 @@ export default function MetaInboxPage() {
       console.log('[Meta] 📤 Media uploaded to S3:', uploadedUrl);
       setAttachedMedia({
         url: uploadedUrl,
-        type: uploadType
+        type: uploadType,
+        fileName: file.name,
       });
     } catch (err: any) {
       console.error(err);
@@ -1297,6 +1298,7 @@ export default function MetaInboxPage() {
           media: attachedMedia ? {
             kind: attachedMedia.type,
             url: attachedMedia.url,
+            fileName: attachedMedia.fileName,
           } : undefined,
           // When rendered from /admin/crm/qr we want QR provider pipeline.
           provider: providerScope,
@@ -3534,7 +3536,7 @@ export default function MetaInboxPage() {
                           }
                         }}
                         placeholder={autoCorrectEnabled ? "Type message... (Auto ON)" : "Type message..."}
-                        className="px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] w-full bg-transparent resize-none"
+                        className="px-3 py-2 border-none focus:ring-0 max-h-56 min-h-[38px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] w-full bg-transparent resize-none leading-relaxed overflow-y-auto"
                         token={token || ''}
                       />
                   </div>

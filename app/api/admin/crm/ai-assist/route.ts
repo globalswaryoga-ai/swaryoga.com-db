@@ -26,17 +26,14 @@ export async function POST(req: NextRequest) {
 
     const { text, mode, context } = await req.json();
 
-    // Mode: 'autocorrect' (Real-time while typing)
+    // Mode: 'autocorrect' (Real-time while typing — instant sub-50ms execution)
     if (mode === 'autocorrect') {
       if (!text) {
         return NextResponse.json({ success: true, result: '', corrections: [] });
       }
 
-      const aiFixed = await aiFixText(text);
-      if (aiFixed !== null) {
-        return NextResponse.json({ success: true, result: aiFixed, original: text, changed: aiFixed !== text, provider: 'ai' });
-      }
-
+      // Live typing must be INSTANT (sub-50ms). LLM calls take 2-4 seconds and cause cursor jumps/lag while typing.
+      // autoCorrectTextFull uses fast regex + nspell dictionary + common misspellings without lag.
       const { corrected, corrections } = await autoCorrectTextFull(text);
       return NextResponse.json({
         success: true,
@@ -44,7 +41,7 @@ export async function POST(req: NextRequest) {
         original: text,
         corrections,
         changed: corrected !== text,
-        provider: 'dictionary-fallback',
+        provider: 'fast-local',
       });
     }
 

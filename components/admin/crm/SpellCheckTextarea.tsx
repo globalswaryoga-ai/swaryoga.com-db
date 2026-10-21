@@ -79,6 +79,16 @@ export default function SpellCheckTextarea({
     };
   }, [value, checkSpelling]);
 
+  // Auto-grow height as user types
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    // Reset to calculate natural scrollHeight
+    textarea.style.height = 'auto';
+    const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 220);
+    textarea.style.height = `${newHeight}px`;
+  }, [value]);
+
   // Sync scroll
   const handleScroll = () => {
     if (highlightRef.current && textareaRef.current) {
@@ -198,11 +208,11 @@ export default function SpellCheckTextarea({
         ref={highlightRef}
         className="absolute inset-0 pointer-events-none overflow-hidden whitespace-pre-wrap break-words"
         style={{
-          padding: '12px 20px',
-          fontSize: '15px',
+          padding: '8px 12px',
+          fontSize: '13px',
           fontFamily: 'inherit',
           fontWeight: 500,
-          lineHeight: '1.5',
+          lineHeight: '1.4',
           wordBreak: 'break-word',
           overflowWrap: 'break-word',
           letterSpacing: 'inherit',
@@ -227,10 +237,11 @@ export default function SpellCheckTextarea({
         spellCheck={false}
         autoComplete="off"
         autoCorrect="off"
-        className={`relative w-full bg-transparent resize-none ${className}`}
+        className={`relative w-full bg-transparent resize-none leading-[1.4] ${className}`}
         style={{
           overflowWrap: 'break-word',
           wordBreak: 'break-word',
+          lineHeight: '1.4',
         }}
         rows={1}
       />

@@ -35,11 +35,11 @@ import {
 
 type ModeKey = 'online' | 'offline' | 'residential' | 'recorded';
 
-type LanguageKey = 'English' | 'Hindi' | 'Marathi' | 'Nepali' | 'Mandarin' | 'Spanish' | 'French' | 'Arabic' | 'German' | 'Portuguese' | 'Japanese' | 'Korean' | 'Russian' | 'Italian' | 'Turkish' | 'Dutch' | 'Swedish' | 'Thai' | 'Indonesian';
+type LanguageKey = 'English' | 'Hindi' | 'Marathi' | 'Kannada' | 'Nepali' | 'Mandarin' | 'Spanish' | 'French' | 'Arabic' | 'German' | 'Portuguese' | 'Japanese' | 'Korean' | 'Russian' | 'Italian' | 'Turkish' | 'Dutch' | 'Swedish' | 'Thai' | 'Indonesian';
 
 type ScheduleStatus = 'draft' | 'published';
 
-type BatchKey = 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night';
+type BatchKey = 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night' | 'full-day';
 
 type AdminSchedule = {
   id: string;
@@ -63,6 +63,10 @@ type AdminSchedule = {
   nepalQrCode?: string;
   currency?: string;
   status?: ScheduleStatus;
+  metadata?: Record<string, any>;
+  pricingType?: 'one-time' | 'monthly' | '3month' | string;
+  allowPartPayment?: boolean;
+  partPaymentMinAmount?: number;
 };
 
 type EditForm = {
@@ -82,6 +86,9 @@ type EditForm = {
   currency: string;
   location: string;
   language: string;
+  pricingType: string;
+  allowPartPayment: boolean;
+  partPaymentMinAmount: string;
 };
 
 type CreateForm = EditForm & {
@@ -100,6 +107,7 @@ const BATCH_OPTIONS: Array<{ key: BatchKey; label: string }> = [
   { key: 'afternoon', label: 'Afternoon' },
   { key: 'evening', label: 'Evening' },
   { key: 'late-night', label: 'Late night' },
+  { key: 'full-day', label: 'Full Day' },
 ];
 
 const normalizeKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
@@ -110,6 +118,7 @@ const normalizeLanguageLabel = (v: unknown): LanguageKey | '' => {
     'english': 'English',
     'hindi': 'Hindi',
     'marathi': 'Marathi',
+    'kannada': 'Kannada',
     'nepali': 'Nepali',
     'mandarin': 'Mandarin',
     'spanish': 'Spanish',
@@ -137,6 +146,7 @@ const normalizeBatchKey = (v: unknown): BatchKey | '' => {
   if (k === 'afternoon') return 'afternoon';
   if (k === 'evening') return 'evening';
   if (k === 'late-night') return 'late-night';
+  if (k === 'full-day' || k === 'fullday') return 'full-day';
   return '';
 };
 
@@ -206,6 +216,9 @@ const emptyEditForm = (s?: AdminSchedule): EditForm => ({
   currency: String(s?.currency || 'INR').toUpperCase(),
   location: String(s?.location || ''),
   language: String(s?.language || 'Hindi'),
+  pricingType: String(s?.pricingType || s?.metadata?.pricingType || 'one-time'),
+  allowPartPayment: Boolean(s?.allowPartPayment ?? s?.metadata?.allowPartPayment ?? false),
+  partPaymentMinAmount: String(s?.partPaymentMinAmount ?? s?.metadata?.partPaymentMinAmount ?? ''),
 });
 
 const emptyCreateForm = (s?: AdminSchedule): CreateForm => ({
@@ -459,8 +472,32 @@ export default function AdminWorkshopSchedulesPage() {
         } as any);
       }
 
+      // Also merge any workshops present in allSchedules that aren't in catalog or dbWorkshops
+      const knownSlugs = new Set([...staticSlugs, ...dbWorkshops.map((d) => d.slug)]);
+      for (const s of allSchedules) {
+        if (!s.workshopSlug || knownSlugs.has(s.workshopSlug)) continue;
+        knownSlugs.add(s.workshopSlug);
+        const c = 'Health';
+        if (!map[c]) map[c] = [];
+        const relatedSchedules = allSchedules.filter((x) => x.workshopSlug === s.workshopSlug);
+        const modes = Array.from(new Set(relatedSchedules.map((x) => x.mode).filter(Boolean)));
+        const langs = Array.from(new Set(relatedSchedules.map((x) => x.language).filter(Boolean)));
+        map[c].push({
+          id: 0,
+          slug: s.workshopSlug,
+          name: s.workshopName || s.workshopSlug.replace(/-/g, ' '),
+          category: c,
+          image: '',
+          description: '',
+          duration: s.days || '',
+          level: '',
+          mode: modes.length > 0 ? modes : ['online', 'residential'],
+          language: langs.length > 0 ? langs : ['Hindi', 'Marathi', 'English', 'Kannada'],
+        } as any);
+      }
+
       return map;
-    }, [dbWorkshops, dbOverrideBySlug]);
+    }, [dbWorkshops, dbOverrideBySlug, allSchedules]);
 
     const rows = useMemo(() => {
       const list = grouped[selectedCategory] || [];
@@ -719,6 +756,9 @@ export default function AdminWorkshopSchedulesPage() {
           price3Month: createForm.price3Month === '' ? undefined : Number(createForm.price3Month),
           priceNPR: createForm.priceNPR === '' ? undefined : Number(createForm.priceNPR),
           location: createForm.location,
+          pricingType: createForm.pricingType || 'one-time',
+          allowPartPayment: Boolean(createForm.allowPartPayment),
+          partPaymentMinAmount: createForm.partPaymentMinAmount === '' ? undefined : Number(createForm.partPaymentMinAmount),
           status: targetStatus,
         };
 
@@ -810,6 +850,9 @@ export default function AdminWorkshopSchedulesPage() {
           currency: String(editForm.currency || 'INR').toUpperCase(),
           location: editForm.location,
           language: editForm.language,
+          pricingType: editForm.pricingType || 'one-time',
+          allowPartPayment: Boolean(editForm.allowPartPayment),
+          partPaymentMinAmount: editForm.partPaymentMinAmount === '' ? undefined : Number(editForm.partPaymentMinAmount),
         };
 
         console.log('[saveSchedule] Payload:', payload);
@@ -1137,8 +1180,8 @@ export default function AdminWorkshopSchedulesPage() {
                   <Globe className="w-4 h-4 text-amber-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Language Filter</h3>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">
-                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
+                <div className="grid grid-cols-2 sm:grid-cols-1 gap-2">
+                  {(['Hindi', 'English', 'Marathi', 'Kannada'] as LanguageKey[]).map((lang) => (
                     <button
                       key={lang}
                       type="button"
@@ -1504,7 +1547,7 @@ export default function AdminWorkshopSchedulesPage() {
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Batch</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Language</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Time</th>
-                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Fees (1M / 3M)</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Fees & Plan</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Seats</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Status</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Actions</th>
@@ -1560,6 +1603,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         <option value="English">English</option>
                                         <option value="Hindi">Hindi</option>
                                         <option value="Marathi">Marathi</option>
+                                        <option value="Kannada">Kannada</option>
                                         <option value="Nepali">Nepali</option>
                                         <option value="Mandarin">Mandarin</option>
                                         <option value="Spanish">Spanish</option>
@@ -1584,14 +1628,14 @@ export default function AdminWorkshopSchedulesPage() {
                                         value={createForm.time}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, time: e.target.value }))}
                                         className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                        placeholder="7:00 PM - 8:30 PM"
+                                        placeholder={createForm.batch === 'full-day' ? 'Full Day' : '7:00 PM - 8:30 PM'}
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap font-semibold">
                                       <div className="flex flex-col gap-2">
                                         <div className="flex items-center gap-2">
                                           <div className="flex flex-col gap-1">
-                                            <span className="text-xs text-swar-text">1 Month</span>
+                                            <span className="text-xs text-swar-text">Fee (1M/Full)</span>
                                             <input
                                               type="number"
                                               value={createForm.price}
@@ -1628,6 +1672,39 @@ export default function AdminWorkshopSchedulesPage() {
                                             <option value="USD">USD</option>
                                             <option value="NPR">NPR</option>
                                           </select>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <select
+                                            value={createForm.pricingType}
+                                            onChange={(e) => setCreateForm((p) => ({ ...p, pricingType: e.target.value }))}
+                                            className="rounded-lg border border-swar-border bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                                            title="Payment Plan Type"
+                                          >
+                                            <option value="one-time">One-Time Fee</option>
+                                            <option value="monthly">Monthly Fee</option>
+                                            <option value="3month">3-Month Program</option>
+                                          </select>
+
+                                          <label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={createForm.allowPartPayment}
+                                              onChange={(e) => setCreateForm((p) => ({ ...p, allowPartPayment: e.target.checked }))}
+                                              className="h-3.5 w-3.5 rounded border-emerald-300 text-emerald-600"
+                                            />
+                                            Part Pay
+                                          </label>
+                                          {createForm.allowPartPayment && (
+                                            <input
+                                              type="number"
+                                              placeholder="Min ₹ (e.g. 2000)"
+                                              value={createForm.partPaymentMinAmount}
+                                              onChange={(e) => setCreateForm((p) => ({ ...p, partPaymentMinAmount: e.target.value }))}
+                                              className="w-28 rounded-md border border-emerald-300 bg-white px-2 py-1 text-xs font-bold text-emerald-900"
+                                              title="Minimum seat booking / advance amount"
+                                            />
+                                          )}
                                         </div>
 
                                         <label className="flex items-center gap-2 text-xs font-semibold text-swar-text">
@@ -1807,6 +1884,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               <option value="English">English</option>
                                               <option value="Hindi">Hindi</option>
                                               <option value="Marathi">Marathi</option>
+                                              <option value="Kannada">Kannada</option>
                                               <option value="Nepali">Nepali</option>
                                               <option value="Mandarin">Mandarin</option>
                                               <option value="Spanish">Spanish</option>
@@ -1835,7 +1913,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               value={editForm.time}
                                               onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))}
                                               className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                              placeholder="7:00 PM - 8:30 PM"
+                                              placeholder={editForm.batch === 'full-day' ? 'Full Day' : '7:00 PM - 8:30 PM'}
                                             />
                                           ) : (
                                             timeText || '—'
@@ -1843,47 +1921,94 @@ export default function AdminWorkshopSchedulesPage() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap font-semibold">
                                           {editing ? (
-                                            <div className="flex items-center gap-2">
-                                              <div className="flex flex-col gap-1">
-                                                <span className="text-xs text-swar-text">1M</span>
-                                                <input
-                                                  type="number"
-                                                  value={editForm.price}
-                                                  onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
-                                                  className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                                />
+                                            <div className="flex flex-col gap-2">
+                                              <div className="flex items-center gap-2">
+                                                <div className="flex flex-col gap-1">
+                                                  <span className="text-xs text-swar-text">Fee (1M/Full)</span>
+                                                  <input
+                                                    type="number"
+                                                    value={editForm.price}
+                                                    onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
+                                                    className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                                  />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                  <span className="text-xs text-swar-text">3M</span>
+                                                  <input
+                                                    type="number"
+                                                    value={editForm.price3Month}
+                                                    onChange={(e) => setEditForm((p) => ({ ...p, price3Month: e.target.value }))}
+                                                    className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                                  />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                  <span className="text-xs text-purple-700">NPR</span>
+                                                  <input
+                                                    type="number"
+                                                    value={editForm.priceNPR}
+                                                    onChange={(e) => setEditForm((p) => ({ ...p, priceNPR: e.target.value }))}
+                                                    placeholder="0"
+                                                    className="w-16 rounded-lg border border-purple-300 bg-white px-2 py-1 text-sm font-semibold"
+                                                  />
+                                                </div>
+                                                <select
+                                                  value={editForm.currency}
+                                                  onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}
+                                                  className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                                >
+                                                  <option value="INR">INR</option>
+                                                  <option value="USD">USD</option>
+                                                  <option value="NPR">NPR</option>
+                                                </select>
                                               </div>
-                                              <div className="flex flex-col gap-1">
-                                                <span className="text-xs text-swar-text">3M</span>
-                                                <input
-                                                  type="number"
-                                                  value={editForm.price3Month}
-                                                  onChange={(e) => setEditForm((p) => ({ ...p, price3Month: e.target.value }))}
-                                                  className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                                />
+
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <select
+                                                  value={editForm.pricingType}
+                                                  onChange={(e) => setEditForm((p) => ({ ...p, pricingType: e.target.value }))}
+                                                  className="rounded-lg border border-swar-border bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                                                  title="Payment Plan Type"
+                                                >
+                                                  <option value="one-time">One-Time Fee</option>
+                                                  <option value="monthly">Monthly Fee</option>
+                                                  <option value="3month">3-Month Program</option>
+                                                </select>
+
+                                                <label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 cursor-pointer">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={editForm.allowPartPayment}
+                                                    onChange={(e) => setEditForm((p) => ({ ...p, allowPartPayment: e.target.checked }))}
+                                                    className="h-3.5 w-3.5 rounded border-emerald-300 text-emerald-600"
+                                                  />
+                                                  Part Pay
+                                                </label>
+                                                {editForm.allowPartPayment && (
+                                                  <input
+                                                    type="number"
+                                                    placeholder="Min ₹ (e.g. 2000)"
+                                                    value={editForm.partPaymentMinAmount}
+                                                    onChange={(e) => setEditForm((p) => ({ ...p, partPaymentMinAmount: e.target.value }))}
+                                                    className="w-28 rounded-md border border-emerald-300 bg-white px-2 py-1 text-xs font-bold text-emerald-900"
+                                                    title="Minimum seat booking / advance amount"
+                                                  />
+                                                )}
                                               </div>
-                                              <div className="flex flex-col gap-1">
-                                                <span className="text-xs text-purple-700">NPR</span>
-                                                <input
-                                                  type="number"
-                                                  value={editForm.priceNPR}
-                                                  onChange={(e) => setEditForm((p) => ({ ...p, priceNPR: e.target.value }))}
-                                                  placeholder="0"
-                                                  className="w-16 rounded-lg border border-purple-300 bg-white px-2 py-1 text-sm font-semibold"
-                                                />
-                                              </div>
-                                              <select
-                                                value={editForm.currency}
-                                                onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}
-                                                className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                              >
-                                                <option value="INR">INR</option>
-                                                <option value="USD">USD</option>
-                                                <option value="NPR">NPR</option>
-                                              </select>
                                             </div>
                                           ) : (
-                                            feesText
+                                            <div>
+                                              <div>{feesText}</div>
+                                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] flex-wrap">
+                                                <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                                  {s.pricingType === 'monthly' ? 'Monthly' : s.pricingType === '3month' ? '3 Months' : 'One-Time'}
+                                                </span>
+                                                {(s.allowPartPayment || s.metadata?.allowPartPayment) && (
+                                                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                                    Seat Booking: Min ₹{Number(s.partPaymentMinAmount || s.metadata?.partPaymentMinAmount || 2000).toLocaleString('en-IN')}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
                                           )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
@@ -2092,7 +2217,7 @@ export default function AdminWorkshopSchedulesPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Language(s)</label>
                 <div className="flex flex-wrap gap-2">
-                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
+                  {(['Hindi', 'English', 'Marathi', 'Kannada'] as LanguageKey[]).map((lang) => (
                     <button
                       key={lang}
                       type="button"

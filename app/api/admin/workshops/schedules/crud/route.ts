@@ -25,6 +25,7 @@ const normalizeLanguage = (value: unknown) => {
   if (k === 'hindi') return 'Hindi';
   if (k === 'english') return 'English';
   if (k === 'marathi') return 'Marathi';
+  if (k === 'kannada') return 'Kannada';
   return String(value || 'Hindi');
 };
 
@@ -36,6 +37,7 @@ const normalizeBatch = (value: unknown) => {
   if (k === 'evening') return 'evening';
   if (k === 'late-night' || k === 'latenight') return 'late-night';
   if (k === 'earlymorning') return 'early-morning';
+  if (k === 'full-day' || k === 'fullday') return 'full-day';
   return k || 'morning';
 };
 
@@ -103,6 +105,12 @@ export async function POST(request: NextRequest) {
       currency,
       status: body.status === 'published' ? 'published' : 'draft',
       publishedAt: body.status === 'published' ? new Date().toISOString() : undefined,
+      metadata: {
+        ...(body.metadata || {}),
+        pricingType: body.pricingType ? String(body.pricingType) : undefined,
+        allowPartPayment: body.allowPartPayment !== undefined ? Boolean(body.allowPartPayment) : undefined,
+        partPaymentMinAmount: Number.isFinite(Number(body.partPaymentMinAmount)) ? Number(body.partPaymentMinAmount) : undefined,
+      },
     });
 
     console.log('[POST /api/admin/workshops/schedules/crud] Created schedule in BunnyDB:', schedule.id);
@@ -167,6 +175,29 @@ export async function PUT(request: NextRequest) {
         nextUpdates.status = 'draft';
         nextUpdates.publishedAt = null;
       }
+    }
+
+    if (
+      body.pricingType !== undefined ||
+      body.allowPartPayment !== undefined ||
+      body.partPaymentMinAmount !== undefined ||
+      body.metadata !== undefined
+    ) {
+      const existing = await getWorkshopSchedule(String(id));
+      const currentMeta = existing?.metadata || {};
+      nextUpdates.metadata = {
+        ...currentMeta,
+        ...(body.metadata || {}),
+        pricingType: body.pricingType !== undefined ? String(body.pricingType) : currentMeta.pricingType,
+        allowPartPayment:
+          body.allowPartPayment !== undefined ? Boolean(body.allowPartPayment) : currentMeta.allowPartPayment,
+        partPaymentMinAmount:
+          body.partPaymentMinAmount !== undefined
+            ? Number.isFinite(Number(body.partPaymentMinAmount))
+              ? Number(body.partPaymentMinAmount)
+              : undefined
+            : currentMeta.partPaymentMinAmount,
+      };
     }
 
     console.log('[PUT /api/admin/workshops/schedules/crud] Updating schedule in BunnyDB:', id, nextUpdates);

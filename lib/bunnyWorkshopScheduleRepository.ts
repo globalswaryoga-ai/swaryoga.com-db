@@ -29,6 +29,9 @@ export type BunnyWorkshopSchedule = {
   createdAt: string;
   updatedAt: string;
   metadata?: Record<string, any>;
+  pricingType?: string;
+  allowPartPayment?: boolean;
+  partPaymentMinAmount?: number;
 };
 
 export type BunnyWorkshopCatalogItem = {
@@ -109,6 +112,11 @@ function scheduleRowToObj(row: any): BunnyWorkshopSchedule {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     metadata: parse(row.metadata_json, {}),
+    pricingType: parse(row.metadata_json, {}).pricingType || 'one-time',
+    allowPartPayment: Boolean(parse(row.metadata_json, {}).allowPartPayment),
+    partPaymentMinAmount: parse(row.metadata_json, {}).partPaymentMinAmount
+      ? Number(parse(row.metadata_json, {}).partPaymentMinAmount)
+      : undefined,
   };
 }
 

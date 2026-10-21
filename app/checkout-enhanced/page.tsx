@@ -127,10 +127,15 @@ export default function EnhancedCheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Get item price based on pricing selection (1-month or 3-month)
+  // Get item price based on pricing selection (1-month, 3-month, or part-payment deposit)
   const getItemPrice = (item: CartItem) => {
     const selection = pricingSelection[item.id] || '1month';
     const storedPrice3Month = item.metadata?.price3Month as number | undefined;
+    const partPaymentMinAmount = item.metadata?.partPaymentMinAmount as number | undefined;
+
+    if (selection === 'part') {
+      return partPaymentMinAmount && partPaymentMinAmount > 0 ? partPaymentMinAmount : Math.min(item.price, 2000);
+    }
     
     if (selection === '3month') {
       // Use stored 3-month price if set, otherwise calculate default (15% discount)
@@ -428,9 +433,9 @@ export default function EnhancedCheckoutPage() {
                         {isWorkshopItem && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
                             <p className="text-sm font-semibold text-gray-700 mb-2">Select Payment Plan:</p>
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
                               <label 
-                                className={`flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
                                   selectedPricing === '1month' 
                                     ? 'border-yoga-600 bg-yoga-50' 
                                     : 'border-gray-200 hover:border-gray-300'
@@ -444,30 +449,62 @@ export default function EnhancedCheckoutPage() {
                                   className="w-4 h-4"
                                 />
                                 <div>
-                                  <p className="font-bold text-gray-900">1 Month</p>
+                                  <p className="font-bold text-gray-900">
+                                    {item.metadata?.pricingType === 'one-time' ? 'Full Payment' : '1 Month'}
+                                  </p>
                                   <p className="text-sm text-gray-600">₹{item.price.toLocaleString('en-IN')}</p>
                                 </div>
                               </label>
-                              <label 
-                                className={`flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                  selectedPricing === '3month' 
-                                    ? 'border-yoga-600 bg-yoga-50' 
-                                    : 'border-gray-200 hover:border-gray-300'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`pricing-${item.id}`}
-                                  checked={selectedPricing === '3month'}
-                                  onChange={() => handlePricingChange(item.id, '3month')}
-                                  className="w-4 h-4"
-                                />
-                                <div>
-                                  <p className="font-bold text-gray-900">3 Months</p>
-                                  <p className="text-sm text-green-600">₹{price3Month.toLocaleString('en-IN')} total</p>
-                                  <p className="text-xs text-green-700">Save ₹{((item.price * 3) - price3Month).toLocaleString('en-IN')}!</p>
-                                </div>
-                              </label>
+
+                              {item.metadata?.allowPartPayment && (
+                                <label 
+                                  className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                    selectedPricing === 'part' 
+                                      ? 'border-emerald-600 bg-emerald-50' 
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`pricing-${item.id}`}
+                                    checked={selectedPricing === 'part'}
+                                    onChange={() => handlePricingChange(item.id, 'part')}
+                                    className="w-4 h-4 text-emerald-600"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-emerald-900">Book Seat</p>
+                                    <p className="text-sm font-bold text-emerald-700">
+                                      ₹{Number(item.metadata.partPaymentMinAmount || 2000).toLocaleString('en-IN')}
+                                    </p>
+                                    <p className="text-[10px] text-emerald-600">
+                                      Bal. ₹{(item.price - Number(item.metadata.partPaymentMinAmount || 2000)).toLocaleString('en-IN')} payable later
+                                    </p>
+                                  </div>
+                                </label>
+                              )}
+
+                              {item.metadata?.pricingType !== 'one-time' && (
+                                <label 
+                                  className={`flex-1 min-w-[140px] flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                    selectedPricing === '3month' 
+                                      ? 'border-yoga-600 bg-yoga-50' 
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`pricing-${item.id}`}
+                                    checked={selectedPricing === '3month'}
+                                    onChange={() => handlePricingChange(item.id, '3month')}
+                                    className="w-4 h-4"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-gray-900">3 Months</p>
+                                    <p className="text-sm text-green-600">₹{price3Month.toLocaleString('en-IN')} total</p>
+                                    <p className="text-xs text-green-700">Save ₹{((item.price * 3) - price3Month).toLocaleString('en-IN')}!</p>
+                                  </div>
+                                </label>
+                              )}
                             </div>
                           </div>
                         )}

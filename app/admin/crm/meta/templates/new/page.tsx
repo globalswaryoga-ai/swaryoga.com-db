@@ -369,6 +369,7 @@ export default function CreateTemplatePage() {
                       <option value="en">🇬🇧 English</option>
                       <option value="hi">🇮🇳 Hindi</option>
                       <option value="mr">🇮🇳 Marathi</option>
+                      <option value="kn">🇮🇳 Kannada</option>
                     </select>
                   </div>
                   <div>

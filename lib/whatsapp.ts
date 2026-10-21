@@ -773,6 +773,7 @@ export async function sendWhatsAppMedia(
   mediaType: 'image' | 'video' | 'document' = 'image',
   caption?: string,
   creds?: WhatsAppCredentials,
+  fileName?: string,
 ): Promise<WhatsAppSendMediaResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
@@ -790,18 +791,24 @@ export async function sendWhatsAppMedia(
         const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
         
         const mediaTypeSlug = mediaType;
+        const mediaObj: any = {
+          link: publicMediaUrl, // Use the signed/public URL
+        };
+
+        if (mediaTypeSlug === 'document' && fileName) {
+          mediaObj.filename = fileName;
+        }
+
+        if (caption && caption.trim()) {
+          mediaObj.caption = String(caption).trim();
+        }
+
         const payload: any = {
           messaging_product: 'whatsapp',
           to,
           type: mediaTypeSlug,
-          [mediaTypeSlug]: {
-            link: publicMediaUrl, // Use the signed/public URL
-          },
+          [mediaTypeSlug]: mediaObj,
         };
-
-        if (caption && caption.trim()) {
-          payload[mediaTypeSlug].caption = String(caption).trim();
-        }
 
         console.log(`[WHATSAPP] 📤 Sending ${mediaTypeSlug} to ${to} via Meta API`);
         console.log(`[WHATSAPP] 🔗 Original URL: ${mediaUrl}`);

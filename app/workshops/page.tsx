@@ -207,6 +207,7 @@ function getMonthYear(isoDate: string): string {
 function getBatchIcon(time: string | undefined): string {
   if (!time) return '⏰';
   const timeLower = time.toLowerCase();
+  if (timeLower.includes('full day') || timeLower.includes('fullday')) return '☀️';
   let hour = parseInt(time.split(':')[0] || '12', 10);
   // Handle 12-hour format with AM/PM
   if (timeLower.includes('pm') && hour !== 12) hour += 12;
@@ -221,6 +222,7 @@ function getBatchIcon(time: string | undefined): string {
 function getBatchLabel(time: string | undefined): string {
   if (!time) return 'Batch';
   const timeLower = time.toLowerCase();
+  if (timeLower.includes('full day') || timeLower.includes('fullday')) return 'Full Day';
   let hour = parseInt(time.split(':')[0] || '12', 10);
   // Handle 12-hour format with AM/PM
   if (timeLower.includes('pm') && hour !== 12) hour += 12;
@@ -504,6 +506,9 @@ function WorkshopsPageInner() {
           startDate: schedule.startDate,
           time: schedule.time,
           price3Month: schedule.price3Month,
+          pricingType: schedule.metadata?.pricingType || (schedule as any).pricingType,
+          allowPartPayment: schedule.metadata?.allowPartPayment || (schedule as any).allowPartPayment,
+          partPaymentMinAmount: schedule.metadata?.partPaymentMinAmount || (schedule as any).partPaymentMinAmount,
         },
       });
       router.push('/checkout-enhanced');
@@ -782,7 +787,12 @@ function WorkshopsPageInner() {
                                     <Clock className="w-4 h-4" /> {schedule.time || 'TBA'}
                                   </div>
                                   <div className="col-span-2 text-sm font-bold text-gray-900">
-                                    {formatPrice(schedule.price, schedule.currency || 'INR')}
+                                    <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
+                                    {(schedule.metadata?.allowPartPayment || (schedule as any).allowPartPayment) && (
+                                      <div className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit mt-0.5">
+                                        Book seat: {formatPrice((schedule.metadata?.partPaymentMinAmount || (schedule as any).partPaymentMinAmount) || 2000, schedule.currency || 'INR')}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="col-span-4 flex gap-2 justify-end">
                                     <Link
@@ -846,8 +856,13 @@ function WorkshopsPageInner() {
                                     <span className="font-bold text-primary-700">📅 {formatDateShort(schedule.startDate)}</span>
                                     <span className="text-gray-600">{getBatchIcon(schedule.time)} {getBatchLabel(schedule.time)}</span>
                                   </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {formatPrice(schedule.price, schedule.currency || 'INR')}
+                                  <div className="text-sm font-bold text-gray-900 text-right">
+                                    <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
+                                    {(schedule.metadata?.allowPartPayment || (schedule as any).allowPartPayment) && (
+                                      <div className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 w-fit ml-auto mt-0.5">
+                                        Book: {formatPrice((schedule.metadata?.partPaymentMinAmount || (schedule as any).partPaymentMinAmount) || 2000, schedule.currency || 'INR')}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
 

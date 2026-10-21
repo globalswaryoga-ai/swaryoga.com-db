@@ -163,7 +163,8 @@ export async function POST(request: NextRequest) {
             media.url,
             media.kind || 'image',
             finalMessageContent,
-            tenantCreds
+            tenantCreds,
+            media.fileName
           );
         } else {
           deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent, tenantCreds);
