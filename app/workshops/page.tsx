@@ -75,6 +75,7 @@ type ApiWorkshopSchedule = {
   endDate: string;
   registrationCloseDate?: string;
   time: string;
+  batch?: string;
   mode: string;
   language: string;
   location?: string | null;
@@ -83,6 +84,10 @@ type ApiWorkshopSchedule = {
   price: number;
   price3Month?: number;
   currency?: string;
+  pricingType?: 'one-time' | 'monthly' | '3month' | string;
+  allowPartPayment?: boolean;
+  partPaymentMinAmount?: number;
+  metadata?: Record<string, any>;
 };
 
 type ApiWorkshopItem = {
@@ -204,34 +209,40 @@ function getMonthYear(isoDate: string): string {
   }
 }
 
-function getBatchIcon(time: string | undefined): string {
-  if (!time) return '⏰';
-  const timeLower = time.toLowerCase();
-  if (timeLower.includes('full day') || timeLower.includes('fullday')) return '☀️';
-  let hour = parseInt(time.split(':')[0] || '12', 10);
-  // Handle 12-hour format with AM/PM
-  if (timeLower.includes('pm') && hour !== 12) hour += 12;
-  if (timeLower.includes('am') && hour === 12) hour = 0;
-  if (hour >= 4 && hour < 9) return '🌅'; // Early morning / Morning
-  if (hour >= 9 && hour < 12) return '☀️'; // Late morning
-  if (hour >= 12 && hour < 17) return '🌤️'; // Afternoon
-  if (hour >= 17 && hour < 21) return '🌙'; // Evening
-  return '🌃'; // Night
+function getBatchIcon(batchOrTime: string | undefined, time?: string): string {
+  const combined = `${batchOrTime || ''} ${time || ''}`.toLowerCase();
+  if (combined.includes('full-day') || combined.includes('full day') || combined.includes('fullday')) return '☀️';
+  if (combined.includes('early-morning') || combined.includes('early morning')) return '🌅';
+  if (combined.includes('morning')) return '🌅';
+  if (combined.includes('afternoon')) return '🌤️';
+  if (combined.includes('evening')) return '🌙';
+  if (combined.includes('night')) return '🌃';
+
+  let hour = parseInt((time || batchOrTime || '').split(':')[0] || '12', 10);
+  if (combined.includes('pm') && hour !== 12) hour += 12;
+  if (combined.includes('am') && hour === 12) hour = 0;
+  if (hour >= 4 && hour < 12) return '🌅';
+  if (hour >= 12 && hour < 17) return '🌤️';
+  if (hour >= 17 && hour < 21) return '🌙';
+  return '⏰';
 }
 
-function getBatchLabel(time: string | undefined): string {
-  if (!time) return 'Batch';
-  const timeLower = time.toLowerCase();
-  if (timeLower.includes('full day') || timeLower.includes('fullday')) return 'Full Day';
-  let hour = parseInt(time.split(':')[0] || '12', 10);
-  // Handle 12-hour format with AM/PM
-  if (timeLower.includes('pm') && hour !== 12) hour += 12;
-  if (timeLower.includes('am') && hour === 12) hour = 0;
-  if (hour >= 4 && hour < 9) return 'Morning';
-  if (hour >= 9 && hour < 12) return 'Morning';
+function getBatchLabel(batchOrTime: string | undefined, time?: string): string {
+  const combined = `${batchOrTime || ''} ${time || ''}`.toLowerCase();
+  if (combined.includes('full-day') || combined.includes('full day') || combined.includes('fullday')) return 'Full Day';
+  if (combined.includes('early-morning') || combined.includes('early morning')) return 'Early Morning';
+  if (combined.includes('morning')) return 'Morning';
+  if (combined.includes('afternoon')) return 'Afternoon';
+  if (combined.includes('evening')) return 'Evening';
+  if (combined.includes('night')) return 'Night';
+
+  let hour = parseInt((time || batchOrTime || '').split(':')[0] || '12', 10);
+  if (combined.includes('pm') && hour !== 12) hour += 12;
+  if (combined.includes('am') && hour === 12) hour = 0;
+  if (hour >= 4 && hour < 12) return 'Morning';
   if (hour >= 12 && hour < 17) return 'Afternoon';
   if (hour >= 17 && hour < 21) return 'Evening';
-  return 'Night';
+  return batchOrTime || 'Batch';
 }
 
 function WorkshopsPageInner() {
@@ -304,7 +315,7 @@ function WorkshopsPageInner() {
         
         // 1. Fetch published schedules from API (Source of Truth)
         try {
-          const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
+          const res = await fetch(`/api/workshops/schedules?_t=${Date.now()}`, { cache: 'no-store' });
           if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {
@@ -317,20 +328,33 @@ function WorkshopsPageInner() {
 
                 const slug = s.workshopSlug;
                 if (!nextMap[slug]) nextMap[slug] = [];
+
+                const allowPartPayment = Boolean(s.allowPartPayment ?? s.metadata?.allowPartPayment);
+                const partPaymentMinAmount = Number(s.partPaymentMinAmount ?? s.metadata?.partPaymentMinAmount ?? 2000);
+                const pricingType = s.pricingType || s.metadata?.pricingType || 'one-time';
+                const defaultFee = WORKSHOP_FEES[slug]?.minPrice || 0;
+                const rawPrice = Number(s.price);
+                const price = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : defaultFee;
+
                 nextMap[slug].push({
                   id: s.id,
                   workshopName: s.workshopName,
                   startDate: s.startDate,
                   endDate: s.endDate,
                   registrationCloseDate: s.registrationCloseDate || s.endDate,
-                  time: s.time || '',
+                  time: s.time || (s.batch === 'full-day' ? 'Full Day' : ''),
+                  batch: s.batch || '',
                   mode: s.mode,
                   language: s.language || 'Hindi',
                   location: s.location || null,
                   slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
-                  price: s.price,
+                  price,
                   price3Month: s.price3Month,
                   currency: s.currency,
+                  pricingType,
+                  allowPartPayment,
+                  partPaymentMinAmount,
+                  metadata: s.metadata,
                 });
               });
             }
@@ -781,18 +805,23 @@ function WorkshopsPageInner() {
                                     📅 {formatDateShort(schedule.startDate)}
                                   </div>
                                   <div className="col-span-2 text-sm text-gray-700">
-                                    {getBatchIcon(schedule.time)} {getBatchLabel(schedule.time)}
+                                    {getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}
                                   </div>
                                   <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
-                                    <Clock className="w-4 h-4" /> {schedule.time || 'TBA'}
+                                    <Clock className="w-4 h-4" /> {schedule.time || (schedule.batch === 'full-day' ? 'Full Day' : 'TBA')}
                                   </div>
                                   <div className="col-span-2 text-sm font-bold text-gray-900">
                                     <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
-                                    {(schedule.metadata?.allowPartPayment || (schedule as any).allowPartPayment) && (
-                                      <div className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit mt-0.5">
-                                        Book seat: {formatPrice((schedule.metadata?.partPaymentMinAmount || (schedule as any).partPaymentMinAmount) || 2000, schedule.currency || 'INR')}
-                                      </div>
-                                    )}
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] flex-wrap">
+                                      <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                        {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
+                                      </span>
+                                      {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                          Seat Booking: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="col-span-4 flex gap-2 justify-end">
                                     <Link
@@ -854,15 +883,20 @@ function WorkshopsPageInner() {
                                 <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                                   <div className="flex items-center gap-3 text-sm">
                                     <span className="font-bold text-primary-700">📅 {formatDateShort(schedule.startDate)}</span>
-                                    <span className="text-gray-600">{getBatchIcon(schedule.time)} {getBatchLabel(schedule.time)}</span>
+                                    <span className="text-gray-600">{getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}</span>
                                   </div>
                                   <div className="text-sm font-bold text-gray-900 text-right">
                                     <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
-                                    {(schedule.metadata?.allowPartPayment || (schedule as any).allowPartPayment) && (
-                                      <div className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 w-fit ml-auto mt-0.5">
-                                        Book: {formatPrice((schedule.metadata?.partPaymentMinAmount || (schedule as any).partPaymentMinAmount) || 2000, schedule.currency || 'INR')}
-                                      </div>
-                                    )}
+                                    <div className="flex items-center gap-1 justify-end mt-0.5 text-[10px] flex-wrap">
+                                      <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                        {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
+                                      </span>
+                                      {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                          Seat: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
