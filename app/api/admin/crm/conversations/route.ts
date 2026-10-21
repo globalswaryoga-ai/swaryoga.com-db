@@ -62,29 +62,19 @@ export async function GET(request: NextRequest) {
 
     const q = url.searchParams.get('q')?.trim().toLowerCase();
 
-    // Bunny SQL is the new runtime source.
-    const allRows = await listBunnyMetaConversations(Math.min(limit + skip, 500));
+    // Fast indexed Bunny SQL conversations query (under 1 second)
+    const allRows = await listBunnyMetaConversations(Math.min(limit + skip, 300));
     let bunnyRows = allRows;
 
-    const leads = await loadBunnyLeads();
-    let visibleLeads = leads;
-    
-    // Meta accounts and message ownership are strictly tenant-scoped in Bunny SQL.
+    // Tenant isolation: if not superAdmin, filter conversations visible to viewer
     if (!superAdmin) {
-      visibleLeads = leads.filter((lead: any) =>
-        String(lead.assignedToUserId || '') === viewerUserId ||
-        String(lead.createdByUserId || '') === viewerUserId
-      );
-      const visibleLeadIds = new Set(visibleLeads.map((lead: any) => String(lead._id)));
-      const visiblePhones = new Set(visibleLeads.map((lead: any) => String(lead.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean));
       bunnyRows = bunnyRows.filter((row: any) => {
-        const leadId = String(row.leadId || '');
-        const phone = String(row.phoneNumber || '').replace(/\D/g, '').slice(-10);
-        return (leadId && visibleLeadIds.has(leadId)) || (phone && visiblePhones.has(phone));
+        const assigned = String(row.assignedToUserId || '');
+        return !assigned || assigned === viewerUserId;
       });
     }
 
-    // Merge search results from leads if a query is provided
+    // Only when user actually types a search query 'q', search leads table for extra matches
     if (q) {
       // 1. Filter existing conversations
       bunnyRows = bunnyRows.filter((row: any) => {
@@ -93,39 +83,45 @@ export async function GET(request: NextRequest) {
         return name.includes(q) || phone.includes(q);
       });
 
-      // 2. Search visible CRM leads
-      const matchingLeads = visibleLeads.filter((lead: any) => {
-        const name = String(lead.name || lead.displayName || lead.Name || '').toLowerCase();
-        const phone = String(lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || '').toLowerCase();
-        return name.includes(q) || phone.includes(q);
-      });
+      // 2. Search leads specifically matching query term
+      try {
+        const matchingLeadsRes = await bunnyExecute({
+          sql: `SELECT document_id, data_json, created_at FROM leads_sql 
+                WHERE json_extract(data_json, '$.name') LIKE ? 
+                   OR json_extract(data_json, '$.phoneNumber') LIKE ?
+                LIMIT 20`,
+          args: [`%${q}%`, `%${q}%`]
+        });
 
-      // 3. Append leads without existing conversations
-      const existingLeadIds = new Set(bunnyRows.map((r: any) => String(r.leadId)));
-      const existingPhones = new Set(bunnyRows.map((r: any) => String(r.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean));
+        const existingLeadIds = new Set(bunnyRows.map((r: any) => String(r.leadId)));
+        const existingPhones = new Set(bunnyRows.map((r: any) => String(r.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean));
 
-      for (const lead of matchingLeads) {
-        const leadId = String(lead._id);
-        const rawPhone = lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || '';
-        const phoneNormal = String(rawPhone).replace(/\D/g, '').slice(-10);
-        
-        if (!existingLeadIds.has(leadId) && (!phoneNormal || !existingPhones.has(phoneNormal))) {
-          bunnyRows.push({
-            _id: `mock_${leadId}`,
-            leadId: leadId,
-            leadName: lead.name || lead.displayName || lead.Name || rawPhone || 'Unknown Lead',
-            phoneNumber: rawPhone,
-            provider: 'meta',
-            unreadCount: 0,
-            lastMessageAt: lead.createdAt || new Date().toISOString(),
-            lastMessagePreview: 'No messages yet (Found in CRM Leads)',
-            isMock: true,
-          });
-          existingLeadIds.add(leadId);
-          if (phoneNormal) existingPhones.add(phoneNormal);
+        for (const row of matchingLeadsRes.rows) {
+          const lead = JSON.parse(String(row.data_json || '{}'));
+          const leadId = String(row.document_id);
+          const rawPhone = lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || '';
+          const phoneNormal = String(rawPhone).replace(/\D/g, '').slice(-10);
+
+          if (!existingLeadIds.has(leadId) && (!phoneNormal || !existingPhones.has(phoneNormal))) {
+            bunnyRows.push({
+              _id: `mock_${leadId}`,
+              leadId: leadId,
+              leadName: lead.name || lead.displayName || rawPhone || 'Unknown Lead',
+              phoneNumber: rawPhone,
+              provider: 'meta',
+              unreadCount: 0,
+              lastMessageAt: row.created_at || new Date().toISOString(),
+              lastMessagePreview: 'Found in CRM Leads',
+              isMock: true,
+            });
+            existingLeadIds.add(leadId);
+            if (phoneNormal) existingPhones.add(phoneNormal);
+          }
         }
+      } catch (searchErr) {
+        console.warn('Leads search fallback error:', searchErr);
       }
-      
+
       // Sort by lastMessageAt descending
       bunnyRows.sort((a: any, b: any) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     }

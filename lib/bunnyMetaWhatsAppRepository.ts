@@ -223,35 +223,59 @@ export async function listBunnyMetaConversations(limit = 100) {
     });
 
     const messageMap = new Map<string, Record<string, any>>();
+    const leadIdsToLookup = new Set<string>();
+
     for (const row of latestMessages.rows) {
-      messageMap.set(String(row.phone_number), parse<Record<string, any>>(row.data_json, {}));
+      const data = parse<Record<string, any>>(row.data_json, {});
+      messageMap.set(String(row.phone_number), data);
+      if (data.leadId) leadIdsToLookup.add(String(data.leadId));
     }
 
-    // Fetch unread counts in a single query
-    const unreadCounts = await bunnyExecute({ 
-      sql: `SELECT phone_number, COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number IN (${placeholders}) AND direction = 'inbound' AND status <> 'read' GROUP BY phone_number`, 
-      args: phoneNumbers 
-    });
+    // Fetch unread counts and lead info in parallel
+    const leadIdArr = Array.from(leadIdsToLookup);
+    const leadPlaceholders = leadIdArr.map(() => '?').join(',');
+
+    const [unreadCounts, matchedLeads] = await Promise.all([
+      bunnyExecute({ 
+        sql: `SELECT phone_number, COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number IN (${placeholders}) AND direction = 'inbound' AND status <> 'read' GROUP BY phone_number`, 
+        args: phoneNumbers 
+      }),
+      leadIdArr.length > 0 ? bunnyExecute({
+        sql: `SELECT document_id, owner_user_id, json_extract(data_json, '$.name') as name, json_extract(data_json, '$.phoneNumber') as phone, json_extract(data_json, '$.assignedToUserId') as assignedToUserId FROM leads_sql WHERE document_id IN (${leadPlaceholders})`,
+        args: leadIdArr
+      }) : Promise.resolve({ rows: [] as any[] })
+    ]);
     
     const unreadMap = new Map<string, number>();
     for (const row of unreadCounts.rows) {
       unreadMap.set(String(row.phone_number), Number(row.count));
     }
 
+    const leadMap = new Map<string, any>();
+    for (const row of matchedLeads.rows) {
+      leadMap.set(String(row.document_id), row);
+    }
+
     for (const summary of result.rows) {
       const phone = String(summary.phone_number);
       const message = messageMap.get(phone) || {};
       const unreadCount = unreadMap.get(phone) || 0;
+      const leadInfo = message.leadId ? leadMap.get(String(message.leadId)) : null;
+
+      const leadId = message.leadId || leadInfo?.document_id || '';
+      const leadName = leadInfo?.name || message.leadName || message.name || '';
 
       rows.push({
         _id: phone,
-        leadId: message.leadId || '',
+        leadId: leadId,
+        leadName: leadName,
+        assignedToUserId: leadInfo?.assignedToUserId || leadInfo?.owner_user_id || message.assignedToUserId || '',
         phoneNumber: phone,
         lastMessageContent: message.messageContent || '',
         lastMessageAt: summary.last_at || summary.updated_at,
         lastDirection: message.direction || 'inbound',
         unreadCount: unreadCount,
-        hasLead: Boolean(message.leadId),
+        hasLead: Boolean(leadId),
         source: 'whatsapp',
       });
       seen.add(phone);
