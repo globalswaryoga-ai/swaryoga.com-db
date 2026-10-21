@@ -254,21 +254,6 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
     };
   }, [params.slug, workshop]);
 
-  if (notFoundTriggered) {
-    notFound();
-  }
-
-  if (loadingWorkshop || !workshop) {
-    return (
-      <div className="min-h-screen bg-swar-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-swar-primary border-t-transparent" />
-          <p className="text-sm font-semibold text-swar-text">Loading workshop...</p>
-        </div>
-      </div>
-    );
-  }
-
   const [activeVideoModal, setActiveVideoModal] = useState<string | null>(null);
   const [allSchedules, setAllSchedules] = useState<DbSchedule[]>([]);
   const [enquiryModal, setEnquiryModal] = useState<{ isOpen: boolean; month: string }>({ isOpen: false, month: '' });
@@ -377,8 +362,8 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   
   // Get landing page data for this workshop
   const landingData: LandingPageData = workshopLandingPages[params.slug] || {
-    heroImage: workshop.image,
-    introVideoUrl: workshop.videoUrl || 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    heroImage: workshop?.image || '/placeholder.jpg',
+    introVideoUrl: workshop?.videoUrl || 'https://www.youtube.com/embed/mzYKqFxYzQU',
     whatYouWillLearn: [
       'Master the core principles of this transformative practice',
       'Develop practical skills applicable to daily life',
@@ -409,7 +394,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       { name: 'Participant 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
       { name: 'Participant 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
     ],
-    finalCTA: `Join ${workshop.name} and transform your life. Enroll now for this extraordinary opportunity.`
+    finalCTA: `Join ${workshop?.name || 'this workshop'} and transform your life. Enroll now for this extraordinary opportunity.`
   };
 
   const detailVideos = useMemo(() => dedupeByUrl(pickDetailVideos(landingData)), [landingData]);
@@ -458,6 +443,21 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   const hasConfirmedDates = useMemo(() => {
     return schedulesFor.length > 0 && schedulesFor.some((s) => s.startDate);
   }, [schedulesFor]);
+
+  if (notFoundTriggered) {
+    notFound();
+  }
+
+  if (loadingWorkshop || !workshop) {
+    return (
+      <div className="min-h-screen bg-swar-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-swar-primary border-t-transparent" />
+          <p className="text-sm font-semibold text-swar-text">Loading workshop...</p>
+        </div>
+      </div>
+    );
+  }
 
   // New canonical registration URL format:
   // /registration/<mode>/<language>/<workshopSlug>
