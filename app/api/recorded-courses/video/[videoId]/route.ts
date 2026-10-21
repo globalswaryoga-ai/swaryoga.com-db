@@ -50,14 +50,36 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const video = await getVideoById(videoId);
-    if (!video || !video.isActive) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
+    // 60-second in-memory cache for video & course metadata
+    const now = Date.now();
+    const cacheKey = `vid_meta_${videoId}`;
+    const cached = (globalThis as any).__videoMetaCache?.get(cacheKey);
 
-    const course = await getCourseById(video.courseId);
-    if (!course || !course.isActive) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    let video: any;
+    let course: any;
+
+    if (cached && cached.expiresAt > now) {
+      video = cached.video;
+      course = cached.course;
+    } else {
+      video = await getVideoById(videoId);
+      if (!video || !video.isActive) {
+        return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+      }
+
+      course = await getCourseById(video.courseId);
+      if (!course || !course.isActive) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      }
+
+      if (!(globalThis as any).__videoMetaCache) {
+        (globalThis as any).__videoMetaCache = new Map();
+      }
+      (globalThis as any).__videoMetaCache.set(cacheKey, {
+        video,
+        course,
+        expiresAt: now + 60000,
+      });
     }
 
     const isFreeAccess = video.isFree === true;
@@ -99,20 +121,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const deviceName = getDeviceName(request, userAgent) || parsedDevice.deviceName;
 
     if (userId) {
-      try {
-        await registerDevice({
-          userId: String(userId),
-          courseId: course.id,
-          deviceFingerprint,
-          deviceName,
-          deviceType: parsedDevice.deviceType,
-          browser: parsedDevice.browser,
-          os: parsedDevice.os,
-          ip: ipAddress,
-        });
-      } catch (e) {
-        console.warn('[Video API] Device registration error:', e);
-      }
+      // Non-blocking device registration so video response starts immediately
+      registerDevice({
+        userId: String(userId),
+        courseId: course.id,
+        deviceFingerprint,
+        deviceName,
+        deviceType: parsedDevice.deviceType,
+        browser: parsedDevice.browser,
+        os: parsedDevice.os,
+        ip: ipAddress,
+      }).catch((e) => console.warn('[Video API] Device registration error:', e));
     }
 
     let streamingData: any = {};

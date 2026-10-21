@@ -364,7 +364,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const fetchCourse = useCallback(async () => {
     if (!slug) return;
     try {
-      setLoading(true);
+      setLoading((prev) => (course ? false : true));
       const token = localStorage.getItem('token');
 
       const headers: any = {
@@ -400,7 +400,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         } catch {}
 
         const remoteWatched: string[] = (data.enrollment?.videosWatched || []).map((w: any) =>
-          typeof w === 'string' ? w : w?._id
+          typeof w === 'string' ? w : (w?._id || w?.id)
         );
         const remoteCompleted: string[] = (data.enrollment?.completedVideos || []).map((c: any) =>
           String(c.videoId)
@@ -421,7 +421,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
         // Expand all sections
         if (data.sections?.length > 0) {
-          setExpandedSections(new Set(data.sections.map((s: Section) => s._id)));
+          setExpandedSections(new Set(data.sections.map((s: Section) => (s._id || s.id))));
         }
 
         // Check whether user has unlocked this course
@@ -437,14 +437,16 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         const isLockedCheck = (idx: number) => {
           if (idx <= 0) return false;
           for (let j = 0; j < idx; j++) {
-            if (!isCompletedCheck(data.videos[j]._id)) return true;
+            const vidKey = data.videos[j]._id || data.videos[j].id;
+            if (!isCompletedCheck(vidKey)) return true;
           }
           return false;
         };
 
         // Auto-select video from URL param, last watched, or first video (respecting sequential locking)
-        if (videoIdParam) {
-          const selectedIndex = data.videos?.findIndex((v: Video) => v._id === videoIdParam);
+        const targetVideoId = videoIdParam || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('video') : null);
+        if (targetVideoId) {
+          const selectedIndex = data.videos?.findIndex((v: Video) => (v._id === targetVideoId || v.id === targetVideoId));
           const selectedVideo = selectedIndex >= 0 ? data.videos[selectedIndex] : null;
           if (selectedVideo) {
             if (!isLockedCheck(selectedIndex) && (selectedIndex === 0 || userIsUnlocked)) {
@@ -453,7 +455,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               // Video is locked or gated: load video 1 and prompt with lock modal if locked
               setCurrentVideo(data.videos[0] || selectedVideo);
               if (isLockedCheck(selectedIndex)) {
-                const prevInc = data.videos.find((v: Video, i: number) => i < selectedIndex && !isCompletedCheck(v._id));
+                const prevInc = data.videos.find((v: Video, i: number) => i < selectedIndex && !isCompletedCheck(v._id || v.id));
                 if (prevInc) {
                   setLockedModalData({ targetVideo: selectedVideo, prevIncompleteVideo: prevInc });
                 }
@@ -465,7 +467,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           }
         } else if (data.enrollment?.lastWatchedVideoId || data.enrollment?.lastVideoId) {
           const lastVideoId = String(data.enrollment.lastWatchedVideoId || data.enrollment.lastVideoId);
-          const lastIndex = data.videos?.findIndex((v: Video) => v._id === lastVideoId);
+          const lastIndex = data.videos?.findIndex((v: Video) => (v._id === lastVideoId || v.id === lastVideoId));
           if (lastIndex >= 0 && !isLockedCheck(lastIndex)) {
             setCurrentVideo(data.videos[lastIndex]);
           } else if (data.videos?.length > 0) {
@@ -494,11 +496,20 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     } finally {
       setLoading(false);
     }
-  }, [slug, language, router, videoIdParam]);
+  }, [slug, language]);
 
   useEffect(() => {
     fetchCourse();
   }, [fetchCourse]);
+
+  // Sync selected video when URL param changes
+  useEffect(() => {
+    if (!videos || !videos.length || !videoIdParam) return;
+    const found = videos.find((v: Video) => (v._id === videoIdParam || v.id === videoIdParam));
+    if (found && (currentVideo?._id !== found._id && currentVideo?.id !== found.id)) {
+      setCurrentVideo(found);
+    }
+  }, [videoIdParam, videos]);
 
   // Load video stream when current video changes
   useEffect(() => {
@@ -530,7 +541,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         if (token) headers.Authorization = `Bearer ${token}`;
         if (studentEmail) headers['x-student-email'] = studentEmail;
 
-        const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}?${query.toString()}`, {
+        const vidKey = currentVideo._id || currentVideo.id;
+        const response = await fetch(`/api/recorded-courses/video/${vidKey}?${query.toString()}`, {
           headers,
         });
         const data = await response.json();

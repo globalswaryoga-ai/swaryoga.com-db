@@ -51,6 +51,16 @@ function getLocalizedContent(content: any, lang: string) {
   };
 }
 
+// In-memory cache for course structures (30s TTL)
+const courseStructureCache = new Map<string, {
+  course: any;
+  sections: any[];
+  videos: any[];
+  materials: any[];
+  assignments: any[];
+  expiresAt: number;
+}>();
+
 export async function GET(request: NextRequest) {
   try {
     const slug = request.nextUrl.searchParams.get('slug');
@@ -72,18 +82,44 @@ export async function GET(request: NextRequest) {
     // GET SPECIFIC COURSE
     // ============================================
     if (slug) {
-      const course = await getCourseBySlug(slug);
+      const now = Date.now();
+      const cached = courseStructureCache.get(slug);
 
-      if (!course || !course.isActive || !course.isPublished) {
-        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      let course: any;
+      let sections: any[];
+      let videos: any[];
+      let materials: any[];
+      let assignments: any[];
+
+      if (cached && cached.expiresAt > now) {
+        course = cached.course;
+        sections = cached.sections;
+        videos = cached.videos;
+        materials = cached.materials;
+        assignments = cached.assignments;
+      } else {
+        course = await getCourseBySlug(slug);
+
+        if (!course || !course.isActive || !course.isPublished) {
+          return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+        }
+
+        [sections, videos, materials, assignments] = await Promise.all([
+          listSectionsByCourse(course.id),
+          listVideosByCourse(course.id, true),
+          listMaterialsByCourse(course.id, true),
+          listAssignmentsByCourse(course.id, true),
+        ]);
+
+        courseStructureCache.set(slug, {
+          course,
+          sections,
+          videos,
+          materials,
+          assignments,
+          expiresAt: now + 30000,
+        });
       }
-
-      const [sections, videos, materials, assignments] = await Promise.all([
-        listSectionsByCourse(course.id),
-        listVideosByCourse(course.id, true),
-        listMaterialsByCourse(course.id, true),
-        listAssignmentsByCourse(course.id, true),
-      ]);
 
       let enrollment: any = null;
       let canAccessPaidContent = course.isFree;
@@ -228,14 +264,30 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================
-    // LIST ALL COURSES
+    // LIST ALL COURSES (30s in-memory cache)
     // ============================================
     const folderId = request.nextUrl.searchParams.get('folderId');
-    const courses = await listCourses({
-      folderId: folderId || undefined,
-      isPublished: true,
-      isActive: true,
-    });
+    const cacheKey = `courses_list_${folderId || 'all'}`;
+    const now = Date.now();
+    const cachedList = (globalThis as any).__coursesListCache?.get(cacheKey);
+
+    let courses: any[];
+    if (cachedList && cachedList.expiresAt > now) {
+      courses = cachedList.courses;
+    } else {
+      courses = await listCourses({
+        folderId: folderId || undefined,
+        isPublished: true,
+        isActive: true,
+      });
+      if (!(globalThis as any).__coursesListCache) {
+        (globalThis as any).__coursesListCache = new Map();
+      }
+      (globalThis as any).__coursesListCache.set(cacheKey, {
+        courses,
+        expiresAt: now + 30000,
+      });
+    }
 
     let userEnrollments: any[] = [];
     if (userId) {
