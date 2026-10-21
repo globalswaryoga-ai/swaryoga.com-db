@@ -10,6 +10,8 @@ out/
 *.md
 !docs/QR_WHATSAPP_REPAIR_TODO.md
 !README.md
+!AGENTS.md
+!.agents/**
 !docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md
 !docs/REPO_GUIDE.md
 
