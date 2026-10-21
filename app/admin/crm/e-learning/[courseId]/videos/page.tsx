@@ -3011,7 +3011,23 @@ function AddAssignmentModal({ token, courseId, subType, order, existingItem, onC
   );
 }
 
-// EXISTING MODALS - Keep unchanged
+function extractVideoIdFromUrl(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  if (uuidMatch) return uuidMatch[0];
+  if (!trimmed.includes('/')) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    const pathParts = url.pathname.split('/').filter(p => p);
+    if (pathParts.length >= 1) {
+      return pathParts[pathParts.length - 1];
+    }
+  } catch (e) {
+    // ignore
+  }
+  return trimmed;
+}
 
 function EditVideoModal({ token, video, onClose, onUpdated }: {
   token: string;
@@ -3080,7 +3096,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           videoId: video._id,
           title,
           description,
-          bunnyVideoId: bunnyVideoId || undefined,
+          bunnyVideoId: extractVideoIdFromUrl(bunnyVideoId) || undefined,
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
           hoursGap: parseInt(hoursGap) || 0,
@@ -3337,20 +3353,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
       setUploadingThumb(false);
       if (thumbInputRef.current) thumbInputRef.current.value = '';
     }
-  };
-
-  const extractVideoIdFromUrl = (input: string): string => {
-    if (!input.includes('/')) return input;
-    try {
-      const url = new URL(input);
-      const pathParts = url.pathname.split('/').filter(p => p);
-      if (pathParts.length >= 2) {
-        return pathParts[pathParts.length - 2];
-      }
-    } catch (e) {
-      // ignore
-    }
-    return input;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
