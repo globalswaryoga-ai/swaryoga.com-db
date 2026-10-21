@@ -230,7 +230,25 @@ export function AITriggersPanel({
     setRepeatMode(trigger.repeat);
   };
 
+  const handleToggleStatus = async (trigger: any) => {
+    const nextStatus = trigger.status === 'paused' ? 'active' : 'paused';
+    try {
+      const response = await fetch('/api/admin/crm/new-registration/triggers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: trigger.id, status: nextStatus }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to update trigger status');
+      setTriggers(prev => prev.map(t => t.id === trigger.id ? { ...t, status: nextStatus } : t));
+      toast.success(nextStatus === 'active' ? 'Trigger resumed and is now ACTIVE.' : 'Trigger paused. Messages will NOT be sent.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update status');
+    }
+  };
+
   const handleDeleteTrigger = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this scheduled trigger?')) return false;
     try {
       const response = await fetch(`/api/admin/crm/new-registration/triggers?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       const data = await response.json();
@@ -501,7 +519,19 @@ export function AITriggersPanel({
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 items-end">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full">Active</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(trigger)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black transition-all shadow-xs ${
+                        trigger.status === 'paused'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
+                      }`}
+                      title="Click to Turn ON or OFF"
+                    >
+                      <span className={`w-2 h-2 rounded-full ${trigger.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                      <span>{trigger.status === 'paused' ? 'OFF (Paused)' : 'ON (Active)'}</span>
+                    </button>
                     <div className="flex gap-2 mt-1">
                       <button 
                         onClick={() => handleEditTrigger(trigger)}

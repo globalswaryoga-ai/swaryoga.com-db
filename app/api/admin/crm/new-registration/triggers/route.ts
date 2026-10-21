@@ -66,10 +66,55 @@ export async function POST(request: Request) {
     console.error('Failed to schedule registration trigger:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to save trigger' }, { status: 500 });
   }
-
 }
 
 export const PUT = POST;
+
+export async function PATCH(request: Request) {
+  const viewer = registrationViewer(request);
+  if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
+  try {
+    const { id, status } = await request.json();
+    if (!id || !['active', 'paused', 'inactive'].includes(status)) {
+      return NextResponse.json({ error: 'Valid trigger ID and status (active/paused) required' }, { status: 400 });
+    }
+    const scope = viewer.superAdmin ? 'shared' : viewer.userId;
+    const state = await readRegistrationState(scope);
+    const triggers = parseRegistrationValue<Record<string, any>[]>(state.crm_ai_triggers, []);
+    const target = triggers.find(t => t.id === id);
+    if (!target) return NextResponse.json({ error: 'Trigger not found' }, { status: 404 });
+
+    const updatedTriggers = triggers.map(t => t.id === id ? { ...t, status } : t);
+    const saved = await replaceRegistrationStateIfUnchanged(
+      'crm_ai_triggers',
+      JSON.stringify(updatedTriggers),
+      state.crm_ai_triggers,
+      scope
+    );
+    if (!saved) return NextResponse.json({ error: 'State changed. Please reload and try again.' }, { status: 409 });
+
+    // If paused, cancel any currently scheduled broadcast runs for this trigger
+    if (status !== 'active') {
+      await ensureBroadcastSchema();
+      const runs = await bunnyExecute({
+        sql: `SELECT document_id FROM broadcast_runs_sql WHERE json_extract(data_json, '$.target.registrationEventKey') LIKE ?
+          AND created_by_user_id = ? AND status IN ('scheduled', 'draft')`,
+        args: [`trigger:${id}:%`, viewer.superAdmin ? 'admincrm' : viewer.userId],
+      });
+      if (runs.rows.length) {
+        await bunnyBatch(runs.rows.flatMap(run => [
+          { sql: "UPDATE broadcast_run_messages_sql SET status = 'cancelled' WHERE run_id = ? AND status = 'pending'", args: [String(run.document_id)] },
+          { sql: "UPDATE broadcast_runs_sql SET status = 'cancelled' WHERE document_id = ?", args: [String(run.document_id)] },
+        ]));
+      }
+    }
+
+    return NextResponse.json({ success: true, status });
+  } catch (error) {
+    console.error('Failed to toggle trigger status:', error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update trigger' }, { status: 500 });
+  }
+}
 
 export async function DELETE(request: Request) {
   const viewer = registrationViewer(request);

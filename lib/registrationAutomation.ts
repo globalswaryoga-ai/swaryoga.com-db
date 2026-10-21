@@ -326,8 +326,11 @@ export function registrationTriggerDue(trigger: RegistrationRecord, now: Date) {
   const today = `${part('year')}-${part('month')}-${part('day')}`;
   const time = `${part('hour')}:${part('minute')}`;
   const dates: string[] = trigger.dates || [];
-  const due = dates.filter(date => date < today || (date === today && trigger.time <= time));
-  if (trigger.repeat === 'none' || !trigger.repeat) return due;
+  // For repeat === 'none', only trigger on the exact scheduled date when the time arrives (not every day into eternity)
+  if (trigger.repeat === 'none' || !trigger.repeat) {
+    return dates.filter(date => date === today && trigger.time <= time);
+  }
+  const due = dates.filter(date => date === today && trigger.time <= time);
   const first = [...dates].sort()[0];
   if (!first || today < first || time < trigger.time) return due;
   const start = new Date(`${first}T12:00:00Z`);

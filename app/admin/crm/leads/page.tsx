@@ -75,6 +75,7 @@ function looksLikeRandomId(name: string): boolean {
 }
 
 export default function LeadsPage() {
+  const router = useRouter();
   const authHookToken = useAuth();
   const token = authHookToken || (typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('token')) : null);
   const planCtx = usePlan();
