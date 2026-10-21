@@ -1717,6 +1717,22 @@ app.post('/send', async (req, res) => {
   else jid = `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
   try {
+    // 🛡️ HUMAN SIMULATION & ANTI-BAN PROTOCOL
+    // Simulate real human behavior: mark presence as available, then composing/typing
+    try {
+      if (session.sock.sendPresenceUpdate) {
+        await session.sock.sendPresenceUpdate('available');
+        const presenceType = (type === 'media' && req.body.mimetype?.startsWith('audio/')) ? 'recording' : 'composing';
+        await session.sock.sendPresenceUpdate(presenceType, jid);
+        // Realistic human pause (1.2s - 2.8s) so WhatsApp servers register typing
+        const typingMs = Math.floor(Math.random() * 1600) + 1200;
+        await new Promise(r => setTimeout(r, typingMs));
+        await session.sock.sendPresenceUpdate('paused', jid);
+      }
+    } catch {
+      // Non-fatal if presence update fails
+    }
+
     let result;
     if (type === 'media' && media) {
       const mediaBuffer = media.startsWith('data:')

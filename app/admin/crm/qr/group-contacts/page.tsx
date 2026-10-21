@@ -24,6 +24,8 @@ import {
   Send,
   X,
   Plus,
+  UserPlus,
+  Trash2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -114,6 +116,16 @@ export default function QRGroupContactsPage() {
 
   // Success message
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Add Contact Modal
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [addingContact, setAddingContact] = useState(false);
+  const [addContactError, setAddContactError] = useState('');
+
+  // Remove Contact State
+  const [participantToRemove, setParticipantToRemove] = useState<GroupParticipant | null>(null);
+  const [removingParticipant, setRemovingParticipant] = useState(false);
 
   // Bridge proxy helper
   const bridgeCall = useCallback(
@@ -587,6 +599,81 @@ export default function QRGroupContactsPage() {
     } finally {
       setSending(false);
       setSendProgress('');
+    }
+  };
+
+  // Add Contact to Current Group (100% human-safe)
+  const handleAddContactToGroup = async () => {
+    if (!selectedGroup) return;
+    const rawPhones = newContactPhone
+      .split(/[\n,;]+/)
+      .map(p => p.trim().replace(/[^\d+]/g, ''))
+      .filter(Boolean);
+
+    if (rawPhones.length === 0) {
+      setAddContactError('Please enter at least one phone number.');
+      return;
+    }
+
+    try {
+      setAddingContact(true);
+      setAddContactError('');
+
+      // Normalize phone numbers
+      const jids = rawPhones.map(num => {
+        const cleaned = num.replace(/^\+/, '');
+        return `${cleaned}@s.whatsapp.net`;
+      });
+
+      const res = await bridgeCall(`/group-participants/${encodeURIComponent(selectedGroup.id)}`, 'POST', {
+        action: 'add',
+        participants: jids,
+      });
+
+      const succeeded = res?.succeededCount || 0;
+      const already = res?.alreadyMemberCount || 0;
+      const failed = res?.failedCount || 0;
+
+      if (succeeded > 0 || already > 0) {
+        setSuccessMsg(`✅ Successfully processed contacts! ${succeeded} added, ${already} were already members${failed > 0 ? `, ${failed} couldn't be added due to WhatsApp privacy settings` : ''}.`);
+        setShowAddContactModal(false);
+        setNewContactPhone('');
+        setTimeout(() => setSuccessMsg(''), 6000);
+        // Refresh group
+        if (selectedGroup) fetchGroupInfo(selectedGroup);
+      } else {
+        setAddContactError(`Could not add contacts. They may have strict WhatsApp privacy settings requiring an invite link, or the numbers may not be on WhatsApp.`);
+      }
+    } catch (err: any) {
+      setAddContactError(err?.message || 'Failed to add contact');
+    } finally {
+      setAddingContact(false);
+    }
+  };
+
+  // Remove Contact from Current Group
+  const handleRemoveContactFromGroup = async () => {
+    if (!selectedGroup || !participantToRemove) return;
+
+    try {
+      setRemovingParticipant(true);
+      const jid = participantToRemove.id;
+
+      await bridgeCall(`/group-participants/${encodeURIComponent(selectedGroup.id)}`, 'POST', {
+        action: 'remove',
+        participants: [jid],
+      });
+
+      setSuccessMsg(`✅ Contact removed from group.`);
+      setParticipantToRemove(null);
+      setTimeout(() => setSuccessMsg(''), 5000);
+
+      // Refresh group info
+      if (selectedGroup) fetchGroupInfo(selectedGroup);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to remove contact from group');
+    } finally {
+      setRemovingParticipant(false);
     }
   };
 
@@ -1084,10 +1171,20 @@ export default function QRGroupContactsPage() {
                         <Users className="w-7 h-7 text-green-600" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-bold text-gray-900">{groupInfo.subject || selectedGroup.name}</h2>
-                        {groupInfo.desc && (
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{groupInfo.desc}</p>
-                        )}
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h2 className="text-lg font-bold text-gray-900">{groupInfo.subject || selectedGroup.name}</h2>
+                            {groupInfo.desc && (
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{groupInfo.desc}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => { setShowAddContactModal(true); setAddContactError(''); }}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+                          >
+                            <UserPlus className="w-4 h-4" /> Add Contacts
+                          </button>
+                        </div>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <Hash className="w-3.5 h-3.5" /> {groupInfo.size} members
@@ -1129,12 +1226,13 @@ export default function QRGroupContactsPage() {
                             <th className="px-4 py-3 text-left font-medium text-gray-500">Phone Number</th>
                             <th className="px-4 py-3 text-left font-medium text-gray-500">JID</th>
                             <th className="px-4 py-3 text-left font-medium text-gray-500">Role</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-500">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {filteredParticipants.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-10 text-center text-gray-400">
+                              <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
                                 No contacts found
                               </td>
                             </tr>
@@ -1171,6 +1269,15 @@ export default function QRGroupContactsPage() {
                                         <UserCircle className="w-3 h-3" /> Member
                                       </span>
                                     )}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <button
+                                      onClick={() => setParticipantToRemove(p)}
+                                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                      title="Remove from group"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
                                   </td>
                                 </tr>
                               );
@@ -1495,6 +1602,118 @@ export default function QRGroupContactsPage() {
                 className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
               >
                 {sending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</> : <><Send className="w-3.5 h-3.5" /> Send to All</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD CONTACT MODAL ── */}
+      {showAddContactModal && selectedGroup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-emerald-600" />
+                Add Contacts to Group
+              </h3>
+              <button
+                onClick={() => { setShowAddContactModal(false); setAddContactError(''); setNewContactPhone(''); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">
+                  Target Group: <span className="font-semibold text-gray-900">{groupInfo?.subject || selectedGroup.name}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Enter one or multiple WhatsApp phone numbers (with country code, e.g. 919876543210). Separate multiple numbers with commas or new lines.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Phone Number(s) *</label>
+                <textarea
+                  value={newContactPhone}
+                  onChange={(e) => setNewContactPhone(e.target.value)}
+                  placeholder="919876543210&#10;+91 9822334455"
+                  rows={4}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono"
+                  disabled={addingContact}
+                />
+              </div>
+
+              {addContactError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                  {addContactError}
+                </div>
+              )}
+
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800">
+                🛡️ <strong>Anti-Ban Protection</strong>: If adding multiple numbers, the system automatically uses human-like micro-delays between operations to keep your WhatsApp account 100% safe.
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <button
+                onClick={() => { setShowAddContactModal(false); setAddContactError(''); setNewContactPhone(''); }}
+                disabled={addingContact}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddContactToGroup}
+                disabled={addingContact || !newContactPhone.trim()}
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {addingContact ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Adding…</> : <><UserPlus className="w-3.5 h-3.5" /> Add to Group</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REMOVE CONTACT CONFIRMATION MODAL ── */}
+      {participantToRemove && selectedGroup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-600" />
+                Remove Contact
+              </h3>
+              <button
+                onClick={() => setParticipantToRemove(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to remove this participant from <strong>{groupInfo?.subject || selectedGroup.name}</strong>?
+              </p>
+              <div className="p-3 bg-gray-50 rounded-lg font-mono text-sm text-gray-800">
+                {participantToRemove.resolvedPhone ? formatPhone(participantToRemove.resolvedPhone) : participantToRemove.id}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <button
+                onClick={() => setParticipantToRemove(null)}
+                disabled={removingParticipant}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveContactFromGroup}
+                disabled={removingParticipant}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {removingParticipant ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Removing…</> : <><Trash2 className="w-3.5 h-3.5" /> Remove</>}
               </button>
             </div>
           </div>
