@@ -3,6 +3,7 @@ import { isAdminAuthorized } from '@/lib/adminAuth';
 import { listWorkshopSchedules } from '@/lib/bunnyWorkshopScheduleRepository';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,9 +22,19 @@ export async function GET(request: NextRequest) {
       status: status === 'draft' || status === 'published' ? status : undefined,
     });
 
-    return NextResponse.json({ success: true, data: schedules });
+    return NextResponse.json(
+      { success: true, data: schedules },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   } catch (err) {
     console.error('[GET /api/admin/workshops/schedules]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
+

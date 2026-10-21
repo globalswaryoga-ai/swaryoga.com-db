@@ -383,8 +383,12 @@ export default function AdminWorkshopSchedulesPage() {
 
     const loadDbWorkshops = async (token: string) => {
       try {
-        const res = await fetch('/api/admin/workshop-catalog', {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`/api/admin/workshop-catalog?_t=${Date.now()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Cache-Control': 'no-cache',
+          },
+          cache: 'no-store',
         });
         const json = await res.json().catch(() => null);
         if (res.ok && Array.isArray(json?.data)) {
@@ -405,8 +409,11 @@ export default function AdminWorkshopSchedulesPage() {
         setLoading(true);
         setError('');
 
-        const res = await fetch('/api/admin/workshops/schedules', {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`/api/admin/workshops/schedules?_t=${Date.now()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Cache-Control': 'no-cache',
+          },
           cache: 'no-store',
         });
 
