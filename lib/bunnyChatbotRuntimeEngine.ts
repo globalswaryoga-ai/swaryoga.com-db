@@ -282,7 +282,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
       await deps.persistMessage({
         _id: acceptedId, waMessageId: acceptedId, leadId: identity(ctx.lead._id), phoneNumber: ctx.to,
         provider: 'meta', direction: 'outbound', messageType: payload.type, status: 'sent',
-        messageContent: payload.text?.body || payload.interactive?.body?.text || payload._content || '',
+        messageContent: payload.text?.body || payload.interactive?.body?.text || payload.image?.caption || payload.document?.caption || payload.video?.caption || payload._content || '',
         senderNumber: ctx.credentials.phoneNumber, sentByUserId: ctx.owner, sentAt: timestamp, createdAt: timestamp,
         metadata: { chatbot: { flowId: ctx.state.flowId, nodeId: payload._nodeId, sendKey: key },
           ...(payload._templateId ? { templateId: payload._templateId, template: payload._templateMetadata } : {}) },
@@ -525,7 +525,7 @@ export function createBunnyChatbotRuntime(deps: RuntimeDependencies) {
     if (rule.actionType === 'send_text' || rule.actionType === 'send_image') {
       const body = String(rule.actionText || rule.caption || '').trim();
       const imageUrl = rule.imageUrl || rule.mediaUrl || rule.actionMediaUrl || null;
-      if (imageUrl) {
+      if (rule.actionType === 'send_image' && imageUrl) {
         await send(ctx, {
           type: 'image',
           image: {
