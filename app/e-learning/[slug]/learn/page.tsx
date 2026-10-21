@@ -2978,8 +2978,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       id="bunny-stream-player"
                       src={videoStream.streaming.playerUrl}
                       className="w-full h-full border-0 block"
-                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+                      allowFullScreen
                       loading="eager"
                       title="Video player"
                     />
