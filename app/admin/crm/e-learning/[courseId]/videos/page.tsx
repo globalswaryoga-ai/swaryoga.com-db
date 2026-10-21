@@ -598,14 +598,30 @@ export default function VideosPage({ params }: { params: { courseId: string } })
                   </div>
 
                   {/* Thumbnail */}
-                  {item.type === 'video' && item.thumbnail && (
-                    <div className="w-16 h-12 bg-gray-950 rounded-lg flex-shrink-0 overflow-hidden border border-gray-700 flex items-center justify-center">
-                      <img
-                        src={item.thumbnail}
-                        alt={item.title}
-                        className="w-full h-full object-contain"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
+                  {item.type === 'video' && (
+                    <div
+                      onClick={() => { setEditingItem(item); setShowEditModal(true); }}
+                      className="w-16 h-12 bg-gray-950 rounded-lg flex-shrink-0 overflow-hidden border border-gray-700 flex items-center justify-center relative cursor-pointer group/thumb hover:border-green-500 transition-colors"
+                      title="Click to edit thumbnail"
+                    >
+                      {item.thumbnail ? (
+                        <img
+                          src={item.thumbnail}
+                          alt={item.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fb) fb.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`w-full h-full flex flex-col items-center justify-center bg-gray-900 text-gray-500 ${item.thumbnail ? 'hidden' : 'flex'}`}
+                      >
+                        <Camera size={14} className="text-gray-400 group-hover/thumb:text-green-400" />
+                        <span className="text-[9px] text-gray-400 mt-0.5 font-medium">+Thumb</span>
+                      </div>
                     </div>
                   )}
 
@@ -3005,6 +3021,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
 }) {
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState(video.description || '');
+  const [bunnyVideoId, setBunnyVideoId] = useState(video.bunnyVideoId || '');
   const [thumbnail, setThumbnail] = useState(video.thumbnail || '');
   const [duration, setDuration] = useState(video.duration.toString());
   const [hoursGap, setHoursGap] = useState((video.hoursGap || 0).toString());
@@ -3013,7 +3030,37 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   const [aiSummary, setAiSummary] = useState(video.aiSummary || '');
   const [transcript, setTranscript] = useState(video.transcript || '');
   const [saving, setSaving] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+
+  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/bunny/upload-material', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) setThumbnail(data.url);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to upload thumbnail');
+      }
+    } catch (err: any) {
+      setError('Error uploading thumbnail');
+    } finally {
+      setUploadingThumb(false);
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3033,6 +3080,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           videoId: video._id,
           title,
           description,
+          bunnyVideoId: bunnyVideoId || undefined,
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
           hoursGap: parseInt(hoursGap) || 0,
@@ -3097,20 +3145,49 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL (Optional)</label>
+            <label className="block text-sm font-medium text-green-400 mb-2">Bunny Video ID or HLS URL</label>
+            <input
+              type="text"
+              value={bunnyVideoId}
+              onChange={(e) => setBunnyVideoId(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none font-mono text-sm"
+              placeholder="e.g. 4e3dfe2f-1ab2-4ece-ab1e-da5ee179c30e or HLS URL"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-green-400">Video Thumbnail</label>
+              <button
+                type="button"
+                onClick={() => thumbInputRef.current?.click()}
+                disabled={uploadingThumb}
+                className="text-xs px-2.5 py-1 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded border border-green-500/40 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {uploadingThumb ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                {uploadingThumb ? 'Uploading...' : 'Upload Image'}
+              </button>
+            </div>
+            <input
+              type="file"
+              ref={thumbInputRef}
+              accept="image/*"
+              onChange={handleThumbUpload}
+              className="hidden"
+            />
             <input
               type="url"
               value={thumbnail}
               onChange={(e) => setThumbnail(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder="https://example.com/thumbnail.jpg"
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm"
+              placeholder="https://example.com/thumbnail.jpg or click Upload Image above"
             />
             {thumbnail && (
-              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
-                <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-40 flex items-center justify-center p-1">
+                <img src={thumbnail} alt="Preview" className="max-h-36 w-auto object-cover rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail</p>
+            <p className="text-xs text-gray-500 mt-1">Paste an image URL or click "Upload Image" to upload directly</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3230,7 +3307,37 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+
+  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/bunny/upload-material', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) setThumbnail(data.url);
+      } else {
+        const data = await res.json();
+        setUploadError(data.error || 'Failed to upload thumbnail');
+      }
+    } catch (err: any) {
+      setUploadError('Error uploading thumbnail');
+    } finally {
+      setUploadingThumb(false);
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
 
   const extractVideoIdFromUrl = (input: string): string => {
     if (!input.includes('/')) return input;
@@ -3565,19 +3672,38 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL (Optional)</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-green-400">Video Thumbnail (Optional)</label>
+              <button
+                type="button"
+                onClick={() => thumbInputRef.current?.click()}
+                disabled={uploadingThumb}
+                className="text-xs px-2.5 py-1 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded border border-green-500/40 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {uploadingThumb ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                {uploadingThumb ? 'Uploading...' : 'Upload Image'}
+              </button>
+            </div>
+            <input
+              type="file"
+              ref={thumbInputRef}
+              accept="image/*"
+              onChange={handleThumbUpload}
+              className="hidden"
+            />
             <input
               type="url"
               value={thumbnail}
               onChange={(e) => setThumbnail(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder="https://example.com/thumbnail.jpg"
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm"
+              placeholder="https://example.com/thumbnail.jpg or click Upload Image above"
             />
             {thumbnail && (
-              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-36 flex items-center justify-center p-1">
-                <img src={thumbnail} alt="Preview" className="max-h-32 w-auto object-contain rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              <div className="mt-2 relative rounded-lg overflow-hidden bg-gray-950 border border-gray-800 max-h-40 flex items-center justify-center p-1">
+                <img src={thumbnail} alt="Preview" className="max-h-36 w-auto object-cover rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
               </div>
             )}
+            <p className="text-xs text-gray-500 mt-1">Paste an image URL or click "Upload Image" to upload directly</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

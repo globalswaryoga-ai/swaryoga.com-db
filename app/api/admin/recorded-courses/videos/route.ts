@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         isFree: v.isFree,
         isActive: v.isActive,
         thumbnail: (() => {
-          const rawThumb = (v.content as any)?.thumbnail || (v.content as any)?.en?.thumbnail || '';
+          const rawThumb = (v.content as any)?.thumbnail || (v.content as any)?.en?.thumbnail || (v as any).thumbnail || '';
           if (rawThumb) {
             return (rawThumb.includes('vz-') || rawThumb.includes('video.bunnycdn'))
               ? `/api/recorded-courses/thumbnail?url=${encodeURIComponent(rawThumb)}`
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false, thumbnail } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
       return NextResponse.json(
@@ -141,6 +141,25 @@ export async function POST(request: NextRequest) {
 
     const nextOrder = existingVideos.length + 1;
 
+    let finalThumbnail = thumbnail || '';
+    if (!finalThumbnail && bunnyVideoId) {
+      try {
+        const apiKey = process.env.BUNNY_API_KEY;
+        const libId = process.env.BUNNY_STREAM_LIBRARY_ID || '606386';
+        if (apiKey) {
+          const bRes = await fetch(`https://video.bunnycdn.com/library/${libId}/videos/${bunnyVideoId}`, {
+            headers: { AccessKey: apiKey },
+          });
+          if (bRes.ok) {
+            const bData = await bRes.json();
+            finalThumbnail = bData.thumbnailUrl || (bData.thumbnailFileName ? `https://vz-d0769ece-079.b-cdn.net/${bunnyVideoId}/${bData.thumbnailFileName}` : '');
+          }
+        }
+      } catch (e) {
+        // ignore auto-thumb lookup failure
+      }
+    }
+
     const video = await saveVideo({
       courseId,
       title,
@@ -150,7 +169,10 @@ export async function POST(request: NextRequest) {
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
-      content: { en: { title, description: description || '' } },
+      content: {
+        thumbnail: finalThumbnail || undefined,
+        en: { title, description: description || '', thumbnail: finalThumbnail || undefined },
+      },
     });
 
     return NextResponse.json({
@@ -162,6 +184,7 @@ export async function POST(request: NextRequest) {
         bunnyVideoId: video.bunnyVideoId,
         duration: video.duration,
         isFree: video.isFree,
+        thumbnail: finalThumbnail || undefined,
       },
     });
   } catch (error: any) {
@@ -192,7 +215,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, isFree, order } = body;
+    const { videoId, title, description, bunnyVideoId, duration, isFree, order, thumbnail } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -203,13 +226,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
+    const finalThumb = thumbnail !== undefined
+      ? thumbnail
+      : ((existing.content as any)?.thumbnail || (existing.content as any)?.en?.thumbnail || existing.thumbnail || '');
+
     const updated = await saveVideo({
       id: videoId,
       courseId: existing.courseId,
       sectionId: existing.sectionId,
       title: title || existing.title,
       description: description !== undefined ? description : existing.description,
-      bunnyVideoId: existing.bunnyVideoId,
+      bunnyVideoId: bunnyVideoId !== undefined ? bunnyVideoId : existing.bunnyVideoId,
       videoUrl: existing.videoUrl,
       duration: duration !== undefined ? parseInt(duration) || 0 : existing.duration,
       isFree: isFree !== undefined ? isFree === true : existing.isFree,
@@ -218,9 +245,12 @@ export async function PUT(request: NextRequest) {
       isActive: existing.isActive,
       content: {
         ...existing.content,
+        thumbnail: finalThumb || undefined,
         en: {
+          ...(existing.content?.en || {}),
           title: title || existing.title,
           description: description !== undefined ? description : existing.description,
+          thumbnail: finalThumb || undefined,
         },
       },
     });
@@ -232,8 +262,10 @@ export async function PUT(request: NextRequest) {
         id: updated.id,
         title: updated.title,
         description: updated.description,
+        bunnyVideoId: updated.bunnyVideoId,
         duration: updated.duration,
         isFree: updated.isFree,
+        thumbnail: finalThumb || undefined,
       },
     });
   } catch (error: any) {
