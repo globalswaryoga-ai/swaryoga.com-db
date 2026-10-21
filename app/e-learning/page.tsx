@@ -11,6 +11,7 @@ const languageOptions = [
   { code: 'en', name: 'English', flag: '🇬🇧' },
   { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
   { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada', flag: '🇮🇳' },
   { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
   { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
@@ -247,13 +248,15 @@ export default function CoursesPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Get language from localStorage, default to 'all'
+  // Always default to 'all' on e-learning mount so users see all published language folders
   useEffect(() => {
-    const savedLang = localStorage.getItem('preferred_language');
+    // Only use saved preference if explicitly stored for elearning
+    const savedLang = localStorage.getItem('elearning_language');
     if (savedLang && (savedLang === 'all' || languageOptions.some(l => l.code === savedLang))) {
       setLanguage(savedLang as Language);
+    } else {
+      setLanguage('all');
     }
-    // Default to 'all' if nothing saved
   }, []);
 
   const fetchCourses = useCallback(async () => {
@@ -291,7 +294,7 @@ export default function CoursesPage() {
 
   const handleLanguageChange = (newLang: Language) => {
     setLanguage(newLang);
-    localStorage.setItem('preferred_language', newLang);
+    localStorage.setItem('elearning_language', newLang);
     setLangDropdownOpen(false);
     setSelectedFolder(null);
     setSearchQuery('');
@@ -510,17 +513,35 @@ export default function CoursesPage() {
                         <button
                           onClick={() => {
                             setLanguage('all');
-                            localStorage.setItem('preferred_language', 'all');
+                            localStorage.setItem('elearning_language', 'all');
                           }}
                           className="mt-6 px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all"
                         >
-                          ← Back to All Languages
+                          ← Show All {languageFolders.length} Language Folders
                         </button>
                       </div>
                     );
                   }
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                      {language !== 'all' && languageFolders.length > 1 && (
+                        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-gray-800/80 border border-gray-700 rounded-xl px-4 py-2.5">
+                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <span className="text-base">{currentLangInfo.flag}</span>
+                            <span>Showing <strong>{currentLangInfo.name}</strong> ({filteredFolders.length} of {languageFolders.length} folders)</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setLanguage('all');
+                              localStorage.setItem('elearning_language', 'all');
+                            }}
+                            className="text-xs font-semibold px-3 py-1 bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-500/30 rounded-lg transition-all"
+                          >
+                            View All Language Folders ({languageFolders.length})
+                          </button>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {filteredFolders.map((folder) => (
                     <button
                       key={folder._id}
@@ -606,6 +627,7 @@ export default function CoursesPage() {
                     </button>
                       ))}
                     </div>
+                  </div>
                   );
                 })()
               )}
