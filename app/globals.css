@@ -13,12 +13,16 @@
 /* ===== DEVANAGARI / MARATHI PREMIUM FONT ===== */
 :lang(hi), :lang(mr),
 [lang="hi"], [lang="mr"],
-.devanagari, .hindi, .marathi, .marathi-font, .marathi-font * {
-  font-family: 'Mukta', 'Noto Sans Devanagari', 'Poppins', system-ui, -apple-system, sans-serif !important;
+.devanagari, .hindi, .marathi, .marathi-font, .marathi-font *,
+.hindi-font, .hindi-font *,
+.devanagari-font, .devanagari-font * {
+  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', sans-serif !important;
 }
 
 html {
   scroll-behavior: smooth;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
@@ -28,6 +32,8 @@ body {
   background-color: #F9FAF9;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* ===== GLOBAL TYPOGRAPHY ===== */
