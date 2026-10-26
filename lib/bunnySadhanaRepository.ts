@@ -14,153 +14,177 @@ const parse = <T>(value: unknown, fallback: T): T => {
 };
 const bool = (value: unknown) => value === true || value === 1 || value === '1' || value === 'true';
 
+let schemaDone = false;
 let schemaInitPromise: Promise<void> | null = null;
 
 export async function initSadhanaBunnySchema(): Promise<void> {
+  if (schemaDone) return;
   if (schemaInitPromise) return schemaInitPromise;
 
   schemaInitPromise = (async () => {
-    await bunnyBatch([
-      { sql: `CREATE TABLE IF NOT EXISTS sadhana_programs_sql (
-      id TEXT PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      time_slots_json TEXT NOT NULL DEFAULT '[]',
-      timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
-      video_duration INTEGER NOT NULL DEFAULT 40,
-      countdown_minutes INTEGER NOT NULL DEFAULT 3,
-      days_json TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
-      repeat_frequency TEXT NOT NULL DEFAULT 'daily',
-      start_date TEXT,
-      bot_name TEXT NOT NULL DEFAULT '🤖 Swar Yoga Bot',
-      bot_join_minutes INTEGER NOT NULL DEFAULT 5,
-      enable_bot_automation INTEGER NOT NULL DEFAULT 1,
-      video_calendar_json TEXT NOT NULL DEFAULT '{}',
-      player_mode TEXT NOT NULL DEFAULT 'player',
-      player_url TEXT,
-      zoom_link TEXT,
-      zoom_id TEXT,
-      zoom_password TEXT,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_by_user_id TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_program_videos_sql (
-      id TEXT PRIMARY KEY,
-      program_id TEXT NOT NULL,
-      date TEXT NOT NULL,
-      title TEXT NOT NULL,
-      video_url TEXT NOT NULL,
-      hls_url TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(program_id, date)
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_sessions_sql (
-      id TEXT PRIMARY KEY,
-      program_id TEXT NOT NULL,
-      program_slug TEXT NOT NULL,
-      date TEXT NOT NULL,
-      time_slot TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(program_id, date, time_slot)
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_live_participants_sql (
-      id TEXT PRIMARY KEY,
-      program_slug TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      last_seen TEXT NOT NULL,
-      joined_at TEXT NOT NULL,
-      UNIQUE(program_slug, session_id, name)
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_join_history_sql (
-      id TEXT PRIMARY KEY,
-      program_slug TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      joined_at TEXT NOT NULL,
-      left_at TEXT,
-      duration_minutes INTEGER
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_schedules_sql (
-      id TEXT PRIMARY KEY,
-      program_id TEXT NOT NULL,
-      date TEXT NOT NULL,
-      time_slot TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      bot_pid INTEGER,
-      metadata_json TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(program_id, date, time_slot)
-    )`, args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS sadhana_live_chat_sql (
-      id TEXT PRIMARY KEY,
-      program_slug TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      sender TEXT NOT NULL,
-      message TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`, args: [] }
-  ]);
-  
-  // Try to add columns if they don't exist
-  const alterColumns = [
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_link TEXT',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_id TEXT',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN zoom_password TEXT',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN player_mode TEXT NOT NULL DEFAULT \'player\'',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN player_url TEXT',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN video_calendar_json TEXT NOT NULL DEFAULT \'{}\'',
-    'ALTER TABLE sadhana_programs_sql ADD COLUMN created_by_user_id TEXT',
-  ];
-
-  for (const sql of alterColumns) {
     try {
-      await bunnyExecute({ sql });
-    } catch {
-      // Column may already exist
+      await bunnyBatch([
+        { sql: `CREATE TABLE IF NOT EXISTS sadhana_programs_sql (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE NOT NULL,
+        passcode TEXT,
+        name TEXT NOT NULL,
+        description TEXT,
+        time_slots_json TEXT NOT NULL DEFAULT '[]',
+        timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+        video_duration INTEGER NOT NULL DEFAULT 40,
+        countdown_minutes INTEGER NOT NULL DEFAULT 3,
+        days_json TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
+        repeat_frequency TEXT NOT NULL DEFAULT 'daily',
+        start_date TEXT,
+        bot_name TEXT NOT NULL DEFAULT '🤖 Swar Yoga Bot',
+        bot_join_minutes INTEGER NOT NULL DEFAULT 5,
+        enable_bot_automation INTEGER NOT NULL DEFAULT 1,
+        video_calendar_json TEXT NOT NULL DEFAULT '{}',
+        player_mode TEXT NOT NULL DEFAULT 'player',
+        player_url TEXT,
+        zoom_link TEXT,
+        zoom_id TEXT,
+        zoom_password TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_by_user_id TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_program_videos_sql (
+        id TEXT PRIMARY KEY,
+        program_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        title TEXT NOT NULL,
+        video_url TEXT NOT NULL,
+        hls_url TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(program_id, date)
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_sessions_sql (
+        id TEXT PRIMARY KEY,
+        program_id TEXT NOT NULL,
+        program_slug TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time_slot TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(program_id, date, time_slot)
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_live_participants_sql (
+        id TEXT PRIMARY KEY,
+        program_slug TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        last_seen TEXT NOT NULL,
+        joined_at TEXT NOT NULL,
+        UNIQUE(program_slug, session_id, name)
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_join_history_sql (
+        id TEXT PRIMARY KEY,
+        program_slug TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        joined_at TEXT NOT NULL,
+        left_at TEXT,
+        duration_minutes INTEGER
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_schedules_sql (
+        id TEXT PRIMARY KEY,
+        program_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time_slot TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        bot_pid INTEGER,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(program_id, date, time_slot)
+      )`, args: [] },
+      { sql: `CREATE TABLE IF NOT EXISTS sadhana_live_chat_sql (
+        id TEXT PRIMARY KEY,
+        program_slug TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        sender TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`, args: [] }
+    ]);
+    schemaDone = true;
+    } catch (e) {
+      console.warn('initSadhanaBunnySchema warning:', e);
+      schemaDone = true;
     }
-  }
-  })().catch((err) => {
-    schemaInitPromise = null;
-    throw err;
-  });
+  })();
 
   return schemaInitPromise;
 }
 
-// Map db row to JS object
+// Map db row to JS object with bulletproof null-safety & array validation
 function mapProgram(row: any) {
-  if (!row) return null;
+  if (!row || typeof row !== 'object') return null;
+
+  // Safe timeSlots parsing - always guaranteed to be an array of non-empty strings
+  let timeSlots: string[] = [];
+  try {
+    const rawSlots = parse<any>(row.time_slots_json, []);
+    if (Array.isArray(rawSlots)) {
+      timeSlots = rawSlots.map((s: any) => String(s || '').trim()).filter(Boolean);
+    } else if (typeof rawSlots === 'string' && (rawSlots as string).trim()) {
+      timeSlots = [(rawSlots as string).trim()];
+    }
+  } catch {
+    timeSlots = [];
+  }
+
+  // Safe days parsing - always guaranteed to be an array of day numbers (0-6)
+  let days: number[] = [0, 1, 2, 3, 4, 5, 6];
+  try {
+    const rawDays = parse(row.days_json, [0, 1, 2, 3, 4, 5, 6]);
+    if (Array.isArray(rawDays) && rawDays.length > 0) {
+      days = rawDays.map(Number).filter((n) => !isNaN(n) && n >= 0 && n <= 6);
+    }
+  } catch {
+    days = [0, 1, 2, 3, 4, 5, 6];
+  }
+
+  // Safe videoCalendar parsing - always guaranteed to be an object
+  let videoCalendar: Record<string, any> = {};
+  try {
+    const rawCal = parse(row.video_calendar_json, {});
+    if (rawCal && typeof rawCal === 'object' && !Array.isArray(rawCal)) {
+      videoCalendar = rawCal;
+    }
+  } catch {
+    videoCalendar = {};
+  }
+
   return {
-    _id: String(row.id),
-    id: String(row.id),
-    slug: row.slug,
-    name: row.name,
-    description: row.description,
-    timeSlots: parse(row.time_slots_json, []),
-    timezone: row.timezone,
-    videoDuration: Number(row.video_duration),
-    countdownMinutes: Number(row.countdown_minutes),
-    days: parse(row.days_json, []),
-    repeatFrequency: row.repeat_frequency,
-    startDate: row.start_date,
-    botName: row.bot_name,
-    botJoinMinutes: Number(row.bot_join_minutes),
-    enableBotAutomation: bool(row.enable_bot_automation),
-    videoCalendar: parse(row.video_calendar_json, {}),
-    playerMode: row.player_mode,
-    playerUrl: row.player_url,
-    zoomLink: row.zoom_link,
-    zoomId: row.zoom_id,
-    zoomPassword: row.zoom_password,
+    _id: String(row.id || ''),
+    id: String(row.id || ''),
+    slug: String(row.slug || ''),
+    passcode: row.passcode ? String(row.passcode).trim().toUpperCase() : String(row.slug || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase(),
+    name: String(row.name || 'Untitled Sadhana Program'),
+    description: String(row.description || ''),
+    timeSlots,
+    timezone: String(row.timezone || 'Asia/Kolkata'),
+    videoDuration: Math.max(1, Number(row.video_duration) || 40),
+    countdownMinutes: Math.max(0, Number(row.countdown_minutes) || 3),
+    days,
+    repeatFrequency: String(row.repeat_frequency || 'daily'),
+    startDate: row.start_date ? String(row.start_date) : null,
+    botName: String(row.bot_name || '🤖 Swar Yoga Bot'),
+    botJoinMinutes: Math.max(0, Number(row.bot_join_minutes) || 5),
+    enableBotAutomation: row.enable_bot_automation !== false && row.enable_bot_automation !== 0 && row.enable_bot_automation !== '0',
+    videoCalendar,
+    playerMode: String(row.player_mode || 'player'),
+    playerUrl: String(row.player_url || ''),
+    zoomLink: row.zoom_link ? String(row.zoom_link) : '',
+    zoomId: row.zoom_id ? String(row.zoom_id) : '',
+    zoomPassword: row.zoom_password ? String(row.zoom_password) : '',
     active: bool(row.active),
-    createdByUserId: row.created_by_user_id,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
+    createdByUserId: row.created_by_user_id ? String(row.created_by_user_id) : null,
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
   };
 }
 
@@ -180,14 +204,15 @@ export async function listPrograms(filter: any = {}) {
   if (wheres.length > 0) sql += ' WHERE ' + wheres.join(' AND ');
   sql += ' ORDER BY created_at DESC';
   const r = await bunnyExecute({ sql, args });
-  return r.rows.map(mapProgram);
+  return (r.rows || []).map(mapProgram).filter(Boolean);
 }
 
-export async function getProgram(idOrSlug: string) {
+export async function getProgram(idOrSlugOrPasscode: string) {
   await initSadhanaBunnySchema();
+  const trimmed = String(idOrSlugOrPasscode || '').trim();
   const r = await bunnyExecute({
-    sql: 'SELECT * FROM sadhana_programs_sql WHERE id = ? OR slug = ? LIMIT 1',
-    args: [idOrSlug, idOrSlug]
+    sql: 'SELECT * FROM sadhana_programs_sql WHERE id = ? OR slug = ? OR UPPER(passcode) = UPPER(?) LIMIT 1',
+    args: [trimmed, trimmed, trimmed]
   });
   return mapProgram(r.rows[0]);
 }
@@ -195,15 +220,17 @@ export async function getProgram(idOrSlug: string) {
 export async function insertProgram(doc: any) {
   await initSadhanaBunnySchema();
   const pid = id();
+  const pcode = doc.passcode ? String(doc.passcode).trim().toUpperCase() : String(doc.slug || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
   await bunnyExecute({
     sql: `INSERT INTO sadhana_programs_sql (
-      id, slug, name, description, time_slots_json, timezone, video_duration, countdown_minutes,
+      id, slug, passcode, name, description, time_slots_json, timezone, video_duration, countdown_minutes,
       days_json, repeat_frequency, start_date, bot_name, bot_join_minutes, enable_bot_automation,
       video_calendar_json, player_mode, player_url, zoom_link, zoom_id, zoom_password, active, created_by_user_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       pid,
       doc.slug,
+      pcode,
       doc.name,
       doc.description || '',
       json(doc.timeSlots, []),
@@ -238,6 +265,7 @@ export async function updateProgram(pid: string, updates: any) {
   
   const colMap: any = {
     name: 'name',
+    passcode: 'passcode',
     description: 'description',
     timezone: 'timezone',
     repeatFrequency: 'repeat_frequency',
@@ -263,6 +291,8 @@ export async function updateProgram(pid: string, updates: any) {
       setCols.push(`${colMap[k]} = ?`);
       if (['timeSlots', 'days', 'videoCalendar'].includes(k)) {
         args.push(json(v, {}));
+      } else if (k === 'passcode') {
+        args.push(v ? String(v).trim().toUpperCase() : null);
       } else if (typeof v === 'boolean') {
         args.push(v ? 1 : 0);
       } else {

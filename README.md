@@ -9,10 +9,10 @@ Full-stack Next.js 14 application for **Swar Yoga** — combining a public-facin
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
-| Database | MongoDB Atlas |
+| Database & Storage | **Bunny Database (Edge SQL) & Bunny Storage ONLY** (MongoDB completely decommissioned) |
 | WhatsApp | Meta Cloud API + Baileys QR Bridge |
 | Payments | PayU (India) + Cashfree |
-| Hosting | Vercel (web) + AWS EC2 (bridge) |
+| Hosting | **Contabo VPS** (Server IP: 169.58.238.255, PM2 + Caddy reverse proxy) |
 
 ## Project Structure
 

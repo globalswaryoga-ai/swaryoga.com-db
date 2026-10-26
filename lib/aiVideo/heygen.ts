@@ -103,9 +103,69 @@ async function uploadAssetToHeyGen(assetUrl: string): Promise<string> {
 }
 
 export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<string> {
-  const avatarType = params.avatarType || 'talking_photo';
+  const apiKey = getApiKey();
   const scenes = parseScriptScenes(params.script);
+  const isMultiScene = scenes.length > 1;
 
+  // For single-scene avatar scripts, use HeyGen v3 API with Avatar V (highest quality neural digital twin)
+  if (!isMultiScene) {
+    try {
+      const v3Payload: any = {
+        type: 'avatar',
+        avatar_id: params.avatarId || '11236c340a0f4ece98638134c021b166',
+        script: params.script,
+        voice_id: params.voiceId || '43961498a7894b25be7eb6c3382b6502',
+        title: `Avatar Video - ${new Date().toISOString().slice(0, 10)}`,
+        resolution: (params.height && params.height >= 1080) ? '1080p' : '720p',
+        aspect_ratio: 'auto',
+        engine: { type: 'avatar_v' },
+      };
+
+      const res = await fetch(`${HEYGEN_BASE_URL}/v3/videos`, {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(v3Payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data?.data?.video_id) {
+        return data.data.video_id;
+      }
+
+      // If credit issue, provide clear user-friendly guidance
+      if (data?.error?.code === 'insufficient_credit' || res.status === 402) {
+        throw new Error('HeyGen Notice: Insufficient credits in HeyGen account (swarsakshi9@gmail.com). Please purchase credit packs at app.heygen.com/settings?nav=Billing to render new custom videos.');
+      }
+
+      // If avatar_v is not supported for this particular avatar, retry with avatar_iv
+      if (data?.error?.message?.includes('engine') || data?.error?.param === 'engine') {
+        const fallbackRes = await fetch(`${HEYGEN_BASE_URL}/v3/videos`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ...v3Payload, engine: { type: 'avatar_iv' } }),
+        });
+        const fallbackData = await fallbackRes.json();
+        if (fallbackRes.ok && fallbackData?.data?.video_id) {
+          return fallbackData.data.video_id;
+        }
+      }
+
+      // If error is not a fallback case, log and fall through to v2
+      console.warn('HeyGen v3 submit failed, attempting v2 fallback:', data?.error?.message || res.statusText);
+    } catch (v3Err: any) {
+      if (v3Err.message?.includes('Insufficient credits')) throw v3Err;
+      console.warn('HeyGen v3 error:', v3Err.message);
+    }
+  }
+
+  // Fallback to HeyGen v2 multi-scene endpoint
+  const avatarType = params.avatarType || 'avatar';
   const videoInputs = await Promise.all(
     scenes.map(async (scene) => {
       const voice = { type: 'text', input_text: scene.text, voice_id: params.voiceId };
@@ -117,10 +177,6 @@ export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<str
         return { character, voice };
       }
 
-      // Slide/video scene: avatar shrinks to a corner circle inset, the
-      // uploaded image/video fills the background. Confirmed live: scale
-      // 0.35 + offset 0.32/0.32 (bottom-right) reads clearly without
-      // covering much of the slide.
       const assetId = await uploadAssetToHeyGen(scene.assetUrl!);
       const character = avatarType === 'talking_photo'
         ? { type: 'talking_photo', talking_photo_id: params.avatarId, scale: 0.35, offset: { x: 0.32, y: 0.32 }, talking_photo_style: 'circle' }
@@ -136,7 +192,7 @@ export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<str
   const res = await fetch(`${HEYGEN_BASE_URL}/v2/video/generate`, {
     method: 'POST',
     headers: {
-      'X-Api-Key': getApiKey(),
+      'X-Api-Key': apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -155,12 +211,36 @@ export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<str
   return videoId;
 }
 
-// HeyGen renders asynchronously on their own infra — this just checks status,
-// it never blocks waiting for completion. Callers should poll this from a
-// short-lived API route, not loop inside one.
+// HeyGen renders asynchronously on their own infra — this checks status via v3 or v1
 export async function checkVideoStatus(heygenVideoId: string): Promise<HeyGenStatus> {
+  const apiKey = getApiKey();
+
+  // Try HeyGen v3 status endpoint first
+  try {
+    const v3Res = await fetch(`${HEYGEN_BASE_URL}/v3/videos/${encodeURIComponent(heygenVideoId)}`, {
+      headers: { 'x-api-key': apiKey },
+    });
+    if (v3Res.ok) {
+      const v3Data = await v3Res.json();
+      const item = v3Data?.data;
+      if (item) {
+        const raw = item.status;
+        const status: HeyGenStatus['status'] =
+          raw === 'completed' ? 'completed' : raw === 'failed' ? 'failed' : 'processing';
+        return {
+          status,
+          videoUrl: item.video_url,
+          errorMessage: item.error_message || item.failed_reason,
+        };
+      }
+    }
+  } catch (v3Err) {
+    console.warn('HeyGen v3 status check error:', v3Err);
+  }
+
+  // Fallback to legacy v1 status check
   const res = await fetch(`${HEYGEN_BASE_URL}/v1/video_status.get?video_id=${encodeURIComponent(heygenVideoId)}`, {
-    headers: { 'X-Api-Key': getApiKey() },
+    headers: { 'X-Api-Key': apiKey },
   });
 
   const data = await res.json();

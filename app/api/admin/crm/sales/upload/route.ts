@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { Lead, SalesReport } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
-import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
+import { createBunnySale } from '@/lib/bunnySalesRepository';
+import { getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
 import { autoLeadForSale } from '@/lib/crm/autoLead';
-import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
 
 function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'cash' | 'other' {
   const s = String(raw || '').trim().toLowerCase();
@@ -27,19 +22,13 @@ function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'ca
 
 function parseExcelDate(v: any): Date | null {
   if (!v) return null;
-
-  // XLSX sometimes returns Date objects depending on cell type.
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
-
-  // Excel serial date number.
   if (typeof v === 'number' && Number.isFinite(v)) {
     const d = XLSX.SSF.parse_date_code(v);
     if (d) {
-      // Convert to UTC date
       return new Date(Date.UTC(d.y, d.m - 1, d.d, d.H, d.M, d.S));
     }
   }
-
   const s = String(v).trim();
   if (!s) return null;
   const d = new Date(s);
@@ -48,7 +37,7 @@ function parseExcelDate(v: any): Date | null {
 }
 
 /**
- * POST: Upload bulk Sales from Excel file
+ * POST: Upload bulk Sales from Excel file into Bunny Database
  */
 export async function POST(request: NextRequest) {
   try {
@@ -62,20 +51,20 @@ export async function POST(request: NextRequest) {
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-
     const superAdmin = isSuperAdmin(decoded);
-    const url = new URL(request.url);
-    const reportedByParam = url.searchParams.get('reportedByUserId');
-    const reportedByUserId = superAdmin && reportedByParam && String(reportedByParam).trim()
-      ? String(reportedByParam).trim()
-      : viewerUserId;
 
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    const requestedReportedBy = formData.get('reportedByUserId');
+    const reportedByUserId =
+      superAdmin && requestedReportedBy && String(requestedReportedBy).trim()
+        ? String(requestedReportedBy).trim()
+        : viewerUserId;
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
@@ -85,8 +74,6 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(rawData) || rawData.length === 0) {
       return NextResponse.json({ error: 'Excel file is empty' }, { status: 400 });
     }
-
-    await connectDB();
 
     const results = {
       imported: 0,
@@ -117,34 +104,22 @@ export async function POST(request: NextRequest) {
         const saleAmount = Number(saleAmountRaw);
         if (!Number.isFinite(saleAmount) || saleAmount <= 0) {
           results.skipped++;
-          results.errors.push({ row: row, reason: 'Missing/invalid Amount' });
+          results.errors.push({ row, reason: 'Missing/invalid Amount' });
           continue;
         }
 
         const paymentMode = normalizePaymentMode(row['Payment Mode'] || row.PaymentMode || row.paymentMode || '');
         const bankName = String(row.Bank || row['Bank Name'] || row.BankName || row.bankName || '').trim();
 
-        // Optional: link to Lead by ObjectId or leadNumber
-        let leadId: Types.ObjectId | undefined;
-        const leadIdRaw = String(row.leadId || row.LeadId || '').trim();
-        if (leadIdRaw && Types.ObjectId.isValid(leadIdRaw)) {
-          leadId = new Types.ObjectId(leadIdRaw);
-        } else {
-          const normalizedLeadNumber = normalizeLeadNumberInput(customerId);
-          if (normalizedLeadNumber) {
-            const lead: any = await Lead.findOne({ leadNumber: normalizedLeadNumber }).select('_id').lean();
-            if (lead && lead._id) leadId = lead._id as any;
-          }
+        let leadId: string | undefined;
+        if (customerPhone) {
+          const matchedLead = await getBunnyLeadByPhone(customerPhone).catch(() => null);
+          if (matchedLead?._id) leadId = String(matchedLead._id);
         }
 
         const reportedByFromRow = String(row.reportedByUserId || row.ReportedByUserId || row['Reported By'] || '').trim();
         const finalReportedBy = superAdmin && reportedByFromRow ? reportedByFromRow : reportedByUserId;
 
-        // Every imported sale should be traceable to a lead. If none was
-        // matched above, find/create one automatically. When auto-created,
-        // its leadNumber becomes the sale's customerId if the row didn't
-        // already have a Customer ID/Lead Number column — otherwise the sale
-        // ends up linked to a lead but with no customer-facing ID at all.
         let resolvedCustomerId = customerId;
         if (!leadId) {
           const autoLead = await autoLeadForSale({
@@ -154,22 +129,22 @@ export async function POST(request: NextRequest) {
             workshopName,
           });
           if (autoLead) {
-            leadId = autoLead.id as any;
+            leadId = autoLead.id;
             if (!resolvedCustomerId) resolvedCustomerId = autoLead.leadNumber;
           }
         }
 
-        await SalesReport.create({
-          ...(leadId ? { leadId } : {}),
+        await createBunnySale({
+          leadId,
           customerId: resolvedCustomerId || undefined,
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           workshopName: workshopName || undefined,
-          ...(batchDate ? { batchDate } : {}),
+          batchDate: batchDate ? batchDate.toISOString() : undefined,
           saleAmount,
           paymentMode,
-          ...(bankName ? { bankName } : {}),
-          saleDate,
+          bankName: bankName || undefined,
+          saleDate: saleDate.toISOString(),
           reportedByUserId: finalReportedBy,
           metadata: {
             import: {
@@ -182,16 +157,17 @@ export async function POST(request: NextRequest) {
         results.imported++;
       } catch (err) {
         results.failed++;
-        results.errors.push({
-          row,
-          reason: err instanceof Error ? err.message : 'Unknown error',
-        });
+        results.errors.push({ row, reason: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
 
-    return NextResponse.json({ success: true, data: results }, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      message: `Processed ${rawData.length} rows: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed.`,
+      results,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to upload sales';
+    const message = error instanceof Error ? error.message : 'Failed to process Excel file';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

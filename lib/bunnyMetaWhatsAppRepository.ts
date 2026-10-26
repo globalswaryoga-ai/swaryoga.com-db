@@ -1,4 +1,5 @@
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 function parse<T = Record<string, any>>(value: unknown, fallback: T): T {
   try { return value ? JSON.parse(String(value)) as T : fallback; } catch { return fallback; }
@@ -77,7 +78,7 @@ export async function upsertBunnyMetaMessage(message: Record<string, any>) {
   row.documentId = documentId;
   row.provider = 'meta';
   await bunnyExecute({
-    sql: `INSERT INTO meta_messages_sql (document_id,lead_id,phone_number,provider,direction,message_type,status,wa_message_id,sender_number,sent_by_user_id,sent_at,created_at,updated_at,data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET lead_id=excluded.lead_id,phone_number=excluded.phone_number,direction=excluded.direction,message_type=excluded.message_type,status=excluded.status,wa_message_id=excluded.wa_message_id,sender_number=excluded.sender_number,sent_by_user_id=excluded.sent_by_user_id,sent_at=excluded.sent_at,updated_at=excluded.updated_at,data_json=excluded.data_json`,
+    sql: `INSERT INTO meta_messages_sql (document_id,lead_id,phone_number,provider,direction,message_type,status,wa_message_id,sender_number,sent_by_user_id,sent_at,created_at,updated_at,data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET lead_id=excluded.lead_id,phone_number=excluded.phone_number,direction=excluded.direction,message_type=excluded.message_type,status=CASE WHEN meta_messages_sql.status = 'read' AND excluded.status != 'read' THEN 'read' ELSE excluded.status END,wa_message_id=excluded.wa_message_id,sender_number=excluded.sender_number,sent_by_user_id=excluded.sent_by_user_id,sent_at=excluded.sent_at,updated_at=excluded.updated_at,data_json=excluded.data_json`,
     args: [documentId, row.leadId ? stringValue(row.leadId) : null, stringValue(row.phoneNumber), 'meta', stringValue(row.direction || 'outbound'), stringValue(row.messageType || 'text'), stringValue(row.status || 'queued'), row.waMessageId ? stringValue(row.waMessageId) : null, row.senderNumber ? stringValue(row.senderNumber) : null, row.sentByUserId ? stringValue(row.sentByUserId) : null, iso(row.sentAt), iso(row.createdAt), iso(row.updatedAt) || new Date().toISOString(), JSON.stringify(row)],
   });
   return row;
@@ -235,7 +236,7 @@ export async function listBunnyMetaConversations(limit = 100) {
     const leadIdArr = Array.from(leadIdsToLookup);
     const leadPlaceholders = leadIdArr.map(() => '?').join(',');
 
-    const [unreadCounts, matchedLeads] = await Promise.all([
+    const [unreadCounts, matchedLeads, allLeads] = await Promise.all([
       bunnyExecute({ 
         sql: `SELECT phone_number, COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number IN (${placeholders}) AND direction = 'inbound' AND status <> 'read' GROUP BY phone_number`, 
         args: phoneNumbers 
@@ -243,7 +244,8 @@ export async function listBunnyMetaConversations(limit = 100) {
       leadIdArr.length > 0 ? bunnyExecute({
         sql: `SELECT document_id, owner_user_id, json_extract(data_json, '$.name') as name, json_extract(data_json, '$.phoneNumber') as phone, json_extract(data_json, '$.assignedToUserId') as assignedToUserId FROM leads_sql WHERE document_id IN (${leadPlaceholders})`,
         args: leadIdArr
-      }) : Promise.resolve({ rows: [] as any[] })
+      }) : Promise.resolve({ rows: [] as any[] }),
+      loadBunnyLeads().catch(() => [] as any[])
     ]);
     
     const unreadMap = new Map<string, number>();
@@ -256,19 +258,41 @@ export async function listBunnyMetaConversations(limit = 100) {
       leadMap.set(String(row.document_id), row);
     }
 
+    // Build 10-digit phone index from all CRM leads (Meta form leads, CSV leads, registrations)
+    const phoneToLeadMap = new Map<string, any>();
+    for (const lead of allLeads) {
+      const p = String(lead.phoneNumber || lead['WhatsApp Number'] || lead.phone || lead.mobile || '').replace(/\D/g, '').slice(-10);
+      if (p && p.length >= 7 && !phoneToLeadMap.has(p)) {
+        phoneToLeadMap.set(p, lead);
+      }
+      if (Array.isArray(lead.contactPhones)) {
+        for (const cp of lead.contactPhones) {
+          const cpDigits = String(cp).replace(/\D/g, '').slice(-10);
+          if (cpDigits && cpDigits.length >= 7 && !phoneToLeadMap.has(cpDigits)) {
+            phoneToLeadMap.set(cpDigits, lead);
+          }
+        }
+      }
+    }
+
     for (const summary of result.rows) {
       const phone = String(summary.phone_number);
       const message = messageMap.get(phone) || {};
       const unreadCount = unreadMap.get(phone) || 0;
-      const leadInfo = message.leadId ? leadMap.get(String(message.leadId)) : null;
+      
+      const phone10 = phone.replace(/\D/g, '').slice(-10);
+      const leadByPhone = phone10 ? phoneToLeadMap.get(phone10) : null;
+      const leadInfo = (message.leadId ? leadMap.get(String(message.leadId)) : null) || leadByPhone;
 
-      const leadId = message.leadId || leadInfo?.document_id || '';
-      const leadName = leadInfo?.name || message.leadName || message.name || '';
+      const leadId = message.leadId || leadInfo?._id || leadInfo?.document_id || '';
+      const rawName = leadInfo?.name || leadInfo?.displayName || leadInfo?.fullName || message.leadName || message.name || '';
+      const resolvedName = (rawName && !rawName.match(/^\+?\d+$/) && rawName.toLowerCase() !== 'unknown user') ? rawName : '';
 
       rows.push({
         _id: phone,
         leadId: leadId,
-        leadName: leadName,
+        leadName: resolvedName || rawName,
+        name: resolvedName || rawName,
         assignedToUserId: leadInfo?.assignedToUserId || leadInfo?.owner_user_id || message.assignedToUserId || '',
         phoneNumber: phone,
         lastMessageContent: message.messageContent || '',
@@ -335,7 +359,12 @@ export async function updateBunnyMetaMessagesMany(filter: { phoneNumber?: string
   await initBunnyMetaWhatsAppSchema();
   const clauses = ["provider = 'meta'"];
   const args: any[] = [];
-  if (filter.phoneNumber) {
+  if (filter.phoneNumber && filter.leadId) {
+    const rawDigits = stringValue(filter.phoneNumber).replace(/\D/g, '');
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+    clauses.push('(phone_number = ? OR phone_number LIKE ? OR lead_id = ?)');
+    args.push(filter.phoneNumber, `%${last10}`, filter.leadId);
+  } else if (filter.phoneNumber) {
     const rawDigits = stringValue(filter.phoneNumber).replace(/\D/g, '');
     const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
     if (last10) {

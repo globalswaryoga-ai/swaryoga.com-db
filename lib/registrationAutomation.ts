@@ -137,16 +137,21 @@ export async function findPreviousTemplateSend(phone: string, template: Registra
   if (last10.length < 10) return null;
   const ids = [String(template._id), String(template.templateName)];
   await ensureBroadcastSchema();
+  // 1. Check if this contact already received or is currently queued/scheduled to receive this template
   const broadcast = await bunnyExecute({
-    sql: `SELECT r.document_id FROM broadcast_run_messages_sql m
+    sql: `SELECT r.document_id, m.status FROM broadcast_run_messages_sql m
       JOIN broadcast_runs_sql r ON r.document_id = m.run_id
       WHERE substr(m.phone_number, -10) = ?
       AND (r.template_id IN (?, ?) OR json_extract(r.data_json, '$.templateSnapshot.templateName') = ?)
-      AND ((m.wa_message_id IS NOT NULL AND m.wa_message_id != '') OR LOWER(m.status) IN ('sent', 'delivered', 'read'))
+      AND LOWER(m.status) NOT IN ('failed', 'cancelled')
       LIMIT 1`,
     args: [last10, ...ids, String(template.templateName)],
   });
-  if (broadcast.rows.length) return `broadcast ${String(broadcast.rows[0].document_id)}`;
+  if (broadcast.rows.length) {
+    const status = broadcast.rows[0].status;
+    return `broadcast ${String(broadcast.rows[0].document_id)} (${status})`;
+  }
+  // 2. Check Meta messages inbox history
   try {
     const inbox = await bunnyExecute({
       sql: `SELECT document_id FROM meta_messages_sql WHERE substr(phone_number, -10) = ? AND direction = 'outbound'
@@ -160,6 +165,24 @@ export async function findPreviousTemplateSend(phone: string, template: Registra
     if (inbox.rows.length) return 'Meta inbox history';
   } catch (error) {
     if (!/no such table/i.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
+  // 3. Check CRM Lead history and anti-repeat 1x locks
+  try {
+    const leadHistory = await bunnyExecute({
+      sql: `SELECT document_id FROM leads_sql 
+        WHERE substr(COALESCE(json_extract(data_json, '$.phoneNumber'), json_extract(data_json, '$.mobile'), ''), -10) = ?
+        AND (
+          json_extract(data_json, '$.metadata.wtSentTemplate') IN (?, ?)
+          OR json_extract(data_json, '$.metadata.wtLastTemplates.' || ?) IS NOT NULL
+          OR json_extract(data_json, '$.metadata.wtSentTemplates.' || ?) IS NOT NULL
+          OR (json_extract(data_json, '$.metadata.wtLocked') = 1 AND json_extract(data_json, '$.metadata.wtStatus') IN ('sent', 'delivered', 'queued'))
+        )
+        LIMIT 1`,
+      args: [last10, ...ids, String(template.templateName), String(template.templateName)],
+    });
+    if (leadHistory.rows.length) return 'CRM Lead Record (1x Lock)';
+  } catch {
+    // Ignore if table/column missing
   }
   return null;
 }
@@ -211,17 +234,26 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
       }
       if (lead.metadata?.ai9WEligible !== true && lead.metadata?.wtAutoEligible !== true) continue;
       const event = lead.metadata?.approvedAt;
-      if (!event || !Number.isFinite(new Date(event).getTime())) continue;
-      if (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed') continue;
+      if ((lead.metadata?.wtLocked && (lead.metadata?.wtLastTemplates?.[stage.template] || lead.metadata?.wtSentTemplate)) ||
+          (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered' || lead.metadata?.wtStatus === 'queued') ||
+          (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed')) continue;
       const delay = Number(stage.delay ?? 5);
       if (!Number.isFinite(delay) || delay < 0) throw new Error(`Invalid WhatsApp delay for ${workshop.name}`);
       const template = await resolveRegistrationTemplate(stage.template, owner, superAdmin);
-      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id]) continue;
+      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id] ||
+          lead.metadata?.wtSentTemplates?.[template.templateName] || lead.metadata?.wtSentTemplate === template.templateName) continue;
       const phone = normalizePhone(lead.phoneNumber || lead.mobile);
       const previous = await findPreviousTemplateSend(phone, template);
       if (previous) {
-        await markLeadAutomation(lead, { wtStatus: 'skipped', wtSkipReason: `Already messaged with ${template.templateName} (${previous})`,
-          wtLastTemplates: { [template.templateName]: now.toISOString() } }, now);
+        await markLeadAutomation(lead, {
+          wtStatus: 'skipped',
+          wtSkipReason: `Already messaged with ${template.templateName} (${previous})`,
+          wtSentTemplate: template.templateName,
+          wtLastTemplates: { [template.templateName]: now.toISOString() },
+          wtSentTemplates: { [template.templateName]: now.toISOString() },
+          wtLocked: true,
+          wtLockedReason: `Anti-repeat lock: Already sent via ${previous}`
+        }, now);
         continue;
       }
       const result = await queueRegistrationTemplate({
@@ -229,8 +261,17 @@ export async function processRegistrationApprovals(state: RegistrationState, lea
         dueAt: new Date(new Date(event).getTime() + delay * 60000),
       });
       if (result.queued) {
-        await markLeadAutomation(lead, { wtStatus: 'queued', wtQueuedRunId: result.runId, wtQueuedAt: now.toISOString(),
-          wtApprovalSource: manual ? 'manual' : 'ai9' }, now);
+        await markLeadAutomation(lead, {
+          wtStatus: 'queued',
+          wtQueuedRunId: result.runId,
+          wtQueuedAt: now.toISOString(),
+          wtApprovalSource: manual ? 'manual' : 'ai9',
+          wtSentTemplate: template.templateName,
+          wtLastTemplates: { [template.templateName]: now.toISOString() },
+          wtSentTemplates: { [template.templateName]: now.toISOString() },
+          wtLocked: true,
+          wtLockedReason: `Anti-repeat lock: queued once only for ${template.templateName}`
+        }, now);
       }
       results.push({ workshopId: String(workshop.id), queued: result.queued });
     }
@@ -273,7 +314,9 @@ export async function processFunnelApprovals(state: RegistrationState, leads: Re
       const phone = normalizePhone(row.phoneNumber || row.mobile || lead.phoneNumber || lead.mobile);
       if (phone.length < 10) continue;
 
-      if (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed') continue;
+      if ((lead.metadata?.wtLocked && (lead.metadata?.wtLastTemplates?.[stage.template] || lead.metadata?.wtSentTemplate)) ||
+          (lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered' || lead.metadata?.wtStatus === 'queued') ||
+          (lead.metadata?.wtLastTemplates?.[stage.template] && lead.metadata?.wtStatus !== 'failed')) continue;
 
       const delay = Number(stage.delay ?? 0);
       let template: any;
@@ -283,14 +326,19 @@ export async function processFunnelApprovals(state: RegistrationState, leads: Re
         continue;
       }
 
-      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id]) continue;
+      if (lead.metadata?.wtLastTemplates?.[template.templateName] || lead.metadata?.wtLastTemplates?.[template._id] ||
+          lead.metadata?.wtSentTemplates?.[template.templateName] || lead.metadata?.wtSentTemplate === template.templateName) continue;
 
       const previous = await findPreviousTemplateSend(phone, template);
       if (previous) {
         await markLeadAutomation(lead, {
           wtStatus: 'skipped',
           wtSkipReason: `Already messaged with ${template.templateName} (${previous})`,
+          wtSentTemplate: template.templateName,
           wtLastTemplates: { [template.templateName]: now.toISOString() },
+          wtSentTemplates: { [template.templateName]: now.toISOString() },
+          wtLocked: true,
+          wtLockedReason: `Anti-repeat lock: Already sent via ${previous}`
         }, now);
         continue;
       }
@@ -309,7 +357,11 @@ export async function processFunnelApprovals(state: RegistrationState, leads: Re
           wtQueuedRunId: result.runId,
           wtQueuedAt: now.toISOString(),
           wtApprovalSource: 'funnel',
+          wtSentTemplate: template.templateName,
           wtLastTemplates: { [template.templateName]: now.toISOString() },
+          wtSentTemplates: { [template.templateName]: now.toISOString() },
+          wtLocked: true,
+          wtLockedReason: `Anti-repeat lock: queued once only for ${template.templateName}`
         }, now);
       }
       results.push({ workshopId: String(workshop.id), queued: result.queued });
@@ -363,8 +415,22 @@ export async function processRegistrationSchedules(state: RegistrationState, lea
     const dueDates = registrationTriggerDue(trigger, now);
     if (!dueDates.length) continue;
     const template = await resolveRegistrationTemplate(trigger.template, owner, superAdmin);
+    
+    // Anti-repeat filtering: exclude contacts that already received this template or are locked
+    const eligibleLeads: RegistrationRecord[] = [];
+    for (const lead of selected) {
+      const phone = normalizePhone(lead.phoneNumber || lead.mobile);
+      if (!phone || phone.length < 10) continue;
+      if (lead.metadata?.wtLocked && (lead.metadata?.wtSentTemplate === template.templateName || lead.metadata?.wtLastTemplates?.[template.templateName])) continue;
+      const previous = await findPreviousTemplateSend(phone, template);
+      if (!previous) {
+        eligibleLeads.push(lead);
+      }
+    }
+    if (!eligibleLeads.length) continue;
+
     for (const date of dueDates) {
-      const result = await queueRegistrationTemplate({ leads: selected, template, owner, eventKey: `trigger:${trigger.id}:${date}`, dueAt: now });
+      const result = await queueRegistrationTemplate({ leads: eligibleLeads, template, owner, eventKey: `trigger:${trigger.id}:${date}`, dueAt: now });
       queued += result.queued;
     }
   }

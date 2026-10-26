@@ -181,7 +181,7 @@ function applySecurityHeaders(res: NextResponse, requestId: string, pathname: st
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
+  res.headers.set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), usb=()');
 }
 
 // ===========================================================================
@@ -378,6 +378,6 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/api/:path*',
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot|mp4|webm)$).*)',
   ],
 };

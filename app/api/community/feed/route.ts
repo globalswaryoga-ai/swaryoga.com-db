@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const communityId = (searchParams.get('communityId') || '').trim();
+    const language = (searchParams.get('language') || '').trim();
     if (!communityId) {
       return NextResponse.json({ error: 'communityId is required' }, { status: 400 });
     }
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { posts } = await listCommunityPosts({
       communityId,
+      language: language || undefined,
       limit: 200,
     });
 

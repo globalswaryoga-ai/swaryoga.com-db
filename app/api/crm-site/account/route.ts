@@ -18,22 +18,58 @@ export async function GET(req: NextRequest) {
     }
 
     const identity = String(decoded.userId || '');
-    const result = await bunnyExecute({ sql: 'SELECT * FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1', args: [identity, identity] });
-    const user: any = result.rows[0] || null;
+    let result = await bunnyExecute({ sql: 'SELECT * FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1', args: [identity, identity] });
+    let user: any = result.rows[0] || null;
+
+    if (!user && (decoded.isAdmin || identity.toLowerCase() === 'admin')) {
+      // Fallback: look up superadmin user or admincrm
+      try {
+        const fbResult = await bunnyExecute({ sql: "SELECT * FROM admin_users_sql WHERE lower(role)='superadmin' OR lower(user_id)='admincrm' LIMIT 1" });
+        user = fbResult.rows[0] || null;
+      } catch {}
+    }
 
     if (!user) {
+      if (decoded.isAdmin) {
+        return apiSuccess({
+          profile: {
+            userId: decoded.userId || 'admin',
+            name: decoded.name || 'Admin',
+            email: decoded.email || 'admin@swaryoga.com',
+            phone: '',
+            role: 'superadmin',
+            profilePhoto: '',
+            company: 'Swar Yoga',
+            designation: 'Administrator',
+            tenantSlug: '',
+            bankDetails: null,
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+          },
+        });
+      }
       return apiError('User not found', 404);
     }
+
+    let parsedMeta: any = {};
+    try {
+      if (user.metadata_json) parsedMeta = JSON.parse(user.metadata_json);
+    } catch {}
 
     return apiSuccess({
       profile: {
         userId: user.user_id || user.email,
-        name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'admin',
-        profilePhoto: user.metadata_json ? JSON.parse(user.metadata_json).profilePhoto || '' : '',
-        company: user.metadata_json ? JSON.parse(user.metadata_json).company || '' : '',
-        designation: user.metadata_json ? JSON.parse(user.metadata_json).designation || '' : '',
-        tenantSlug: user.tenant_slug || '', bankDetails: user.metadata_json ? JSON.parse(user.metadata_json).bankDetails || null : null,
-        createdAt: user.created_at, lastLoginAt: user.last_login_at,
+        name: user.name || 'Admin',
+        email: user.email || '',
+        phone: user.phone || '',
+        role: user.role || 'admin',
+        profilePhoto: parsedMeta.profilePhoto || '',
+        company: parsedMeta.company || 'Swar Yoga',
+        designation: parsedMeta.designation || 'Administrator',
+        tenantSlug: user.tenant_slug || '',
+        bankDetails: parsedMeta.bankDetails || null,
+        createdAt: user.created_at,
+        lastLoginAt: user.last_login_at,
       },
     });
   } catch (err) {

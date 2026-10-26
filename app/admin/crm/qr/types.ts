@@ -40,6 +40,9 @@ export type ChatItem = {
   funnelStage?: string;
   labels?: string[];
   leadStatus?: string; // CRM lead status (new_lead, contacted, enrolled, etc.)
+  isLead?: boolean;
+  leadId?: string;
+  phoneNumber?: string;
 };
 
 export type MessageItem = {
@@ -61,7 +64,7 @@ export type MessageItem = {
   quotedId?: string;
 };
 
-export type ChatFilter = 'all' | 'unread' | 'read' | 'groups' | 'inbound' | 'outbound';
+export type ChatFilter = 'all' | 'unread' | 'read' | 'groups' | 'inbound' | 'outbound' | 'leads';
 
 export type GroupParticipant = { id: string; lid?: string; admin: 'admin' | 'superadmin' | null };
 export type GroupInfo = {

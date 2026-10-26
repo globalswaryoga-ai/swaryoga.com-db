@@ -29,8 +29,12 @@
     <color name="text_primary">#111111</color>
     <color name="text_secondary">#757575</color>
 
-    <!-- Splash screen -->
-    <color name="splash_background">#1E7F43</color>
+    <!-- Splash screen (Yogic Cream Background & Contrast Text) -->
+    <color name="cream">#FAF8F5</color>
+    <color name="splash_background">#FAF8F5</color>
+    <color name="splash_text_primary">#1E293B</color>
+    <color name="splash_text_secondary">#64748B</color>
+    <color name="splash_tagline">#D97706</color>
 
     <!-- Hint text color -->
     <color name="text_hint">#BDBDBD</color>

@@ -39,8 +39,9 @@ export default function CommunityPostPage() {
 
   const getToken = () => getSession()?.token || localStorage.getItem('token') || '';
 
-  // Get proxied URL for S3 images
+  // Get image URL (supports Bunny CDN, YouTube thumbnails, data URLs, and direct URLs)
   const getSignedImageUrl = async (imageUrl: string): Promise<string> => {
+    if (!imageUrl) return '';
     if (imageUrl.startsWith('/api/s3/image') || imageUrl.startsWith('data:')) {
       return imageUrl;
     }
@@ -48,6 +49,20 @@ export default function CommunityPostPage() {
       return signedUrls[imageUrl];
     }
     
+    // If it's a YouTube link, extract thumbnail
+    const ytMatch = imageUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    if (ytMatch) {
+      const ytThumb = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      setSignedUrls(prev => ({ ...prev, [imageUrl]: ytThumb }));
+      return ytThumb;
+    }
+
+    // If it's already a full HTTP/HTTPS URL and not an amazonaws bucket URL, use directly
+    if ((imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) && !imageUrl.includes('amazonaws.com')) {
+      setSignedUrls(prev => ({ ...prev, [imageUrl]: imageUrl }));
+      return imageUrl;
+    }
+
     let key = imageUrl;
     if (imageUrl.includes('amazonaws.com')) {
       try {
@@ -56,10 +71,9 @@ export default function CommunityPostPage() {
       } catch {}
     }
     
-    // Use the proxy endpoint
-    const proxyUrl = `/api/s3/image?key=${encodeURIComponent(key)}`;
-    setSignedUrls(prev => ({ ...prev, [imageUrl]: proxyUrl }));
-    return proxyUrl;
+    const cdnUrl = `https://swaryogacrm.b-cdn.net/${key.replace(/^\/+/, '')}`;
+    setSignedUrls(prev => ({ ...prev, [imageUrl]: cdnUrl }));
+    return cdnUrl;
   };
 
   // WhatsApp formatting: *bold*, _italic_, ~strikethrough~

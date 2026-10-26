@@ -32,20 +32,39 @@ export default function CommunityFeedPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('hindi');
+
+  // Load saved language or detect country default on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('swar_community_lang');
+    if (saved) {
+      setSelectedLanguage(saved);
+    } else {
+      // Auto-detect based on browser timezone/locale
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const isIndia = tz.includes('Calcutta') || tz.includes('Kolkata') || navigator.language?.includes('IN');
+      const defLang = isIndia ? 'hindi' : 'english';
+      setSelectedLanguage(defLang);
+      localStorage.setItem('swar_community_lang', defLang);
+    }
+  }, []);
 
   const getToken = () => getSession()?.token || localStorage.getItem('token') || '';
 
-  const load = async () => {
+  const load = async (lang = selectedLanguage) => {
     const token = getToken();
     if (!token) {
       router.push('/signin');
       return;
     }
 
-    const res = await fetch(`/api/community/feed?communityId=${encodeURIComponent(communityId)}` as string, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
+    const res = await fetch(
+      `/api/community/feed?communityId=${encodeURIComponent(communityId)}&language=${encodeURIComponent(lang)}` as string,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      }
+    );
 
     const json = await res.json().catch(() => null);
 
@@ -132,13 +151,34 @@ export default function CommunityFeedPage() {
       <Navigation />
       <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-swar-text">Community Feed</h1>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Language Selector Dropdown in Upper-Right Corner */}
+              <div className="relative">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => {
+                    const nextLang = e.target.value;
+                    setSelectedLanguage(nextLang);
+                    localStorage.setItem('swar_community_lang', nextLang);
+                    setLoading(true);
+                    load(nextLang).finally(() => setLoading(false));
+                  }}
+                  className="rounded-lg border border-swar-primary/40 bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-swar-text shadow-sm focus:outline-none focus:ring-2 focus:ring-swar-primary cursor-pointer"
+                  title="Select Community Language"
+                >
+                  <option value="hindi">🇮🇳 हिन्दी (Hindi)</option>
+                  <option value="english">🌐 English</option>
+                  <option value="marathi">🇮🇳 मराठी (Marathi)</option>
+                  <option value="gujarati">🇮🇳 ગુજરાતી (Gujarati)</option>
+                </select>
+              </div>
+
               <button
                 type="button"
                 onClick={() => router.push(`/community/${communityId}/create`)}
-                className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary"
+                className="rounded-lg bg-swar-primary text-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold hover:bg-swar-primary cursor-pointer"
               >
                 Create Post
               </button>
@@ -155,7 +195,7 @@ export default function CommunityFeedPage() {
                     setLoading(false);
                   }
                 }}
-                className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light"
+                className="rounded-lg bg-swar-primary-light text-swar-text px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold hover:bg-swar-primary-light cursor-pointer"
               >
                 Refresh
               </button>

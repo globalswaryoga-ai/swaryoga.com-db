@@ -8,6 +8,7 @@ import {
   getEnrollment,
   listMaterialsByCourse,
 } from '@/lib/bunnyCourseRepository';
+import { parseAvatarScript } from '@/lib/avatarEmotionParser';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,9 +81,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     if (!sources.length) {
-      return NextResponse.json({
-        success: true,
-        reply: 'No transcript, study notes, or e-book content is added for this video yet. Please ask the admin to add RAG content.',
+      sources.push({
+        label: 'Swar Yoga Foundational Wisdom',
+        text: `Swar Yoga is the sacred Vedic science of breath cycle awareness (Shiva Swarodaya). The breath cycles between Ida Nadi (Chandra/left nostril, cooling, calm, mental work) and Pingala Nadi (Surya/right nostril, heating, physical digestion, vitality) approximately every 60-90 minutes. When both nostrils flow equally, Sushumna is active, ideal for meditation and prayer. Lesson topic: ${video.title}. Always observe breath awareness before decisions, meals, and sadhana.`
       });
     }
 
@@ -92,35 +93,48 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const videoTitle = String(video.title || video.content?.[lang]?.title || video.content?.en?.title || 'Video');
     const replyLanguage = languageName(lang);
     const languageRule = replyLanguage
-      ? `- ALWAYS reply in ${replyLanguage}, even when the source material below is in a different language. If the user clearly writes in another language, mirror the user's language instead.`
-      : `- Reply in the same language the user writes in.`;
+      ? `- ALWAYS reply in ${replyLanguage}, even when the source material is in a different language. If the user asks in Hindi or Marathi, reply in that language.`
+      : `- Reply warmly in the same language the student asks in.`;
 
-    const systemPrompt = `You are a helpful E-learning assistant for Swar Yoga. You answer questions about a course video and its study materials (e-books, notes).
+    const systemPrompt = `You are Mohan Sir's AI Avatar Guide for Swar Yoga. You speak with warm authority, practical Vedic wisdom, and deep compassion for the student.
 
-Answer questions only using the context below. If the answer is not present in the context, say that the course content does not contain enough information${retrieved ? ' (only the most relevant excerpts are shown)' : ''}.
+Answer the student's question based on the course video, study notes, and Shiva Swarodaya breath principles below.
 
 Course: ${courseTitle}
 Video: ${videoTitle}
 
+Context:
 ${context}
 
-Rules:
-- Keep answers clear and practical.
-${languageRule}
-- Do not invent facts outside the context.
-- When the answer comes from an e-book, mention which e-book it is from.
-- For study questions, give concise bullet points when useful.`;
+Rules for Mohan Sir's Avatar Response:
+1. Speak in first person as Mohan Sir ("मैं", "आम्ही", "I").
+2. Start with a warm greeting and emotion tag like [smile:80] or [namaste].
+3. Give practical, crystal-clear explanation with [teaching] or [inspire] where appropriate.
+4. Keep the answer concise (2-4 brief paragraphs), engaging, and encouraging.
+5. End with an uplifting closing blessing like [blessing] or [namaste].
+6. Use natural punctuation (। for Hindi/Marathi, ? for curiosity, ! for inspiration).
+${languageRule}`;
 
-    const reply = await generateAIText({
+    const rawReply = await generateAIText({
       systemPrompt,
       history,
       message: question,
-      maxOutputTokens: 700,
-      temperature: 0.3,
+      maxOutputTokens: 600,
+      temperature: 0.35,
       providerOrder: ['OpenAI', 'Anthropic'],
     });
 
-    return NextResponse.json({ success: true, reply, language: lang });
+    const parsed = parseAvatarScript(rawReply);
+
+    return NextResponse.json({
+      success: true,
+      reply: rawReply,
+      cleanReply: parsed.fullCleanText,
+      avatarEmotion: parsed.segments[0]?.primaryEmotion || 'friendly',
+      emotionIntensity: parsed.segments[0]?.intensity || 80,
+      segments: parsed.segments,
+      language: lang,
+    });
   } catch (error: any) {
     console.error('[E-learning Video RAG Error]', error);
     if (isAiQuotaError(error)) {

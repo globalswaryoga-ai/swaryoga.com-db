@@ -78,10 +78,18 @@ export default function MobileChatPage() {
     );
   }
 
-  // If logged in, just render the MetaInboxPage
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('admin_token');
+    document.cookie = 'adminToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'admin_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    setToken(null);
+  };
+
+  // If logged in, render MetaInboxPage with clean integrated header
   return (
-    <div className="h-screen w-full overflow-hidden bg-white">
-      <MetaInboxPage />
+    <div className="h-screen w-full overflow-hidden bg-white relative">
+      <MetaInboxPage onLogout={handleLogout} />
     </div>
   );
 }

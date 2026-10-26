@@ -343,6 +343,16 @@ export default function AdminRoot() {
                 gradientClass="from-indigo-600 to-violet-700"
                 icon={<FileQuestion size={24} />}
               />
+              <Card
+                href="/admin/avatar-studio"
+                enabled={true}
+                title="AI Avatar & Video Studio"
+                description="Custom scenes (Kitchen, Ashram, Product Studio), Wardrobes, Mohan Sir voice & Multilingual Lip-Sync."
+                cta="Launch Avatar Studio"
+                badge="AI Studio"
+                gradientClass="from-amber-500 to-orange-600"
+                icon={<Sparkles size={24} />}
+              />
             </div>
           </div>
         )}

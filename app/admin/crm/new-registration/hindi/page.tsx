@@ -1022,7 +1022,9 @@ export default function NewRegistrationPage() {
               }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
-                localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+                try {
+                  localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+                } catch (_) {}
               }
               const restoredWorkshop = data['crm_hindi_selected_workshop' + langSuffixStr] || data.crm_hindi_selected_workshop || savedWorkshop;
               if (restoredWorkshop) {
@@ -1099,7 +1101,9 @@ export default function NewRegistrationPage() {
 
       const langSuffix = `_${selectedDashboardLang}`;
       const setAndCollect = (k: string, v: string) => {
-        localStorage.setItem(k, v);
+        try {
+          localStorage.setItem(k, v);
+        } catch (_) {}
         stateObj[k] = v;
       };
 
@@ -1131,17 +1135,21 @@ export default function NewRegistrationPage() {
         setAndCollect('crm_hindi_registered_insights' + suffix, safeStringify(registeredAiInsights));
       }
 
-      void autosave.current.save(stateObj).catch(async (error: any) => {
-        if (String(error?.message || '').includes('changed in another update')) {
-          try {
-            await autosave.current.retry();
-          } catch {
+      const timer = setTimeout(() => {
+        void autosave.current.save(stateObj).catch(async (error: any) => {
+          if (String(error?.message || '').includes('changed in another update')) {
+            try {
+              await autosave.current.retry();
+            } catch {
+              toast.error(error.message);
+            }
+          } else {
             toast.error(error.message);
           }
-        } else {
-          toast.error(error.message);
-        }
-      });
+        });
+      }, 500);
+
+      return () => clearTimeout(timer);
     }
   }, [sidebarPosition, sidebarWidth, isSidebarCollapsed, isMapDataCollapsed, isStatsCollapsed, workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 
@@ -1226,7 +1234,10 @@ export default function NewRegistrationPage() {
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
   const saveWorkshopSettings = async (overrideWorkshop?: any) => {
-    let targetWorkshop = overrideWorkshop?.id ? overrideWorkshop : selectedWorkshop?.id ? selectedWorkshop : workshops.find(w => w?.id && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+    const targetWorkshopId = overrideWorkshop?.id || overrideWorkshop?._id || selectedWorkshop?.id || selectedWorkshop?._id;
+    let targetWorkshop = targetWorkshopId
+      ? { ...(overrideWorkshop || selectedWorkshop), id: targetWorkshopId }
+      : workshops.find(w => (w?.id || w?._id) && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
 
     let currentWorkshops = [...workshops];
     if (!targetWorkshop) {
@@ -1243,25 +1254,30 @@ export default function NewRegistrationPage() {
 
     const currentFormSource = overrideWorkshop?.metadata?.formSource || formSource;
 
-    const updatedMetadata = overrideWorkshop?.id ? { ...targetWorkshop.metadata } : {
+    const updatedMetadata = {
       ...targetWorkshop.metadata,
       ...(overrideWorkshop?.metadata || {}),
       formSource: currentFormSource,
-      googleFormMapping: fieldMapping,
-      crmFields: crmFields,
-      formFilterKeyword: targetWorkshop?.formFilterKeyword || '',
-      mainFilter: leadsFilter,
-      subFilter: leadsSubFilter
+      googleFormMapping: overrideWorkshop?.metadata?.googleFormMapping || fieldMapping || targetWorkshop.metadata?.googleFormMapping,
+      crmFields: overrideWorkshop?.metadata?.crmFields || crmFields || targetWorkshop.metadata?.crmFields,
+      formFilterKeyword: overrideWorkshop?.metadata?.formFilterKeyword ?? targetWorkshop?.formFilterKeyword ?? targetWorkshop?.metadata?.formFilterKeyword ?? '',
+      mainFilter: overrideWorkshop?.metadata?.mainFilter ?? leadsFilter ?? targetWorkshop?.metadata?.mainFilter ?? '',
+      subFilter: overrideWorkshop?.metadata?.subFilter ?? leadsSubFilter ?? targetWorkshop?.metadata?.subFilter ?? '',
     };
 
     const updatedWorkshop = {
       ...targetWorkshop,
-      formId: overrideWorkshop?.id ? targetWorkshop.formId : (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
+      ...(overrideWorkshop || {}),
+      id: targetWorkshop.id || targetWorkshop._id,
+      formId: overrideWorkshop?.formId || targetWorkshop.formId || (currentFormSource === 'google' ? googleFormUrl : selectedFormId),
       metadata: updatedMetadata
     };
 
-    if (!currentWorkshops.some(workshop => workshop?.id === targetWorkshop.id)) throw new Error('This selected batch is no longer in the saved list. Select an existing batch before saving its settings.');
-    const saved = await saveRegistrationWorkshop('crm_hindi_workshops', updatedWorkshop, workshops.find(w => w?.id === targetWorkshop.id));
+    const targetId = targetWorkshop.id || targetWorkshop._id;
+    if (!currentWorkshops.some(workshop => (workshop?.id || workshop?._id) === targetId)) {
+      currentWorkshops.push(updatedWorkshop);
+    }
+    const saved = await saveRegistrationWorkshop('crm_hindi_workshops', updatedWorkshop, workshops.find(w => (w?.id || w?._id) === targetId));
     const finalWorkshops = saved.workshops || workshops;
     setWorkshops(finalWorkshops);
     setSelectedWorkshop(saved.workshop || updatedWorkshop);

@@ -47,7 +47,8 @@ export async function processDueBunnyMetaBroadcasts(options?: {
     const runId = String(run._id);
     const stat: RunResult = { runId, status: 'ok', attempted: 0, sent: 0, failed: 0, skipped: 0 };
     try {
-      if (String(run.provider || 'meta') !== 'meta') {
+      const provider = String(run.provider || 'meta');
+      if (provider !== 'meta' && provider !== 'qr') {
         output.runResults.push(stat);
         continue;
       }
@@ -99,11 +100,17 @@ export async function processDueBunnyMetaBroadcasts(options?: {
 
       output.executedRuns++;
       const owner = String(run.createdByUserId || '');
-      const creds = await getMetaCredentialsForTenant(owner) || undefined;
-      if (owner && !['admin', 'admincrm', 'system'].includes(owner) && !creds) {
-        throw new Error('Connect this CRM account to its own Meta WhatsApp number before sending');
+      let creds: any = null;
+      if (provider === 'meta') {
+        creds = await getMetaCredentialsForTenant(owner) || undefined;
+        if (owner && !['admin', 'admincrm', 'system'].includes(owner) && !creds) {
+          throw new Error('Connect this CRM account to its own Meta WhatsApp number before sending');
+        }
+        if (creds?.phoneNumber) await broadcastRunUpdateOne(runId, { senderNumber: creds.phoneNumber });
+      } else {
+        const qrSender = String(run.senderNumber || '919075358557');
+        await broadcastRunUpdateOne(runId, { senderNumber: qrSender });
       }
-      if (creds?.phoneNumber) await broadcastRunUpdateOne(runId, { senderNumber: creds.phoneNumber });
       for (const item of pending) {
         const messageId = String(item._id);
         const claimed = await broadcastRunMessageUpdateOne(messageId, { status: 'sending' });
@@ -113,6 +120,78 @@ export async function processDueBunnyMetaBroadcasts(options?: {
 
         let acceptedMessageId = '';
         try {
+          if (provider === 'qr') {
+            const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL || 'http://127.0.0.1:4000';
+            const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || 'swaryoga-bridge-secret-2025';
+            const sessionKey = process.env.WHATSAPP_BRIDGE_DEFAULT_SESSION_KEY || '0002456';
+            const cleanPhone = String(item.phoneNumber || '').replace(/\D/g, '');
+            const chatJid = `${cleanPhone}@s.whatsapp.net`;
+            const mediaUrl = template.headerMedia?.url || template.imageFile?.url || '';
+
+            let payload: any = { to: cleanPhone };
+            if (mediaUrl) {
+              payload.type = 'media';
+              payload.media = mediaUrl;
+              payload.caption = template.templateContent || '';
+            } else {
+              payload.type = 'text';
+              payload.message = template.templateContent || '';
+            }
+
+            const bridgeRes = await fetch(`${bridgeUrl}/send`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-bridge-secret': bridgeSecret,
+                'x-session-key': sessionKey,
+                'x-user-id': owner || 'admincrm',
+              },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(30000),
+            });
+            const bridgeJson = await bridgeRes.json().catch(() => null);
+            if (!bridgeRes.ok || bridgeJson?.success === false) {
+              throw new Error(bridgeJson?.error || `QR bridge error (${bridgeRes.status})`);
+            }
+            const waMessageId = String(bridgeJson?.messageId || bridgeJson?.id || bridgeJson?.key?.id || `qr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+            acceptedMessageId = waMessageId;
+
+            await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId, sentAt: now });
+            const { saveQrMessageToBunny, saveQrChatToBunny } = await import('@/lib/bunnyQrWhatsAppRepository');
+            await saveQrMessageToBunny({
+              messageId: waMessageId,
+              userId: owner || 'admincrm',
+              connectedPhone: '919075358557',
+              chatJid,
+              direction: 'outbound',
+              fromMe: true,
+              text: template.templateContent || '',
+              type: mediaUrl ? 'media' : 'text',
+              mediaUrl: mediaUrl || undefined,
+              timestamp: Date.now(),
+              status: 2,
+            }).catch(() => null);
+
+            await saveQrChatToBunny({
+              userId: owner || 'admincrm',
+              connectedPhone: '919075358557',
+              chatJid,
+              name: item.name || '',
+              isGroup: false,
+              lastMessage: template.templateContent || '',
+              lastMessageTime: new Date().toISOString(),
+              lastMessageFromMe: true,
+              unreadCount: 0,
+              conversationTimestamp: Math.floor(Date.now() / 1000),
+            }).catch(() => null);
+
+            stat.sent++;
+            output.sent++;
+            const gapMs = Math.max(1500, (run.delayBetweenSeconds || 2) * 1000);
+            await new Promise(resolve => setTimeout(resolve, gapMs));
+            continue;
+          }
+
           // Prevent duplicate template sending within 24 hours
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const existingCheck = await bunnyExecute({
@@ -161,13 +240,28 @@ export async function processDueBunnyMetaBroadcasts(options?: {
               },
             },
           });
-          if (runId.startsWith('registration_') && !recordingAccess && item.leadId) {
+          if (runId.startsWith('registration_') && !recordingAccess) {
+            const targetId = item.leadId || '';
+            const last10 = String(item.phoneNumber || '').replace(/\D/g, '').slice(-10);
             await bunnyExecute({
               sql: `UPDATE leads_sql SET data_json = json_set(data_json,
                 '$.metadata.wtStatus', 'sent', '$.metadata.wtError', NULL,
+                '$.metadata.wtSentTemplate', ?,
+                '$.metadata.wtSentAt', ?,
+                '$.metadata.wtLocked', 1,
+                '$.metadata.wtLockedReason', '1-Time Delivery Locked: Sent via system trigger',
+                '$.metadata.wtSentTemplates', json_patch(COALESCE(json_extract(data_json, '$.metadata.wtSentTemplates'), '{}'), ?),
                 '$.metadata.wtLastTemplates', json_patch(COALESCE(json_extract(data_json, '$.metadata.wtLastTemplates'), '{}'), ?))
-                WHERE document_id = ?`,
-              args: [JSON.stringify({ [template.templateName]: now.toISOString() }), item.leadId],
+                WHERE document_id = ? OR (length(?) = 10 AND substr(COALESCE(json_extract(data_json, '$.phoneNumber'), json_extract(data_json, '$.mobile'), ''), -10) = ?)`,
+              args: [
+                template.templateName,
+                now.toISOString(),
+                JSON.stringify({ [template.templateName]: now.toISOString() }),
+                JSON.stringify({ [template.templateName]: now.toISOString() }),
+                targetId,
+                last10,
+                last10,
+              ],
             });
           }
           stat.sent++;

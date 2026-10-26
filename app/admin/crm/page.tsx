@@ -303,6 +303,10 @@ export default function CRMDashboard() {
 
   // Load tenant plan bundles for plan-aware dashboard rendering
   useEffect(() => {
+    if (typeof window !== 'undefined' && checkIsSuperAdmin()) {
+      setPlanBundles(new Set(['__all__']));
+      return;
+    }
     async function loadPlanBundles() {
       try {
         const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');

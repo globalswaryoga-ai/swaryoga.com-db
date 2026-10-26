@@ -2,28 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
-import { listPrograms, getProgram, initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
-import { listSadhanaSchedules } from '@/lib/bunnySadhanaSchedulerRepository';
+import { listPrograms, getProgram, getProgramVideoByDate, listProgramVideos, initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
 
-/**
- * For a given schedule and current time, determine the current session status:
- * - waiting: no session today or too far before next session
- * - countdown: within botJoinMinutes of scheduled start
- * - live: between scheduled start and (start + videoDuration)
- * - ended: after scheduled end, before next session
- *
- * Returns session start/end times for today's session (if applicable) in UTC.
- */
-function computeSessionStatus(schedule: any, now: Date) {
-  const tz = schedule.timezone || 'Asia/Kolkata';
-  const times: string[] = schedule.timeSlots || (schedule.scheduleTime ? [schedule.scheduleTime] : []);
-  const videoDuration = schedule.videoDuration || 40;
-  const countdownMin = schedule.countdownMinutes || 5;
-  const allowedDays = schedule.days || [0, 1, 2, 3, 4, 5, 6];
-  const startDate = schedule.startDate ? new Date(schedule.startDate) : null;
-
-  // Get "now" in the schedule's timezone as Y-M-D H:M
-  const localParts = new Intl.DateTimeFormat('en-CA', {
+function zonedTimeToUtc(localIso: string, tz: string): Date {
+  const asUtc = new Date(localIso + 'Z');
+  const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     year: 'numeric',
     month: '2-digit',
@@ -32,19 +15,36 @@ function computeSessionStatus(schedule: any, now: Date) {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-    weekday: 'short',
-  }).formatToParts(now);
+  });
+  const parts = dtf.formatToParts(asUtc);
+  const map: Record<string, string> = {};
+  parts.forEach((p) => { map[p.type] = p.value; });
+  let hour = parseInt(map.hour);
+  if (hour === 24) hour = 0;
+  const tzLocalAsUtc = Date.UTC(
+    parseInt(map.year),
+    parseInt(map.month) - 1,
+    parseInt(map.day),
+    hour,
+    parseInt(map.minute),
+    parseInt(map.second)
+  );
+  const offset = tzLocalAsUtc - asUtc.getTime();
+  return new Date(asUtc.getTime() - offset);
+}
 
-  const partsMap: Record<string, string> = {};
-  localParts.forEach((p) => { partsMap[p.type] = p.value; });
+function computeSessionStatus(schedule: any, now: Date) {
+  const tz = schedule.timezone || 'Asia/Kolkata';
+  const times: string[] = Array.isArray(schedule.timeSlots) ? schedule.timeSlots : (schedule.scheduleTime ? [schedule.scheduleTime] : []);
+  const videoDuration = Math.max(5, Number(schedule.videoDuration) || 32);
+  const countdownMin = Math.min(2, Math.max(0, Number(schedule.countdownMinutes) ?? 1));
+  const allowedDays = schedule.days || [0, 1, 2, 3, 4, 5, 6];
+  const startDate = schedule.startDate ? new Date(schedule.startDate) : null;
 
-  // Build candidate session windows (today + next 7 days)
-  // Programs run daily with multiple time slots
   const candidates: { startUtc: Date; endUtc: Date; dayOffset: number }[] = [];
 
-  for (let offset = 0; offset < 8; offset++) {
+  for (let offset = -1; offset < 8; offset++) {
     const checkDate = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
-
     if (startDate && checkDate < startDate) continue;
 
     const dayOfWeek = new Intl.DateTimeFormat('en-US', {
@@ -59,12 +59,10 @@ function computeSessionStatus(schedule: any, now: Date) {
       const [h, m] = t.split(':').map(Number);
       if (isNaN(h) || isNaN(m)) continue;
 
-      // Build a Date in the target timezone
       const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(checkDate);
       const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(checkDate);
       const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(checkDate);
 
-      // Create UTC date by finding what UTC time corresponds to this local time in the given timezone
       const iso = `${y}-${mo}-${d}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
       const startUtc = zonedTimeToUtc(iso, tz);
       const endUtc = new Date(startUtc.getTime() + videoDuration * 60 * 1000);
@@ -75,7 +73,6 @@ function computeSessionStatus(schedule: any, now: Date) {
 
   candidates.sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
 
-  // Find relevant session
   let currentSession: { startUtc: Date; endUtc: Date } | null = null;
   let nextSession: { startUtc: Date; endUtc: Date } | null = null;
 
@@ -92,7 +89,7 @@ function computeSessionStatus(schedule: any, now: Date) {
   }
 
   if (!currentSession && !nextSession && candidates.length > 0) {
-    nextSession = candidates[0];
+    nextSession = candidates.find(c => c.startUtc > now) || candidates[0];
   }
 
   let status: 'waiting' | 'countdown' | 'live' | 'ended' = 'waiting';
@@ -103,7 +100,7 @@ function computeSessionStatus(schedule: any, now: Date) {
       status = 'countdown';
     } else if (now < currentSession.endUtc) {
       status = 'live';
-      videoOffsetSeconds = Math.floor((now.getTime() - currentSession.startUtc.getTime()) / 1000);
+      videoOffsetSeconds = Math.max(0, Math.floor((now.getTime() - currentSession.startUtc.getTime()) / 1000));
     } else {
       status = 'ended';
     }
@@ -120,87 +117,21 @@ function computeSessionStatus(schedule: any, now: Date) {
   };
 }
 
-/**
- * Convert a local time (as ISO-like string) in a timezone to UTC Date.
- * Handles DST by using the timezone's offset at that moment.
- */
-function zonedTimeToUtc(localIso: string, tz: string): Date {
-  // Parse the local time as if it were UTC, then adjust by the tz offset
-  const asUtc = new Date(localIso + 'Z');
-  // Find offset between tz and UTC for that instant
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-  const parts = dtf.formatToParts(asUtc);
-  const map: Record<string, string> = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
-  const tzLocalAsUtc = Date.UTC(
-    parseInt(map.year),
-    parseInt(map.month) - 1,
-    parseInt(map.day),
-    parseInt(map.hour),
-    parseInt(map.minute),
-    parseInt(map.second)
-  );
-  const offset = tzLocalAsUtc - asUtc.getTime();
-  return new Date(asUtc.getTime() - offset);
-}
-
 function convertToHLSUrl(videoUrl: string): string {
   if (!videoUrl) return videoUrl;
-
-  // Always ensure Bunny URLs are HLS format
   if (videoUrl.includes('b-cdn.net') || videoUrl.includes('bunny.net') || videoUrl.includes('bunnycdn')) {
-    // Remove query params first
     const baseUrl = videoUrl.split('?')[0].split('#')[0];
-
-    // If already has playlist endpoint, return as-is
-    if (baseUrl.includes('/playlist') || baseUrl.endsWith('.m3u8')) {
-      return baseUrl;
-    }
-
-    // If ends with slash, add playlist.m3u8
-    if (baseUrl.endsWith('/')) {
-      return baseUrl + 'playlist.m3u8';
-    }
-
-    // Otherwise add /playlist.m3u8
+    if (baseUrl.includes('/playlist') || baseUrl.endsWith('.m3u8')) return baseUrl;
+    if (baseUrl.endsWith('/')) return baseUrl + 'playlist.m3u8';
     return baseUrl + '/playlist.m3u8';
   }
-
-  // If already HLS, return as-is
-  if (videoUrl.includes('.m3u8')) {
-    return videoUrl;
-  }
-
-  // For other URLs, assume HLS if from streaming services
-  if (videoUrl.includes('stream') || videoUrl.includes('hls') || videoUrl.includes('play')) {
-    return videoUrl;
-  }
-
-  // Fallback: return as-is
   return videoUrl;
 }
 
 function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): string {
   if (!videoUrl) return videoUrl;
-
-  // Convert to HLS if needed
   const hlsUrl = convertToHLSUrl(videoUrl);
-
-  // For HLS URLs, we can't add query params easily, so just return the HLS URL
-  if (hlsUrl.includes('.m3u8')) {
-    return hlsUrl;
-  }
-
-  // For non-HLS URLs, add autoplay param
+  if (hlsUrl.includes('.m3u8')) return hlsUrl;
   const sep = hlsUrl.includes('?') ? '&' : '?';
   const autoplay = hlsUrl.includes('autoplay') ? '' : `${sep}autoplay=true`;
   const start = offsetSeconds > 0 ? `${autoplay ? '&' : sep}t=${offsetSeconds}` : '';
@@ -209,91 +140,130 @@ function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): strin
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionId, scheduleId } = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({}));
+    const { sessionId, scheduleId, preview } = body;
     await initSadhanaBunnySchema();
 
     const now = new Date();
     const nowIso = now.toISOString();
     const activeThresholdIso = new Date(now.getTime() - 15 * 1000).toISOString();
-    const roomSlug = scheduleId || 'default';
 
     if (sessionId) {
       await bunnyExecute({
         sql: `UPDATE sadhana_live_participants_sql SET last_seen = ? WHERE session_id = ?`,
         args: [nowIso, sessionId]
-      });
+      }).catch(() => {});
     }
 
     // Clean up stale participants
     await bunnyExecute({
       sql: `DELETE FROM sadhana_live_participants_sql WHERE last_seen < ?`,
       args: [activeThresholdIso]
-    });
+    }).catch(() => {});
 
-    // Find active schedule or program
-    const schedules = await listSadhanaSchedules({ status: 'active' });
-    let activeSchedule: any = null;
+    // Fetch active programs from BunnyDB
+    const allPrograms = await listPrograms({ active: true });
+    let activeProgram: any = null;
     if (scheduleId && scheduleId !== 'default') {
-      activeSchedule = schedules.find((s: any) => s.id === scheduleId || s._id === scheduleId);
+      activeProgram = allPrograms.find((p: any) => p && (p.id === scheduleId || p.slug === scheduleId));
     }
-    if (!activeSchedule) {
-      activeSchedule = schedules[0] || null;
+    if (!activeProgram) {
+      activeProgram = allPrograms.find((p: any) => p && p.slug.includes('hindi')) || allPrograms[0] || null;
     }
 
     const participantsRes = await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_participants_sql WHERE last_seen >= ? ORDER BY joined_at ASC LIMIT 200`,
       args: [activeThresholdIso]
-    });
+    }).catch(() => ({ rows: [] }));
     const activeParticipants = participantsRes.rows || [];
 
-    let sessionInfo: any = null;
-    let playableVideoUrl: any = null;
-    if (activeSchedule) {
-      sessionInfo = computeSessionStatus(activeSchedule, now);
-
-      if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
-        playableVideoUrl = buildVideoUrlWithOffset(
-          activeSchedule.videoUrl,
-          sessionInfo.videoOffsetSeconds
-        );
-      }
-    }
-
+    const roomSlug = activeProgram?.slug || 'default';
     const chatRes = await bunnyExecute({
       sql: `SELECT * FROM sadhana_live_chat_sql WHERE program_slug = ? ORDER BY created_at DESC LIMIT 50`,
       args: [roomSlug]
-    });
+    }).catch(() => ({ rows: [] }));
     const chatMessages = chatRes.rows || [];
 
-    // Get program details from Bunny Database sadhana_programs_sql
-    let program: any = null;
+    if (!activeProgram) {
+      return NextResponse.json({
+        success: true,
+        count: activeParticipants.length,
+        participants: [],
+        schedule: null,
+        session: null,
+        playableVideoUrl: null,
+        chat: [],
+        serverTime: nowIso
+      });
+    }
+
+    const tz = activeProgram.timezone || 'Asia/Kolkata';
+    const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+    const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+    const yyyymmdd = `${y}-${mo}-${d}`;
+
+    // 1. Fetch today's video directly from sadhana_program_videos_sql
+    const dbTodayVideo = await getProgramVideoByDate(activeProgram.id, yyyymmdd);
+
+    // 2. Fetch all program videos for upcoming list & fallback to latest video
+    const allProgramVideos = await listProgramVideos(activeProgram.id);
+    const latestUploadedVideo = allProgramVideos.length > 0 ? allProgramVideos[allProgramVideos.length - 1] : null;
+
+    const todayEntry = activeProgram.videoCalendar ? activeProgram.videoCalendar[yyyymmdd] : null;
+    const effectiveVideoObj = dbTodayVideo || todayEntry || latestUploadedVideo;
+
+    // Resolve today's effective video URL
+    const rawVideoUrl = (
+      (dbTodayVideo ? (dbTodayVideo.hlsUrl || dbTodayVideo.videoUrl) : '') ||
+      (todayEntry ? (todayEntry.hlsUrl || todayEntry.videoUrl) : '') ||
+      activeProgram.playerUrl ||
+      (latestUploadedVideo ? (latestUploadedVideo.hlsUrl || latestUploadedVideo.videoUrl) : '') ||
+      ''
+    ).trim();
+
+    let sessionInfo = computeSessionStatus(activeProgram, now);
+
+    if (preview) {
+      sessionInfo = {
+        ...sessionInfo,
+        status: 'live',
+        sessionStartUtc: nowIso,
+        sessionEndUtc: new Date(now.getTime() + (activeProgram.videoDuration || 32) * 60 * 1000).toISOString(),
+        videoOffsetSeconds: 0,
+      };
+    }
+
+    let playableVideoUrl: string | null = null;
+    if ((sessionInfo.status === 'live' || preview) && rawVideoUrl) {
+      playableVideoUrl = buildVideoUrlWithOffset(rawVideoUrl, sessionInfo.videoOffsetSeconds);
+    }
+
+    const todayTitle = (effectiveVideoObj?.title && effectiveVideoObj.title.trim()) || activeProgram.name || 'Daily Sadhana Practice';
     let todayVideo: any = null;
-    let upcomingVideos: any[] = [];
-
-    const allPrograms = await listPrograms();
-    if (activeSchedule?.programSlug) {
-      program = allPrograms.find((p: any) => p && p.slug === activeSchedule.programSlug);
+    if (rawVideoUrl) {
+      todayVideo = {
+        date: effectiveVideoObj?.date || yyyymmdd,
+        title: todayTitle,
+        videoUrl: rawVideoUrl,
+        hlsUrl: rawVideoUrl.includes('.m3u8') ? rawVideoUrl : null,
+      };
     }
-    if (!program && allPrograms.length > 0) {
-      program = allPrograms[0];
+
+    const upcomingVideos: any[] = [];
+    if (Array.isArray(allProgramVideos) && allProgramVideos.length > 0) {
+      allProgramVideos
+        .filter((v: any) => v && v.date && v.date > yyyymmdd)
+        .slice(0, 7)
+        .forEach((v: any) => {
+          upcomingVideos.push({
+            date: v.date,
+            title: (v.title && v.title.trim()) || activeProgram.name || 'Daily Practice'
+          });
+        });
     }
 
-    if (program) {
-      const yyyymmdd = now.toISOString().split('T')[0];
-      const todayEntry = program.videoCalendar?.[yyyymmdd];
-      if (todayEntry) {
-        todayVideo = { date: yyyymmdd, title: todayEntry.title || '', videoUrl: todayEntry.hlsUrl || todayEntry.videoUrl || '' };
-      }
-
-      for (let i = 1; i <= 7; i++) {
-        const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-        const futureDateStr = futureDate.toISOString().split('T')[0];
-        const entry = program.videoCalendar?.[futureDateStr];
-        if (entry) {
-          upcomingVideos.push({ date: futureDateStr, title: entry.title || '' });
-        }
-      }
-    }
+    const timeSlots = Array.isArray(activeProgram.timeSlots) ? activeProgram.timeSlots : ['07:00', '19:00'];
 
     return NextResponse.json({
       success: true,
@@ -302,17 +272,29 @@ export async function POST(request: NextRequest) {
         name: p.name,
         joinedAt: p.joined_at || p.joinedAt,
       })),
-      program: program ? {
-        slug: program.slug,
-        name: program.name,
-        description: program.description,
-        timezone: activeSchedule?.timezone || program.timezone || 'Asia/Kolkata',
-        scheduleTime: activeSchedule?.timeSlots?.[0] || program.timeSlots?.[0] || '07:00',
-      } : null,
+      schedule: {
+        id: activeProgram.id,
+        slug: activeProgram.slug,
+        name: activeProgram.name,
+        videoUrl: rawVideoUrl,
+        videoDuration: activeProgram.videoDuration || 32,
+        timezone: tz,
+        timeSlots,
+      },
+      program: {
+        slug: activeProgram.slug,
+        name: activeProgram.name,
+        description: activeProgram.description,
+        timezone: tz,
+        scheduleTime: timeSlots,
+        timeSlots,
+      },
       todayVideo,
       upcomingVideos,
       session: sessionInfo,
-      playableVideoUrl,
+      playableVideoUrl: playableVideoUrl || rawVideoUrl,
+      playerUrl: rawVideoUrl,
+      isHLS: rawVideoUrl.includes('.m3u8') || rawVideoUrl.includes('b-cdn.net'),
       chat: [...chatMessages].reverse().map((m: any) => ({
         id: String(m.id),
         name: m.sender,

@@ -3,19 +3,13 @@
  * GET - Full lead detail with all messages, stage history, updates
  */
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { getBunnyLeadById } from '@/lib/bunnyLeadsRepository';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import {
-  getLead,
-  getWhatsAppMessage,
-  getFunnelStageHistory,
-  getLeadNote,
-  getSalesReport,
-} from '@/lib/schemas/enterpriseSchemas';
+import { listBunnyLeadNotes } from '@/lib/bunnyLeadFollowupRepository';
 
 export const dynamic = 'force-dynamic';
-
 
 export async function GET(
   request: NextRequest,
@@ -26,41 +20,56 @@ export async function GET(
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-    const FunnelStageHistory = getFunnelStageHistory();
-    const LeadNote = getLeadNote();
-    const SalesReport = getSalesReport();
-
     const { id } = params;
-    const lead = await Lead.findById(id).lean();
+    const lead = await getBunnyLeadById(id);
     if (!lead) return apiError('NOT_FOUND', 'Lead not found');
 
-    const leadId = (lead as any)._id;
+    const leadId = (lead as any)._id || id;
+    const phoneNumber = (lead as any).phoneNumber || '';
 
-    // Fetch all related data in parallel
-    const [messages, stageHistory, notes, sales] = await Promise.all([
-      WhatsAppMessage.find({ leadId })
-        .sort({ sentAt: -1 })
-        .limit(100)
-        .select('direction messageContent messageType status sentAt deliveredAt readAt media senderDisplayName templateId failureReason')
-        .lean(),
-      FunnelStageHistory.find({ leadId })
-        .sort({ createdAt: -1 })
-        .lean(),
-      LeadNote.find({ leadId })
-        .sort({ createdAt: -1 })
-        .lean(),
-      SalesReport.find({
-        $or: [
-          { leadId },
-          { customerPhone: (lead as any).phoneNumber },
-        ],
-      })
-        .sort({ saleDate: -1 })
-        .lean(),
+    // Fetch all related data from Bunny Database in parallel
+    const [messagesRes, stageHistRes, notes, salesRes] = await Promise.all([
+      // Meta and QR messages
+      bunnyExecute({
+        sql: `SELECT document_id as _id, direction, message_content as messageContent,
+                     message_type as messageType, status, sent_at as sentAt,
+                     sender_display_name as senderDisplayName, failure_reason as failureReason
+              FROM meta_messages_sql
+              WHERE lead_id = ?
+              ORDER BY sent_at DESC
+              LIMIT 100`,
+        args: [leadId],
+      }).catch(() => ({ rows: [] })),
+
+      // Stage history
+      bunnyExecute({
+        sql: `SELECT document_id as _id, from_stage as fromStage, to_stage as toStage,
+                     changed_by_name as changedByName, note, created_at as createdAt
+              FROM funnel_stage_history_sql
+              WHERE lead_id = ?
+              ORDER BY created_at DESC
+              LIMIT 50`,
+        args: [leadId],
+      }).catch(() => ({ rows: [] })),
+
+      // Notes
+      listBunnyLeadNotes(leadId).catch(() => []),
+
+      // Sales / Orders
+      bunnyExecute({
+        sql: `SELECT document_id as _id, amount, status, payment_id as paymentId, created_at as saleDate,
+                     json_extract(data_json, '$.workshopName') as workshopName
+              FROM orders_sql
+              WHERE lead_id = ? OR phone = ?
+              ORDER BY created_at DESC
+              LIMIT 50`,
+        args: [leadId, phoneNumber],
+      }).catch(() => ({ rows: [] })),
     ]);
+
+    const messages = messagesRes.rows || [];
+    const stageHistory = stageHistRes.rows || [];
+    const sales = salesRes.rows || [];
 
     // Build timeline (all events merged and sorted)
     const timeline: any[] = [];
@@ -72,7 +81,7 @@ export async function GET(
         date: (h as any).createdAt,
         fromStage: (h as any).fromStage,
         toStage: (h as any).toStage,
-        by: (h as any).changedByName || (h as any).changedByUserId,
+        by: (h as any).changedByName,
         note: (h as any).note,
       });
     }
@@ -87,7 +96,6 @@ export async function GET(
         messageType: (m as any).messageType,
         status: (m as any).status,
         sender: (m as any).senderDisplayName,
-        media: (m as any).media,
       });
     }
 
@@ -96,8 +104,8 @@ export async function GET(
       timeline.push({
         type: 'note',
         date: (n as any).createdAt,
-        content: (n as any).content || (n as any).note,
-        by: (n as any).createdByUserId || (n as any).createdBy,
+        content: (n as any).note,
+        by: (n as any).createdByUserId,
       });
     }
 
@@ -106,9 +114,9 @@ export async function GET(
       timeline.push({
         type: 'sale',
         date: (s as any).saleDate,
-        amount: (s as any).saleAmount,
+        amount: (s as any).amount,
         status: (s as any).status,
-        paymentMode: (s as any).paymentMode,
+        paymentMode: (s as any).paymentId,
         workshopName: (s as any).workshopName,
       });
     }
@@ -130,7 +138,10 @@ export async function GET(
         totalSales: sales.length,
         joiningDate: (lead as any).createdAt,
         lastActivity: (lead as any).updatedAt,
-        daysSinceJoined: Math.floor((Date.now() - new Date((lead as any).createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+        daysSinceJoined: Math.floor(
+          (Date.now() - new Date((lead as any).createdAt || Date.now()).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ),
       },
     });
   } catch (err: any) {

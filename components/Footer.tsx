@@ -18,10 +18,33 @@ import {
   Award,
   Sparkles,
   LayoutDashboard,
-  TrendingUp
+  TrendingUp,
+  MessageSquare
 } from 'lucide-react';
 
+import { useState, useEffect } from 'react';
+
 export default function Footer() {
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isApp = 
+        Boolean((window as any).SwarYoga) ||
+        navigator.userAgent.includes('SwarYogaApp') ||
+        window.location.search.includes('app=true') ||
+        sessionStorage.getItem('is_swar_app') === 'true';
+
+      if (isApp) {
+        setIsAndroidApp(true);
+      }
+    }
+  }, []);
+
+  if (isAndroidApp) {
+    return null;
+  }
+
   const currentYear = new Date().getFullYear();
 
   const quickLinks = [
@@ -115,14 +138,20 @@ export default function Footer() {
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="relative w-16 h-16 flex-shrink-0">
-                  <img 
-                    src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
-                    alt="Swar Yoga Logo"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/logo.png';
-                    }}
-                  />
+                  <picture>
+                    <source srcSet="/images/logo-infinity.webp" type="image/webp" />
+                    <img 
+                      src="/images/logo-infinity.png"
+                      alt="Swar Yoga Logo"
+                      className="w-full h-full object-contain"
+                      width={64}
+                      height={64}
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                      }}
+                    />
+                  </picture>
                 </div>
                 
                 <div>
@@ -302,6 +331,13 @@ export default function Footer() {
               >
                 <Settings className="h-5 w-5 text-green-400 group-hover:rotate-90 transition-transform duration-300" />
                 <span>Admin Panel</span>
+              </Link>
+              <Link 
+                href="/mobile-chat" 
+                className="flex items-center space-x-2 hover:text-green-400 transition-colors group"
+              >
+                <MessageSquare className="h-5 w-5 text-green-400 group-hover:scale-110 transition-transform duration-300" />
+                <span>Meta</span>
               </Link>
             </div>
           </div>

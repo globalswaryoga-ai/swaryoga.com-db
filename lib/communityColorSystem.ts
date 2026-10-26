@@ -48,6 +48,143 @@ export const COMMUNITY_GROUPS = [
   { id: 'yogasana', name: 'Yogasana Community', icon: PersonStanding },
 ];
 
+export interface CommunityTopicCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  symbolDescription: string;
+  badgeColor: string;
+  activeColor: string;
+}
+
+// 5 Symbolic Categories (Requested by User with exact symbols)
+export const COMMUNITY_TOPIC_CATEGORIES: CommunityTopicCategory[] = [
+  {
+    id: 'health',
+    name: 'Health',
+    emoji: '🧘', // A meditation symbol
+    symbolDescription: 'Meditation Symbol',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
+    activeColor: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20 border-emerald-500',
+  },
+  {
+    id: 'wealth',
+    name: 'Wealth',
+    emoji: '💰', // Wealth symbol
+    symbolDescription: 'Wealth Symbol',
+    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
+    activeColor: 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md shadow-amber-500/20 border-amber-500',
+  },
+  {
+    id: 'parenting',
+    name: 'Parenting',
+    emoji: '👥', // Two people
+    symbolDescription: 'Two People',
+    badgeColor: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100',
+    activeColor: 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-500/20 border-sky-500',
+  },
+  {
+    id: 'spiritual',
+    name: 'Spiritual',
+    emoji: '🪷', // Lotus flower
+    symbolDescription: 'Lotus Flower',
+    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
+    activeColor: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 border-purple-500',
+  },
+  {
+    id: 'behavioral-change',
+    name: 'Behavioral Change',
+    emoji: '💛', // Yellow heart
+    symbolDescription: 'Yellow Heart',
+    badgeColor: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100',
+    activeColor: 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black font-extrabold shadow-md shadow-yellow-500/20 border-yellow-400',
+  },
+];
+
+// The 5 Main Communities for the three-line drawer (☰)
+export const PRIMARY_COMMUNITIES: CommunityDesign[] = [
+  {
+    id: 'global',
+    name: 'Global Community',
+    icon: Globe,
+    description: 'Open to everyone worldwide - share your sadhana, queries and experiences',
+    color: {
+      light: 'bg-teal-50 border-teal-200',
+      main: 'text-teal-600 bg-teal-100',
+      dark: 'from-teal-600 to-teal-700',
+      gradient: 'from-teal-500 to-cyan-500',
+    },
+    philosophy: 'Teal represents universal connection, unity, and infinite possibilities.',
+    members: 1420,
+    isPublic: true,
+    category: 'common',
+  },
+  {
+    id: 'swar-yoga-l1',
+    name: 'Swar Yoga Level-1',
+    icon: Music,
+    description: 'Level 1 Foundation - Breath balance, Ida/Pingala awareness & daily sadhana',
+    color: {
+      light: 'bg-emerald-50 border-emerald-200',
+      main: 'text-emerald-600 bg-emerald-100',
+      dark: 'from-emerald-600 to-emerald-700',
+      gradient: 'from-emerald-500 to-teal-500',
+    },
+    philosophy: 'Foundation level for Swar Yoga practice and breath awareness.',
+    members: 860,
+    isPublic: false,
+    category: 'health',
+  },
+  {
+    id: 'swar-yoga-l2',
+    name: 'Swar Yoga Level-2',
+    icon: Music,
+    description: 'Level 2 Intermediate - Tattva Sadhana, Solar/Lunar timing & energy flow',
+    color: {
+      light: 'bg-green-50 border-green-200',
+      main: 'text-green-600 bg-green-100',
+      dark: 'from-green-600 to-green-700',
+      gradient: 'from-green-500 to-emerald-500',
+    },
+    philosophy: 'Intermediate depth, energy flow regulation, and elemental attunement.',
+    members: 540,
+    isPublic: false,
+    category: 'health',
+  },
+  {
+    id: 'swar-yoga-l3',
+    name: 'Swar Yoga Level-3',
+    icon: Sparkles,
+    description: 'Level 3 Advanced - Prana Vidya, Nadis activation & spiritual mastery',
+    color: {
+      light: 'bg-teal-50 border-teal-200',
+      main: 'text-teal-600 bg-teal-100',
+      dark: 'from-teal-600 to-teal-700',
+      gradient: 'from-teal-500 to-green-500',
+    },
+    philosophy: 'Higher spiritual awakening, intuitive mastery, and cosmic alignment.',
+    members: 320,
+    isPublic: false,
+    category: 'health',
+  },
+  {
+    id: 'multi-workshop',
+    name: 'Multi Workshop',
+    icon: Users,
+    description: 'Intensives & specialized workshops - Garbh Sanskar, Retreats & Life Design',
+    color: {
+      light: 'bg-amber-50 border-amber-200',
+      main: 'text-amber-600 bg-amber-100',
+      dark: 'from-amber-600 to-amber-700',
+      gradient: 'from-amber-500 to-orange-500',
+    },
+    philosophy: 'Holistic life mastery across all specialized Swar Yoga disciplines.',
+    members: 780,
+    isPublic: false,
+    category: 'common',
+  },
+];
+
 export const COMMUNITY_DESIGNS: CommunityDesign[] = [
   // ============ COMMON ============
   {
@@ -66,11 +203,27 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     isPublic: true,
     category: 'common'
   },
+  {
+    id: 'multi-workshop',
+    name: 'Multi Workshop',
+    icon: Users,
+    description: 'Specialized workshops - Garbh Sanskar, Retreats & Life Design',
+    color: {
+      light: 'bg-amber-50 border-amber-200',
+      main: 'text-amber-600 bg-amber-100',
+      dark: 'from-amber-600 to-amber-700',
+      gradient: 'from-amber-500 to-orange-500'
+    },
+    philosophy: 'Holistic life mastery across all specialized Swar Yoga disciplines.',
+    members: 0,
+    isPublic: false,
+    category: 'common'
+  },
   
   // ============ HEALTH COMMUNITIES ============
   {
     id: 'swar-yoga-l1',
-    name: 'Swar Yoga L-1',
+    name: 'Swar Yoga Level-1',
     icon: Music,
     description: 'Level 1 - Introduction to Swar Yoga',
     color: {
@@ -86,7 +239,7 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
   },
   {
     id: 'swar-yoga-l2',
-    name: 'Swar Yoga L-2',
+    name: 'Swar Yoga Level-2',
     icon: Music,
     description: 'Level 2 - Intermediate Swar Yoga',
     color: {
@@ -102,8 +255,8 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
   },
   {
     id: 'swar-yoga-l3',
-    name: 'Swar Yoga L-3',
-    icon: Music,
+    name: 'Swar Yoga Level-3',
+    icon: Sparkles,
     description: 'Level 3 - Advanced Swar Yoga',
     color: {
       light: 'bg-teal-50 border-teal-200',

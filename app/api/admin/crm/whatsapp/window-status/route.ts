@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter } from '@/lib/crm-handlers';
-import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
-
 /**
  * GET /api/admin/crm/whatsapp/window-status?leadIds=id1,id2,...
- * Returns the Meta 24-hour messaging window status for each lead.
- * 
- * Response: { windows: { [leadId]: { lastInboundAt: string | null, expiresAt: string | null, isOpen: boolean } } }
+ * Returns the Meta 24-hour messaging window status for each lead using Bunny Database.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -21,68 +15,57 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded);
 
     const leadIdsParam = request.nextUrl.searchParams.get('leadIds') || '';
-    const leadIds = leadIdsParam.split(',').filter(Boolean);
+    const leadIds = leadIdsParam.split(',').map(s => s.trim()).filter(Boolean);
 
     if (leadIds.length === 0) {
       return NextResponse.json({ windows: {} });
     }
 
-    // Cap at 200 to prevent huge queries
     const limitedIds = leadIds.slice(0, 200);
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const placeholders = limitedIds.map(() => '?').join(', ');
 
-    await connectDB();
+    const res = await bunnyExecute({
+      sql: `SELECT lead_id, MAX(COALESCE(sent_at, created_at)) as lastInboundAt
+        FROM meta_messages_sql
+        WHERE lead_id IN (${placeholders})
+        AND direction = 'inbound'
+        AND COALESCE(sent_at, created_at) >= ?
+        GROUP BY lead_id`,
+      args: [...limitedIds, cutoff],
+    }).catch(() => ({ rows: [] }));
 
-    // Aggregate: find the most recent inbound message per lead within last 24 hours
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const WaMsg = getWhatsAppMessage();
-    const results = await WaMsg.aggregate([
-      {
-        $match: {
-          leadId: { $in: limitedIds.map(id => new mongoose.Types.ObjectId(id)) },
-          direction: 'inbound',
-          provider: 'meta',
-          sentAt: { $gte: cutoff },
-          ...tf,
-        },
-      },
-      { $sort: { sentAt: -1 } },
-      {
-        $group: {
-          _id: '$leadId',
-          lastInboundAt: { $first: '$sentAt' },
-        },
-      },
-    ]);
-
-    const windows: Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }> = {};
-
-    // Initialize all requested leads as closed
-    for (const id of limitedIds) {
-      windows[id] = { lastInboundAt: null, expiresAt: null, isOpen: false };
+    const inboundMap = new Map<string, Date>();
+    for (const r of res.rows) {
+      if (r.lead_id && r.lastInboundAt) {
+        inboundMap.set(String(r.lead_id), new Date(String(r.lastInboundAt)));
+      }
     }
 
-    // Fill in leads that have an open window
-    const now = Date.now();
-    for (const doc of results) {
-      const leadId = String(doc._id);
-      const lastInbound = new Date(doc.lastInboundAt);
-      const expiresAt = new Date(lastInbound.getTime() + 24 * 60 * 60 * 1000);
-      const isOpen = expiresAt.getTime() > now;
-
-      windows[leadId] = {
-        lastInboundAt: lastInbound.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        isOpen,
-      };
+    const windows: Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }> = {};
+    for (const id of limitedIds) {
+      const lastInbound = inboundMap.get(id);
+      if (lastInbound) {
+        const expiresAt = new Date(lastInbound.getTime() + 24 * 60 * 60 * 1000);
+        windows[id] = {
+          lastInboundAt: lastInbound.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          isOpen: expiresAt > new Date(),
+        };
+      } else {
+        windows[id] = {
+          lastInboundAt: null,
+          expiresAt: null,
+          isOpen: false,
+        };
+      }
     }
 
     return NextResponse.json({ windows });
-  } catch (err: any) {
-    console.error('[window-status] Error:', err);
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  } catch (error) {
+    console.error('[window-status] Error:', error);
+    return NextResponse.json({ windows: {} });
   }
 }

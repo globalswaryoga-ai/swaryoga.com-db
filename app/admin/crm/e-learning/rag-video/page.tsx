@@ -3,9 +3,35 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon, Zap, Scissors, Download, Layers, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon, Zap, Scissors, Download, Layers, AlertTriangle, Camera, Film, Share2, Tv } from 'lucide-react';
 import Mp4ToMp3Converter from './_components/Mp4ToMp3Converter';
+import AdminMediaRecorder from './_components/AdminMediaRecorder';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
+import StudioSidebar, { StudioSection } from './_components/StudioSidebar';
+import AvatarSettingsView from './_components/AvatarSettingsView';
+import RagSettingsView from './_components/RagSettingsView';
+import VideoSettingsView from './_components/VideoSettingsView';
+import VideoRecipeEditorView from './_components/VideoRecipeEditorView';
+import MediaCreationView from './_components/MediaCreationView';
+import OneLangToMultiView from './_components/OneLangToMultiView';
+import EbookMainView from './_components/EbookMainView';
+import EbookOneToAllView from './_components/EbookOneToAllView';
+import AvatarStudioContent from '@/app/admin/avatar-studio/AvatarStudioContent';
+import Module1VideoAvatar from './_components/Module1VideoAvatar';
+import Module2VoiceAvatar from './_components/Module2VoiceAvatar';
+import Module3BackgroundStudio from './_components/Module3BackgroundStudio';
+import Module4FinalAvatars from './_components/Module4FinalAvatars';
+import Module5VideoToTextEmotion from './_components/Module5VideoToTextEmotion';
+import Module6TextGrammarChecker from './_components/Module6TextGrammarChecker';
+import Module7MultilingualText from './_components/Module7MultilingualText';
+import ModulePptStudio from './_components/ModulePptStudio';
+import Module9Animation10sStudio from './_components/Module9Animation10sStudio';
+import Module8VideoProductionStudio from './_components/Module8VideoProductionStudio';
+import AvatarEditStudio from './_components/AvatarEditStudio';
+import InhouseStudioView from './_components/inhouseEngine/InhouseStudioView';
+import SwarYoga3DAnimationStudio from './_components/engine3d/SwarYoga3DAnimationStudio';
+import CustomAnimationStudio from './_components/CustomAnimationStudio';
+
 
 const LANGUAGE_OPTIONS = [
   { code: 'hi', name: 'Hindi' },
@@ -92,6 +118,44 @@ export default function RagAndVideoPage() {
   const token = useAuth();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [activeSection, setActiveSection] = useState<StudioSection>('avatar-video');
+  const [grammarScript, setGrammarScript] = useState('');
+  const [multilingualScript, setMultilingualScript] = useState('');
+  const [productionScript, setProductionScript] = useState('');
+  const [selectedProductionAvatarId, setSelectedProductionAvatarId] = useState('');
+  const [selectedVideoAvatarId, setSelectedVideoAvatarId] = useState<string | null>(null);
+  const [selectedAvatarCutoutUrl, setSelectedAvatarCutoutUrl] = useState<string | null>(null);
+  const [selectedModule3BgId, setSelectedModule3BgId] = useState('bg_kitchen');
+  const [selectedModule3ClothId, setSelectedModule3ClothId] = useState('cloth_chef_apron');
+  const [selectedModule3LayoutId, setSelectedModule3LayoutId] = useState('single_center');
+  const [analysisVideoUrl, setAnalysisVideoUrl] = useState<string | null>(null);
+  const [analysisVideoTitle, setAnalysisVideoTitle] = useState<string | null>(null);
+
+  // Handle URL hash navigation like #publish-section or #video-production-studio
+  useEffect(() => {
+    const checkHash = () => {
+      if (typeof window === 'undefined') return;
+      const hash = window.location.hash;
+      if (hash === '#publish-section' || hash === '#video-production-studio') {
+        setActiveSection('video-production-studio');
+        setTimeout(() => {
+          const el = document.getElementById('publish-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 400);
+      } else if (hash === '#avatar-edit') {
+        setActiveSection('avatar-edit');
+      } else if (hash === '#avatar-video') {
+        setActiveSection('avatar-video');
+      }
+    };
+
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
 
   const [jobs, setJobs] = useState<AiVideoJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<AiVideoJob | null>(null);
@@ -726,7 +790,259 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
   }
 
   return (
-    <div className="min-h-screen bg-black p-6">
+    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row text-slate-100">
+      <input
+        type="file"
+        ref={markerFileInputRef}
+        accept={pendingMarker?.mode === 'video' ? 'video/*' : 'image/*'}
+        onChange={handleMarkerFileSelected}
+        className="hidden"
+      />
+
+      {/* Studio Navigation Sidebar with all 7 requested tools */}
+      <StudioSidebar
+        activeSection={activeSection}
+        onSelectSection={setActiveSection}
+        jobsCount={jobs.length}
+      />
+
+      {/* Main Studio Working Canvas */}
+      <main className="flex-1 min-w-0 p-4 lg:p-6 overflow-y-auto max-h-screen">
+        {/* Isolated In-House HeyGen Twin Studio ($0 API Cost) */}
+        {activeSection === 'inhouse-heygen-studio' && (
+          <InhouseStudioView />
+        )}
+
+        {/* 8 Core AI Studio Modules */}
+        {activeSection === 'avatar-video' && (
+          <Module1VideoAvatar
+            token={token}
+            onSelectAvatarForFinal={(avatar) => {
+              setSelectedVideoAvatarId(avatar.id);
+              setSelectedAvatarCutoutUrl(avatar.cutoutUrl || avatar.transparentAvatarUrl || null);
+              setActiveSection('final-avatars');
+            }}
+            onNavigateToAppearance={(avatar) => {
+              setSelectedVideoAvatarId(avatar.id);
+              setSelectedAvatarCutoutUrl(avatar.cutoutUrl || avatar.transparentAvatarUrl || null);
+              setActiveSection('background-appearance');
+            }}
+            onNavigateToVoice={(avatar) => {
+              setSelectedVideoAvatarId(avatar.id);
+              setSelectedAvatarCutoutUrl(avatar.cutoutUrl || avatar.transparentAvatarUrl || null);
+              setActiveSection('voice-avatar');
+            }}
+            onNavigateToEditAvatar={(avatar) => {
+              setSelectedVideoAvatarId(avatar.id);
+              setSelectedAvatarCutoutUrl(avatar.cutoutUrl || avatar.transparentAvatarUrl || null);
+              setActiveSection('avatar-edit');
+            }}
+            onSendToVideoToText={(url, title) => {
+              setAnalysisVideoUrl(url);
+              setAnalysisVideoTitle(title || null);
+              setActiveSection('video-to-text-emotion');
+            }}
+          />
+        )}
+
+        {/* Dedicated Avatar Edit & Customizer Studio */}
+        {activeSection === 'avatar-edit' && (
+          <AvatarEditStudio
+            token={token}
+            initialVideoAvatarId={selectedVideoAvatarId}
+            onNavigateToProduction={(finalAvatar) => {
+              setActiveSection('video-production-studio');
+            }}
+            onNavigateToFinalLibrary={() => {
+              setActiveSection('final-avatars');
+            }}
+          />
+        )}
+
+        {activeSection === 'voice-avatar' && (
+          <Module2VoiceAvatar
+            token={token}
+            onSelectVoiceForFinal={() => setActiveSection('final-avatars')}
+          />
+        )}
+
+        {activeSection === 'background-appearance' && (
+          <Module3BackgroundStudio
+            avatarCutoutUrl={selectedAvatarCutoutUrl}
+            selectedBackgroundId={selectedModule3BgId}
+            selectedClothingId={selectedModule3ClothId}
+            selectedLayoutId={selectedModule3LayoutId}
+            onSelectBackground={(bg) => setSelectedModule3BgId(bg.id)}
+            onSelectClothing={(c) => setSelectedModule3ClothId(c.id)}
+            onSelectLayout={(l) => setSelectedModule3LayoutId(l.id)}
+            onProceedToFinalAvatar={(opts) => {
+              setSelectedModule3BgId(opts.backgroundId);
+              setSelectedModule3ClothId(opts.clothingId);
+              setSelectedModule3LayoutId(opts.layoutId);
+              setActiveSection('final-avatars');
+            }}
+          />
+        )}
+
+        {activeSection === 'final-avatars' && (
+          <Module4FinalAvatars
+            token={token}
+            preselectedVideoId={selectedVideoAvatarId}
+            preselectedBgId={selectedModule3BgId}
+            preselectedClothId={selectedModule3ClothId}
+            onNavigateToEditAvatar={(a) => {
+              if (a?.videoAvatarId) setSelectedVideoAvatarId(a.videoAvatarId);
+              setActiveSection('avatar-edit');
+            }}
+            onSelectFinalAvatarForStudio={(a) => {
+              setSelectedProductionAvatarId(a.id);
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'video-to-text-emotion' && (
+          <Module5VideoToTextEmotion
+            token={token}
+            initialVideoUrl={analysisVideoUrl}
+            initialVideoTitle={analysisVideoTitle}
+            onSendToGrammarChecker={(txt) => {
+              setGrammarScript(txt);
+              setActiveSection('text-grammar-checker');
+            }}
+            onSendToTranslator={(txt) => {
+              setMultilingualScript(txt);
+              setActiveSection('text-multilingual');
+            }}
+            onSendToVideoStudio={() => {
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'text-grammar-checker' && (
+          <Module6TextGrammarChecker
+            token={token}
+            initialText={grammarScript}
+            onSendToTranslation={(approvedTxt) => {
+              setMultilingualScript(approvedTxt);
+              setActiveSection('text-multilingual');
+            }}
+            onSendToVideoStudio={(approvedTxt) => {
+              setProductionScript(approvedTxt);
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'text-multilingual' && (
+          <Module7MultilingualText
+            token={token}
+            initialSourceText={multilingualScript}
+            onSendToPptStudio={(script) => {
+              setMultilingualScript(script);
+              setActiveSection('ppt-studio');
+            }}
+            onSendToVideoStudio={(scripts) => {
+              setProductionScript(scripts.hi || Object.values(scripts)[0] || '');
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'ppt-studio' && (
+          <ModulePptStudio
+            token={token}
+            initialScript={multilingualScript || grammarScript}
+            onSendToVideoStudio={(slides) => {
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'animation-10s' && (
+          <Module9Animation10sStudio
+            token={token}
+            initialTopic={multilingualScript || grammarScript}
+            onSendToVideoStudio={(clip) => {
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'custom-animation-creator' && (
+          <CustomAnimationStudio />
+        )}
+
+        {activeSection === '3d-animation-engine' && (
+          <SwarYoga3DAnimationStudio
+            token={token}
+            onSendToVideoStudio={(clip) => {
+              setActiveSection('video-production-studio');
+            }}
+          />
+        )}
+
+        {activeSection === 'video-production-studio' && (
+          <Module8VideoProductionStudio
+            token={token}
+            initialScript={productionScript}
+            initialFinalAvatarId={selectedProductionAvatarId}
+          />
+        )}
+
+        {activeSection === 'avatar-studio' && (
+          <AvatarStudioContent hideHeader={true} />
+        )}
+
+        {activeSection === 'avatar-setting' && (
+          <AvatarSettingsView token={token} />
+        )}
+
+        {activeSection === 'rag-setting' && (
+          <RagSettingsView />
+        )}
+
+        {activeSection === 'video-setting' && (
+          <VideoSettingsView />
+        )}
+
+        {activeSection === 'video-recipe' && (
+          <VideoRecipeEditorView token={token} />
+        )}
+
+        {activeSection === 'media-creation' && (
+          <MediaCreationView token={token} />
+        )}
+
+        {activeSection === 'one-lang-to-multi' && (
+          <OneLangToMultiView
+            token={token}
+            initialText={selectedJob?.correctedTranscript || selectedJob?.transcript || ''}
+            initialTitle={selectedJob?.topicTitle || ''}
+          />
+        )}
+
+        {activeSection === 'ebook-main' && (
+          <EbookMainView
+            token={token}
+            selectedJobId={selectedJob?._id}
+            topicTitle={selectedJob?.topicTitle}
+            sourceTranscript={selectedJob?.correctedTranscript || selectedJob?.transcript}
+            sourceLanguage={selectedJob?.sourceLanguage}
+          />
+        )}
+
+        {activeSection === 'ebook-one-to-all' && (
+          <EbookOneToAllView
+            token={token}
+            jobs={jobs}
+          />
+        )}
+
+        {activeSection === 'video-dubbing' && (
+          <>
+
       <input
         type="file"
         ref={markerFileInputRef}
@@ -1432,6 +1748,9 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
           )}
         </div>
       </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }

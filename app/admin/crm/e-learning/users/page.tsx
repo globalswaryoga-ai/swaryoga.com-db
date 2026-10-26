@@ -494,7 +494,7 @@ export default function ELearningUsersPage() {
   });
 
   return (
-    <div className="min-h-screen bg-black p-6">
+    <div className="min-h-full flex-1 flex flex-col bg-[#0b0f19] p-4 sm:p-6 text-slate-100">
       {/* Header */}
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -958,61 +958,62 @@ export default function ELearningUsersPage() {
           <p className="text-gray-400">No users match your search criteria</p>
         </div>
       ) : (
-        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-x-auto">
+        <div className="bg-[#0f172a] rounded-2xl border border-slate-800/90 shadow-2xl overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-900/80 border-b border-gray-800">
+            <thead className="bg-[#1e293b]/60 border-b border-slate-800/90">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">User</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">Course</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">Progress</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">Watch Time</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-green-400 uppercase tracking-wider">Enrolled</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-green-400 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Course</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Progress</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Watch Time</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Enrolled</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-slate-800/70">
               {/* Pinned Demo User - only show when course is selected */}
               {selectedCourseId && (
-                <tr className="bg-blue-500/10 border-b-2 border-blue-500/30 hover:bg-blue-500/20 transition-colors">
+                <tr className="bg-sky-500/10 border-b-2 border-sky-500/30 hover:bg-sky-500/15 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/30 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-blue-400">S</span>
+                      <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-sky-400">S</span>
                       </div>
                       <div>
-                        <p className="font-medium text-white">Swar Sakshi <span className="text-xs text-blue-400">(Demo)</span></p>
-                        <p className="text-sm text-gray-400">demo@swarsakshi.com</p>
+                        <p className="font-semibold text-slate-100">Swar Sakshi <span className="text-xs text-sky-400 font-normal">(Demo)</span></p>
+                        <p className="text-xs text-slate-400">demo@swarsakshi.com</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <p className="font-medium text-white">{courses.find(c => c._id === selectedCourseId)?.content.en.title}</p>
-                      <p className="text-sm text-gray-500">{courses.find(c => c._id === selectedCourseId)?.slug}</p>
+                      <p className="font-medium text-slate-200">{courses.find(c => c._id === selectedCourseId)?.content.en.title}</p>
+                      <p className="text-xs text-slate-500 font-mono">{courses.find(c => c._id === selectedCourseId)?.slug}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-12 h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: '0%' }} />
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                        <div className="h-full bg-sky-500 rounded-full" style={{ width: '0%' }} />
                       </div>
-                      <span className="text-sm font-medium text-white">0%</span>
+                      <span className="text-xs font-semibold text-slate-300">0%</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-white font-medium">0m</p>
+                    <span className="font-semibold text-slate-300 text-xs px-2.5 py-1 rounded-md bg-slate-800/60 border border-slate-700/50">0m</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                       active
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-sm text-gray-400">-</p>
+                    <p className="text-xs text-slate-400">-</p>
                   </td>
                   <td className="px-6 py-4">
-                    <button className="inline-flex items-center gap-2 px-3 py-2 bg-gray-700/50 text-gray-400 rounded-lg opacity-50 cursor-not-allowed" disabled>
+                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-slate-500 rounded-lg text-xs font-medium opacity-50 cursor-not-allowed" disabled>
                       Demo
                     </button>
                   </td>
@@ -1024,52 +1025,55 @@ export default function ELearningUsersPage() {
                   return null;
                 }
                 return (
-                <tr key={enrollment._id} className="hover:bg-gray-800/50 transition-colors">
+                <tr key={enrollment._id} className="hover:bg-slate-800/40 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-green-400">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-emerald-400">
                           {enrollment.userId.name?.[0]?.toUpperCase()}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium text-white">{enrollment.userId.name}</p>
-                        <p className="text-sm text-gray-400">{enrollment.userId.email}</p>
+                        <p className="font-semibold text-slate-100">{enrollment.userId.name}</p>
+                        <p className="text-xs text-slate-400">{enrollment.userId.email}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <p className="font-medium text-white">{enrollment.courseId.content.en.title}</p>
-                      <p className="text-sm text-gray-500">{enrollment.courseId.slug}</p>
+                      <p className="font-medium text-slate-200">{enrollment.courseId.content.en.title}</p>
+                      <p className="text-xs text-slate-500 font-mono">{enrollment.courseId.slug}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-12 h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                         <div
-                          className="h-full bg-green-500 rounded-full"
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300"
                           style={{ width: `${enrollment.progress || 0}%` }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-white">{enrollment.progress || 0}%</span>
+                      <span className="text-xs font-semibold text-slate-300">{enrollment.progress || 0}%</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-white font-medium">{formatTime(enrollment.totalWatchTime || 0)}</p>
+                    <span className="font-semibold text-slate-300 text-xs px-2.5 py-1 rounded-md bg-slate-800/60 border border-slate-700/50">
+                      {formatTime(enrollment.totalWatchTime || 0)}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                      enrollment.status === 'active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                      enrollment.status === 'completed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                      enrollment.status === 'suspended' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                      'bg-gray-700/50 text-gray-400 border border-gray-600'
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full ${
+                      enrollment.status === 'active' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+                      enrollment.status === 'completed' ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30' :
+                      enrollment.status === 'suspended' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' :
+                      'bg-slate-800 text-slate-400 border border-slate-700'
                     }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${enrollment.status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-current'}`} />
                       {enrollment.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-sm text-gray-400">{new Date(enrollment.enrolledAt).toLocaleDateString()}</p>
+                    <p className="text-xs text-slate-400">{new Date(enrollment.enrolledAt).toLocaleDateString()}</p>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
@@ -1081,26 +1085,26 @@ export default function ELearningUsersPage() {
                           setEditLevel(enrollment.courseId?.level || 'beginner');
                           setShowEditModal(true);
                         }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 rounded-lg text-xs font-medium transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                         title="Edit Student Level & Status"
                       >
-                        <Edit2 size={14} />
+                        <Edit2 size={13} />
                         Level
                       </button>
                       <button
                         onClick={() => handleDeleteStudent(enrollment._id, enrollment.userId?.name)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-medium transition-colors"
+                        className="inline-flex items-center justify-center p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                         title="Delete Student"
                       >
                         <Trash2 size={14} />
                       </button>
                       <Link
                         href={`/admin/crm/e-learning/users/${enrollment.userId._id}?enrollmentId=${enrollment._id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm shadow-emerald-600/30 transition-all hover:scale-105 active:scale-95"
                         title="Full Details"
                       >
                         Manage
-                        <ArrowRight size={14} />
+                        <ArrowRight size={13} />
                       </Link>
                     </div>
                   </td>

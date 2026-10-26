@@ -85,9 +85,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const update: any = {};
 
-    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName', 'botJoinMinutes', 'playerMode', 'playerUrl', 'zoomLink', 'zoomId', 'zoomPassword'].forEach((k) => {
+    ['name', 'description', 'passcode', 'timezone', 'repeatFrequency', 'startDate', 'botName', 'botJoinMinutes', 'playerMode', 'playerUrl', 'zoomLink', 'zoomId', 'zoomPassword'].forEach((k) => {
       if (body[k] !== undefined) update[k] = body[k];
     });
+    if (body.passcode !== undefined) {
+      update.passcode = String(body.passcode || '').trim().toUpperCase();
+    }
     if (body.enableBotAutomation !== undefined) update.enableBotAutomation = !!body.enableBotAutomation;
     if (body.timeSlots !== undefined) {
       const slots = Array.isArray(body.timeSlots) ? body.timeSlots : [body.timeSlots];

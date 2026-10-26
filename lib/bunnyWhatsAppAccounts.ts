@@ -139,6 +139,32 @@ export async function getBunnyWhatsAppAccount(tenantUserId: string) {
   };
 }
 
+export async function getBunnyWhatsAppAccountById(id: string) {
+  await initBunnyWhatsAppAccountsSchema();
+  const res = await bunnyExecute({
+    sql: `SELECT data_json FROM whatsapp_accounts_sql WHERE document_id = ? LIMIT 1`,
+    args: [id]
+  });
+  const account = parse(res.rows[0]?.data_json);
+  if (!account) return null;
+  return {
+    _id: account._id || account.document_id,
+    accountName: account.accountName,
+    metaPhoneNumber: account.metaPhoneNumber,
+    metaPhoneNumberId: account.metaPhoneNumberId,
+    metaBusinessAccountId: account.metaBusinessAccountId,
+    metaAppId: account.metaAppId,
+    metaAccessToken: account.metaAccessToken,
+    hasAccessToken: Boolean(account.metaAccessToken),
+    hasAppSecret: Boolean(account.metaAppSecret),
+    status: account.status || 'connected',
+    isActive: account.isActive !== false,
+    createdByUserId: account.createdByUserId,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
 export async function deleteBunnyWhatsAppAccount(tenantUserId: string) {
   await initBunnyWhatsAppAccountsSchema();
   await bunnyExecute({
@@ -147,3 +173,4 @@ export async function deleteBunnyWhatsAppAccount(tenantUserId: string) {
   });
   return { success: true };
 }
+

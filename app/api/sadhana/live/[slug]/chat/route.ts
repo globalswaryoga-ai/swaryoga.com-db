@@ -4,8 +4,14 @@ import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { initSadhanaBunnySchema } from '@/lib/bunnySadhanaRepository';
 import crypto from 'crypto';
 
-export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> | { slug: string } }
+) {
   try {
+    const resolvedParams = params instanceof Promise ? await params : params;
+    const slug = resolvedParams?.slug || '';
+
     const { name, message } = await request.json();
 
     const cleanMsg = String(message || '').slice(0, 300).trim();
@@ -13,14 +19,16 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       return NextResponse.json({ error: 'name and message required' }, { status: 400 });
     }
 
-    await initSadhanaBunnySchema();
+    try {
+      await initSadhanaBunnySchema();
+    } catch {}
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
 
     await bunnyExecute({
       sql: `INSERT INTO sadhana_live_chat_sql (id, program_slug, session_id, sender, message, created_at)
             VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [id, params.slug, 'default', String(name).slice(0, 50), cleanMsg, now]
+      args: [id, slug, 'default', String(name).slice(0, 50), cleanMsg, now]
     });
 
     // Keep only last 200 messages per program
@@ -32,7 +40,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
               ORDER BY created_at DESC 
               LIMIT 200
             )`,
-      args: [params.slug, params.slug]
+      args: [slug, slug]
     });
 
     return NextResponse.json({ success: true });

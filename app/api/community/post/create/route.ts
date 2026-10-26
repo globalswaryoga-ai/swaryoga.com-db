@@ -66,9 +66,17 @@ export async function POST(request: NextRequest) {
       hasLink: contentHasLink(content),
     });
 
+    let language = '';
+    if (isMultipart) {
+      // already parsed form
+    } else {
+      language = typeof body?.language === 'string' ? body.language.trim() : '';
+    }
+
     const created = await createCommunityPost({
       communityId,
       userId,
+      language: language || undefined,
       content,
       images,
       isPublic: true,

@@ -27,6 +27,7 @@ export type BunnyCommunityMember = {
   email?: string;
   countryCode?: string;
   country?: string;
+  language?: string;
   role: string;
   status: string;
   approved: boolean;
@@ -42,6 +43,7 @@ export type BunnyCommunityPost = {
   userId: string;
   userName?: string;
   userPhoto?: string;
+  language?: string;
   content: string;
   images: string[];
   category: string;
@@ -257,7 +259,55 @@ async function initializeCommunitySchema() {
       )`,
       args: [],
     },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS community_messages_sql (
+        id TEXT PRIMARY KEY,
+        community_id TEXT NOT NULL,
+        user_id TEXT,
+        user_name TEXT NOT NULL,
+        user_mobile TEXT,
+        user_role TEXT NOT NULL DEFAULT 'member',
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        raw_doc_json TEXT NOT NULL DEFAULT '{}'
+      )`,
+      args: [],
+    },
+    {
+      sql: 'CREATE INDEX IF NOT EXISTS idx_comm_msgs_comm ON community_messages_sql(community_id, created_at ASC)',
+      args: [],
+    },
   ]);
+
+  // Safe schema migration for multi-language support
+  try {
+    await bunnyExecute('ALTER TABLE community_members_sql ADD COLUMN language TEXT NOT NULL DEFAULT "hindi"');
+  } catch {
+    // Column already exists
+  }
+  try {
+    await bunnyExecute('CREATE INDEX IF NOT EXISTS idx_comm_members_lang ON community_members_sql(community_id, language)');
+  } catch {
+    // Ignore index error
+  }
+  try {
+    await bunnyExecute('ALTER TABLE community_posts_sql ADD COLUMN language TEXT NOT NULL DEFAULT "hindi"');
+  } catch {
+    // Column already exists
+  }
+  try {
+    await bunnyExecute('CREATE INDEX IF NOT EXISTS idx_comm_posts_lang ON community_posts_sql(community_id, language, status, created_at)');
+  } catch {
+    // Ignore index error
+  }
+
+  // Ensure any existing members with NULL or empty language are backfilled to 'hindi'
+  try {
+    await bunnyExecute("UPDATE community_members_sql SET language = 'hindi' WHERE language IS NULL OR language = ''");
+    await bunnyExecute("UPDATE community_posts_sql SET language = 'hindi' WHERE language IS NULL OR language = ''");
+  } catch {
+    // Ignore update error
+  }
 
   // Seed communities_sql from mongo_documents if empty
   const countComm = await bunnyExecute('SELECT COUNT(*) as cnt FROM communities_sql');
@@ -566,6 +616,7 @@ export async function getCommunity(idOrSlug: string): Promise<BunnyCommunity | n
 export async function listCommunityPosts(filter: {
   communityId?: string;
   category?: string;
+  language?: string;
   publicOnly?: boolean;
   limit?: number;
   skip?: number;
@@ -584,8 +635,13 @@ export async function listCommunityPosts(filter: {
   }
 
   if (filter.communityId) {
-    conditions.push('(community_id = ? OR json_extract(raw_doc_json, "$.metadata.targetCommunityIds") LIKE ?)');
+    conditions.push('(community_id = ? OR raw_doc_json LIKE ?)');
     args.push(filter.communityId, `%"${filter.communityId}"%`);
+  }
+
+  if (filter.language && filter.language !== 'all') {
+    conditions.push('(language = ? OR language IS NULL OR language = "")');
+    args.push(filter.language.toLowerCase().trim());
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -610,6 +666,7 @@ export async function listCommunityPosts(filter: {
     userId: String(row.user_id),
     userName: row.user_name || undefined,
     userPhoto: row.user_photo || undefined,
+    language: row.language ? String(row.language) : 'hindi',
     content: String(row.content),
     images: parse(row.images_json, []),
     category: String(row.category || 'general'),
@@ -640,6 +697,7 @@ export async function getCommunityPost(postId: string): Promise<BunnyCommunityPo
     userId: String(row.user_id),
     userName: row.user_name ? String(row.user_name) : undefined,
     userPhoto: row.user_photo ? String(row.user_photo) : undefined,
+    language: row.language ? String(row.language) : 'hindi',
     content: String(row.content),
     images: parse(row.images_json, []),
     category: String(row.category || 'general'),
@@ -658,29 +716,34 @@ export async function createCommunityPost(data: {
   userId: string;
   userName?: string;
   userPhoto?: string;
+  language?: string;
   content: string;
   images?: string[];
   category?: string;
   isPublic?: boolean;
+  rawDoc?: Record<string, any>;
 }): Promise<BunnyCommunityPost> {
   await initCommunitySchema();
   const postId = id();
   const timestamp = now();
+  const postLang = (data.language || 'hindi').toLowerCase().trim();
   await bunnyExecute({
     sql: `INSERT INTO community_posts_sql (
-      id, community_id, user_id, user_name, user_photo, content, images_json,
+      id, community_id, user_id, user_name, user_photo, language, content, images_json,
       category, is_public, status, likes_json, comments_json, raw_doc_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', '[]', '[]', '{}', ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', '[]', '[]', ?, ?, ?)`,
     args: [
       postId,
       data.communityId,
       data.userId,
       data.userName || null,
       data.userPhoto || null,
+      postLang,
       data.content,
       json(data.images, []),
       data.category || 'general',
       data.isPublic !== false ? 1 : 0,
+      json(data.rawDoc, {}),
       timestamp,
       timestamp,
     ],
@@ -796,6 +859,7 @@ export async function saveCommunityMember(data: {
   email?: string;
   countryCode?: string;
   country?: string;
+  language?: string;
   role?: string;
   status?: string;
 }): Promise<BunnyCommunityMember> {
@@ -803,22 +867,32 @@ export async function saveCommunityMember(data: {
   const timestamp = now();
   const cleanMobile = data.mobile.replace(/\D/g, '');
 
+  let memberLang = (data.language || '').toLowerCase().trim();
+  if (!memberLang) {
+    const isIndia = (data.countryCode || '').includes('91') || (data.country || '').toLowerCase().includes('india');
+    memberLang = isIndia ? 'hindi' : 'english';
+  }
+
   const existing = await bunnyExecute({
-    sql: 'SELECT id FROM community_members_sql WHERE (user_id = ? OR mobile = ?) AND community_id = ? LIMIT 1',
+    sql: 'SELECT id, language FROM community_members_sql WHERE (user_id = ? OR mobile = ?) AND community_id = ? LIMIT 1',
     args: [data.userId || '', cleanMobile, data.communityId],
   });
 
   const memberId = existing.rows[0] ? String(existing.rows[0].id) : id();
+  if (existing.rows[0]?.language && !data.language) {
+    memberLang = String(existing.rows[0].language);
+  }
 
   await bunnyExecute({
     sql: `INSERT INTO community_members_sql (
-      id, user_id, community_id, name, mobile, email, country_code, country, role, status, approved, raw_doc_json, joined_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '{}', ?, ?)
+      id, user_id, community_id, name, mobile, email, country_code, country, language, role, status, approved, raw_doc_json, joined_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '{}', ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       email = COALESCE(excluded.email, community_members_sql.email),
       country_code = excluded.country_code,
       country = excluded.country,
+      language = excluded.language,
       status = excluded.status,
       updated_at = excluded.updated_at`,
     args: [
@@ -830,12 +904,50 @@ export async function saveCommunityMember(data: {
       data.email?.toLowerCase().trim() || null,
       data.countryCode || '+91',
       data.country || '',
+      memberLang,
       data.role || 'member',
       data.status || 'active',
       timestamp,
       timestamp,
     ],
   });
+
+  // Ensure member is also automatically joined in 'global' community
+  if (data.communityId !== 'global') {
+    try {
+      const globalExisting = await bunnyExecute({
+        sql: 'SELECT id FROM community_members_sql WHERE (user_id = ? OR mobile = ?) AND community_id = ? LIMIT 1',
+        args: [data.userId || '', cleanMobile, 'global'],
+      });
+      const globalMemberId = globalExisting.rows[0] ? String(globalExisting.rows[0].id) : id();
+      await bunnyExecute({
+        sql: `INSERT INTO community_members_sql (
+          id, user_id, community_id, name, mobile, email, country_code, country, language, role, status, approved, raw_doc_json, joined_at, updated_at
+        ) VALUES (?, ?, 'global', ?, ?, ?, ?, ?, ?, ?, 'active', 1, '{}', ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          email = COALESCE(excluded.email, community_members_sql.email),
+          language = excluded.language,
+          status = 'active',
+          updated_at = excluded.updated_at`,
+        args: [
+          globalMemberId,
+          data.userId || null,
+          data.name.trim(),
+          cleanMobile,
+          data.email?.toLowerCase().trim() || null,
+          data.countryCode || '+91',
+          data.country || '',
+          memberLang,
+          data.role || 'member',
+          timestamp,
+          timestamp,
+        ],
+      });
+    } catch (gErr) {
+      console.warn('[Community] Failed to auto-join global community:', gErr);
+    }
+  }
 
   const res = await bunnyExecute({
     sql: 'SELECT * FROM community_members_sql WHERE id = ? LIMIT 1',
@@ -850,11 +962,15 @@ export async function saveCommunityMember(data: {
     name: String(row.name),
     mobile: String(row.mobile),
     email: row.email ? String(row.email) : undefined,
+    countryCode: row.country_code ? String(row.country_code) : undefined,
+    country: row.country ? String(row.country) : undefined,
+    language: row.language ? String(row.language) : 'hindi',
     role: String(row.role || 'member'),
     status: String(row.status || 'active'),
     approved: Boolean(row.approved),
     joinedAt: String(row.joined_at),
     updatedAt: String(row.updated_at),
+    rawDoc: parse(row.raw_doc_json, {}),
   };
 }
 
@@ -1314,6 +1430,7 @@ export async function initializeSystemCommunities(): Promise<{ global: any; oldS
 
 export async function listBunnyCommunityMembers(filter?: {
   communityId?: string;
+  language?: string;
   status?: string;
   skip?: number;
   limit?: number;
@@ -1329,6 +1446,12 @@ export async function listBunnyCommunityMembers(filter?: {
     countSql += ' AND community_id = ?';
     args.push(filter.communityId);
     countArgs.push(filter.communityId);
+  }
+  if (filter?.language && filter.language !== 'all') {
+    sql += ' AND (language = ? OR language IS NULL OR language = "")';
+    countSql += ' AND (language = ? OR language IS NULL OR language = "")';
+    args.push(filter.language.toLowerCase().trim());
+    countArgs.push(filter.language.toLowerCase().trim());
   }
   if (filter?.status && filter.status !== 'all') {
     sql += ' AND status = ?';
@@ -1362,6 +1485,9 @@ export async function listBunnyCommunityMembers(filter?: {
       name: row.name && row.name !== 'null' ? String(row.name) : (rawDoc.name && rawDoc.name !== 'null' ? String(rawDoc.name) : 'Member'),
       mobile: row.mobile && row.mobile !== 'null' ? String(row.mobile) : (rawDoc.mobile || ''),
       email: row.email ? String(row.email) : (rawDoc.email || ''),
+      countryCode: row.country_code ? String(row.country_code) : (rawDoc.countryCode || '+91'),
+      country: row.country ? String(row.country) : (rawDoc.country || ''),
+      language: row.language ? String(row.language) : (rawDoc.language || 'hindi'),
       role: String(row.role || rawDoc.role || 'member'),
       status: String(row.status || rawDoc.status || 'active'),
       approved: Boolean(row.approved ?? rawDoc.approved),
@@ -1373,5 +1499,88 @@ export async function listBunnyCommunityMembers(filter?: {
   });
 
   return { members, total };
+}
+
+export async function updateCommunityMemberLanguage(
+  memberIdOrMobile: string,
+  newLanguage: string
+): Promise<boolean> {
+  await initCommunitySchema();
+  const cleanMobile = memberIdOrMobile.replace(/\D/g, '');
+  const lang = (newLanguage || 'hindi').toLowerCase().trim();
+  const res = await bunnyExecute({
+    sql: 'UPDATE community_members_sql SET language = ?, updated_at = ? WHERE id = ? OR mobile = ? OR user_id = ?',
+    args: [lang, now(), memberIdOrMobile, cleanMobile, memberIdOrMobile],
+  });
+  return (res.rowsAffected || 0) > 0;
+}
+
+export interface BunnyCommunityMessage {
+  id: string;
+  communityId: string;
+  userId?: string;
+  userName: string;
+  userMobile?: string;
+  userRole?: string;
+  message: string;
+  createdAt: string;
+  rawDoc?: any;
+}
+
+export async function getCommunityMessages(communityId: string, limit = 60): Promise<BunnyCommunityMessage[]> {
+  await initCommunitySchema();
+  const res = await bunnyExecute({
+    sql: `SELECT * FROM community_messages_sql WHERE community_id = ? ORDER BY created_at ASC LIMIT ?`,
+    args: [communityId, limit],
+  });
+  return res.rows.map((row: any) => ({
+    id: String(row.id),
+    communityId: String(row.community_id),
+    userId: row.user_id ? String(row.user_id) : undefined,
+    userName: String(row.user_name || 'Member'),
+    userMobile: row.user_mobile ? String(row.user_mobile) : undefined,
+    userRole: String(row.user_role || 'member'),
+    message: String(row.message || ''),
+    createdAt: String(row.created_at || now()),
+    rawDoc: row.raw_doc_json ? parse(row.raw_doc_json, {}) : {},
+  }));
+}
+
+export async function sendCommunityMessage(data: {
+  communityId: string;
+  userId?: string;
+  userName: string;
+  userMobile?: string;
+  userRole?: string;
+  message: string;
+}): Promise<BunnyCommunityMessage> {
+  await initCommunitySchema();
+  const messageId = id();
+  const timestamp = now();
+  await bunnyExecute({
+    sql: `INSERT INTO community_messages_sql (
+      id, community_id, user_id, user_name, user_mobile, user_role, message, created_at, raw_doc_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
+    args: [
+      messageId,
+      data.communityId,
+      data.userId || null,
+      data.userName.trim(),
+      data.userMobile || null,
+      data.userRole || 'member',
+      data.message.trim(),
+      timestamp,
+    ],
+  });
+  return {
+    id: messageId,
+    communityId: data.communityId,
+    userId: data.userId,
+    userName: data.userName.trim(),
+    userMobile: data.userMobile,
+    userRole: data.userRole || 'member',
+    message: data.message.trim(),
+    createdAt: timestamp,
+  };
 }
 

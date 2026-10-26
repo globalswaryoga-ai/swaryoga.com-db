@@ -60,14 +60,40 @@ export default function CashfreePaymentButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sdkReady, setSdkReady] = useState(false);
-  const sdkCheckCountRef = useRef(0);
-  const maxSDKChecks = 60; // Max 30 seconds (60 * 500ms)
 
-  // SDK is ready when window.Cashfree exists
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    let attempts = 0;
+    const maxAttempts = 60; // 30s
+
+    const getOrInitInstance = () => {
+      if (typeof window === 'undefined') return null;
+      const win = window as any;
+      if (win.CashfreeInstance && typeof win.CashfreeInstance.checkout === 'function') {
+        return win.CashfreeInstance;
+      }
+      if (typeof win.Cashfree === 'function') {
+        try {
+          const inst = win.Cashfree({ mode: 'production' });
+          if (inst && typeof inst.checkout === 'function') {
+            win.CashfreeInstance = inst;
+            return inst;
+          }
+        } catch (e) {
+          console.warn('Cashfree constructor error:', e);
+        }
+      } else if (win.Cashfree && typeof win.Cashfree.checkout === 'function') {
+        win.CashfreeInstance = win.Cashfree;
+        return win.Cashfree;
+      }
+      return null;
+    };
+
     const checkSDK = () => {
-      if (typeof window !== 'undefined' && window.Cashfree && typeof window.Cashfree.checkout === 'function') {
+      const inst = getOrInitInstance();
+      if (inst) {
         setSdkReady(true);
+        setError('');
         console.log('✅ Cashfree SDK verified and ready');
         return true;
       }
@@ -76,20 +102,36 @@ export default function CashfreePaymentButton({
 
     if (checkSDK()) return;
 
-    const interval = setInterval(() => {
-      sdkCheckCountRef.current += 1;
-      
+    // Load SDK via direct script injection if not already in DOM
+    if (typeof document !== 'undefined') {
+      const existing = document.querySelector('script[src*="cashfree.js"]');
+      if (!existing) {
+        const script = document.createElement('script');
+        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.async = true;
+        script.onload = () => {
+          checkSDK();
+        };
+        script.onerror = () => {
+          console.error('Failed to load Cashfree script tag');
+        };
+        document.head.appendChild(script);
+      }
+    }
+
+    timer = setInterval(() => {
+      attempts += 1;
       if (checkSDK()) {
-        clearInterval(interval);
-      } else if (sdkCheckCountRef.current >= maxSDKChecks) {
-        clearInterval(interval);
-        console.error('❌ Cashfree SDK failed to load within 30 seconds');
+        if (timer) clearInterval(timer);
+      } else if (attempts >= maxAttempts) {
+        if (timer) clearInterval(timer);
+        console.error('❌ Cashfree SDK failed to initialize after 30 seconds');
         setError('Payment gateway failed to load. Please refresh and try again.');
       }
     }, 500);
 
     return () => {
-      clearInterval(interval);
+      if (timer) clearInterval(timer);
     };
   }, []);
 
@@ -230,145 +272,29 @@ export default function CashfreePaymentButton({
       <Script 
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
         strategy="afterInteractive"
-        async
-        defer
         onLoad={() => {
           console.log('✅ Cashfree SDK script loaded from CDN');
-          console.log('📊 window.Cashfree state:', typeof window.Cashfree, Object.keys(window.Cashfree || {}));
-          
-          // Verify SDK initialization with multiple attempts
-          let attempts = 0;
-          const maxAttempts = 30; // Try for up to 15 seconds (30 × 500ms) - SDK can be slow
-          
-          const verifySdk = () => {
-            let cf = (window as any).Cashfree;
-            const cfExists = typeof cf !== 'undefined';
-            
-            // If it's a function without checkout, it's likely the constructor (Cashfree v3)
-            if (cfExists && typeof cf === 'function' && typeof cf.checkout !== 'function') {
-              try {
-                console.log('🔄 Detected Cashfree factory function, initializing...');
-                const instance = cf({ mode: 'production' });
-                if (instance && typeof instance.checkout === 'function') {
-                  (window as any).CashfreeInstance = instance;
-                  cf = instance; // Update local cf to point to instance for the check below
-                  console.log('✅ Cashfree instance initialized successfully');
-                }
-              } catch (e) {
-                console.warn('⚠️ Manual Cashfree initialization failed:', e);
+          try {
+            const win = window as any;
+            if (typeof win.Cashfree === 'function') {
+              const inst = win.Cashfree({ mode: 'production' });
+              win.CashfreeInstance = inst;
+              if (inst && typeof inst.checkout === 'function') {
+                setSdkReady(true);
+                setError('');
+                console.log('✅ Cashfree instance initialized from Next.js Script onLoad');
               }
-            }
-
-            const checkoutExists = typeof cf?.checkout === 'function';
-            
-            if (cfExists && checkoutExists) {
+            } else if (win.Cashfree && typeof win.Cashfree.checkout === 'function') {
+              win.CashfreeInstance = win.Cashfree;
               setSdkReady(true);
-              console.log('✅ Cashfree SDK ready - checkout function verified after', attempts * 500, 'ms');
-              return;
+              setError('');
             }
-            
-            attempts++;
-            
-            // Log progress every 10 attempts (every 5 seconds)
-            if (attempts % 10 === 0) {
-              console.log(`⏳ Cashfree SDK initialization attempt ${attempts}/${maxAttempts}`, {
-                windowCashfreeExists: cfExists,
-                checkoutFunctionExists: checkoutExists,
-                windowCashfreeKeys: Object.keys(window.Cashfree || {}),
-              });
-            }
-            
-            if (attempts < maxAttempts) {
-              setTimeout(verifySdk, 500);
-            } else {
-              console.error('❌ Cashfree SDK loaded but checkout function never became available after', maxAttempts * 500, 'ms');
-              console.error('📊 Final state:', {
-                windowCashfireExists: cfExists,
-                checkoutFunctionExists: checkoutExists,
-                windowCashfireType: typeof window.Cashfree,
-                windowCashfireKeys: Object.keys(window.Cashfree || {}),
-                windowCashfreeCheckoutType: typeof window.Cashfree?.checkout,
-              });
-              
-              // Try manual re-inject as last resort
-              console.log('🔄 Attempting SDK re-injection as final fallback...');
-              const lastAttempt = document.createElement('script');
-              lastAttempt.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-              lastAttempt.async = true;
-              lastAttempt.onload = () => {
-                console.log('✅ Re-injected SDK loaded');
-                let cf = (window as any).Cashfree;
-                if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
-                  cf = cf({ mode: 'production' });
-                  (window as any).CashfreeInstance = cf;
-                }
-                
-                if (typeof cf?.checkout === 'function') {
-                  setSdkReady(true);
-                  console.log('✅ SDK finally ready after re-injection');
-                } else {
-                  setError('Payment gateway loaded but checkout failed to initialize. Please refresh the page.');
-                }
-              };
-              lastAttempt.onerror = () => {
-                setError('Payment gateway is temporarily unavailable. Please refresh and try again.');
-              };
-              document.head.appendChild(lastAttempt);
-            }
-          };
-          
-          verifySdk();
+          } catch (e) {
+            console.warn('⚠️ Error initializing Cashfree on onLoad:', e);
+          }
         }}
         onError={() => {
-          console.error('❌ CRITICAL: Cashfree SDK failed to load via Next.js Script');
-          console.error('SDK URL: https://sdk.cashfree.com/js/v3/cashfree.js');
-          
-          // Try manual SDK load as immediate fallback
-          console.log('📡 Attempting immediate fallback SDK load via direct script injection...');
-          const fallbackScript = document.createElement('script');
-          fallbackScript.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-          fallbackScript.async = true;
-          
-          let fallbackAttempts = 0;
-          const maxFallbackAttempts = 30;
-          
-          fallbackScript.onload = () => {
-            console.log('✅ Fallback script loaded successfully');
-            
-            // Verify with same retry logic as primary
-            const verifyFallback = () => {
-              let cf = (window as any).Cashfree;
-              if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
-                try {
-                  cf = cf({ mode: 'production' });
-                  (window as any).CashfreeInstance = cf;
-                } catch (e) {}
-              }
-
-              if (typeof cf?.checkout === 'function') {
-                setSdkReady(true);
-                console.log('✅ Fallback SDK ready - checkout function verified');
-                return;
-              }
-              
-              fallbackAttempts++;
-              if (fallbackAttempts < maxFallbackAttempts) {
-                setTimeout(verifyFallback, 500);
-              } else {
-                console.error('❌ Fallback SDK loaded but checkout never became available');
-                setError('Payment gateway is temporarily unavailable. Please:\n1. Refresh the page\n2. Check your internet connection\n3. Disable VPN if using one\n\nIf problem persists, contact support.');
-              }
-            };
-            
-            verifyFallback();
-          };
-          
-          fallbackScript.onerror = () => {
-            console.error('❌ Fallback SDK load also failed - Network issue detected');
-            setError('Payment gateway is temporarily unavailable. Please:\n1. Check your internet connection\n2. Disable VPN if using one\n3. Try again in a few moments\n\nIf problem persists, contact support.');
-          };
-          
-          document.head.appendChild(fallbackScript);
+          console.error('❌ Next.js Script onError for Cashfree');
         }}
       />
       

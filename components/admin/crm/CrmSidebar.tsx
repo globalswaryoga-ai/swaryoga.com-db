@@ -87,13 +87,28 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const activeKey = findSectionForPath(pathname)?.key;
   usePlan(); // keep provider alive for other components
 
+// In-memory cache to prevent re-fetching plan & modules on every single route navigation
+let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
+
   // Tenant module keys. null = still loading, Set = loaded (may be empty).
-  const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(null);
+  const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(() => cachedTenantModuleResult?.keys ?? null);
   // Trial / subscription state for the days-left badge.
-  const [trial, setTrial] = useState<{ isTrialActive?: boolean; trialDaysRemaining?: number; isLocked?: boolean; status?: string } | null>(null);
+  const [trial, setTrial] = useState<{ isTrialActive?: boolean; trialDaysRemaining?: number; isLocked?: boolean; status?: string } | null>(() => cachedTenantModuleResult?.trial ?? null);
 
   useEffect(() => {
     async function loadTenantModules() {
+      // Super-admin always sees all modules without plan gating; skip all tenant module queries
+      if (checkIsSuperAdmin()) {
+        setTenantModuleKeys(new Set());
+        return;
+      }
+
+      if (cachedTenantModuleResult) {
+        setTenantModuleKeys(cachedTenantModuleResult.keys);
+        if (cachedTenantModuleResult.trial) setTrial(cachedTenantModuleResult.trial);
+        return;
+      }
+
       const token = typeof window !== 'undefined'
         ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
         : null;
@@ -116,8 +131,6 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       // Helper: resolve a plan tier → its default bundle groups.
       // Prefers DB-configured plans, falls back to the in-code PLAN_DEFAULT_GROUPS.
       const keysFromPlan = async (tier: string): Promise<string[]> => {
-        // Unknown/empty tier → 'free', so we still read the EDITED free plan
-        // from the DB (which includes any pages added in Tenants Plan).
         const t = (tier || '').toString().toLowerCase().trim() || 'free';
         const d = await plansPromise;
         const p = (d?.data?.plans || []).find((x: any) => x.tier === t);
@@ -138,15 +151,13 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       };
 
       if (!token) {
-        setTenantModuleKeys(buildSet([])); // show settings only
+        const s = buildSet([]);
+        cachedTenantModuleResult = { keys: s, trial: null };
+        setTenantModuleKeys(s); // show settings only
         return;
       }
 
       try {
-        // The sidebar shows the UNION of (a) the tenant's plan's current
-        // bundles and (b) any extra modules assigned to this specific tenant.
-        // So editing a plan's pages in Tenants Plan propagates to every tenant
-        // on that plan, while per-tenant extras still show.
         const r = await fetch('/api/crm-site/my-modules', { headers: { Authorization: `Bearer ${token}` } });
         if (r.ok) {
           const j = await r.json();
@@ -154,15 +165,21 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
           if (d.trial) setTrial(d.trial);
           const tenantKeys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
           const planKeys = await keysFromPlan(d.plan || await tierFromSetupStatus());
-          setTenantModuleKeys(buildSet([...planKeys, ...tenantKeys]));
+          const s = buildSet([...planKeys, ...tenantKeys]);
+          cachedTenantModuleResult = { keys: s, trial: d.trial || null };
+          setTenantModuleKeys(s);
           return;
         }
 
         // Endpoint unavailable → fall back to the plan's default pages.
-        setTenantModuleKeys(buildSet(await keysFromPlan(await tierFromSetupStatus())));
+        const s = buildSet(await keysFromPlan(await tierFromSetupStatus()));
+        cachedTenantModuleResult = { keys: s, trial: null };
+        setTenantModuleKeys(s);
       } catch {
         // Complete failure — fail open to the plan's pages so sidebar isn't empty
-        setTenantModuleKeys(buildSet(await keysFromPlan(await tierFromSetupStatus())));
+        const s = buildSet(await keysFromPlan(await tierFromSetupStatus()));
+        cachedTenantModuleResult = { keys: s, trial: null };
+        setTenantModuleKeys(s);
       }
     }
 
@@ -272,8 +289,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       )}
 
       <aside
-        className={`fixed ${hiddenOnDesktop ? '' : 'md:static'} inset-y-0 left-0 z-[10000] ${width} bg-[#0b0f19] border-r border-slate-800/80 text-white transform transition-all duration-300 ease-in-out flex flex-col relative overflow-hidden ${
-          isOpen ? 'translate-x-0' : (hiddenOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0')
+        className={`${hiddenOnDesktop && !isOpen ? 'hidden' : ''} fixed ${hiddenOnDesktop ? 'z-[10000]' : 'md:static'} inset-y-0 left-0 z-[10000] ${width} bg-[#0b0f19] border-r border-slate-800/80 text-white transform transition-all duration-300 ease-in-out flex flex-col overflow-hidden ${
+          isOpen ? 'translate-x-0 shadow-2xl' : (hiddenOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0')
         }`}
       >
         {/* Ambient Top Glow */}

@@ -10,16 +10,23 @@ export async function GET(request: Request) {
   const viewer = registrationViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
   try {
-    const [allLeads, allForms, allSubmissions] = await Promise.all([loadBunnyLeads(), listForms(), listSubmissions()]);
+    const url = new URL(request.url);
+    const formIdParam = url.searchParams.get('formId') || '';
+    const languageParam = url.searchParams.get('language') || '';
+    const queryFormId = formIdParam && !formIdParam.includes('/') ? formIdParam : undefined;
+    const [allLeads, allForms, allSubmissions] = await Promise.all([
+      loadBunnyLeads(),
+      listForms(),
+      listSubmissions(queryFormId),
+    ]);
     const leads = allLeads.filter(lead => registrationLeadOwned(lead, viewer));
     const forms = allForms.filter(form => viewer.superAdmin || form.createdBy === viewer.userId);
     const formIds = new Set(forms.map(form => form.formId));
     const submissions = allSubmissions.filter(submission => viewer.superAdmin || formIds.has(submission.formId));
-    const url = new URL(request.url);
     const rows = filterRegistrationLeads(
       assembleRegistrationLeads(leads, submissions, forms),
-      url.searchParams.get('formId') || '',
-      url.searchParams.get('language') || '',
+      formIdParam,
+      languageParam,
     );
     const questionMap: Record<string, string> = {};
     rows.forEach(r => {

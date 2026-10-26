@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
 import CourseLeadUnlockModal from '@/components/CourseLeadUnlockModal';
-import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle } from 'lucide-react';
+import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle, Music } from 'lucide-react';
 
 // Global video control hiding - only for direct HTML5 videos, not iframes
 if (typeof document !== 'undefined') {
@@ -128,12 +128,14 @@ type Language = 'en' | 'hi' | 'ne';
 
 interface Section {
   _id: string;
+  id?: string;
   title: string;
   order: number;
 }
 
 interface Video {
   _id: string;
+  id?: string;
   title: string;
   description?: string;
   duration: number;
@@ -182,7 +184,7 @@ interface Enrollment {
     expiresAt?: string;
   };
   completedVideos?: { videoId: string; completedAt: string }[];
-  videosWatched?: Array<string | { _id?: string }>;
+  videosWatched?: Array<string | { _id?: string; id?: string }>;
   lastWatchedVideoId?: string;
   lastVideoId?: string;
 }
@@ -245,11 +247,20 @@ interface Assignment {
   isRecurring?: boolean;
 }
 
-export default function CourseLearnPage({ params }: { params: { slug: string } }) {
+function CourseLearnContent({ params: propParams }: { params?: { slug?: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const routeParams = useParams();
   const videoIdParam = searchParams.get('video');
-  const [slug, setSlug] = useState<string>(params.slug);
+  const initialSlug = (routeParams?.slug as string) || propParams?.slug || '';
+  const [slug, setSlug] = useState<string>(initialSlug);
+
+  useEffect(() => {
+    const nextSlug = (routeParams?.slug as string) || propParams?.slug || '';
+    if (nextSlug && nextSlug !== slug) {
+      setSlug(nextSlug);
+    }
+  }, [routeParams?.slug, propParams?.slug]);
   const [course, setCourse] = useState<Course | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -289,6 +300,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [videoAskLoading, setVideoAskLoading] = useState(false);
   const [videoAskError, setVideoAskError] = useState('');
   const [videoAskMessages, setVideoAskMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [isSpeakingMohanSir, setIsSpeakingMohanSir] = useState<boolean>(false);
+  const [activeAvatarEmotion, setActiveAvatarEmotion] = useState<string>('smile');
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState<number>(0);
@@ -406,9 +420,19 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           String(c.videoId)
         );
         const allCompleted = Array.from(new Set([...localIds, ...remoteWatched, ...remoteCompleted]));
-        setLocalCompletedVideoIds(allCompleted);
+        // Purge any video where progress is less than 90% of actual video duration
+        const validCompleted = allCompleted.filter((vidId: string) => {
+          const vObj = data.videos?.find((v: Video) => (v._id === vidId || v.id === vidId));
+          const prog = data.enrollment?.data?.videoProgress?.[vidId];
+          const watchedSec = typeof prog === 'object' ? Number(prog.watchedSeconds || 0) : Number(prog || 0);
+          if (vObj && vObj.duration > 60 && watchedSec > 0 && watchedSec < vObj.duration * 0.9) {
+            return false;
+          }
+          return true;
+        });
+        setLocalCompletedVideoIds(validCompleted);
         try {
-          localStorage.setItem(`swar_completed_videos_${slug}`, JSON.stringify(allCompleted));
+          localStorage.setItem(`swar_completed_videos_${slug}`, JSON.stringify(validCompleted));
         } catch {}
 
         if (data.enrollment?.data?.videoProgress) {
@@ -435,9 +459,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         // Sequential locking helper for initial selection
         const isCompletedCheck = (vidId: string) => allCompleted.includes(vidId);
         const isLockedCheck = (idx: number) => {
+          if (data.course?.isFree || data.canAccessPaidContent || data.videos?.[idx]?.isFree) return false;
           if (idx <= 0) return false;
           for (let j = 0; j < idx; j++) {
-            const vidKey = data.videos[j]._id || data.videos[j].id;
+            const vidKey = data.videos[j]._id || data.videos[j].id || '';
             if (!isCompletedCheck(vidKey)) return true;
           }
           return false;
@@ -455,7 +480,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               // Video is locked or gated: load video 1 and prompt with lock modal if locked
               setCurrentVideo(data.videos[0] || selectedVideo);
               if (isLockedCheck(selectedIndex)) {
-                const prevInc = data.videos.find((v: Video, i: number) => i < selectedIndex && !isCompletedCheck(v._id || v.id));
+                const prevInc = data.videos.find((v: Video, i: number) => i < selectedIndex && !isCompletedCheck(v._id || v.id || ''));
                 if (prevInc) {
                   setLockedModalData({ targetVideo: selectedVideo, prevIncompleteVideo: prevInc });
                 }
@@ -599,12 +624,81 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         throw new Error(data.error || 'Video assistant failed');
       }
 
+      if (data.avatarEmotion) {
+        setActiveAvatarEmotion(data.avatarEmotion);
+      }
+
       setVideoAskMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'No response.' }]);
     } catch (err: any) {
       setVideoAskError(err.message || 'Video assistant failed');
     } finally {
       setVideoAskLoading(false);
     }
+  };
+
+  const playMohanSirVoice = (text: string, msgIndex: number) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (isSpeakingMohanSir && speakingMessageIndex === msgIndex) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingMohanSir(false);
+      setSpeakingMessageIndex(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/\[[a-zA-Z0-9_]+(?::[0-9.]+[a-z%]?)?\]/g, '').trim();
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const targetVoice = voices.find((v) => v.lang.startsWith(language) || v.lang.startsWith('hi') || v.lang.includes('IN'));
+    if (targetVoice) utterance.voice = targetVoice;
+    utterance.onstart = () => {
+      setIsSpeakingMohanSir(true);
+      setSpeakingMessageIndex(msgIndex);
+    };
+    utterance.onend = () => {
+      setIsSpeakingMohanSir(false);
+      setSpeakingMessageIndex(null);
+    };
+    utterance.onerror = () => {
+      setIsSpeakingMohanSir(false);
+      setSpeakingMessageIndex(null);
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const renderEmotionText = (content: string) => {
+    const parts = content.split(/(\[[a-zA-Z0-9_]+(?::[0-9.]+[a-z%]?)?\])/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('[') && part.endsWith(']')) {
+        const rawTag = part.slice(1, -1).split(':')[0].toLowerCase();
+        const iconMap: Record<string, string> = {
+          smile: '😊',
+          big_smile: '😃',
+          laugh: '😄',
+          serious: '🧐',
+          curious: '🤔',
+          question: '❓',
+          teaching: '🧘',
+          inspire: '✨',
+          spiritual: '🕉️',
+          namaste: '🙏',
+          blessing: '🌸',
+          pause: '⏳',
+        };
+        const icon = iconMap[rawTag] || '✨';
+        return (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 align-middle"
+          >
+            <span>{icon}</span>
+            <span className="capitalize">{rawTag.replace('_', ' ')}</span>
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   // Sync refs with state
@@ -725,17 +819,21 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     };
     const onTimeUpdate = () => {
       const sec = Math.floor(video.currentTime);
-      setCurrentPlaybackTime(sec);
+      setCurrentPlaybackTime((prev) => (prev !== sec ? sec : prev));
       currentPlaybackTimeRef.current = sec;
-      if (video.duration && !isNaN(video.duration)) {
+      if (video.duration && !isNaN(video.duration) && videoDurationRef.current !== video.duration) {
         setVideoDuration(video.duration);
         videoDurationRef.current = video.duration;
       }
       if (currentVideo) {
-        setVideoProgressMap((pmap) => ({
-          ...pmap,
-          [currentVideo._id]: Math.max(pmap[currentVideo._id] || 0, sec),
-        }));
+        setVideoProgressMap((pmap) => {
+          const current = pmap[currentVideo._id] || 0;
+          if (sec <= current) return pmap;
+          return {
+            ...pmap,
+            [currentVideo._id]: sec,
+          };
+        });
       }
     };
 
@@ -805,8 +903,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       }
 
       const watchedSec = Math.floor(currentPlaybackTimeRef.current || 0);
-      const totalSec = Math.floor(videoDurationRef.current || currentVideo.duration || 1);
-      const isDone = completed || (totalSec > 0 && watchedSec >= totalSec * 0.9);
+      const totalSec = Math.max(1, Math.floor(videoDurationRef.current || videoDuration || currentVideo.duration || 1));
+      const isDone = completed || (totalSec > 60 ? watchedSec >= totalSec * 0.95 : watchedSec >= totalSec * 0.9);
 
       const device = getLearningDevice();
       const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}`, {
@@ -873,29 +971,40 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
   const isVideoCompleted = useCallback(
     (videoId: string) => {
-      if (localCompletedVideoIds.includes(videoId)) return true;
-
-      const watched = enrollment?.videosWatched?.some((watchedVideo) => {
-        const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
-        return String(watchedId) === videoId;
-      });
-      if (watched) return true;
-
-      const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
-      if (completed) return true;
-
-      const v = videos.find((item) => item._id === videoId);
+      const v = videos.find((item) => (item._id === videoId || item.id === videoId));
+      const targetDuration = Math.max(
+        v?.duration || 0,
+        videoId === currentVideo?._id ? (videoDurationRef.current || videoDuration || 0) : 0
+      );
       const seen =
         videoId === currentVideo?._id
-          ? Math.max(videoProgressMap[videoId] || 0, currentPlaybackTime)
+          ? Math.max(videoProgressMap[videoId] || 0, currentPlaybackTimeRef.current || currentPlaybackTime || 0)
           : (videoProgressMap[videoId] || 0);
-      if (v && v.duration > 0 && seen >= v.duration * 0.9) {
+
+      // If user watched >= 95% of the real video length, it is completed
+      if (targetDuration > 0 && seen >= targetDuration * 0.95) {
+        return true;
+      }
+
+      // If video is longer than 60s and user watched less than 90%, reject any false completed state
+      const isUnwatched = targetDuration > 60 && seen < targetDuration * 0.9;
+
+      const watched = enrollment?.videosWatched?.some((watchedVideo) => {
+        const watchedId = typeof watchedVideo === 'string' ? watchedVideo : (watchedVideo?._id || watchedVideo?.id);
+        return String(watchedId) === videoId;
+      });
+      if (watched && !isUnwatched) return true;
+
+      const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
+      if (completed && !isUnwatched) return true;
+
+      if (localCompletedVideoIds.includes(videoId) && !isUnwatched) {
         return true;
       }
 
       return false;
     },
-    [localCompletedVideoIds, enrollment, videos, currentVideo, videoProgressMap, currentPlaybackTime]
+    [localCompletedVideoIds, enrollment, videos, currentVideo, videoProgressMap, currentPlaybackTime, videoDuration]
   );
 
   const getVideoLockStatus = useCallback(
@@ -922,14 +1031,20 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   );
 
   const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const s = Math.max(0, Math.floor(seconds || 0));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Workshop & Single Video live calculations
-  const currentVideoProgressPercent = (videoDuration || currentVideo?.duration || 0) > 0
-    ? Math.min(100, Math.round((currentPlaybackTime / (videoDuration || currentVideo?.duration || 1)) * 100))
+  const effectiveCurrentDuration = Math.max(videoDuration || 0, currentVideo?.duration || 0);
+  const currentVideoProgressPercent = effectiveCurrentDuration > 0
+    ? Math.min(100, Math.round((currentPlaybackTime / effectiveCurrentDuration) * 100))
     : 0;
 
   const totalWorkshopDuration = videos.reduce((acc, v) => acc + (v.duration || 0), 0);
@@ -1003,6 +1118,14 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
   const handleMarkComplete = async () => {
     if (!currentVideo) return;
+    const dur = Math.max(videoDuration || 0, currentVideo.duration || 0);
+    const seen = Math.floor(currentPlaybackTimeRef.current || currentPlaybackTime || 0);
+
+    if (dur > 60 && seen < dur * 0.95) {
+      alert(`Please watch the full video before marking it as completed (${formatDuration(seen)} of ${formatDuration(dur)} watched).`);
+      return;
+    }
+
     markVideoAsCompleted(currentVideo._id);
     await updateProgress(true);
   };
@@ -1393,6 +1516,24 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400">{t.loading}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6">
+        <div className="text-center max-w-md">
+          <div className="text-6xl font-bold text-gray-700 mb-4">404</div>
+          <h1 className="text-2xl font-bold text-white mb-2">Course Not Found</h1>
+          <p className="text-gray-400 mb-6">The requested course could not be found or is not yet published.</p>
+          <Link
+            href="/e-learning"
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors"
+          >
+            Browse All Courses
+          </Link>
         </div>
       </div>
     );
@@ -2967,8 +3108,97 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   <div className="w-full h-full flex items-center justify-center bg-gray-900">
                     <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                   </div>
+                ) : (videoStream.streaming.directUrl?.match(/\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i) || (currentVideo as any)?.fileType?.includes('audio')) ? (
+                  // MP3 Audio Player
+                  <div className="w-full max-w-2xl mx-auto p-6 flex flex-col items-center justify-center bg-gradient-to-b from-gray-900 to-black rounded-2xl border border-gray-800 shadow-2xl my-auto">
+                    <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-2xl overflow-hidden shadow-2xl mb-6 border border-gray-700 bg-gray-800">
+                      {currentVideo.thumbnail ? (
+                        <img
+                          src={currentVideo.thumbnail}
+                          alt={currentVideo.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-orange-500/10 text-orange-400">
+                          <Music className="w-16 h-16 mb-2" />
+                          <span className="text-xs font-semibold uppercase tracking-wider">Audio Lesson</span>
+                        </div>
+                      )}
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">{currentVideo.title}</h3>
+                    {currentVideo.description && (
+                      <p className="text-gray-400 text-sm text-center line-clamp-2 mb-6 max-w-md">{currentVideo.description}</p>
+                    )}
+                    <audio
+                      ref={videoRef as any}
+                      src={videoStream.streaming.directUrl}
+                      controls
+                      autoPlay={autoplay}
+                      onEnded={handleVideoEnded}
+                      onPause={() => updateProgress(false)}
+                      className="w-full max-w-lg mt-2 accent-orange-500"
+                    />
+                  </div>
+                ) : videoStream.streaming.hlsUrl ? (
+                  // HLS Video Player (Bunny HLS / Streaming)
+                  <HLSVideoPlayer
+                    src={videoStream.streaming.hlsUrl}
+                    autoPlay={autoplay}
+                    muted={currentVideo.isFree}
+                    className="w-full h-full"
+                    videoRef={videoRef as any}
+                    onEnded={handleVideoEnded}
+                    onPause={() => updateProgress(false)}
+                    onLoadedMetadata={() => {
+                      if (videoRef.current?.duration && !isNaN(videoRef.current.duration) && videoRef.current.duration > 0) {
+                        const dur = Math.round(videoRef.current.duration);
+                        videoDurationRef.current = dur;
+                        setVideoDuration(dur);
+                      }
+                    }}
+                    onTimeUpdate={(ct, dur) => {
+                      if (dur > 0 && Math.abs((videoDurationRef.current || 0) - dur) > 1) {
+                        const roundedDur = Math.round(dur);
+                        videoDurationRef.current = roundedDur;
+                        setVideoDuration(roundedDur);
+                      }
+                      currentPlaybackTimeRef.current = ct;
+                      const sec = Math.floor(ct);
+                      setCurrentPlaybackTime((prev) => (prev !== sec ? sec : prev));
+                    }}
+                    onError={(err) => console.error('HLS Video error:', err)}
+                  />
+                ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
+                  // YouTube Video
+                  <iframe
+                    className="w-full h-full rounded-lg"
+                    src={videoStream.streaming.directUrl.replace('youtu.be/', 'youtube.com/embed/').replace('watch?v=', 'embed/')}
+                    title={videoStream.video.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : videoStream.streaming.directUrl ? (
+                  // Direct MP4 / Bunny CDN Video
+                  <div
+                    className="video-player-direct relative w-full h-full bg-black flex items-center justify-center"
+                    onContextMenu={(e) => { e.preventDefault(); return false; }}
+                  >
+                    <video
+                      ref={videoRef}
+                      src={videoStream.streaming.directUrl}
+                      autoPlay={autoplay}
+                      muted={currentVideo.isFree}
+                      playsInline
+                      controls
+                      onEnded={handleVideoEnded}
+                      onPause={() => updateProgress(false)}
+                      className="w-full h-full max-h-[82vh]"
+                      style={{ display: 'block' }}
+                      crossOrigin="anonymous"
+                    />
+                  </div>
                 ) : videoStream.streaming.playerUrl ? (
-                  // Bunny mediadelivery player (iframe) - avoids CORS issues
+                  // Bunny mediadelivery player (iframe)
                   <div
                     className="relative w-full aspect-video max-h-[82vh] overflow-hidden bg-black mx-auto flex items-center justify-center shadow-2xl"
                     onContextMenu={(e) => { e.preventDefault(); return false; }}
@@ -2982,45 +3212,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       allowFullScreen
                       loading="eager"
                       title="Video player"
-                    />
-                  </div>
-                ) : videoStream.streaming.hlsUrl ? (
-                  // HLS Video Player (fallback if available)
-                  <HLSVideoPlayer
-                    src={videoStream.streaming.hlsUrl}
-                    autoPlay={autoplay}
-                    muted={currentVideo.isFree}
-                    className="w-full h-full"
-                    videoRef={videoRef as any}
-                    onError={(err) => console.error('Video error:', err)}
-                  />
-                ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
-                  // YouTube Video
-                  <iframe
-                    className="w-full h-full rounded-lg"
-                    src={videoStream.streaming.directUrl.replace('youtu.be/', 'youtube.com/embed/').replace('watch?v=', 'embed/')}
-                    title={videoStream.video.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : videoStream.streaming.directUrl ? (
-                  // Direct Video (protected)
-                  <div
-                    className="video-player-direct relative w-full h-full bg-black"
-                    onContextMenu={(e) => { e.preventDefault(); return false; }}
-                  >
-                    <video
-                      ref={videoRef}
-                      src={videoStream.streaming.directUrl}
-                      autoPlay={autoplay}
-                      muted={currentVideo.isFree}
-                      playsInline
-                      controls
-                      onEnded={handleVideoEnded}
-                      onPause={() => updateProgress(false)}
-                      className="w-full h-full"
-                      style={{ display: 'block' }}
-                      crossOrigin="anonymous"
                     />
                   </div>
                 ) : (
@@ -3100,31 +3291,54 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     <span>Topics</span>
                   </button>
 
-                  <button
-                    onClick={handleMarkComplete}
-                    disabled={isVideoCompleted(currentVideo._id)}
-                    className={`px-3 sm:px-6 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all shadow-sm flex items-center gap-1.5 ${
-                      isVideoCompleted(currentVideo._id)
-                        ? 'bg-emerald-600 text-white cursor-default'
-                        : 'bg-orange-500 hover:bg-orange-600 text-white active:scale-95'
-                    }`}
-                  >
-                    {isVideoCompleted(currentVideo._id) ? (
-                      <>
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{t.completed_badge || 'Completed'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>{t.markComplete || 'I Have Completed'}</span>
-                      </>
-                    )}
-                  </button>
+                  {(() => {
+                    const isDone = isVideoCompleted(currentVideo._id);
+                    const effectiveDur = Math.max(videoDuration || 0, currentVideo.duration || 0);
+                    const seen = Math.floor(currentPlaybackTimeRef.current || currentPlaybackTime || 0);
+                    const hasWatchedFull = isDone || (effectiveDur > 0 && seen >= effectiveDur * 0.95);
+
+                    return (
+                      <button
+                        onClick={handleMarkComplete}
+                        disabled={isDone}
+                        className={`px-3 sm:px-6 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all shadow-sm flex items-center gap-1.5 ${
+                          isDone
+                            ? 'bg-emerald-600 text-white cursor-default'
+                            : hasWatchedFull
+                            ? 'bg-orange-500 hover:bg-orange-600 text-white active:scale-95 animate-pulse cursor-pointer'
+                            : 'bg-gray-700/80 hover:bg-gray-700 text-gray-300 cursor-pointer'
+                        }`}
+                        title={
+                          isDone
+                            ? 'Completed'
+                            : hasWatchedFull
+                            ? 'Click to complete and proceed to next'
+                            : `Watch full video to complete (${formatDuration(seen)} / ${formatDuration(effectiveDur)})`
+                        }
+                      >
+                        {isDone ? (
+                          <>
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>{t.completed_badge || 'Completed'}</span>
+                          </>
+                        ) : hasWatchedFull ? (
+                          <>
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>{t.markComplete || 'I Have Completed'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>Watch Full to Complete</span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 <button
@@ -3146,55 +3360,156 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                 </button>
               </div>
 
-              {videoStream.video.ragEnabled && videoStream.video.hasRagContent && (
-                <div className="bg-gray-900 border-t border-gray-700 p-3 sm:p-4">
-                  <div className="max-w-5xl mx-auto">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <h2 className="text-sm font-semibold text-white">Ask This Video</h2>
-                      {videoAskLoading && <span className="text-xs text-orange-300">Thinking...</span>}
+              {/* Mohan Sir AI Avatar (RAG & Video Assistant) */}
+              <div className="bg-gradient-to-b from-gray-900 via-gray-950 to-black border-t border-gray-800 p-3 sm:p-5">
+                <div className="max-w-5xl mx-auto">
+                  {/* Avatar Header Strip */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-3 border-b border-gray-800">
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        {/* Mohan Sir Avatar Image with Breathing Halo */}
+                        <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 ${isSpeakingMohanSir ? 'border-amber-400 ring-4 ring-amber-400/30 animate-pulse' : 'border-emerald-500 ring-2 ring-emerald-500/20'} shadow-md`}>
+                          <img
+                            src="https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=150&auto=format&fit=crop&q=80"
+                            alt="Mohan Sir Avatar"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-black rounded-full" title="Active AI Mentor" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5">
+                            <span>Mohan Sir</span>
+                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold px-2 py-0.5 rounded-full">
+                              AI Avatar Guide (RAG)
+                            </span>
+                          </h2>
+                          {isSpeakingMohanSir && (
+                            <span className="flex items-center gap-1 text-[11px] text-amber-300 font-bold animate-pulse">
+                              <span>🔊</span> Speaking...
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-gray-400">
+                          Ask anything about breath cycles, techniques, and rules in this video lesson.
+                        </p>
+                      </div>
                     </div>
 
-                    {videoAskMessages.length > 0 && (
-                      <div className="max-h-44 overflow-y-auto space-y-2 mb-3 pr-1">
-                        {videoAskMessages.map((msg, index) => (
-                          <div
-                            key={`${msg.role}-${index}`}
-                            className={`rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
-                              msg.role === 'user'
-                                ? 'bg-orange-500/15 text-orange-100 ml-8'
-                                : 'bg-gray-800 text-gray-100 mr-8'
-                            }`}
-                          >
-                            {msg.content}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {videoAskError && (
-                      <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                        {videoAskError}
-                      </div>
-                    )}
-
-                    <form onSubmit={askVideoAssistant} className="flex gap-2">
-                      <input
-                        value={videoQuestion}
-                        onChange={(e) => setVideoQuestion(e.target.value)}
-                        className="flex-1 rounded-lg border border-gray-700 bg-black px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
-                        placeholder="Ask a question from this video..."
-                      />
-                      <button
-                        type="submit"
-                        disabled={videoAskLoading || !videoQuestion.trim()}
-                        className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Ask
-                      </button>
-                    </form>
+                    {/* Active Emotion Pill & Clear Action */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-800 text-gray-300 border border-gray-700 flex items-center gap-1">
+                        <span>🕉️</span>
+                        <span className="capitalize">{activeAvatarEmotion}</span>
+                      </span>
+                      {videoAskMessages.length > 0 && (
+                        <button
+                          onClick={() => {
+                            setVideoAskMessages([]);
+                            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                              window.speechSynthesis.cancel();
+                            }
+                            setIsSpeakingMohanSir(false);
+                          }}
+                          className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded-md hover:bg-gray-800 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Quick Question Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-2.5 text-xs scrollbar-none">
+                    {[
+                      { label: '🌬️ Active Swar in this video', q: 'What is the active swar recommended in this video lesson?' },
+                      { label: '💧 Water & Meal rules', q: 'What are the water and meal rules related to this practice?' },
+                      { label: '🌅 Daily Sadhana tip', q: 'How should I practice this during my morning sadhana?' },
+                    ].map((chip, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setVideoQuestion(chip.q);
+                        }}
+                        className="whitespace-nowrap px-2.5 py-1 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white text-[11px] border border-gray-700/60 transition-all active:scale-95 cursor-pointer shrink-0"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Messages Stream */}
+                  {videoAskMessages.length > 0 && (
+                    <div className="max-h-56 overflow-y-auto space-y-3 mb-3 pr-1 text-xs sm:text-sm">
+                      {videoAskMessages.map((msg, index) => (
+                        <div
+                          key={`${msg.role}-${index}`}
+                          className={`rounded-xl p-3 sm:p-3.5 transition-all ${
+                            msg.role === 'user'
+                              ? 'bg-amber-600/15 border border-amber-500/25 text-amber-100 ml-8'
+                              : 'bg-gray-800/90 border border-gray-700/80 text-gray-100 mr-4 sm:mr-8 shadow-sm'
+                          }`}
+                        >
+                          {msg.role === 'assistant' && (
+                            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-gray-700/60 text-[11px]">
+                              <span className="font-bold text-amber-400 flex items-center gap-1">
+                                <span>🙏</span> Mohan Sir
+                              </span>
+                              {/* Voice Playback Button */}
+                              <button
+                                onClick={() => playMohanSirVoice(msg.content, index)}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-bold transition-all ${
+                                  isSpeakingMohanSir && speakingMessageIndex === index
+                                    ? 'bg-amber-500 text-black animate-pulse'
+                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                                }`}
+                                title="Listen to Mohan Sir's Voice"
+                              >
+                                <span>{isSpeakingMohanSir && speakingMessageIndex === index ? '⏹' : '🔊'}</span>
+                                <span>{isSpeakingMohanSir && speakingMessageIndex === index ? 'Stop' : 'Listen'}</span>
+                              </button>
+                            </div>
+                          )}
+                          <div className="leading-relaxed whitespace-pre-wrap">
+                            {msg.role === 'assistant' ? renderEmotionText(msg.content) : msg.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {videoAskError && (
+                    <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs sm:text-sm text-red-300">
+                      {videoAskError}
+                    </div>
+                  )}
+
+                  {/* Input Query Bar */}
+                  <form onSubmit={askVideoAssistant} className="flex gap-2">
+                    <input
+                      value={videoQuestion}
+                      onChange={(e) => setVideoQuestion(e.target.value)}
+                      className="flex-1 rounded-xl border border-gray-700 bg-gray-900/90 px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-gray-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-inner"
+                      placeholder="Ask Mohan Sir about techniques, breath cycles or rules in this video..."
+                    />
+                    <button
+                      type="submit"
+                      disabled={videoAskLoading || !videoQuestion.trim()}
+                      className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50 shadow-md active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      {videoAskLoading ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Guiding...</span>
+                        </>
+                      ) : (
+                        <span>Ask Mohan Sir</span>
+                      )}
+                    </button>
+                  </form>
                 </div>
-              )}
+              </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center px-4 py-8">
@@ -3385,5 +3700,19 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         </div>
       )}
     </div>
+  );
+}
+
+export default function CourseLearnPage(props: { params?: { slug?: string } }) {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <CourseLearnContent {...props} />
+    </React.Suspense>
   );
 }

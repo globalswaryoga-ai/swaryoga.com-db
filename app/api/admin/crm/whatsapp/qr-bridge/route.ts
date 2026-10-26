@@ -2059,9 +2059,9 @@ export async function GET(req: NextRequest) {
         const allBridgeChats = getChatArray(rawBridgeData).filter(hasVisibleChatActivity);
         const filteredBridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (allBridgeChats.length > 0) {
-          await syncBunnySessionChats(userId, resolved.storedPhone, allBridgeChats);
+          syncBunnySessionChats(userId, resolved.storedPhone, allBridgeChats).catch(() => {});
         }
-        const mongoChats = await getBunnySessionChats(userId, resolved.storedPhone);
+        const mongoChats = filteredBridgeChats.length > 0 ? [] : await getBunnySessionChats(userId, resolved.storedPhone).catch(() => []);
         const mergedChats = mergeBridgeAndBunnyChats(filteredBridgeChats, mongoChats);
         if (mergedChats.length > 0) {
           const source = filteredBridgeChats.length > 0

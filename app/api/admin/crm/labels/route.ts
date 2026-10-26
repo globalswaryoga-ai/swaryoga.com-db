@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { loadBunnyLeads, invalidateBunnyLeadsCache } from '@/lib/bunnyLeadsRepository';
 import { verifyToken } from '@/lib/auth';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
 /**
- * Label management for CRM leads
- * GET: Get all unique labels with count
+ * Label management for CRM leads using Bunny Database
+ * GET: Get all unique labels with counts
  * POST: Add a label to leads
  * DELETE: Remove a label
  */
@@ -30,23 +27,26 @@ export async function GET(request: NextRequest) {
     }
     const superAdmin = isSuperAdmin(decoded);
 
-    await connectDB();
+    const leads = await loadBunnyLeads();
+    const labelMap: Record<string, number> = {};
 
-    const baseMatch = superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] };
+    for (const lead of leads) {
+      if (!superAdmin && lead.assignedToUserId !== viewerUserId && lead.createdByUserId !== viewerUserId) {
+        continue;
+      }
+      if (Array.isArray(lead.labels)) {
+        for (const lb of lead.labels) {
+          const s = String(lb || '').trim();
+          if (s) {
+            labelMap[s] = (labelMap[s] || 0) + 1;
+          }
+        }
+      }
+    }
 
-    // Aggregate to get all unique labels with counts
-    const labelStats = await Lead.aggregate([
-      { $match: baseMatch },
-      { $unwind: { path: '$labels', preserveNullAndEmptyArrays: true } },
-      { $group: { _id: '$labels', count: { $sum: 1 } } },
-      { $match: { _id: { $ne: null } } },
-      { $sort: { count: -1 } },
-    ]);
-
-    const labels = labelStats.map((stat: any) => ({
-      label: stat._id,
-      count: stat.count,
-    }));
+    const labels = Object.entries(labelMap)
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({ success: true, data: { labels, total: labels.length } }, { status: 200 });
   } catch (error) {
@@ -75,43 +75,53 @@ export async function POST(request: NextRequest) {
     }
 
     const { leadIds = [], label } = body;
+    const cleanLabel = String(label || '').trim();
 
-    if (!label || typeof label !== 'string') {
+    if (!cleanLabel) {
       return NextResponse.json({ error: 'Invalid label' }, { status: 400 });
     }
 
-    await connectDB();
-
-    // If no leadIds provided, just return success (creates the label by existing in the system)
     if (!Array.isArray(leadIds) || leadIds.length === 0) {
       return NextResponse.json(
-        { success: true, data: { modified: 0, matched: 0, label } },
+        { success: true, data: { modified: 0, matched: 0, label: cleanLabel } },
         { status: 200 }
       );
     }
 
-    const objectIds = (leadIds as any[])
-      .map((id) => String(id))
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
+    let modified = 0;
+    const nowIso = new Date().toISOString();
 
-    if (objectIds.length === 0) {
-      return NextResponse.json(
-        { success: true, data: { modified: 0, matched: 0, label } },
-        { status: 200 }
-      );
+    for (const rawId of leadIds) {
+      const id = String(rawId || '').trim();
+      if (!id) continue;
+
+      const whereClause = superAdmin
+        ? 'document_id = ?'
+        : 'document_id = ? AND (json_extract(data_json, "$.assignedToUserId") = ? OR json_extract(data_json, "$.createdByUserId") = ?)';
+      const args = superAdmin ? [cleanLabel, nowIso, id] : [cleanLabel, nowIso, id, viewerUserId, viewerUserId];
+
+      const res = await bunnyExecute({
+        sql: `UPDATE leads_sql SET
+          data_json = json_set(data_json, '$.labels', (
+            SELECT json_group_array(DISTINCT value) FROM (
+              SELECT value FROM json_each(COALESCE(json_extract(data_json, '$.labels'), '[]'))
+              UNION ALL SELECT ?
+            )
+          )),
+          updated_at = ?
+          WHERE ${whereClause}`,
+        args,
+      });
+
+      if (res.rowsAffected && res.rowsAffected > 0) {
+        modified += res.rowsAffected;
+      }
     }
 
-    const result = await Lead.updateMany(
-      {
-        _id: { $in: objectIds },
-        ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
-      },
-      { $addToSet: { labels: label }, $set: { updatedAt: new Date() } }
-    );
+    invalidateBunnyLeadsCache();
 
     return NextResponse.json(
-      { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount, label } },
+      { success: true, data: { modified, matched: leadIds.length, label: cleanLabel } },
       { status: 200 }
     );
   } catch (error) {
@@ -134,30 +144,41 @@ export async function DELETE(request: NextRequest) {
     }
     const superAdmin = isSuperAdmin(decoded);
 
-    // Try to get label from request body first, then from query params
     let label: string | null = null;
     try {
       const body = await request.json();
       label = body?.label;
     } catch {
-      // If body parsing fails, try query params
       const url = new URL(request.url);
       label = url.searchParams.get('label');
     }
 
-    if (!label) {
+    const cleanLabel = String(label || '').trim();
+    if (!cleanLabel) {
       return NextResponse.json({ error: 'Label parameter required' }, { status: 400 });
     }
 
-    await connectDB();
+    const nowIso = new Date().toISOString();
+    const whereClause = superAdmin
+      ? 'data_json LIKE ?'
+      : 'data_json LIKE ? AND (json_extract(data_json, "$.assignedToUserId") = ? OR json_extract(data_json, "$.createdByUserId") = ?)';
+    const args = superAdmin ? [cleanLabel, nowIso, `%"${cleanLabel}"%`] : [cleanLabel, nowIso, `%"${cleanLabel}"%`, viewerUserId, viewerUserId];
 
-    const result = await Lead.updateMany(
-      superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] },
-      { $pull: { labels: label }, $set: { updatedAt: new Date() } }
-    );
+    const res = await bunnyExecute({
+      sql: `UPDATE leads_sql SET
+        data_json = json_set(data_json, '$.labels', (
+          SELECT json_group_array(value) FROM json_each(COALESCE(json_extract(data_json, '$.labels'), '[]'))
+          WHERE value != ?
+        )),
+        updated_at = ?
+        WHERE ${whereClause}`,
+      args,
+    });
+
+    invalidateBunnyLeadsCache();
 
     return NextResponse.json(
-      { success: true, data: { modified: result.modifiedCount, label } },
+      { success: true, data: { modified: res.rowsAffected || 0, label: cleanLabel } },
       { status: 200 }
     );
   } catch (error) {

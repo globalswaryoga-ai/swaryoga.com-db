@@ -77,14 +77,24 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">E-Learning Dashboard</h1>
           <p className="text-sm text-gray-400">Track performance and analytics</p>
         </div>
-        <Link
-          href="/admin/crm/e-learning/rag-video"
-          className="flex items-center gap-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors text-sm"
-          title="YouTube to AI clone video pipeline"
-        >
-          <Sparkles size={16} />
-          RAG and Video
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/avatar-studio"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-bold rounded-lg transition-all text-sm shadow-md"
+            title="AI Avatar Studio (Kitchen, Wardrobe & Emotions)"
+          >
+            <span>🕉️</span>
+            <span>AI Avatar Studio</span>
+          </Link>
+          <Link
+            href="/admin/crm/e-learning/rag-video"
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors text-sm"
+            title="YouTube to AI clone video pipeline"
+          >
+            <Sparkles size={16} />
+            RAG and Video
+          </Link>
+        </div>
       </div>
 
       {/* Period Tabs */}

@@ -29,12 +29,15 @@ export default function CrmNavbar() {
           {/* Logo */}
           <Link href="/crm-site" className="flex items-center gap-2.5 group select-none">
             {!logoError ? (
-              <img
-                src="https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png"
-                alt="Swar Yoga CRM"
-                className="h-9 w-9 rounded-xl object-contain transition-transform group-hover:scale-105"
-                onError={() => setLogoError(true)}
-              />
+              <picture>
+                <source srcSet="/images/logo-infinity.webp" type="image/webp" />
+                <img
+                  src="/images/logo-infinity.png"
+                  alt="Swar Yoga CRM"
+                  className="h-9 w-9 rounded-xl object-contain transition-transform group-hover:scale-105"
+                  onError={() => setLogoError(true)}
+                />
+              </picture>
             ) : (
               <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-800 flex items-center justify-center text-white shadow-sm ring-1 ring-emerald-500/30 group-hover:scale-105 transition-transform">
                 <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">

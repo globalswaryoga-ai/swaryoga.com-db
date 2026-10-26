@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, timeSlots, timezone, videoDuration, countdownMinutes,
       days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation,
-      videoCalendar, playerMode, playerUrl, zoomLink, zoomId, zoomPassword
+      videoCalendar, playerMode, playerUrl, zoomLink, zoomId, zoomPassword, passcode
     } = body;
 
     if (!name || !timeSlots || timeSlots.length === 0) {
@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       slug,
       name: String(name).slice(0, 100),
       description: description ? String(description).slice(0, 500) : '',
+      passcode: (passcode && String(passcode).trim()) ? String(passcode).trim().toUpperCase() : slug.toUpperCase(),
       timeSlots: Array.isArray(timeSlots) ? timeSlots.slice(0, 4) : [timeSlots],
       timezone: timezone || 'Asia/Kolkata',
       videoDuration: parseInt(videoDuration) || 40,

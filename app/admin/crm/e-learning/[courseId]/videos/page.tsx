@@ -48,9 +48,12 @@ interface UnifiedItem {
 
 interface VideoItem {
   _id: string;
+  id?: string;
   title: string;
   description?: string;
   bunnyVideoId?: string;
+  videoUrl?: string;
+  bunnyLibraryId?: string;
   duration: number;
   thumbnail?: string;
   order: number;
@@ -3011,22 +3014,75 @@ function AddAssignmentModal({ token, courseId, subType, order, existingItem, onC
   );
 }
 
-function extractVideoIdFromUrl(input: string): string {
-  if (!input) return '';
-  const trimmed = input.trim();
-  const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-  if (uuidMatch) return uuidMatch[0];
-  if (!trimmed.includes('/')) return trimmed;
-  try {
-    const url = new URL(trimmed);
-    const pathParts = url.pathname.split('/').filter(p => p);
-    if (pathParts.length >= 1) {
-      return pathParts[pathParts.length - 1];
-    }
-  } catch (e) {
-    // ignore
+function parseBunnyVideoInput(input: string): {
+  bunnyVideoId?: string;
+  bunnyLibraryId?: string;
+  videoUrl?: string;
+} {
+  if (!input) return {};
+  let trimmed = input.trim();
+
+  // If user pasted full iframe tag: <iframe src="https://..."></iframe>
+  const iframeSrcMatch = trimmed.match(/src=["']([^"']+)["']/i);
+  if (iframeSrcMatch) {
+    trimmed = iframeSrcMatch[1];
   }
-  return trimmed;
+
+  // 1. Check for mediadelivery embed/play: https://iframe.mediadelivery.net/embed/{libId}/{vidId} or /play/{libId}/{vidId}
+  const mediaDeliveryMatch = trimmed.match(/mediadelivery\.net\/(?:embed|play)\/([0-9]+)\/([0-9a-fA-F-]+)/i);
+  if (mediaDeliveryMatch) {
+    return {
+      bunnyLibraryId: mediaDeliveryMatch[1],
+      bunnyVideoId: mediaDeliveryMatch[2],
+      videoUrl: `https://iframe.mediadelivery.net/embed/${mediaDeliveryMatch[1]}/${mediaDeliveryMatch[2]}?preload=true&responsive=true`,
+    };
+  }
+
+  // 2. Check for HLS URL: https://vz-{pullzone}.b-cdn.net/{vidId}/playlist.m3u8 or https://vz-{libId}.bunnycdn.com/{vidId}/playlist.m3u8
+  if (trimmed.includes('.m3u8')) {
+    const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    const libMatch = trimmed.match(/vz-([0-9a-zA-Z-]+)\./i);
+    return {
+      bunnyVideoId: uuidMatch ? uuidMatch[0] : undefined,
+      bunnyLibraryId: libMatch ? libMatch[1] : undefined,
+      videoUrl: trimmed,
+    };
+  }
+
+  // 3. Direct video URL: .mp4, .webm, or full HTTP(S) URL
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    return {
+      bunnyVideoId: uuidMatch ? uuidMatch[0] : undefined,
+      videoUrl: trimmed,
+    };
+  }
+
+  // 4. Raw {libraryId}/{videoId}
+  const slashMatch = trimmed.match(/^([0-9]+)\/([0-9a-fA-F-]+)$/);
+  if (slashMatch) {
+    return {
+      bunnyLibraryId: slashMatch[1],
+      bunnyVideoId: slashMatch[2],
+      videoUrl: `https://iframe.mediadelivery.net/embed/${slashMatch[1]}/${slashMatch[2]}?preload=true&responsive=true`,
+    };
+  }
+
+  // 5. Raw UUID videoId
+  const uuidMatch = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  if (uuidMatch) {
+    return {
+      bunnyVideoId: uuidMatch[0],
+      videoUrl: `https://vz-b8dae5c3-068.b-cdn.net/${uuidMatch[0]}/playlist.m3u8`,
+    };
+  }
+
+  return { bunnyVideoId: trimmed };
+}
+
+function extractVideoIdFromUrl(input: string): string {
+  const parsed = parseBunnyVideoInput(input);
+  return parsed.bunnyVideoId || input.trim();
 }
 
 function EditVideoModal({ token, video, onClose, onUpdated }: {
@@ -3037,7 +3093,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
 }) {
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState(video.description || '');
-  const [bunnyVideoId, setBunnyVideoId] = useState(video.bunnyVideoId || '');
+  const [bunnyVideoId, setBunnyVideoId] = useState(video.videoUrl || video.bunnyVideoId || '');
   const [thumbnail, setThumbnail] = useState(video.thumbnail || '');
   const [duration, setDuration] = useState(video.duration.toString());
   const [hoursGap, setHoursGap] = useState((video.hoursGap || 0).toString());
@@ -3086,6 +3142,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
     setError(null);
 
     try {
+      const parsed = parseBunnyVideoInput(bunnyVideoId);
       const res = await fetch('/api/admin/recorded-courses/videos', {
         method: 'PUT',
         headers: {
@@ -3096,7 +3153,9 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           videoId: video._id,
           title,
           description,
-          bunnyVideoId: extractVideoIdFromUrl(bunnyVideoId) || undefined,
+          bunnyVideoId: parsed.bunnyVideoId || undefined,
+          bunnyLibraryId: parsed.bunnyLibraryId || undefined,
+          videoUrl: parsed.videoUrl || (parsed.bunnyVideoId ? '' : undefined),
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
           hoursGap: parseInt(hoursGap) || 0,
@@ -3446,6 +3505,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
 
     try {
       let finalBunnyId = bunnyVideoId;
+      let finalBunnyLibId: string | undefined = undefined;
       let finalVideoUrl = '';
 
       if (uploadMode === 'pc' && selectedFile) {
@@ -3456,7 +3516,10 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
         }
         finalBunnyId = uploadedId;
       } else if (uploadMode === 'bunny') {
-        finalBunnyId = extractVideoIdFromUrl(bunnyVideoId);
+        const parsed = parseBunnyVideoInput(bunnyVideoId);
+        finalBunnyId = parsed.bunnyVideoId || '';
+        finalBunnyLibId = parsed.bunnyLibraryId;
+        finalVideoUrl = parsed.videoUrl || '';
       } else if (uploadMode === 'youtube') {
         finalVideoUrl = youtubeUrl;
         finalBunnyId = '';
@@ -3473,6 +3536,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           title,
           description,
           bunnyVideoId: finalBunnyId || undefined,
+          bunnyLibraryId: finalBunnyLibId || undefined,
           videoUrl: finalVideoUrl || undefined,
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,

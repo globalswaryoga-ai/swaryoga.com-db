@@ -180,6 +180,13 @@ export const MODULE_CATALOG: ModuleGroup[] = [
     children: [],
   },
   {
+    key: 'international',
+    label: 'International Hub',
+    description: 'World Clocks, Timezone Converter, Multi-Currency, AI Translation, Country Codes',
+    icon: '🌍',
+    children: [],
+  },
+  {
     key: 'settings',
     label: 'Settings',
     description: 'Tenant Configuration',

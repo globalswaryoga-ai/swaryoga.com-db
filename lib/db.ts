@@ -2,12 +2,9 @@
 import mongoose from 'mongoose';
 import { validateSecrets } from './config/secretsValidator';
 
-// Disable Mongoose command buffering globally so queries never hang/timeout when using Bunny Database
-mongoose.set('bufferCommands', false);
-
-// Run security validation on boot
-if (process.env.NODE_ENV === 'production') {
-  validateSecrets();
+// In Bunny Database only mode, Mongoose is disabled
+if (!process.env.USE_BUNNY_DATABASE_ONLY && process.env.DISABLE_MONGODB !== 'true') {
+  mongoose.set('bufferCommands', false);
 }
 
 // Primary DB (Website + Life Planner) connection.

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowRight, BookOpen, ChevronDown, Calendar, Clock, Users, MapPin } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronDown, Calendar, Clock, Users, MapPin, Languages, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -245,6 +245,32 @@ function getBatchLabel(batchOrTime: string | undefined, time?: string): string {
   return batchOrTime || 'Batch';
 }
 
+function getLanguageColor(lang: string) {
+  const l = (lang || '').toLowerCase();
+  if (l.includes('marathi')) {
+    return {
+      badge: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+      header: 'from-indigo-600 via-indigo-700 to-purple-800',
+      subHeader: 'from-indigo-50/80 via-indigo-50/40 to-white text-indigo-950 border-indigo-200/80',
+      accent: 'text-indigo-600',
+    };
+  }
+  if (l.includes('english')) {
+    return {
+      badge: 'bg-sky-100 text-sky-800 border border-sky-200',
+      header: 'from-sky-600 via-blue-700 to-indigo-800',
+      subHeader: 'from-sky-50/80 via-sky-50/40 to-white text-sky-950 border-sky-200/80',
+      accent: 'text-sky-600',
+    };
+  }
+  return {
+    badge: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    header: 'from-green-600 via-emerald-700 to-teal-800',
+    subHeader: 'from-emerald-50/80 via-emerald-50/40 to-white text-emerald-950 border-emerald-200/80',
+    accent: 'text-emerald-600',
+  };
+}
+
 function WorkshopsPageInner() {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
@@ -252,6 +278,8 @@ function WorkshopsPageInner() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
+  const [scheduleViewMode, setScheduleViewMode] = useState<'month' | 'language'>('month');
+  const [scheduleLanguageFilter, setScheduleLanguageFilter] = useState<string>('all');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -300,7 +328,11 @@ function WorkshopsPageInner() {
     if (!searchParams) return;
     setSelectedCategory(searchParams.get('category') || null);
     setSelectedMode(searchParams.get('mode') || null);
-    setSelectedLanguage(searchParams.get('language') || null);
+    const urlLang = searchParams.get('language') || null;
+    setSelectedLanguage(urlLang);
+    if (urlLang) {
+      setScheduleLanguageFilter(urlLang);
+    }
     setSelectedPayment(searchParams.get('currency') || null);
     setSelectedWorkshop(searchParams.get('workshop') || null);
     setCurrentPage(1);
@@ -669,7 +701,7 @@ function WorkshopsPageInner() {
               </div>
             )}
 
-            {/* Workshop Schedules - Monthly Table View */}
+            {/* Workshop Schedules - Month and Language Wise Section */}
             {(() => {
               // Gather all upcoming schedules across all workshops
               const todayIso = now.toISOString().slice(0, 10);
@@ -677,6 +709,7 @@ function WorkshopsPageInner() {
                 workshop: WorkshopOverview;
                 schedule: ApiWorkshopSchedule;
                 monthKey: string;
+                language: string;
               }> = [];
 
               filteredWorkshops.forEach((workshop) => {
@@ -692,26 +725,31 @@ function WorkshopsPageInner() {
                       workshop,
                       schedule,
                       monthKey: getMonthYear(schedule.startDate),
+                      language: schedule.language || 'Hindi',
                     });
                   }
                 });
               });
 
-              // Sort by date
+              // Sort by date ascending
               allSchedules.sort((a, b) => {
                 const aDate = toDateOnlyIso(a.schedule.startDate) || '';
                 const bDate = toDateOnlyIso(b.schedule.startDate) || '';
                 return aDate.localeCompare(bDate);
               });
 
-              // Group by month
-              const byMonth: Record<string, typeof allSchedules> = {};
+              // Compute available languages and schedule counts
+              const languageCounts: Record<string, number> = {};
               allSchedules.forEach((item) => {
-                if (!byMonth[item.monthKey]) byMonth[item.monthKey] = [];
-                byMonth[item.monthKey].push(item);
+                const lang = item.language || 'Hindi';
+                languageCounts[lang] = (languageCounts[lang] || 0) + 1;
               });
+              const availableLanguages = Object.keys(languageCounts).sort();
 
-              const monthKeys = Object.keys(byMonth);
+              // Filter schedules by scheduleLanguageFilter if not 'all'
+              const visibleSchedules = scheduleLanguageFilter === 'all'
+                ? allSchedules
+                : allSchedules.filter((item) => normalizeFilterValue(item.language) === normalizeFilterValue(scheduleLanguageFilter));
 
               if (!schedulesLoaded) {
                 return (
@@ -723,7 +761,7 @@ function WorkshopsPageInner() {
                 );
               }
 
-              if (monthKeys.length === 0) {
+              if (allSchedules.length === 0) {
                 return (
                   <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
                     <div className="text-4xl mb-4">📅</div>
@@ -733,208 +771,425 @@ function WorkshopsPageInner() {
                 );
               }
 
-              return (
-                <div className="space-y-8">
-                  {monthKeys.map((monthKey) => (
-                    <div key={monthKey} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
-                      {/* Month Header */}
-                      <div className="bg-gradient-to-r from-green-600 to-green-700 px-4 sm:px-6 py-4">
-                        <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                          <Calendar className="w-5 h-5" />
-                          {monthKey} Updates
-                        </h3>
+              // Helper to render individual schedule row
+              const renderScheduleRow = (
+                item: { workshop: WorkshopOverview; schedule: ApiWorkshopSchedule; monthKey: string; language: string },
+                idx: number
+              ) => {
+                const { workshop, schedule } = item;
+                const isOpen = schedule.slots > 0;
+                const regCloseDate = toDateOnlyIso(schedule.registrationCloseDate);
+                const isClosed = regCloseDate ? regCloseDate < todayIso : false;
+                const status = isClosed ? 'Closed' : isOpen ? 'Open' : 'Full';
+                const statusColor = isClosed ? 'bg-red-100 text-red-700' : isOpen ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+
+                let remainingDays = 0;
+                if (regCloseDate && !isClosed) {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const closeDate = new Date(regCloseDate);
+                  closeDate.setHours(0, 0, 0, 0);
+                  remainingDays = Math.ceil((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                }
+
+                return (
+                  <div key={`${workshop.slug}-${schedule.id}-${idx}`} className="hover:bg-gray-50/80 transition-colors">
+                    {/* Desktop View - 2 Rows */}
+                    <div className="hidden md:block min-w-[800px]">
+                      {/* Row 1: Workshop Info */}
+                      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50/50 border-b border-gray-100 items-center">
+                        <div className="col-span-2 text-sm font-semibold text-gray-600">
+                          {getMonthYear(schedule.startDate).split(' ')[0]}
+                        </div>
+                        <div className="col-span-3 text-sm font-bold text-gray-900 truncate" title={workshop.name}>
+                          {workshop.name}
+                        </div>
+                        <div className="col-span-1">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 text-xs font-bold capitalize">
+                            {schedule.mode || 'TBA'}
+                          </span>
+                        </div>
+                        <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1 font-semibold">
+                          🗣️ {schedule.language || 'Hindi'}
+                        </div>
+                        <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
+                          <Users className="w-4 h-4" /> {schedule.slots} slots
+                        </div>
+                        <div className="col-span-2 flex items-center gap-2">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                            {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
+                          </span>
+                          {status === 'Open' && remainingDays > 0 && (
+                            <span className="text-xs font-bold text-red-600">
+                              {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Schedule Rows */}
-                      <div className="divide-y divide-gray-100 overflow-x-auto">
-                        {byMonth[monthKey].map((item, idx) => {
-                          const { workshop, schedule } = item;
-                          const isOpen = schedule.slots > 0;
-                          const regCloseDate = toDateOnlyIso(schedule.registrationCloseDate);
-                          const isClosed = regCloseDate ? regCloseDate < todayIso : false;
-                          const status = isClosed ? 'Closed' : isOpen ? 'Open' : 'Full';
-                          const statusColor = isClosed ? 'bg-red-100 text-red-700' : isOpen ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
-                          
-                          // Calculate remaining days until registration closes
-                          let remainingDays = 0;
-                          if (regCloseDate && !isClosed) {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const closeDate = new Date(regCloseDate);
-                            closeDate.setHours(0, 0, 0, 0);
-                            remainingDays = Math.ceil((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                          }
-
-                          return (
-                            <div key={`${workshop.slug}-${schedule.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                              {/* Desktop View - 2 Rows */}
-                              <div className="hidden md:block min-w-[800px]">
-                                {/* Row 1: Workshop Info */}
-                                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50/50 border-b border-gray-100">
-                                  <div className="col-span-2 text-sm font-semibold text-gray-600">
-                                    {getMonthYear(schedule.startDate).split(' ')[0]}
-                                  </div>
-                                  <div className="col-span-3 text-sm font-bold text-gray-900 truncate" title={workshop.name}>
-                                    {workshop.name}
-                                  </div>
-                                  <div className="col-span-1">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-50 text-primary-700 text-xs font-bold capitalize">
-                                      {schedule.mode || 'TBA'}
-                                    </span>
-                                  </div>
-                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
-                                    🗣️ {schedule.language || 'Hindi'}
-                                  </div>
-                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
-                                    <Users className="w-4 h-4" /> {schedule.slots} slots
-                                  </div>
-                                  <div className="col-span-2 flex items-center gap-2">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}>
-                                      {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
-                                    </span>
-                                    {status === 'Open' && remainingDays > 0 && (
-                                      <span className="text-xs font-bold text-red-600">
-                                        {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {/* Row 2: Schedule Details + Actions */}
-                                <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
-                                  <div className="col-span-2 text-sm font-bold text-primary-700">
-                                    📅 {formatDateShort(schedule.startDate)}
-                                  </div>
-                                  <div className="col-span-2 text-sm text-gray-700">
-                                    {getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}
-                                  </div>
-                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
-                                    <Clock className="w-4 h-4" /> {schedule.time || (schedule.batch === 'full-day' ? 'Full Day' : 'TBA')}
-                                  </div>
-                                  <div className="col-span-2 text-sm font-bold text-gray-900">
-                                    <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] flex-wrap">
-                                      <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
-                                        {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
-                                      </span>
-                                      {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
-                                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
-                                          Seat Booking: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="col-span-4 flex gap-2 justify-end">
-                                    <Link
-                                      href={`/workshops/${workshop.slug}/landing`}
-                                      className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition"
-                                    >
-                                      Learn More <ArrowRight className="w-4 h-4" />
-                                    </Link>
-                                    <button
-                                      type="button"
-                                      disabled={status !== 'Open'}
-                                      onClick={() => {
-                                        // Show payment method popup
-                                        setPaymentPopup({
-                                          isOpen: true,
-                                          workshop,
-                                          schedule,
-                                        });
-                                      }}
-                                      className={`inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold transition ${
-                                        status === 'Open'
-                                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                      }`}
-                                    >
-                                      📝 Register Now
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Mobile View - 3 Rows (Stacked) */}
-                              <div className="md:hidden p-4 space-y-3">
-                                {/* Row 1: Workshop Name + Status */}
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <h4 className="font-bold text-gray-900 text-sm">{workshop.name}</h4>
-                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
-                                      <span className="capitalize">{schedule.mode || 'TBA'}</span>
-                                      <span>•</span>
-                                      <span>🗣️ {schedule.language || 'Hindi'}</span>
-                                      <span>•</span>
-                                      <span><Users className="w-3 h-3 inline" /> {schedule.slots}</span>
-                                    </div>
-                                  </div>
-                                  <div className="shrink-0 flex flex-col items-end gap-1">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
-                                      {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
-                                    </span>
-                                    {status === 'Open' && remainingDays > 0 && (
-                                      <span className="text-[10px] font-bold text-red-600">
-                                        {remainingDays}d left
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                {/* Row 2: Date, Time, Price */}
-                                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                                  <div className="flex items-center gap-3 text-sm">
-                                    <span className="font-bold text-primary-700">📅 {formatDateShort(schedule.startDate)}</span>
-                                    <span className="text-gray-600">{getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900 text-right">
-                                    <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
-                                    <div className="flex items-center gap-1 justify-end mt-0.5 text-[10px] flex-wrap">
-                                      <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
-                                        {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
-                                      </span>
-                                      {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
-                                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
-                                          Seat: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Row 3: Action Buttons */}
-                                <div className="flex gap-2">
-                                  <Link
-                                    href={`/workshops/${workshop.slug}/landing`}
-                                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition"
-                                  >
-                                    Learn More <ArrowRight className="w-4 h-4" />
-                                  </Link>
-                                  <button
-                                    type="button"
-                                    disabled={status !== 'Open'}
-                                    onClick={() => {
-                                      // Show payment method popup
-                                      setPaymentPopup({
-                                        isOpen: true,
-                                        workshop,
-                                        schedule,
-                                      });
-                                    }}
-                                    className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-bold transition ${
-                                      status === 'Open'
-                                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    📝 Register
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      {/* Row 2: Schedule Details + Actions */}
+                      <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
+                        <div className="col-span-2 text-sm font-bold text-primary-700">
+                          📅 {formatDateShort(schedule.startDate)}
+                        </div>
+                        <div className="col-span-2 text-sm text-gray-700">
+                          {getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}
+                        </div>
+                        <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
+                          <Clock className="w-4 h-4" /> {schedule.time || (schedule.batch === 'full-day' ? 'Full Day' : 'TBA')}
+                        </div>
+                        <div className="col-span-2 text-sm font-bold text-gray-900">
+                          <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] flex-wrap">
+                            <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                              {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
+                            </span>
+                            {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                Seat Booking: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="col-span-4 flex gap-2 justify-end">
+                          <Link
+                            href={`/workshops/${workshop.slug}/landing`}
+                            className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition shadow-sm hover:shadow"
+                          >
+                            Learn More <ArrowRight className="w-4 h-4" />
+                          </Link>
+                          <button
+                            type="button"
+                            disabled={status !== 'Open'}
+                            onClick={() => {
+                              setPaymentPopup({
+                                isOpen: true,
+                                workshop,
+                                schedule,
+                              });
+                            }}
+                            className={`inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm ${
+                              status === 'Open'
+                                ? 'bg-green-600 hover:bg-green-700 text-white hover:shadow'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            📝 Register Now
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Mobile View - 3 Rows (Stacked) */}
+                    <div className="md:hidden p-4 space-y-3">
+                      {/* Row 1: Workshop Name + Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-bold text-gray-900 text-sm">{workshop.name}</h4>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                            <span className="capitalize">{schedule.mode || 'TBA'}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-800">🗣️ {schedule.language || 'Hindi'}</span>
+                            <span>•</span>
+                            <span><Users className="w-3 h-3 inline" /> {schedule.slots}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                            {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
+                          </span>
+                          {status === 'Open' && remainingDays > 0 && (
+                            <span className="text-[10px] font-bold text-red-600">
+                              {remainingDays}d left
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Row 2: Date, Time, Price */}
+                      <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="font-bold text-primary-700">📅 {formatDateShort(schedule.startDate)}</span>
+                          <span className="text-gray-600">{getBatchIcon(schedule.batch, schedule.time)} {getBatchLabel(schedule.batch, schedule.time)}</span>
+                        </div>
+                        <div className="text-sm font-bold text-gray-900 text-right">
+                          <div>{formatPrice(schedule.price, schedule.currency || 'INR')}</div>
+                          <div className="flex items-center gap-1 justify-end mt-0.5 text-[10px] flex-wrap">
+                            <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                              {schedule.pricingType === 'monthly' ? 'Monthly' : schedule.pricingType === '3month' ? '3 Months' : 'One-Time'}
+                            </span>
+                            {(schedule.allowPartPayment || schedule.metadata?.allowPartPayment) && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                Seat: Min {formatPrice(schedule.partPaymentMinAmount || schedule.metadata?.partPaymentMinAmount || 2000, schedule.currency || 'INR')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Action Buttons */}
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/workshops/${workshop.slug}/landing`}
+                          className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition shadow-sm"
+                        >
+                          Learn More <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <button
+                          type="button"
+                          disabled={status !== 'Open'}
+                          onClick={() => {
+                            setPaymentPopup({
+                              isOpen: true,
+                              workshop,
+                              schedule,
+                            });
+                          }}
+                          className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-bold transition shadow-sm ${
+                            status === 'Open'
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          📝 Register
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              // Groupings for Month-Wise
+              const byMonth: Record<string, typeof visibleSchedules> = {};
+              visibleSchedules.forEach((item) => {
+                if (!byMonth[item.monthKey]) byMonth[item.monthKey] = [];
+                byMonth[item.monthKey].push(item);
+              });
+              const monthKeys = Object.keys(byMonth);
+
+              // Groupings for Language-Wise
+              const byLanguage: Record<string, typeof visibleSchedules> = {};
+              visibleSchedules.forEach((item) => {
+                const lang = item.language || 'Hindi';
+                if (!byLanguage[lang]) byLanguage[lang] = [];
+                byLanguage[lang].push(item);
+              });
+              const languageKeys = Object.keys(byLanguage).sort();
+
+              return (
+                <div className="space-y-6">
+                  {/* Language and View Mode Control Bar */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200/90 p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    {/* Language Filter Tabs */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5 mr-1">
+                        <Languages className="w-4 h-4 text-green-600" /> Language:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleLanguageFilter('all')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          scheduleLanguageFilter === 'all'
+                            ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-600 ring-offset-1'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        🌐 All Languages ({allSchedules.length})
+                      </button>
+                      {availableLanguages.map((lang) => {
+                        const count = languageCounts[lang] || 0;
+                        const isSelected = normalizeFilterValue(scheduleLanguageFilter) === normalizeFilterValue(lang);
+                        return (
+                          <button
+                            key={lang}
+                            type="button"
+                            onClick={() => setScheduleLanguageFilter(lang)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-600 ring-offset-1'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            <span>🗣️ {lang}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              isSelected
+                                ? 'bg-white/30 text-white font-extrabold'
+                                : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* View Mode Switcher (Month Wise vs Language Wise) */}
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl self-start md:self-auto shrink-0 border border-gray-200/80">
+                      <button
+                        type="button"
+                        onClick={() => setScheduleViewMode('month')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          scheduleViewMode === 'month'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-green-600" />
+                        Month Wise
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleViewMode('language')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          scheduleViewMode === 'language'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Languages className="w-3.5 h-3.5 text-indigo-600" />
+                        Language Wise
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Empty state when specific filter returns 0 */}
+                  {visibleSchedules.length === 0 && (
+                    <div className="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100">
+                      <div className="text-4xl mb-4">🔍</div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">No Workshops Found for {scheduleLanguageFilter}</h3>
+                      <p className="text-gray-600 mb-6">There are currently no upcoming batches scheduled in this language.</p>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleLanguageFilter('all')}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition"
+                      >
+                        🌐 View All Languages ({allSchedules.length})
+                      </button>
+                    </div>
+                  )}
+
+                  {/* VIEW 1: MONTH-WISE (Grouped by Month, with distinct Language sub-sections) */}
+                  {scheduleViewMode === 'month' && monthKeys.length > 0 && (
+                    <div className="space-y-8">
+                      {monthKeys.map((monthKey) => {
+                        const monthItems = byMonth[monthKey];
+                        // Group this month's items by Language
+                        const byLangInMonth: Record<string, typeof visibleSchedules> = {};
+                        monthItems.forEach((item) => {
+                          const l = item.language || 'Hindi';
+                          if (!byLangInMonth[l]) byLangInMonth[l] = [];
+                          byLangInMonth[l].push(item);
+                        });
+                        const langsInMonth = Object.keys(byLangInMonth).sort();
+
+                        return (
+                          <div key={monthKey} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+                            {/* Month Header */}
+                            <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                              <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                                <Calendar className="w-5 h-5" />
+                                {monthKey} Updates
+                              </h3>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs bg-white/20 text-white font-bold px-3 py-1 rounded-full">
+                                  {monthItems.length} Workshop{monthItems.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Language Sub-Sections inside this month */}
+                            <div className="divide-y divide-gray-100">
+                              {langsInMonth.map((lang) => {
+                                const langTheme = getLanguageColor(lang);
+                                const langItems = byLangInMonth[lang];
+                                return (
+                                  <div key={`${monthKey}-${lang}`} className="border-t first:border-t-0 border-gray-100">
+                                    {/* Language Sub-Section Header */}
+                                    <div className={`bg-gradient-to-r ${langTheme.subHeader} px-4 sm:px-6 py-2.5 flex items-center justify-between border-y`}>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold ${langTheme.badge}`}>
+                                          🗣️ {lang} Batches
+                                        </span>
+                                        <span className="text-xs text-gray-500 font-medium">
+                                          ({langItems.length} workshop{langItems.length !== 1 ? 's' : ''})
+                                        </span>
+                                      </div>
+                                      <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
+                                        {monthKey}
+                                      </span>
+                                    </div>
+
+                                    {/* Schedule Rows */}
+                                    <div className="divide-y divide-gray-100 overflow-x-auto">
+                                      {langItems.map((item, idx) => renderScheduleRow(item, idx))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* VIEW 2: LANGUAGE-WISE (Grouped by Language, with Month sub-sections) */}
+                  {scheduleViewMode === 'language' && languageKeys.length > 0 && (
+                    <div className="space-y-8">
+                      {languageKeys.map((langKey) => {
+                        const langTheme = getLanguageColor(langKey);
+                        const langItems = byLanguage[langKey];
+                        
+                        // Group by Month inside this language
+                        const byMonthInLang: Record<string, typeof visibleSchedules> = {};
+                        langItems.forEach((item) => {
+                          if (!byMonthInLang[item.monthKey]) byMonthInLang[item.monthKey] = [];
+                          byMonthInLang[item.monthKey].push(item);
+                        });
+                        const monthsInLang = Object.keys(byMonthInLang);
+
+                        return (
+                          <div key={langKey} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+                            {/* Language Header */}
+                            <div className={`bg-gradient-to-r ${langTheme.header} px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3`}>
+                              <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                                🗣️ {langKey} Workshops
+                              </h3>
+                              <span className="text-xs bg-white/20 text-white font-bold px-3 py-1 rounded-full">
+                                {langItems.length} Upcoming Batch{langItems.length !== 1 ? 'es' : ''}
+                              </span>
+                            </div>
+
+                            {/* Month Sub-Sections inside this language */}
+                            <div className="divide-y divide-gray-100">
+                              {monthsInLang.map((monthKey) => {
+                                const monthItems = byMonthInLang[monthKey];
+                                return (
+                                  <div key={`${langKey}-${monthKey}`} className="border-t first:border-t-0 border-gray-100">
+                                    {/* Month Sub-Section Header */}
+                                    <div className="bg-slate-50 border-y border-slate-200/80 px-4 sm:px-6 py-2.5 flex items-center justify-between">
+                                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                                        <Calendar className="w-4 h-4 text-green-600" />
+                                        <span>{monthKey}</span>
+                                      </div>
+                                      <span className="text-xs text-gray-500 font-medium">
+                                        ({monthItems.length} workshop{monthItems.length !== 1 ? 's' : ''})
+                                      </span>
+                                    </div>
+
+                                    {/* Schedule Rows */}
+                                    <div className="divide-y divide-gray-100 overflow-x-auto">
+                                      {monthItems.map((item, idx) => renderScheduleRow(item, idx))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })()}

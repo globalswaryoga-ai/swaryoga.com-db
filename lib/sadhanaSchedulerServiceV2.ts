@@ -245,26 +245,36 @@ async function runSchedulerLoop(): Promise<void> {
       );
 
       // Get all active Sadhana schedules from BunnyDB
-      const { listPrograms } = require('@/lib/bunnySadhanaRepository');
-      let programs = await listPrograms({ active: true });
-      
-      const schedules = programs
-        .filter((p: any) => p.enableBotAutomation !== false)
+      let rawPrograms: any[] = [];
+      try {
+        const { listPrograms } = require('@/lib/bunnySadhanaRepository');
+        rawPrograms = await listPrograms({ active: true });
+      } catch (repoErr) {
+        console.error('[SadhanaScheduler] ❌ Error loading programs from BunnyDB:', repoErr);
+        rawPrograms = [];
+      }
+
+      const schedules: SadhanaSchedule[] = (Array.isArray(rawPrograms) ? rawPrograms : [])
+        .filter((p: any) => p && typeof p === 'object' && p.enableBotAutomation !== false)
         .map((p: any) => ({
-          _id: p.id,
-          name: p.name,
-          botName: p.botName || '🤖 Swar Yoga Bot',
-          videoUrl: p.playerUrl,
-          videoDuration: p.videoDuration,
-          botJoinMinutes: p.botJoinMinutes || 5,
-          zoomLink: p.zoomLink,
-          zoomId: p.zoomId,
-          zoomPassword: p.zoomPassword,
-          status: p.active ? 'active' : 'paused',
+          _id: String(p.id || p._id || ''),
+          name: String(p.name || 'Sadhana Session'),
+          botName: String(p.botName || '🤖 Swar Yoga Bot'),
+          videoUrl: String(p.playerUrl || ''),
+          videoDuration: Math.max(1, Number(p.videoDuration) || 40),
+          botJoinMinutes: Math.max(0, Number(p.botJoinMinutes) || 5),
+          zoomLink: String(p.zoomLink || ''),
+          zoomId: String(p.zoomId || ''),
+          zoomPassword: String(p.zoomPassword || ''),
+          status: p.active !== false ? ('active' as const) : ('paused' as const),
+          enableWhatsAppReminders: false,
+          enableEmailReminders: false,
+          participantPhones: [],
+          participantEmails: [],
           schedule: {
-            times: p.timeSlots,
-            days: p.days || [0, 1, 2, 3, 4, 5, 6],
-            timezone: p.timezone || 'Asia/Kolkata',
+            times: Array.isArray(p.timeSlots) ? p.timeSlots.filter(Boolean) : [],
+            days: Array.isArray(p.days) ? p.days : [0, 1, 2, 3, 4, 5, 6],
+            timezone: String(p.timezone || 'Asia/Kolkata'),
           }
         }));
 

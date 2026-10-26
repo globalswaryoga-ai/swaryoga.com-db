@@ -92,6 +92,31 @@ function DropdownPortal({
   );
 }
 
+// Shared request cache for account profile to prevent duplicate fetches across sub-nav components
+let cachedProfileData: any = null;
+let inflightAccountPromise: Promise<any> | null = null;
+
+async function getCachedAccountProfile(token: string) {
+  if (cachedProfileData) return cachedProfileData;
+  if (inflightAccountPromise) return inflightAccountPromise;
+
+  inflightAccountPromise = fetch('/api/crm-site/account', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      cachedProfileData = data;
+      inflightAccountPromise = null;
+      return data;
+    })
+    .catch(() => {
+      inflightAccountPromise = null;
+      return null;
+    });
+
+  return inflightAccountPromise;
+}
+
 // ============================================================================
 // PROFILE DROPDOWN - User avatar with account menu
 // ============================================================================
@@ -121,12 +146,11 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
     if (crmEmail) setUserEmail(crmEmail);
     if (crmPhoto) setProfilePhoto(crmPhoto);
 
-    // Fetch latest profile photo from API (async)
+    // Fetch latest profile photo from API (cached & deduplicated)
     const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
     if (token) {
-      fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
+      getCachedAccountProfile(token)
+        .then((data) => {
           if (data?.profile) {
             if (data.profile.profilePhoto) {
               setProfilePhoto(data.profile.profilePhoto);
@@ -281,9 +305,7 @@ export default function CrmSubNav({
       try {
         const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
         if (!token) return;
-        const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
-        if (!accRes.ok) return;
-        const acc = await accRes.json();
+        const acc = await getCachedAccountProfile(token);
         const slug = acc?.profile?.tenantSlug;
         if (!slug) return;
         const tRes = await fetch(`/api/tenants/${encodeURIComponent(slug)}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -357,30 +379,38 @@ export default function CrmSubNav({
     localStorage.removeItem('adminUser');
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
-    // Redirect to correct login page based on domain
     const isCrm = typeof window !== 'undefined' && 
       (window.location.hostname === 'crm.swaryoga.com' || window.location.hostname.startsWith('crm.'));
     router.push(isCrm ? '/crm-site/login' : '/admin/login');
   };
 
+  const isDark = pathname?.includes('/e-learning');
+
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-2xs">
+    <header className={`sticky top-0 z-30 shadow-2xs transition-colors ${
+      isDark ? 'bg-[#0b0f19] border-b border-slate-800/90 text-white' : 'bg-white border-b border-gray-200'
+    }`}>
       <div className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2">
         {/* Left: Menu + Title */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {onMenuClick && (
             <button
               onClick={onMenuClick}
-              className={`${showMenuButtonOnDesktop ? '' : 'md:hidden'} p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition active:scale-95`}
-              title="Show sidebar"
-              aria-label="Toggle Navigation"
+              className={`${showMenuButtonOnDesktop ? 'flex' : 'flex md:hidden'} items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer ${
+                isDark 
+                  ? 'border-slate-800 bg-slate-900/90 hover:bg-slate-800 text-slate-200' 
+                  : 'border-gray-200 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-800'
+              }`}
+              title="Open CRM Sidebar"
+              aria-label="Open Sidebar"
             >
-              <Menu className="h-5 w-5 text-gray-700" />
+              <Menu className={`h-4 w-4 ${isDark ? 'text-slate-300' : 'text-gray-700'}`} />
+              <span className="hidden sm:inline font-semibold">Sidebar</span>
             </button>
           )}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {TitleIcon && <TitleIcon className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 shrink-0" />}
-            <h1 className="font-bold text-gray-900 text-sm sm:text-base truncate max-w-[130px] sm:max-w-none">{title}</h1>
+            {TitleIcon && <TitleIcon className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-indigo-600'}`} />}
+            <h1 className={`font-bold text-sm sm:text-base truncate max-w-[130px] sm:max-w-none ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</h1>
           </div>
         </div>
 
@@ -459,8 +489,8 @@ export default function CrmSubNav({
                   href={item.href}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     active
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? (isDark ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700')
+                      : (isDark ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
                   }`}
                 >
                   {ItemIcon && <ItemIcon className="h-4 w-4" />}
@@ -477,8 +507,8 @@ export default function CrmSubNav({
                   onClick={() => setMoreOpen(!moreOpen)}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     moreHasActive || moreOpen
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? (isDark ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700')
+                      : (isDark ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
                   }`}
                 >
                   More

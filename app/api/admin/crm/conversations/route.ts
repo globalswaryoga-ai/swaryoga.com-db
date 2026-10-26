@@ -126,9 +126,20 @@ export async function GET(request: NextRequest) {
       bunnyRows.sort((a: any, b: any) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     }
 
+    // Ensure every row has clean name and leadName populated
+    const cleanRows = bunnyRows.map((row: any) => {
+      const nm = row.name || row.leadName || '';
+      const cleanName = (nm && !nm.match(/^\+?\d+$/) && nm.toLowerCase() !== 'unknown user') ? nm : '';
+      return {
+        ...row,
+        name: cleanName || row.name || null,
+        leadName: cleanName || row.leadName || null,
+      };
+    });
+
     return formatCrmSuccess(
-        { conversations: bunnyRows.slice(skip, skip + limit), total: bunnyRows.length },
-        buildMetadata(bunnyRows.length, limit, skip),
+        { conversations: cleanRows.slice(skip, skip + limit), total: cleanRows.length },
+        buildMetadata(cleanRows.length, limit, skip),
     );
   } catch (error) {
     console.error('CRASH IN CONVERSATIONS API:', error);

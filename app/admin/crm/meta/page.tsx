@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'; // Added useCallback
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, isValidAdminToken } from '@/hooks/useAuth';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl, TemplateSelector, type WhatsAppTemplate, ChatStatusBadge, type ChatStatus } from '@/components/admin/crm';
@@ -15,6 +15,73 @@ import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import LanguageSelector from './_components/LanguageSelector'; // Imported new component
 import SpellCheckTextarea from '@/components/admin/crm/SpellCheckTextarea';
 import MetaWhatsAppSetupCard from '@/components/admin/crm/MetaWhatsAppSetupCard';
+import {
+  Search,
+  Plus,
+  Settings,
+  User,
+  UserPlus,
+  Users,
+  Tag,
+  Check,
+  CheckCheck,
+  Clock,
+  AlertCircle,
+  X,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Phone,
+  Calendar,
+  CalendarPlus,
+  Send,
+  Paperclip,
+  Smile,
+  Bold,
+  Italic,
+  Hash,
+  Sparkles,
+  Wand2,
+  Bot,
+  PanelRightClose,
+  PanelRightOpen,
+  ArrowLeft,
+  MessageSquare,
+  Radio,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Play,
+  RotateCcw,
+  CheckCircle,
+  CheckCircle2,
+  ShieldAlert,
+  Ban,
+  Trash2,
+  Copy,
+  ExternalLink,
+  Wrench,
+  Megaphone,
+  Zap,
+  Download,
+  Share2,
+  Loader2,
+  Save,
+  Unlock,
+  Archive,
+  BarChart3,
+  Flame,
+  UserCheck,
+  MoreVertical,
+  Globe,
+  LogOut,
+  Lock,
+  Eye,
+  EyeOff,
+  Shield,
+  Camera,
+  Mic
+} from 'lucide-react';
 
 type MetaInboxDiagnostics = {
   ok: boolean;
@@ -81,6 +148,8 @@ type Message = {
   createdAt: string;
   sentAt?: string;
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+  errorMessage?: string;
+  failureReason?: string;
   media?: {
     kind?: 'image' | 'video' | 'document' | 'audio' | 'sticker';
     url?: string;
@@ -160,11 +229,156 @@ function getProxiedMediaUrl(url: string, authToken: string | null): string {
   return url;
 }
 
-export default function MetaInboxPage() {
+function formatPhoneDisplay(phone?: string | null): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (phone.startsWith('+')) return phone;
+  return `+${digits || phone}`;
+}
+
+const AVATAR_GRADIENTS = [
+  'from-emerald-500 to-teal-600',
+  'from-blue-500 to-indigo-600',
+  'from-violet-500 to-purple-600',
+  'from-amber-500 to-orange-600',
+  'from-rose-500 to-pink-600',
+  'from-teal-500 to-cyan-600',
+  'from-indigo-500 to-sky-600',
+];
+
+function getAvatarGradient(nameOrPhone?: string | null): string {
+  if (!nameOrPhone) return AVATAR_GRADIENTS[0];
+  let sum = 0;
+  for (let i = 0; i < nameOrPhone.length; i++) {
+    sum += nameOrPhone.charCodeAt(i);
+  }
+  return AVATAR_GRADIENTS[sum % AVATAR_GRADIENTS.length];
+}
+
+function getInitials(name?: string | null, phone?: string | null): string {
+  if (name && name.trim() && name !== 'Unknown User' && !name.match(/^\+?\d+$/)) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    return digits.slice(-2) || 'WA';
+  }
+  return 'WA';
+}
+
+function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.03C9.31 7.03 9.1 7.04 8.92 7.38C8.74 7.72 8.21 8.22 8.21 9.27C8.21 10.32 8.98 11.33 9.09 11.47C9.2 11.61 10.6 13.78 12.75 14.71C14.54 15.48 14.9 15.33 15.29 15.29C15.68 15.25 16.54 14.78 16.72 14.28C16.9 13.78 16.9 13.36 16.84 13.27C16.78 13.18 16.63 13.12 16.41 13.01C16.19 12.9 15.11 12.37 14.91 12.3C14.71 12.23 14.57 12.19 14.43 12.41C14.29 12.63 13.88 13.11 13.75 13.25C13.62 13.39 13.5 13.41 13.28 13.3C13.06 13.19 12.36 12.96 11.53 12.22C10.88 11.64 10.45 10.93 10.32 10.71C10.2 10.49 10.31 10.37 10.42 10.26C10.52 10.16 10.64 10 10.75 9.87C10.86 9.74 10.9 9.64 10.97 9.5C11.04 9.36 11 9.24 10.95 9.13C10.9 9.02 10.46 7.94 10.28 7.5C10.1 7.07 9.92 7.13 9.78 7.12C9.65 7.11 9.5 7.11 9.35 7.11L9.53 7.03Z"/>
+    </svg>
+  );
+}
+
+function MessengerIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.453 5.518 3.734 7.21V22l3.39-1.86c.92.256 1.895.394 2.876.394 5.523 0 10-4.145 10-9.258C22 6.145 17.523 2 12 2zm1.066 12.445l-2.73-2.91-5.326 2.91 5.856-6.216 2.796 2.91 5.26-2.91-5.856 6.216z" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+    </svg>
+  );
+}
+
+function getValidAdminToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  for (const key of ['adminToken', 'admin_token', 'crm_token']) {
+    const raw = localStorage.getItem(key);
+    if (raw && raw !== 'null' && raw !== 'undefined' && isValidAdminToken(raw.trim())) {
+      return raw.trim();
+    }
+  }
+  if (typeof document !== 'undefined' && document.cookie) {
+    const parts = document.cookie.split(';');
+    for (const part of parts) {
+      const [k, ...v] = part.trim().split('=');
+      const key = k.trim();
+      if (['adminToken', 'admin_token', 'crm_token'].includes(key)) {
+        const val = decodeURIComponent(v.join('=')).trim();
+        if (val && val !== 'null' && val !== 'undefined' && isValidAdminToken(val)) {
+          return val;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export default function MetaInboxPage({ onLogout }: { onLogout?: () => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
-  const token = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const { fetch: crmFetch, loading: crmLoading, error: crmError } = useCRM({ token });
+
+  // Embedded login states for unauthenticated access on mobile / android app
+  const [loginUserId, setLoginUserId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  // Check admin session on mount and listen to storage events
+  useEffect(() => {
+    const valid = getValidAdminToken();
+    setToken(valid);
+    setAuthChecked(true);
+
+    const syncAuth = () => {
+      const t = getValidAdminToken();
+      setToken(t);
+    };
+    window.addEventListener('storage', syncAuth);
+    return () => window.removeEventListener('storage', syncAuth);
+  }, []);
+
+  const handleAdminLogout = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('crm_token');
+      localStorage.removeItem('admin_user');
+      localStorage.removeItem('adminUser');
+      if (typeof document !== 'undefined') {
+        document.cookie = 'adminToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+        document.cookie = 'admin_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+        document.cookie = 'crm_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+      }
+    }
+    setToken(null);
+    setConversations([]);
+    setSelected(null);
+    setMessages([]);
+    if (onLogout) onLogout();
+  }, [onLogout]);
+
+  // If CRM API returns 401 Unauthorized, automatically log out and show login page
+  useEffect(() => {
+    if (crmError && (crmError.toLowerCase().includes('unauthorized') || crmError.includes('401'))) {
+      handleAdminLogout();
+      setLoginError('Admin session expired or access unauthorized. Please sign in as admin.');
+    }
+  }, [crmError, handleAdminLogout]);
 
   // If this page is rendered from the QR route, we must use a separate pipeline.
   // We detect that either by pathname (/admin/crm/qr) or a query string provider=qr.
@@ -339,19 +553,31 @@ export default function MetaInboxPage() {
       .catch(() => {});
   }, [token]);
 
-  const addQuickReply = async (text: string) => {
-    if (!text.trim() || !token) return;
+  const addQuickReply = async (text: string, andUseInMessage = false) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const tempId = `qr_${Date.now()}`;
+    setQuickReplies((prev) => [{ id: tempId, text: trimmed }, ...prev]);
+    if (andUseInMessage) {
+      setComposerText((prev) => (prev ? `${prev} ${trimmed}` : trimmed));
+    }
+    if (!token) return;
     try {
       const res = await fetch('/api/admin/crm/quick-replies', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: trimmed }),
       });
       const json = await res.json();
-      if (json?.data?.id) {
-        setQuickReplies((prev) => [{ id: json.data.id, text }, ...prev]);
+      const serverId = json?.data?.id || json?.id;
+      if (serverId) {
+        setQuickReplies((prev) =>
+          prev.map((item) => (item.id === tempId ? { ...item, id: serverId } : item))
+        );
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to persist quick reply to server:', err);
+    }
   };
 
   const deleteQuickReply = async (id: string) => {
@@ -765,6 +991,12 @@ export default function MetaInboxPage() {
             (fresh.length > 0 && fresh[fresh.length - 1]._id !== messages[messages.length - 1]?._id);
           setMessages(fresh);
           if (hasNew) setTimeout(() => scrollToBottom(), 100);
+        }
+
+        // Auto-mark thread as read in DB if it has unread messages
+        const sel = selectedRef.current;
+        if (sel?.phoneNumber && (sel.unreadCount || 0) > 0) {
+          markThreadAsRead(sel.leadId, sel.phoneNumber, true);
         }
       }
     } catch (err) {
@@ -1281,59 +1513,125 @@ export default function MetaInboxPage() {
       return;
     }
     // Allow sending media-only or text-only messages
-    if (!composerText.trim() && !attachedMedia) return;
-    if (sending) return;
+    const textToSend = composerText.trim() || (attachedMedia ? `[${attachedMedia.type || 'media'}]` : '');
+    const mediaToSend = attachedMedia;
+    if (!textToSend && !mediaToSend) return;
 
+    const leadId = selected.leadId;
+    const phoneNumber = selected.phoneNumber || selected._id;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    // 1. INSTANT OPTIMISTIC UI: Clear inputs immediately (<5ms)
+    setComposerText('');
+    setAttachedMedia(null);
+
+    // 2. Append optimistic message to UI immediately
+    const optimisticMessage: any = {
+      _id: tempId,
+      leadId: leadId ? String(leadId) : undefined,
+      phoneNumber,
+      messageContent: textToSend,
+      direction: 'outbound',
+      status: 'sending',
+      createdAt: new Date().toISOString(),
+      sentAt: new Date().toISOString(),
+      senderDisplayName: 'Swar Yoga',
+      ...(mediaToSend?.url && {
+        media: {
+          url: mediaToSend.url,
+          kind: mediaToSend.type || 'image',
+        },
+        messageType: 'media',
+      }),
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // Scroll to bottom immediately
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+
+    // 3. Fire API in background without blocking composer
     setSending(true);
     try {
-      const leadId = selected.leadId;
-      const phoneNumber = selected.phoneNumber || selected._id;
-      
-      await crmFetch(`/api/admin/crm/whatsapp/send`, {
+      const sendPromise = crmFetch(`/api/admin/crm/whatsapp/send`, {
         method: 'POST',
         body: {
           leadId,
           phoneNumber,
-          messageContent: composerText.trim() || `[${attachedMedia?.type || 'media'}]`,
-          media: attachedMedia ? {
-            kind: attachedMedia.type,
-            url: attachedMedia.url,
-            fileName: attachedMedia.fileName,
+          messageContent: textToSend,
+          media: mediaToSend ? {
+            kind: mediaToSend.type,
+            url: mediaToSend.url,
+            fileName: mediaToSend.fileName,
           } : undefined,
-          // When rendered from /admin/crm/qr we want QR provider pipeline.
           provider: providerScope,
         },
       });
-      setComposerText('');
-      setAttachedMedia(null);
 
-      // Auto-close chat status after admin replies
-      if (selected.leadId) {
-        try {
-          await crmFetch(`/api/admin/crm/leads/${selected.leadId}/chat-status`, {
-            method: 'PATCH',
-            body: { chatStatus: 'closed' }
-          });
-          // Update local state
-          setSelected(prev => prev ? { ...prev, chatStatus: 'closed' } : null);
-          setConversations(prev => prev.map(c =>
-            c.leadId === selected.leadId ? { ...c, chatStatus: 'closed' } : c
-          ));
-        } catch (e) {
-          // Non-fatal: status update failure shouldn't block messaging
-          console.warn('Auto-close status update failed:', e);
-        }
+      // Concurrently update chat status to closed if leadId exists
+      if (leadId) {
+        crmFetch(`/api/admin/crm/leads/${leadId}/chat-status`, {
+          method: 'PATCH',
+          body: { chatStatus: 'closed' }
+        }).catch(() => {});
+        setSelected((prev) => (prev ? { ...prev, chatStatus: 'closed' } : null));
+        setConversations((prev) => prev.map((c) => (c.leadId === leadId ? { ...c, chatStatus: 'closed' } : c)));
       }
 
-      // Refresh messages and conversations
-      await Promise.all([
-        loadMessages(phoneNumber || leadId),
-        loadConversations(searchQuery)
-      ]);
-    } catch (err) {
-      console.error('Failed to send message:', err);
-      const reason = err instanceof Error ? err.message : 'Failed to send message';
-      alert(`Message not delivered: ${reason}`);
+      const sendRes = await sendPromise;
+
+      const isSuccess = Boolean(
+        sendRes && (
+          sendRes.success === true ||
+          sendRes.status === 'sent' ||
+          sendRes.messageId ||
+          sendRes.data?.success === true ||
+          sendRes.data?.status === 'sent' ||
+          sendRes.data?.messageId
+        )
+      );
+
+      if (isSuccess) {
+        const finalMessageId = sendRes.data?.messageId || sendRes.messageId || tempId;
+        const finalWaMessageId = sendRes.data?.waMessageId || sendRes.waMessageId;
+        // Upgrade optimistic message to 'sent'
+        setMessages((prev) =>
+          prev.map((m) =>
+            m._id === tempId
+              ? {
+                  ...m,
+                  _id: finalMessageId,
+                  status: 'sent',
+                  waMessageId: finalWaMessageId,
+                }
+              : m
+          )
+        );
+      } else {
+        throw new Error(sendRes?.error || sendRes?.data?.error || (typeof sendRes === 'string' ? sendRes : 'Message send returned error'));
+      }
+    } catch (err: any) {
+      console.error('Failed to deliver message:', err);
+      const reason = err instanceof Error ? err.message : (typeof err === 'string' ? err : 'Failed to send message');
+      // Mark as failed in UI with error message
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === tempId
+            ? { ...m, status: 'failed', errorMessage: reason }
+            : m
+        )
+      );
+      if (
+        reason.includes('24-Hour') || 
+        reason.includes('24 hours') || 
+        reason.includes('template') || 
+        reason.includes('Re-engagement') ||
+        reason.includes('131047')
+      ) {
+        setActionModal({ type: 'template' });
+      }
     } finally {
       setSending(false);
     }
@@ -1966,6 +2264,165 @@ export default function MetaInboxPage() {
     }
   };
 
+  if (!authChecked) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center p-4">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-3" />
+        <p className="text-xs font-semibold text-slate-300 tracking-wide uppercase">Verifying Admin Session...</p>
+      </div>
+    );
+  }
+
+  if (!token) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-950 via-[#072414] to-slate-950 flex items-center justify-center p-4 select-none overflow-y-auto">
+        {/* Top Back Navigation to return to public website */}
+        <div className="absolute top-4 left-4 z-10">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-full shadow-sm border border-white/15 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-emerald-400" />
+            <span>Back to Website</span>
+          </button>
+        </div>
+
+        <div className="bg-white/95 backdrop-blur-xl p-6 sm:p-9 rounded-3xl shadow-2xl w-full max-w-md border border-slate-100 relative overflow-hidden my-auto">
+          {/* Top decorative accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-[#166235]" />
+
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-[#166235] text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-900/20 ring-4 ring-emerald-50">
+              <MessageSquare className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Meta WhatsApp CRM</h1>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mt-2">
+              <Lock className="w-3 h-3 text-emerald-700" />
+              <span>Admin Access Only</span>
+            </div>
+            <p className="text-slate-500 text-xs mt-2 leading-relaxed">
+              Sign in with authorized administrator credentials to manage Meta WhatsApp chats and leads.
+            </p>
+          </div>
+
+          <form 
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setLoginLoading(true);
+              setLoginError('');
+              try {
+                const res = await fetch('/api/mobile-chat/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: loginUserId, password: loginPassword })
+                });
+                const data = await res.json();
+                if (data.success && data.token) {
+                  if (!isValidAdminToken(data.token)) {
+                    setLoginError('Access denied: this account does not have admin privileges.');
+                    setLoginLoading(false);
+                    return;
+                  }
+                  localStorage.setItem('adminToken', data.token);
+                  localStorage.setItem('admin_token', data.token);
+                  localStorage.setItem('crm_token', data.token);
+                  if (data.user) {
+                    localStorage.setItem('admin_user', JSON.stringify(data.user));
+                    localStorage.setItem('adminUser', data.user.userId || data.user.name || '');
+                  }
+                  document.cookie = `adminToken=${data.token}; path=/; max-age=31536000; SameSite=Lax`;
+                  document.cookie = `admin_token=${data.token}; path=/; max-age=31536000; SameSite=Lax`;
+                  document.cookie = `crm_token=${data.token}; path=/; max-age=31536000; SameSite=Lax`;
+                  setToken(data.token);
+                } else {
+                  setLoginError(data.error || 'Login failed. Invalid admin User ID or Password.');
+                }
+              } catch (err) {
+                setLoginError('Network connection error. Please try again.');
+              }
+              setLoginLoading(false);
+            }} 
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                <span>Admin User ID / Mobile</span>
+                <span className="text-[10px] text-slate-400 font-normal">e.g. 9779006820</span>
+              </label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  required 
+                  value={loginUserId} 
+                  onChange={e => setLoginUserId(e.target.value)} 
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm text-slate-900 font-medium" 
+                  placeholder="Enter User ID or Mobile" 
+                />
+                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Admin Password
+              </label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? 'text' : 'password'} 
+                  required 
+                  value={loginPassword} 
+                  onChange={e => setLoginPassword(e.target.value)} 
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm text-slate-900 font-medium" 
+                  placeholder="••••••••" 
+                />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 text-xs font-semibold flex items-start gap-2 animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={loginLoading} 
+              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-[#166235] hover:opacity-95 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] text-sm flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+            >
+              {loginLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying credentials...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>Sign In as Admin</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+            <Shield className="w-3.5 h-3.5 text-emerald-600" />
+            <span>End-to-end encrypted Swar Yoga Admin Portal</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#F9FAF9] text-slate-900 h-screen flex flex-col font-sans overflow-hidden">
       
@@ -2000,41 +2457,62 @@ export default function MetaInboxPage() {
       )}
 
       {/* HEADER */}
-      <header className="px-3 py-1.5 flex items-center shrink-0 z-20" style={{ background: 'linear-gradient(135deg, #28964F 0%, #34A85A 40%, #45B96B 100%)', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+      <header className={`px-3.5 py-2 items-center shrink-0 z-20 shadow-sm ${selected ? 'hidden md:flex' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #166534 0%, #15803d 40%, #16a34a 100%)', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
         {/* Left: Logo + Platform Tabs */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-sm p-[2px] cursor-pointer hover:bg-white/30 transition-all hover:scale-105 shadow-lg shadow-black/10" onClick={() => router.push('/admin/crm')}>
-            <div className="h-full w-full rounded-[10px] bg-white flex items-center justify-center">
-              <img src="/logo.png" alt="Swar Yoga" className="h-4.5 w-4.5" />
+          <div 
+            className="rounded-xl bg-white/20 backdrop-blur-sm cursor-pointer hover:bg-white/30 transition-all hover:scale-105 shadow-md shrink-0 overflow-hidden flex items-center justify-center" 
+            style={{ width: '32px', height: '32px', minWidth: '32px', maxWidth: '32px', minHeight: '32px', maxHeight: '32px', padding: '2px' }}
+            onClick={() => router.push('/admin/crm')}
+          >
+            <div 
+              className="rounded-[10px] bg-white flex items-center justify-center overflow-hidden"
+              style={{ width: '28px', height: '28px', minWidth: '28px', maxWidth: '28px' }}
+            >
+              <img 
+                src="/logo.png" 
+                alt="Swar Yoga" 
+                style={{ width: '20px', height: '20px', maxWidth: '20px', maxHeight: '20px', objectFit: 'contain', display: 'block' }}
+              />
             </div>
           </div>
-          <nav className="flex gap-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-0.5">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-white text-[#1E7F43] shadow-md" title="WhatsApp">
-              <i className="ph-fill ph-whatsapp-logo text-sm"></i>
+          <nav className="flex gap-0.5 bg-black/15 backdrop-blur-md border border-white/15 rounded-xl p-0.5">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-800 shadow-sm transition-all" title="WhatsApp">
+              <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden lg:inline">WhatsApp</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Messenger" onClick={() => router.push('/admin/crm/messenger')}>
-              <i className="ph-fill ph-messenger-logo text-sm"></i>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/70 hover:text-white hover:bg-white/15 transition-all duration-150" title="Messenger" onClick={() => router.push('/admin/crm/messenger')}>
+              <MessengerIcon className="w-3.5 h-3.5 text-blue-300" />
               <span className="hidden lg:inline">Messenger</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Instagram" onClick={() => router.push('/admin/crm/instagram')}>
-              <i className="ph-fill ph-instagram-logo text-sm"></i>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/70 hover:text-white hover:bg-white/15 transition-all duration-150" title="Instagram" onClick={() => router.push('/admin/crm/instagram')}>
+              <InstagramIcon className="w-3.5 h-3.5 text-pink-300" />
               <span className="hidden lg:inline">Instagram</span>
             </button>
           </nav>
+
+          <button
+            onClick={modal.open}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-extrabold rounded-xl bg-white text-emerald-800 hover:bg-emerald-50 hover:shadow-md transition-all shadow-sm active:scale-95 shrink-0"
+            title="Start New Chat / Add Lead"
+            type="button"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-700 stroke-[2.5]" />
+            <span>New Chat</span>
+          </button>
         </div>
 
         {/* Center: Nav Tabs */}
-        <div className="flex-1 flex justify-center">
-          <nav className="flex gap-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-0.5">
+        <div className="flex-1 flex justify-center px-2">
+          <nav className="flex gap-0.5 bg-black/15 backdrop-blur-md border border-white/15 rounded-xl p-0.5 max-w-full overflow-x-auto no-scrollbar">
             {['Leads', 'Followup', 'Sales', 'Messages', 'Analytics', 'Home'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => goToTab(tab)}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 ${
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-150 whitespace-nowrap ${
                   activeTab === tab
-                    ? 'bg-white text-[#1E7F43] shadow-md'
-                    : 'text-white/70 hover:text-white hover:bg-white/15'
+                    ? 'bg-white text-emerald-800 shadow-sm'
+                    : 'text-white/80 hover:text-white hover:bg-white/15'
                 }`}
               >
                 {tab}
@@ -2048,69 +2526,72 @@ export default function MetaInboxPage() {
           {/* CRM Tools Dropdown */}
           <div className="relative">
              <button
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-200 ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-150 ${
                   toolsDropdownOpen 
-                    ? 'bg-white text-[#1E7F43] border-white shadow-md' 
-                    : 'bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white'
+                    ? 'bg-white text-emerald-800 border-white shadow-md' 
+                    : 'bg-black/15 text-white/90 border-white/20 hover:bg-white/20 hover:text-white'
                 }`}
                 onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
              >
-                <i className="ph-bold ph-wrench text-xs"></i>
+                <Wrench className="w-3 h-3 text-emerald-300" />
                 <span className="hidden lg:inline uppercase tracking-wider">Tools</span>
-                <i className={`ph ph-caret-down text-[8px] transition-transform ${toolsDropdownOpen ? 'rotate-180' : ''}`}></i>
+                <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-200 ${toolsDropdownOpen ? 'rotate-180' : ''}`} />
              </button>
 
              {toolsDropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden p-1">
+                <div className="absolute right-0 mt-1.5 w-52 bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl z-50 overflow-hidden p-1.5 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150">
                    {[
-                      { label: 'Dashboard', icon: 'ph-chart-bar', href: '/admin/crm/meta-dashboard', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                      { label: 'Chatbots', icon: 'ph-robot', href: '/admin/crm/chatbots', color: 'text-blue-600', bg: 'bg-blue-50' },
-                      { label: 'Templates', icon: 'ph-file-text', href: '/admin/crm/templates', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                      { label: 'Broadcasts', icon: 'ph-broadcast', href: '/admin/crm/broadcasts', color: 'text-pink-600', bg: 'bg-pink-50' },
-                      { label: 'Automation', icon: 'ph-magic-wand', href: '/admin/crm/automation', color: 'text-purple-600', bg: 'bg-purple-50' },
-                   ].map((tool) => (
-                      <button 
-                        key={tool.label}
-                        onClick={() => {
-                          setToolsDropdownOpen(false);
-                          router.push(tool.href);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 rounded-lg transition-all group text-left"
-                      >
-                        <div className={`h-6 w-6 rounded-md ${tool.bg} flex items-center justify-center`}>
-                           <i className={`ph-bold ${tool.icon} text-sm ${tool.color}`}></i>
-                        </div>
-                        <span className="text-xs font-[700] text-slate-700 group-hover:text-[#1E7F43]">{tool.label}</span>
-                      </button>
-                   ))}
+                      { label: 'Dashboard', icon: BarChart3, href: '/admin/crm/meta-dashboard', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                      { label: 'Chatbots', icon: Bot, href: '/admin/crm/chatbots', color: 'text-blue-600', bg: 'bg-blue-50' },
+                      { label: 'Templates', icon: FileText, href: '/admin/crm/templates', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                      { label: 'Broadcasts', icon: Megaphone, href: '/admin/crm/broadcasts', color: 'text-pink-600', bg: 'bg-pink-50' },
+                      { label: 'Automation', icon: Zap, href: '/admin/crm/automation', color: 'text-purple-600', bg: 'bg-purple-50' },
+                   ].map((tool) => {
+                      const ToolIcon = tool.icon;
+                      return (
+                        <button 
+                          key={tool.label}
+                          onClick={() => {
+                            setToolsDropdownOpen(false);
+                            router.push(tool.href);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-emerald-50/70 rounded-xl transition-all group text-left"
+                        >
+                          <div className={`h-7 w-7 rounded-lg ${tool.bg} flex items-center justify-center shrink-0`}>
+                             <ToolIcon className={`w-3.5 h-3.5 ${tool.color}`} />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">{tool.label}</span>
+                        </button>
+                      );
+                   })}
                 </div>
              )}
           </div>
 
-          {/* Monthly Expense Widget */}
+          {/* Monthly Expense Widget - hidden on small mobile to prevent squishing */}
           {monthlyExpenseSummary && (
             <div 
-              className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200/60 cursor-pointer hover:bg-rose-100 transition-all"
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white/95 backdrop-blur-sm border border-white/30 cursor-pointer hover:bg-white shadow-sm transition-all"
               onClick={() => router.push('/admin/crm/whatsapp-analytics')}
               title="Click to view full analytics"
             >
               <div className="text-center">
-                <div className="text-[8px] font-bold text-rose-400 uppercase">Month</div>
+                <div className="text-[7.5px] font-black text-rose-500 uppercase tracking-wider">Month</div>
                 <div className="text-[12px] font-black text-rose-700 leading-tight">
                   ₹{monthlyExpenseSummary.total > 0 && monthlyExpenseSummary.total < 10
                     ? monthlyExpenseSummary.total.toFixed(2)
                     : Math.round(monthlyExpenseSummary.total).toLocaleString()}
                 </div>
               </div>
-              <div className="h-5 w-px bg-rose-200/60"></div>
+              <div className="h-5 w-px bg-slate-200"></div>
               <div className="flex flex-col text-[8px] leading-tight">
-                <div className="flex gap-1">
-                  <span className="text-slate-400">Msgs:</span>
-                  <span className="font-bold text-slate-600">{monthlyExpenseSummary.messagesSent.toLocaleString()}</span>
+                <div className="flex gap-1 items-center">
+                  <span className="text-slate-400 font-medium">Msgs:</span>
+                  <span className="font-bold text-slate-700">{monthlyExpenseSummary.messagesSent.toLocaleString()}</span>
                 </div>
-                <div className="flex gap-1">
-                  <span className="text-slate-400">Mktg:</span>
-                  <span className="font-bold text-rose-500">
+                <div className="flex gap-1 items-center">
+                  <span className="text-slate-400 font-medium">Mktg:</span>
+                  <span className="font-bold text-rose-600">
                     ₹{monthlyExpenseSummary.marketing > 0 && monthlyExpenseSummary.marketing < 10
                       ? monthlyExpenseSummary.marketing.toFixed(2)
                       : Math.round(monthlyExpenseSummary.marketing).toLocaleString()}
@@ -2121,67 +2602,68 @@ export default function MetaInboxPage() {
           )}
 
           <button
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-150 ${
               isBotMode 
-                ? 'bg-white text-violet-700 border-white shadow-md' 
-                : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20 hover:text-white'
+                ? 'bg-white text-violet-700 border-white shadow-md ring-2 ring-violet-300/50' 
+                : 'bg-black/15 text-white/80 border-white/20 hover:bg-white/20 hover:text-white'
             }`}
             onClick={() => setIsBotMode(!isBotMode)}
             title="Toggle AI Auto-Reply"
           >
-             <i className={`ph-fill ph-robot text-sm ${isBotMode ? 'animate-pulse' : ''}`}></i>
+             <Bot className={`w-3.5 h-3.5 ${isBotMode ? 'animate-pulse text-violet-600' : 'text-emerald-300'}`} />
              <span className="hidden xl:inline uppercase tracking-wider">{isBotMode ? 'AI On' : 'AI Off'}</span>
           </button>
 
-          <button className={`p-1.5 rounded-lg transition-all duration-200 ${showDiagnostics ? 'text-amber-300 bg-white/20' : 'text-white/50 hover:text-white hover:bg-white/15'}`} title="Diagnostics" onClick={() => setShowDiagnostics(!showDiagnostics)}>
-            <i className="ph-bold ph-wrench text-sm"></i>
+          <button className={`hidden sm:flex p-2 rounded-lg transition-all duration-150 ${showDiagnostics ? 'text-amber-300 bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/15'}`} title="Diagnostics" onClick={() => setShowDiagnostics(!showDiagnostics)}>
+            <Wrench className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Settings" onClick={() => router.push('/admin/crm/chatbots')}>
-            <i className="ph-fill ph-gear text-sm"></i>
+          <button className="hidden sm:flex p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-150" title="Settings" onClick={() => router.push('/admin/crm/chatbots')}>
+            <Settings className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Automation" onClick={() => router.push('/admin/crm/automation')}>
-            <i className="ph-fill ph-lightning text-sm"></i>
+          <button className="hidden md:flex p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-150" title="Automation" onClick={() => router.push('/admin/crm/automation')}>
+            <Zap className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Templates" onClick={() => router.push('/admin/crm/templates')}>
-            <i className="ph-fill ph-note text-sm"></i>
+          <button className="hidden md:flex p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-150" title="Templates" onClick={() => router.push('/admin/crm/templates')}>
+            <FileText className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Broadcast" onClick={() => router.push('/admin/crm/broadcast')}>
-            <i className="ph-fill ph-megaphone text-sm"></i>
+          <button className="hidden md:flex p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-150" title="Broadcast" onClick={() => router.push('/admin/crm/broadcast')}>
+            <Megaphone className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Logout button */}
+          <button
+            onClick={handleAdminLogout}
+            className="px-2.5 py-1.5 text-white/95 hover:text-white hover:bg-white/20 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold border border-white/20 bg-black/15 shrink-0 cursor-pointer"
+            title="Sign out of Meta WhatsApp Admin"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-200" />
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden bg-[#F9FAF9]">
+      <div className="flex flex-1 overflow-hidden bg-[#F8FAFC]">
 
         {/* LEFT CHAT LIST */}
-        <aside className={`w-full md:w-[27rem] border-r border-[#E0EDE6] flex-col overflow-hidden ${selected ? 'hidden md:flex' : 'flex'}`} style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #FAFCFB 100%)' }}>
+        <aside className={`w-full md:w-[27rem] border-r border-slate-200/80 flex-col overflow-hidden ${selected ? 'hidden md:flex' : 'flex'} bg-slate-50/60`}>
 
-          <div className="px-3 py-2.5 border-b border-[#E0EDE6] flex gap-2 items-center shrink-0" style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #F5FAF7 100%)' }}>
+          <div className="px-3.5 py-3 border-b border-slate-200/80 flex gap-2 items-center shrink-0 bg-white/90 backdrop-blur-md">
             <div className="relative flex-1 group">
-              <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1E7F43] transition-colors text-[12px]"></i>
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors pointer-events-none" />
               <input 
-                className="w-full border border-[#E0EDE6] rounded-xl pl-8 pr-3 py-2.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] transition-all bg-white/80 backdrop-blur-sm placeholder:text-slate-400 font-medium shadow-sm" 
+                className="w-full border border-slate-200/90 rounded-xl pl-9 pr-3 py-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-slate-50/70 hover:bg-white focus:bg-white placeholder:text-slate-400 font-medium shadow-xs" 
                 placeholder="Search name or phone..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <button
-              className="h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all duration-200 active:scale-90 hover:scale-105 hover:shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', color: 'white' }}
-              title="Add New Lead"
-              onClick={modal.open}
-              type="button"
-            >
-              <i className="ph ph-plus-bold text-base"></i>
-            </button>
-            <button
-              className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-emerald-600 hover:border-emerald-300 shadow-sm transition-all duration-200 active:scale-90"
+              className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-600 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/50 shadow-xs transition-all duration-150 active:scale-95 shrink-0"
               title="Meta WhatsApp Setup & Settings"
               onClick={() => { setSelected(null); setNeedsMetaSetup(true); }}
               type="button"
             >
-              <i className="ph ph-gear text-base"></i>
+              <Settings className="w-4 h-4" />
             </button>
           </div>
 
@@ -2278,7 +2760,7 @@ export default function MetaInboxPage() {
                   <option value="block">{showBlocked ? '🔓 Unblock' : '🚫 Block'}</option>
                   <option value="download">⬇ Download list</option>
                 </select>
-                <i className="ph ph-caret-down text-[7px] text-[#1E7F43] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <ChevronDown className="w-2.5 h-2.5 text-emerald-700 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             )}
 
@@ -2543,7 +3025,7 @@ export default function MetaInboxPage() {
                       </div>
                       {evt.phoneNumber && (
                         <div className="text-[9px] font-bold text-slate-500 flex items-center gap-1">
-                          <i className="ph ph-phone text-[8px]"></i>
+                          <Phone className="w-2.5 h-2.5" />
                           {evt.phoneNumber}
                         </div>
                       )}
@@ -2572,11 +3054,27 @@ export default function MetaInboxPage() {
 
           <div className="flex-1 overflow-y-auto">
             {crmLoading && conversations.length === 0 ? (
-              <div className="p-10 flex justify-center"><LoadingSpinner /></div>
+              <div className="p-10 flex flex-col items-center justify-center gap-2 text-slate-400">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                <span className="text-xs font-semibold">Loading chats…</span>
+              </div>
+            ) : crmError && conversations.length === 0 ? (
+              <div className="p-8 flex flex-col items-center justify-center text-center">
+                <AlertCircle className="w-8 h-8 text-rose-500 mb-2" />
+                <div className="text-sm font-bold text-slate-800">Unable to load conversations</div>
+                <div className="text-xs text-rose-600 mt-1 max-w-[260px]">{crmError}</div>
+                <button
+                  type="button"
+                  onClick={() => loadConversations('', false)}
+                  className="mt-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
             ) : needsMetaSetup ? (
-              <div className="p-5 m-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-center">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-                  <i className="ph ph-whatsapp-logo text-2xl"></i>
+              <div className="p-5 m-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-center shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                  <WhatsAppIcon className="w-6 h-6 text-emerald-600" />
                 </div>
                 <div className="text-sm font-bold text-emerald-950">Setup Required</div>
                 <div className="text-xs text-emerald-700 mt-1 mb-4 leading-relaxed">
@@ -2592,8 +3090,10 @@ export default function MetaInboxPage() {
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="p-10 flex flex-col items-center justify-center text-center">
-                <i className={`ph ${showBlocked ? 'ph-prohibit' : showArchived ? 'ph-archive' : dateFilter !== 'all' ? 'ph-calendar-x' : 'ph-chat-circle-dots'} text-4xl text-slate-300 mb-3`}></i>
-                <div className="text-sm font-bold text-slate-400">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                  {showBlocked ? <Ban className="w-6 h-6" /> : showArchived ? <Archive className="w-6 h-6" /> : dateFilter !== 'all' ? <Calendar className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+                </div>
+                <div className="text-sm font-bold text-slate-500">
                   {showBlocked
                     ? 'No blocked conversations'
                     : showArchived 
@@ -2606,166 +3106,162 @@ export default function MetaInboxPage() {
                           ? 'No conversations in the last 7 days'
                           : 'No conversations found'}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  {showBlocked ? 'Blocked users will appear here when you block them or they send "stop"' : showArchived ? 'Archive conversations using the archive icon on each chat' : 'Try adjusting your filters'}
+                <div className="text-xs text-slate-400 mt-1 max-w-[200px]">
+                  {showBlocked ? 'Blocked users will appear here when blocked.' : showArchived ? 'Archived conversations will appear here.' : 'Try adjusting your search or filters.'}
                 </div>
               </div>
             ) : (
               groupedConversations.map((group) => (
-                <div key={group.label}>
+                <div key={group.label} className="mb-2">
                   {/* Date Section Header */}
-                  <div className="sticky top-0 z-10 px-4 py-1.5 border-b border-[#E0EDE6]/60 flex items-center gap-2" style={{ background: 'linear-gradient(90deg, #E6F4EC 0%, #F0F7F2 50%, transparent 100%)' }}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)' }}></span>
-                    <span className="text-[11px] font-[800] text-slate-500 uppercase tracking-wider">{group.label}</span>
-                    <span className="text-[10px] font-medium text-slate-400">({group.conversations.length})</span>
+                  <div className="sticky top-0 z-10 px-4 py-1.5 flex items-center gap-2 bg-slate-100/90 backdrop-blur-md border-y border-slate-200/60">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                    <span className="text-[10.5px] font-black text-slate-600 uppercase tracking-wider">{group.label}</span>
+                    <span className="text-[10px] font-semibold text-slate-400">({group.conversations.length})</span>
                   </div>
+                  <div className="space-y-0.5 pt-1">
                   {group.conversations.map((conv) => {
-                const isUnread = (conv.unreadCount || 0) > 0;
-                return (
-                <div 
-                  key={conv._id} 
-                  onClick={() => handleSelectConversation(conv)}
-                  className={`px-3 py-2.5 flex gap-2.5 items-start cursor-pointer transition-all duration-300 group relative ${
-                    selected?._id === conv._id
-                      ? 'bg-[#E6F4EC] border border-[#1E7F43]/30 rounded-lg shadow-[0_2px_12px_rgba(30,127,67,0.10)] mx-1 my-0.5'
-                      : 'bg-white border border-[#E0EDE6] rounded-lg mx-1 my-0.5 hover:border-[#1E7F43]/30 hover:shadow-sm hover:translate-x-[2px]'
-                  }`}
-                >
-                  {/* Read/Unread Dot */}
-                  <div className="flex flex-col items-center gap-1 pt-1">
-                    <span
-                      className={`w-[10px] h-[10px] rounded-full shrink-0 transition-all duration-300 ${
-                        isUnread
-                          ? 'bg-[#1E7F43] shadow-[0_0_8px_rgba(30,127,67,0.6),0_0_3px_rgba(30,127,67,0.8)]'
-                          : 'bg-emerald-300'
+                    const isUnread = (conv.unreadCount || 0) > 0;
+                    return (
+                    <div 
+                      key={conv._id} 
+                      onClick={() => handleSelectConversation(conv)}
+                      className={`mx-2 my-1 px-3 py-2.5 rounded-2xl flex gap-2.5 items-center cursor-pointer transition-all duration-150 group relative border ${
+                        selected?._id === conv._id
+                          ? 'bg-emerald-50/90 border-emerald-400/90 shadow-sm ring-1 ring-emerald-500/20'
+                          : 'bg-white border-slate-200/80 hover:bg-slate-50/90 hover:border-emerald-300/80 shadow-xs'
                       }`}
-                      title={isUnread ? 'Unread' : 'Read'}
-                    />
-                  </div>
-                  <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      className="h-4.5 w-4.5 rounded-lg border-slate-300 text-[#1E7F43] focus:ring-offset-0 focus:ring-[#1E7F43] transition-all transform group-hover:scale-110"
-                      checked={!!bulkSelected[conv._id]}
-                      onChange={(e) => toggleBulk(conv._id, e.target.checked)}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {/* Row 1: Name + Source icon + Date */}
-                    <div className="flex justify-between items-center mb-0.5">
+                    >
+                      {/* Bulk Select Checkbox */}
+                      <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-all cursor-pointer"
+                          checked={!!bulkSelected[conv._id]}
+                          onChange={(e) => toggleBulk(conv._id, e.target.checked)}
+                        />
+                      </div>
+
+                      {/* Contact Avatar Circle */}
+                      <div className="relative shrink-0">
+                        <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${getAvatarGradient(conv.name || conv.phoneNumber)} flex items-center justify-center text-white font-bold text-xs shadow-xs`}>
+                          {getInitials(conv.name, conv.phoneNumber)}
+                        </div>
+                        {isUnread && (
+                          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-white"></span>
+                          </span>
+                        )}
+                      </div>
+
                       <div className="min-w-0 flex-1">
-                        {conv.name && conv.hasLead ? (
-                          <div className="font-[800] text-slate-900 truncate tracking-tight text-[14px]">
-                            {conv.name}
-                          </div>
-                        ) : (
-                          <div className="font-[700] text-slate-700 truncate tracking-tight text-[14px] flex items-center gap-1.5">
-                            <span>{conv.phoneNumber}</span>
-                            {!conv.hasLead && (
-                              <span className="text-[8px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded border border-amber-200">NEW</span>
+                        {/* Row 1: Name / Phone + Channel Icon + Timestamp */}
+                        <div className="flex justify-between items-center mb-0.5">
+                          <div className="min-w-0 flex-1 pr-1.5">
+                            {conv.name && conv.name !== 'Unknown User' && !conv.name.match(/^\+?\d+$/) ? (
+                              <div>
+                                <div className="font-bold text-slate-900 truncate text-[13px] leading-tight">
+                                  {conv.name}
+                                </div>
+                                <div className="text-[11px] font-semibold text-slate-500 truncate leading-tight mt-0.5">
+                                  {formatPhoneDisplay(conv.phoneNumber)}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="font-bold text-slate-800 truncate text-[12.5px] tracking-wide leading-tight">
+                                {formatPhoneDisplay(conv.phoneNumber)}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        {/* Channel Icon — based on messaging platform, not lead source */}
-                        <span className="text-[13px] text-green-600" title="WhatsApp">
-                          <i className="ph-fill ph-whatsapp-logo"></i>
-                        </span>
-                        {/* Date */}
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                          {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : ''}
-                        </span>
-                        {conv.isBlocked && (
-                          <span className="text-[10px] text-red-600" title={`Blocked: ${conv.blockedReason || 'manual'}`}>
-                            <i className="ph-fill ph-prohibit"></i>
-                          </span>
-                        )}
-                        {/* Archive / Block - show on hover */}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); toggleArchive(conv.phoneNumber); }}
-                          className={`p-0.5 rounded transition-all ${
-                            showArchived 
-                              ? 'text-amber-600 hover:bg-amber-100'
-                              : 'text-slate-300 hover:text-amber-600 opacity-0 group-hover:opacity-100'
-                          }`}
-                          title={showArchived ? 'Unarchive' : 'Archive'}
-                        >
-                          <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} text-[11px]`}></i>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleBlockSingle(conv.leadId, !conv.isBlocked, 'manual'); }}
-                          className={`p-0.5 rounded transition-all ${
-                            conv.isBlocked
-                              ? 'text-green-600 hover:bg-green-100'
-                              : 'text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100'
-                          }`}
-                          title={conv.isBlocked ? 'Unblock' : 'Block'}
-                        >
-                          <i className={`ph ${conv.isBlocked ? 'ph-lock-key-open' : 'ph-prohibit'} text-[11px]`}></i>
-                        </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : ''}
+                            </span>
+                            {/* Quick action buttons on hover */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleArchive(conv.phoneNumber); }}
+                              className={`p-1 rounded-md transition-all ${
+                                showArchived 
+                                  ? 'text-amber-600 bg-amber-50'
+                                  : 'text-slate-300 hover:text-amber-600 hover:bg-amber-50 opacity-0 group-hover:opacity-100'
+                              }`}
+                              title={showArchived ? 'Unarchive' : 'Archive'}
+                            >
+                              {showArchived ? <RotateCcw className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleBlockSingle(conv.leadId, !conv.isBlocked, 'manual'); }}
+                              className={`p-1 rounded-md transition-all ${
+                                conv.isBlocked
+                                  ? 'text-emerald-600 bg-emerald-50'
+                                  : 'text-slate-300 hover:text-rose-600 hover:bg-rose-50 opacity-0 group-hover:opacity-100'
+                              }`}
+                              title={conv.isBlocked ? 'Unblock' : 'Block'}
+                            >
+                              {conv.isBlocked ? <Unlock className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Secondary info (Phone if name exists) & Last message preview */}
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="text-[11.5px] text-slate-500 truncate flex items-center gap-1 min-w-0">
+                            {conv.lastDirection === 'outbound' && (
+                              <CheckCheck className="w-3.5 h-3.5 text-sky-500 shrink-0 inline" />
+                            )}
+                            <span className="truncate">
+                              {conv.lastMessageContent || (conv.name ? formatPhoneDisplay(conv.phoneNumber) : 'No messages yet')}
+                            </span>
+                          </div>
+                          {conv.unreadCount ? (
+                            <span className="bg-emerald-600 text-white text-[10px] font-black h-4.5 min-w-[18px] px-1.5 rounded-full flex items-center justify-center shadow-xs shrink-0">
+                              {conv.unreadCount}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {/* Row 3: Modern Clean Pills (No ugly N/A boxes) */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {conv.leadNumber ? (
+                            <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200" title="Lead ID">
+                              #{String(conv.leadNumber).padStart(5, '0')}
+                            </span>
+                          ) : null}
+
+                          <ChatStatusBadge
+                            lastMessageAt={conv.lastMessageAt}
+                            manualStatus={conv.chatStatus}
+                            lastInboundAt={conv.lastInboundAt}
+                            lastDirection={conv.lastDirection}
+                            size="xs"
+                            interactive={true}
+                            onStatusChange={(newStatus) => handleChatStatusChange(newStatus, conv.leadId)}
+                          />
+
+                          {(() => {
+                            const stage = mapLeadStage(conv.status);
+                            return (
+                              <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tight ${stage.colorClass}`}>
+                                {stage.label}
+                              </span>
+                            );
+                          })()}
+
+                          {conv.assignedToUserId ? (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 truncate max-w-[80px]" title={adminUsers.find(u => u.userId === conv.assignedToUserId)?.name || 'Assigned'}>
+                              👤 {adminUsers.find(u => u.userId === conv.assignedToUserId)?.name?.split(' ')[0] || 'Assigned'}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-
-                    {/* Row 2: Phone number (if name exists) */}
-                    {conv.name && conv.hasLead && (
-                      <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-0.5">
-                        <i className="ph ph-phone text-[10px]"></i>
-                        <span>{conv.phoneNumber}</span>
-                      </div>
-                    )}
-
-                    {/* Row 3: Compact info strip — ID, Status, Stage, Assigned */}
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {/* Lead ID (red) */}
-                      <span className="text-[9px] font-[900] font-mono px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200" title="Lead ID">
-                        {conv.leadNumber ? String(conv.leadNumber).padStart(6, '0') : 'N/A'}
-                      </span>
-
-                      <span className="text-slate-300 text-[8px]">·</span>
-
-                      {/* Chat Status (interactive) */}
-                      <ChatStatusBadge
-                        lastMessageAt={conv.lastMessageAt}
-                        manualStatus={conv.chatStatus}
-                        lastInboundAt={conv.lastInboundAt}
-                        lastDirection={conv.lastDirection}
-                        size="xs"
-                        interactive={true}
-                        onStatusChange={(newStatus) => handleChatStatusChange(newStatus, conv.leadId)}
-                      />
-
-                      <span className="text-slate-300 text-[8px]">·</span>
-
-                      {/* Lead Stage */}
-                      {(() => {
-                        const stage = mapLeadStage(conv.status);
-                        return (
-                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${stage.colorClass}`}>
-                            {stage.label}
-                          </span>
-                        );
-                      })()}
-
-                      <span className="text-slate-300 text-[8px]">·</span>
-
-                      {/* Assigned To (single name) */}
-                      <span className="text-[9px] font-[700] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-200 truncate max-w-[70px]" title={conv.assignedToUserId ? (adminUsers.find(u => u.userId === conv.assignedToUserId)?.name || 'Assigned') : 'Unassigned'}>
-                        {conv.assignedToUserId ? (adminUsers.find(u => u.userId === conv.assignedToUserId)?.name?.split(' ')[0] || '—') : '—'}
-                      </span>
-
-                      {conv.unreadCount ? (
-                        <span className="ml-auto bg-gradient-to-r from-[#1E7F43] to-[#25A55A] text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
-                          {conv.unreadCount}
-                        </span>
-                      ) : null}
-                    </div>
+                    );
+                  })}
                   </div>
-                </div>
-                );
-              })}
                 </div>
               ))
             )}
@@ -2777,27 +3273,54 @@ export default function MetaInboxPage() {
 
           {selected ? (
             <>
-              <div className="px-3 py-1.5 flex gap-2 items-center sticky top-0 z-30 shrink-0 backdrop-blur-md" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(230,244,236,0.4) 100%)', borderBottom: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 2px 12px rgba(30,127,67,0.06)' }}>
-                <button className="md:hidden p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors" onClick={() => setSelected(null)}>
-                  <i className="ph ph-arrow-left text-lg"></i>
+              <div className="px-3 py-2 flex gap-2 items-center sticky top-0 z-30 shrink-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+                <button className="md:hidden p-1.5 -ml-1 text-slate-700 hover:text-emerald-700 rounded-full hover:bg-slate-100 transition-colors" onClick={() => setSelected(null)}>
+                  <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
                 </button>
-                <div className="flex items-center gap-2 mr-2">
-                   <div className="h-7 w-7 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)' }}>
-                      <i className="ph ph-user text-sm"></i>
+                <div className="flex items-center gap-2.5 mr-auto min-w-0">
+                   <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${getAvatarGradient(selected.name || selected.phoneNumber)} flex items-center justify-center text-white font-bold text-xs shadow-xs shrink-0 cursor-pointer hover:scale-105 transition-transform`} onClick={() => setAvatarZoom(true)} title="Click to view">
+                      {getInitials(selected.name, selected.phoneNumber)}
                    </div>
-                   <div>
-                     <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || "Unknown User"}</div>
-                     <div className="text-[10px] font-semibold text-slate-400 mt-0.5 tracking-wide">{selected.phoneNumber}</div>
+                   <div className="min-w-0">
+                     <div className="text-[13.5px] font-bold text-slate-900 leading-tight truncate">
+                       {selected.name && selected.name !== 'Unknown User' ? selected.name : formatPhoneDisplay(selected.phoneNumber)}
+                     </div>
+                     <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+                       <span className="truncate">{formatPhoneDisplay(selected.phoneNumber)}</span>
+                       <button
+                         type="button"
+                         onClick={() => {
+                           if (navigator?.clipboard && selected.phoneNumber) {
+                             navigator.clipboard.writeText(selected.phoneNumber);
+                           }
+                         }}
+                         className="text-slate-400 hover:text-emerald-600 transition-colors shrink-0"
+                         title="Copy phone"
+                       >
+                         <Copy className="w-2.5 h-2.5" />
+                       </button>
+                     </div>
                    </div>
                 </div>
 
-                <div className="relative">
+                {/* Quick Call on Mobile */}
+                {selected.phoneNumber && (
+                  <a
+                    href={`tel:${selected.phoneNumber}`}
+                    className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors md:hidden shrink-0 border border-slate-200/80"
+                    title="Direct Phone Call"
+                  >
+                    <Phone className="w-4 h-4 text-emerald-600" />
+                  </a>
+                )}
+
+                <div className="relative hidden md:block">
                   <button
                     type="button"
-                    className={`p-1.5 rounded-md transition-colors ${
+                    className={`p-2 rounded-xl border transition-colors ${
                       assignOpen
-                        ? 'text-[#1E7F43] bg-[#E6F4EC]'
-                        : 'text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-50 border-slate-200/80'
                     }`}
                     title="Assign User"
                     onClick={() => {
@@ -2805,12 +3328,12 @@ export default function MetaInboxPage() {
                       setLabelOpen(false);
                     }}
                   >
-                    <i className="ph ph-user-plus text-sm"></i>
+                    <UserPlus className="w-4 h-4" />
                   </button>
 
                   {assignOpen ? (
-                    <div className="absolute top-full mt-1 left-0 w-[200px] bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-50">
-                      <div className="text-[9px] font-bold tracking-widest uppercase text-slate-400 px-2 py-0.5">
+                    <div className="absolute top-full mt-1.5 right-0 w-[220px] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="text-[9.5px] font-bold tracking-widest uppercase text-slate-400 px-2 py-1">
                         Assign to
                       </div>
                       <div className="space-y-0.5">
@@ -2818,7 +3341,7 @@ export default function MetaInboxPage() {
                           <button
                             key={u.id}
                             type="button"
-                            className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-[#E6F4EC] hover:text-[#1E7F43] text-slate-700 transition-colors"
+                            className="w-full px-2.5 py-1.5 text-xs text-left rounded-xl hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-medium transition-colors"
                             onClick={() => {
                               setSidebarData((prev) => ({ ...prev }));
                               if (selected?.leadId) {
@@ -2835,7 +3358,7 @@ export default function MetaInboxPage() {
                         ))}
                         <button
                           type="button"
-                          className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-slate-50 text-slate-700 transition-colors"
+                          className="w-full px-2.5 py-1.5 text-xs text-left rounded-xl hover:bg-slate-50 text-slate-500 transition-colors border-t border-slate-100 mt-1 pt-1.5"
                           onClick={() => {
                             router.push('/admin/crm/permissions');
                             setAssignOpen(false);
@@ -2848,13 +3371,13 @@ export default function MetaInboxPage() {
                   ) : null}
                 </div>
 
-                <div className="relative">
+                <div className="relative hidden md:block">
                   <button
                     type="button"
-                    className={`p-1.5 rounded-md transition-colors ${
+                    className={`p-2 rounded-xl border transition-colors ${
                       labelOpen
-                        ? 'text-[#1E7F43] bg-[#E6F4EC]'
-                        : 'text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-50 border-slate-200/80'
                     }`}
                     title="Label"
                     onClick={() => {
@@ -2862,20 +3385,20 @@ export default function MetaInboxPage() {
                       setAssignOpen(false);
                     }}
                   >
-                    <i className="ph ph-tag text-sm"></i>
+                    <Tag className="w-4 h-4" />
                   </button>
 
                   {labelOpen ? (
-                    <div className="absolute top-full mt-1 left-0 w-[240px] bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-50">
-                      <div className="text-[9px] font-bold tracking-widest uppercase text-slate-400 px-2 py-0.5">
+                    <div className="absolute top-full mt-1.5 right-0 w-[240px] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="text-[9.5px] font-bold tracking-widest uppercase text-slate-400 px-2 py-1">
                         Labels
                       </div>
-                      <div className="flex flex-wrap gap-1 px-1 py-0.5">
+                      <div className="flex flex-wrap gap-1 px-1 py-1">
                         {(sidebarData.labels || []).map((l) => (
                           <button
                             key={l}
                             type="button"
-                            className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E6F4EC] text-[#1E7F43] border border-[#1E7F43]/20 hover:bg-red-50 hover:text-red-700 hover:border-red-100 transition-colors"
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors"
                             title="Remove"
                             onClick={() =>
                               setSidebarData((prev) => ({
@@ -2888,12 +3411,12 @@ export default function MetaInboxPage() {
                           </button>
                         ))}
                       </div>
-                      <div className="mt-0.5 space-y-0.5">
+                      <div className="mt-1 space-y-0.5">
                         {labelOptions.map((l) => (
                           <button
                             key={l}
                             type="button"
-                            className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-[#E6F4EC] hover:text-[#1E7F43] text-slate-700 transition-colors"
+                            className="w-full px-2.5 py-1.5 text-xs text-left rounded-xl hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-medium transition-colors"
                             onClick={() => {
                               setSidebarData((prev) => ({
                                 ...prev,
@@ -2907,7 +3430,7 @@ export default function MetaInboxPage() {
                         ))}
                         <button
                           type="button"
-                          className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-slate-50 text-slate-700 transition-colors"
+                          className="w-full px-2.5 py-1.5 text-xs text-left rounded-xl hover:bg-slate-50 text-slate-500 transition-colors border-t border-slate-100 mt-1 pt-1.5"
                           onClick={() => {
                             router.push('/admin/crm/labels');
                             setLabelOpen(false);
@@ -2920,12 +3443,10 @@ export default function MetaInboxPage() {
                   ) : null}
                 </div>
 
-
                 <button
-                  className="p-1.5 text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded-md transition-colors"
+                  className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-50 border border-slate-200/80 rounded-xl transition-colors shrink-0"
                   title="Mark as Read"
                   onClick={() => {
-                    // Optimistically update local state
                     if (selected?.phoneNumber) {
                       setConversations(prev => prev.map(c => 
                         (c.phoneNumber === selected.phoneNumber || (c.phoneNumber && selected.phoneNumber && c.phoneNumber.replace(/\D/g, '').endsWith(selected.phoneNumber.replace(/\D/g, '').slice(-10))))
@@ -2937,20 +3458,20 @@ export default function MetaInboxPage() {
                     }
                   }}
                 >
-                  <i className="ph ph-check text-sm"></i>
+                  <CheckCheck className="w-4 h-4" />
                 </button>
                 
                 <button
-                  className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'bg-[#E6F4EC] text-[#1E7F43]' : 'text-slate-500 hover:bg-slate-50'}`}
+                  className={`hidden md:flex p-2 rounded-xl border transition-colors ${showSidebar ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-slate-500 hover:bg-slate-50 border-slate-200/80'}`}
                   title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
                   onClick={() => setShowSidebar(!showSidebar)}
                 >
-                  <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-sm`}></i>
+                  {showSidebar ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
                 </button>
               </div>
 
               {/* Sticky top bar: Chat Stage + 24H Window Timer */}
-              <div className="flex items-center justify-between px-4 py-1.5 shrink-0 z-20" style={{ background: 'linear-gradient(90deg, #E6F4EC 0%, #F0F7F2 50%, #FEF2F2 100%)', borderBottom: '1px solid rgba(30,127,67,0.08)' }}>
+              <div className="flex items-center justify-between px-4 py-2 shrink-0 z-20 bg-slate-100/70 backdrop-blur-sm border-b border-slate-200/60">
                 <div className="flex items-center gap-2">
                   <ChatStatusBadge
                     lastMessageAt={selected.lastMessageAt}
@@ -2963,60 +3484,62 @@ export default function MetaInboxPage() {
                   />
                   {calculateChatStatus(selected.lastMessageAt, selected.chatStatus, selected.lastInboundAt, selected.lastDirection) !== 'closed' ? (
                     <button
-                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-colors"
                       title="Mark as Closed"
                       onClick={() => handleChatStatusChange('closed')}
                     >
-                      <i className="ph ph-check-circle text-xs"></i>
+                      <CheckCircle className="w-3.5 h-3.5" />
                     </button>
                   ) : (
                     <button
-                      className="p-1 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                      className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-white rounded-lg transition-colors"
                       title="Reopen Chat"
                       onClick={() => handleChatStatusChange('new')}
                     >
-                      <i className="ph ph-arrow-counter-clockwise text-xs"></i>
+                      <RotateCcw className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-                {/* Only show the 24h countdown for an active window on a new
-                    incoming chat — no stale "WINDOW EXPIRED" badge for old/closed chats. */}
+                {/* 24h WhatsApp Service Window */}
                 {windowRemaining && windowRemaining.diff > 0 ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="flex h-1.5 w-1.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-70"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full shadow-2xs">
+                  <span className="flex h-1.5 w-1.5 relative shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
                   </span>
-                  <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 1px 4px rgba(239,68,68,0.1)' }}>
-                    {`24H WINDOW • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`}
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider whitespace-nowrap">
+                    {`24H • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`}
                   </span>
                 </div>
                 ) : null}
               </div>
 
-              <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-3" style={{ backgroundColor: '#EEF1F0', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+              <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-3 bg-[#EFEAE2]/60" style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.03) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
                 {loadingMessages ? (
-                  <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>
+                  <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                    <span className="text-xs font-semibold">Loading conversation…</span>
+                  </div>
                 ) : messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(30,127,67,0.08), rgba(30,127,67,0.15))' }}>
-                      <i className="ph ph-chat-circle-dots text-3xl text-[#1E7F43]/50"></i>
+                    <div className="w-16 h-16 rounded-3xl bg-white shadow-xs flex items-center justify-center text-emerald-600">
+                      <MessageSquare className="w-8 h-8 opacity-60" />
                     </div>
-                    <p className="text-sm font-bold text-slate-500">No messages yet</p>
-                    <p className="text-xs text-slate-400">Send a hello to start the conversation.</p>
+                    <p className="text-sm font-bold text-slate-600">No messages yet</p>
+                    <p className="text-xs text-slate-400">Send a message to start chatting.</p>
                   </div>
                 ) : (
                   <>
                     {(messages.length > messageLimit || hasMoreHistory) && (
-                      <div className="flex justify-center pb-4">
+                      <div className="flex justify-center pb-2 pt-1">
                         <button
                            disabled={loadingFullHistory}
                            onClick={loadAllOldMessages}
-                           title="Load the full available chat history (up to 1 year) for this conversation"
-                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
-                           style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', boxShadow: '0 2px 8px rgba(30,127,67,0.25)' }}
+                           title="Load earlier messages"
+                           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-slate-600 bg-white/95 hover:bg-white border border-slate-200/90 shadow-xs hover:shadow-sm transition-all disabled:opacity-50"
                         >
-                           {loadingFullHistory ? 'Loading full history…' : 'Show Old Chat'}
+                           {loadingFullHistory ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" /> : <Clock className="w-3.5 h-3.5 text-slate-500" />}
+                           <span>{loadingFullHistory ? 'Loading history…' : 'Load earlier messages'}</span>
                         </button>
                       </div>
                     )}
@@ -3025,12 +3548,12 @@ export default function MetaInboxPage() {
                         key={msg._id} 
                         className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className={`max-w-[330px] sm:max-w-[360px] rounded-lg text-[14px] relative group transition-all duration-200 overflow-hidden ${
+                        <div className={`max-w-[340px] sm:max-w-[420px] rounded-2xl text-[13.5px] relative group transition-all duration-150 overflow-hidden shadow-xs ${
                           msg.direction === 'outbound'
-                            ? 'text-gray-900 rounded-tr-sm shadow-sm'
-                            : 'text-white rounded-tl-sm shadow-sm'
-                        }`} style={msg.direction === 'outbound' ? { background: 'linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%)', border: '1px solid rgba(30,127,67,0.12)' } : { background: 'linear-gradient(135deg, #075E54 0%, #0a7e6f 100%)' }}>
-                          {/* Media Rendering - Using unified InlineMediaPreview component */}
+                            ? 'bg-[#D9FDD3] text-slate-900 rounded-tr-xs border border-emerald-300/40'
+                            : 'bg-white text-slate-900 rounded-tl-xs border border-slate-200/70'
+                        }`}>
+                          {/* Media Rendering */}
                           {(() => {
                             // Check for media in various places including template header media
                             const templateHeaderMedia = (msg as any).metadata?.template?.headerMedia?.url || 
@@ -3069,14 +3592,14 @@ export default function MetaInboxPage() {
                                       className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
                                       title="Download"
                                     >
-                                      <i className="ph ph-download-simple text-sm"></i>
+                                      <Download className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setForwardMedia({ url: rawMediaUrl || effectiveMediaUrl, kind: mediaKind, caption: msg.messageContent || undefined }); }}
                                       className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
                                       title="Forward"
                                     >
-                                      <i className="ph ph-share-fat text-sm"></i>
+                                      <Share2 className="w-4 h-4" />
                                     </button>
                                   </div>
                                 </div>
@@ -3113,7 +3636,8 @@ export default function MetaInboxPage() {
                                 content === '[image message]' ||
                                 content === '[video message]' ||
                                 content === '[document message]' ||
-                                /^\[(image|video|document|audio|sticker|media)\]$/i.test(content.trim()) ||
+                                content === '[audio message]' ||
+                                /^\[(image|video|document|audio|sticker|media)(\s+message)?\]$/i.test(content.trim()) ||
                                 content.startsWith('🖼')) {
                               return null;
                             }
@@ -3214,7 +3738,7 @@ export default function MetaInboxPage() {
                                     <img src={`https://img.youtube.com/vi/${m[1]}/mqdefault.jpg`} alt="Video" className="w-full max-h-[160px] object-cover rounded-lg" />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                                       <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
-                                        <i className="ph-fill ph-play text-white text-lg ml-0.5"></i>
+                                        <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                                       </div>
                                     </div>
                                   </a>
@@ -3225,38 +3749,64 @@ export default function MetaInboxPage() {
                                     <video src={vUrl} className="w-full max-h-[160px] object-cover rounded-lg" preload="metadata" muted />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer" onClick={() => window.open(vUrl, '_blank')}>
                                       <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                                        <i className="ph-fill ph-play text-slate-800 text-lg ml-0.5"></i>
+                                        <Play className="w-4 h-4 fill-slate-800 text-slate-800 ml-0.5" />
                                       </div>
                                     </div>
                                   </div>
                                 ))}
                                 {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
+                                {msg.status === 'failed' && (
+                                  <div className="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-tight flex items-start gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500 mt-0.5" />
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-rose-800">Delivery Failed</div>
+                                      <div className="text-[10.5px] text-rose-600 mt-0.5">
+                                        {(msg as any).errorMessage || (msg as any).failureReason || 'Message was not delivered by Meta WhatsApp.'}
+                                      </div>
+                                      {Boolean((((msg as any).errorMessage || '') + ((msg as any).failureReason || '')).match(/24-Hour|24 hours|template|re-engage/i)) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setActionModal({ type: 'template' })}
+                                          className="mt-2 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-semibold text-[11px] rounded-md inline-flex items-center gap-1 shadow-xs transition-all"
+                                        >
+                                          <Sparkles className="w-3 h-3" />
+                                          Send Template Instead
+                                        </button>
+                                      )}
+                                      {(((msg as any).errorMessage || '') + ((msg as any).failureReason || '')).includes('healthy ecosystem engagement') && (
+                                        <div className="text-[10px] text-slate-500 mt-1 italic">
+                                          Notice: Recipient reached WhatsApp marketing frequency limits set by Meta. Try again later or send a normal message.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}
                           
-                          <div className={`text-[10px] mt-1.5 flex items-center gap-1 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
+                          <div className={`text-[10px] mt-1.5 flex items-center gap-1 ${msg.direction === 'outbound' ? 'justify-end text-slate-500' : 'justify-start text-slate-400'}`}>
                             {/* Show "Swar Yoga" in bold black for outbound messages with admin tag */}
                             {msg.direction === 'outbound' && (msg.messageContent || '').match(/\[(admincrm|admin|crm)\]\s*$/i) && (
                               <>
-                                <span className="font-bold text-gray-900 text-[11px]">Swar Yoga</span>
+                                <span className="font-bold text-slate-800 text-[10.5px]">Swar Yoga</span>
                                 <span className="mx-1">•</span>
                               </>
                             )}
                             <span className="tracking-wide">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
-                              <div className="flex items-center ml-1" title={msg.status}>
+                              <div className="flex items-center ml-1" title={(msg as any).errorMessage || (msg as any).failureReason || msg.status}>
                                 {msg.status === 'failed' ? (
-                                  <i className="ph ph-x text-[15px] text-red-500"></i>
+                                  <X className="w-3.5 h-3.5 text-rose-500" />
                                 ) : msg.status === 'queued' || (msg.status as string) === 'sending' ? (
-                                  <i className="ph ph-clock text-[15px] text-gray-400"></i>
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
                                 ) : msg.status === 'sent' ? (
-                                  <i className="ph ph-check text-[15px] text-gray-400"></i>
+                                  <Check className="w-3.5 h-3.5 text-slate-400" />
                                 ) : msg.status === 'read' ? (
-                                  <i className="ph ph-checks text-[15px] text-blue-700"></i>
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-500" />
                                 ) : (
                                   /* delivered or other */ 
-                                  <i className="ph ph-checks text-[15px] text-gray-400"></i>
+                                  <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
                                 )}
                               </div>
                             )}
@@ -3289,25 +3839,23 @@ export default function MetaInboxPage() {
                 )}
               </div>
 
-              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,247,242,0.9) 100%)', borderTop: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 -4px 16px rgba(30,127,67,0.04)' }}>
-                <div className="flex items-end gap-2 max-w-6xl mx-auto">
+              <div className="px-2 sm:px-3 pt-2 pb-2.5 sm:pb-5 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,247,242,0.9) 100%)', borderTop: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 -4px 16px rgba(30,127,67,0.04)' }}>
+                <div className="flex items-end gap-1.5 sm:gap-2 max-w-6xl mx-auto">
                   
-                  {/* Quick Actions (Plus Button) */}
-                  <div className="relative group self-end">
+                  {/* Quick Actions (Actions Button - desktop only, mobile is inside pill) */}
+                  <div className="hidden sm:block relative group self-end">
                     <button
                       type="button"
                       onClick={() => setQuickActionsOpen((v) => !v)}
-                      className={`h-8 w-8 flex items-center justify-center rounded-md transition-all active:scale-95 ${
+                      className={`h-10 w-10 sm:w-auto sm:px-3 flex items-center justify-center gap-1.5 rounded-full sm:rounded-xl font-bold text-xs transition-all active:scale-95 shadow-md cursor-pointer border shrink-0 ${
                         quickActionsOpen
-                          ? 'text-white shadow-lg'
-                          : 'text-slate-400 hover:text-white hover:shadow-lg'
+                          ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white border-emerald-700 shadow-emerald-600/30'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700/80 shadow-emerald-600/20'
                       }`}
-                      style={{ background: quickActionsOpen ? 'linear-gradient(135deg, #1E7F43, #28964F)' : undefined }}
-                      onMouseEnter={(e) => { if (!quickActionsOpen) e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; }}
-                      onMouseLeave={(e) => { if (!quickActionsOpen) e.currentTarget.style.background = ''; }}
-                      title="Quick actions"
+                      title="Quick actions & features"
                     >
-                      <i className="ph-bold ph-lightning text-[16px]"></i>
+                      <Zap className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0" />
+                      <span className="hidden sm:inline font-bold">Actions</span>
                     </button>
 
                     {quickActionsOpen ? (
@@ -3317,10 +3865,10 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => setQuickActionsOpen(false)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 transition-colors"
                             title="Close"
                           >
-                            <i className="ph ph-x"></i>
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
 
@@ -3328,49 +3876,49 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => openAction('quick')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-lightning text-lg"></i>
+                            <Zap className="w-4 h-4 text-emerald-600" />
                             Quick message
                           </button>
                           <button
                             type="button"
                             onClick={() => openAction('schedule')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-[#E6F4EC] hover:text-[#1E7F43] rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-calendar-plus text-lg"></i>
+                            <CalendarPlus className="w-4 h-4 text-emerald-600" />
                             Schedule message
                           </button>
                           <button
                             type="button"
                             onClick={() => openAction('template')}
-                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-note text-lg"></i>
+                            <FileText className="w-4 h-4 text-indigo-600" />
                             Template
                           </button>
                           <button
                             type="button"
                             onClick={() => openAction('delay')}
-                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-timer text-lg"></i>
+                            <Clock className="w-4 h-4 text-amber-600" />
                             Delay message
                           </button>
                           <button
                             type="button"
                             onClick={() => openAction('repeat')}
-                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-repeat text-lg"></i>
+                            <RotateCcw className="w-4 h-4 text-violet-600" />
                             Repeat mode
                           </button>
                           <button
                             type="button"
                             onClick={() => openAction('chatbot_flow')}
-                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl flex items-center gap-3 transition-colors font-medium"
                           >
-                            <i className="ph ph-robot text-lg"></i>
+                            <Bot className="w-4 h-4 text-cyan-600" />
                             Chatbot flow
                           </button>
                         </div>
@@ -3381,85 +3929,157 @@ export default function MetaInboxPage() {
                   {/* Main Input Box with Top Toolbar */}
                   {selected?.isBlocked ? (
                     <div className="flex-1 border border-red-200 rounded-md bg-red-50/50 px-4 py-3 flex items-center gap-3">
-                      <i className="ph ph-prohibit text-xl text-red-400"></i>
+                      <Ban className="w-5 h-5 text-red-500" />
                       <div className="flex-1">
                         <p className="text-xs font-bold text-red-600">Blocked {selected.blockedReason === 'stop_keyword' ? '— user sent "stop"' : ''}</p>
                       </div>
                       <button
                         onClick={() => selected.leadId && handleBlockSingle(selected.leadId, false)}
-                        className="px-3 py-1.5 rounded-md text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"
+                        className="px-3 py-1.5 rounded-md text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
                       >
-                        <i className="ph ph-lock-key-open mr-1"></i> Unblock
+                        <Unlock className="w-3.5 h-3.5" /> Unblock
                       </button>
                     </div>
                   ) : (
-                  <div className="flex-1 min-w-0 rounded-lg bg-white/80 backdrop-blur-sm focus-within:ring-2 focus-within:ring-[#1E7F43]/20 focus-within:border-[#1E7F43] transition-all relative z-20" style={{ border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.06)' }}>
+                  <div className="flex-1 min-w-0 rounded-[24px] sm:rounded-2xl bg-white border border-slate-200/60 sm:border-emerald-200/80 shadow-sm focus-within:shadow-md transition-all relative z-20">
                       
-                      {/* Top Toolbar */}
-                      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-[#E0EDE6]/60 rounded-t-lg relative overflow-x-auto no-scrollbar whitespace-nowrap" style={{ background: 'linear-gradient(90deg, rgba(230,244,236,0.5) 0%, rgba(250,252,251,0.8) 100%)' }}>
-                          <button onClick={() => handleToolAction('bold')} title="Bold" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-bolder text-sm"></i></button>
-                          <button onClick={() => handleToolAction('italic')} title="Italic" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-italic text-sm"></i></button>
-                          <button onClick={() => handleToolAction('emoji')} title="Emoji" className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}><i className="ph ph-smiley text-sm"></i></button>
-                          <button onClick={() => handleToolAction('symbols')} title="Symbols" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded transition-colors"><i className="ph ph-hash text-sm"></i></button>
+                      {/* Top Toolbar - Desktop only */}
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border-b border-emerald-100/80 rounded-t-2xl relative overflow-x-auto no-scrollbar whitespace-nowrap bg-emerald-50/40">
+                          {/* Formatting */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleToolAction('bold')}
+                              title="Bold (*text*)"
+                              className="h-7 w-7 flex items-center justify-center text-slate-700 bg-white hover:bg-slate-100 hover:text-black border border-slate-300 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
+                            >
+                              <Bold className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleToolAction('italic')}
+                              title="Italic (_text_)"
+                              className="h-7 w-7 flex items-center justify-center text-slate-700 bg-white hover:bg-slate-100 hover:text-black border border-slate-300 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
+                            >
+                              <Italic className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleToolAction('emoji')}
+                              title="Emojis"
+                              className={`h-7 px-2 flex items-center gap-1 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105 ${
+                                showEmojiPicker
+                                  ? 'text-white bg-amber-500 border border-amber-600'
+                                  : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+                              }`}
+                            >
+                              <Smile className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="text-[11px] font-semibold hidden sm:inline">Emoji</span>
+                            </button>
+                            <button
+                              onClick={() => handleToolAction('symbols')}
+                              title="Special Symbols"
+                              className="h-7 px-2 flex items-center gap-1 text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
+                            >
+                              <Hash className="w-3.5 h-3.5 text-teal-600" />
+                              <span className="text-[11px] font-semibold hidden sm:inline">Symbols</span>
+                            </button>
+                          </div>
 
-                           <div className="w-px h-3.5 bg-slate-200 mx-1"></div>
+                          <div className="w-px h-4 bg-slate-300 mx-0.5"></div>
 
-                           {/* AI Tools */}
-                           <button
-                             onClick={() => setAutoCorrectEnabled(!autoCorrectEnabled)}
-                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${autoCorrectEnabled ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-100'}`}
-                             title={autoCorrectEnabled ? 'Auto-correct ON' : 'Auto-correct OFF'}
-                           >
-                             <i className={`ph-fill ${autoCorrectEnabled ? 'ph-check-circle' : 'ph-circle'} text-xs`}></i>
-                             <span className="hidden xl:inline">Auto</span>
-                           </button>
-                           <button
-                             onClick={handleAIFix}
-                             disabled={isFixing || !composerText}
-                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${isFixing ? 'bg-violet-100 text-violet-700' : 'text-violet-600 hover:bg-violet-50'}`}
-                             title="Fix Spelling"
-                           >
-                             {isFixing ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-magic-wand text-xs"></i>}
-                             <span className="hidden xl:inline">Fix</span>
-                           </button>
-                           <button
-                             onClick={handleAIReply}
-                             disabled={isReplying}
-                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${isReplying ? 'bg-fuchsia-100 text-fuchsia-700' : 'text-fuchsia-600 hover:bg-fuchsia-50'}`}
-                             title="AI Suggest Reply"
-                           >
-                             {isReplying ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-sparkle text-xs"></i>}
-                             <span className="hidden xl:inline">AI</span>
-                           </button>
+                          {/* Action Shortcuts */}
+                          <button
+                            type="button"
+                            onClick={() => openAction('template')}
+                            title="WhatsApp Templates"
+                            className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-300 shadow-xs cursor-pointer hover:scale-105"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="text-[11px] font-semibold">Template</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openAction('quick')}
+                            title="Quick Reply"
+                            className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-xs cursor-pointer hover:scale-105"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                            <span className="text-[11px] font-semibold">Quick</span>
+                          </button>
 
-                           <LanguageSelector 
-                              currentText={composerText} 
-                              onTextTranslated={(t) => setComposerText(t)}
-                              onTranslate={handleTranslationCall}
-                           />
+                          <div className="w-px h-4 bg-slate-300 mx-0.5"></div>
+
+                          {/* AI Tools */}
+                          <button
+                            onClick={() => setAutoCorrectEnabled(!autoCorrectEnabled)}
+                            className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer hover:scale-105 ${
+                              autoCorrectEnabled
+                                ? 'bg-emerald-600 text-white border border-emerald-700 shadow-sm'
+                                : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
+                            }`}
+                            title={autoCorrectEnabled ? 'Auto-correct is ON' : 'Auto-correct is OFF'}
+                          >
+                            {autoCorrectEnabled ? <CheckCircle2 className="w-3.5 h-3.5 text-white" /> : <div className="w-2.5 h-2.5 rounded-full border border-slate-400" />}
+                            <span className="text-[11px] font-semibold">Auto</span>
+                          </button>
+                          <button
+                            onClick={handleAIFix}
+                            disabled={isFixing || !composerText}
+                            className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-40 disabled:hover:scale-100 ${
+                              isFixing
+                                ? 'bg-violet-100 text-violet-700 border border-violet-300'
+                                : 'bg-violet-600 hover:bg-violet-700 text-white border border-violet-700 hover:scale-105'
+                            }`}
+                            title="Fix Spelling & Grammar with AI"
+                          >
+                            {isFixing ? <LoadingSpinner size="sm" /> : <Wand2 className="w-3.5 h-3.5 text-white" />}
+                            <span className="text-[11px] font-semibold">Fix</span>
+                          </button>
+                          <button
+                            onClick={handleAIReply}
+                            disabled={isReplying}
+                            className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-40 disabled:hover:scale-100 ${
+                              isReplying
+                                ? 'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-300'
+                                : 'bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-700 hover:to-pink-700 text-white border border-fuchsia-700 hover:scale-105'
+                            }`}
+                            title="AI Suggest Reply"
+                          >
+                            {isReplying ? <LoadingSpinner size="sm" /> : <Sparkles className="w-3.5 h-3.5 text-amber-200 fill-amber-200" />}
+                            <span className="text-[11px] font-semibold">AI</span>
+                          </button>
+
+                          <LanguageSelector 
+                             currentText={composerText} 
+                             onTextTranslated={(t) => setComposerText(t)}
+                             onTranslate={handleTranslationCall}
+                          />
                           
-                          <div className="w-px h-3.5 bg-slate-200 mx-1"></div>
+                          <div className="w-px h-4 bg-slate-300 mx-0.5"></div>
 
-                          {/* Attachment */}
+                          {/* Attachment Button */}
                           <div className="relative">
                             <button 
                                 onClick={() => setAttachmentMenuOpen(!attachmentMenuOpen)} 
-                                title="Attach" 
-                                className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${attachmentMenuOpen ? 'text-[#1E7F43] bg-[#E6F4EC]' : 'text-slate-400 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'}`}
+                                title="Attach media or files" 
+                                className={`h-7 px-2.5 flex items-center gap-1 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105 ${
+                                  attachmentMenuOpen
+                                    ? 'text-white bg-emerald-600 border border-emerald-700'
+                                    : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300'
+                                }`}
                             >
-                                <i className="ph ph-paperclip text-sm"></i>
+                                <Paperclip className="w-3.5 h-3.5" />
+                                <span className="text-[11px] font-semibold">Attach</span>
                             </button>
                             {attachmentMenuOpen && (
-                                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-md shadow-lg flex flex-col p-1.5 min-w-[150px] z-50">
-                                    <div className="text-[9px] font-bold uppercase text-slate-400 px-2 py-1 tracking-wider">Attach</div>
-                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('image'); setAttachmentMenuOpen(false); }}>
-                                        <i className="ph-fill ph-image text-emerald-600"></i> Image
+                                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-xl shadow-xl flex flex-col p-1.5 min-w-[160px] z-50">
+                                    <div className="text-[9px] font-bold uppercase text-slate-400 px-2 py-1 tracking-wider">Attach Media</div>
+                                    <button className="flex items-center gap-2 px-2.5 py-2 text-xs text-slate-700 font-semibold hover:bg-emerald-50 hover:text-emerald-700 rounded-lg text-left transition-colors cursor-pointer" onClick={() => { handleToolAction('image'); setAttachmentMenuOpen(false); }}>
+                                        <ImageIcon className="w-4 h-4 text-emerald-600" /> Send Image
                                     </button>
-                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('video'); setAttachmentMenuOpen(false); }}>
-                                        <i className="ph-fill ph-video-camera text-rose-600"></i> Video
+                                    <button className="flex items-center gap-2 px-2.5 py-2 text-xs text-slate-700 font-semibold hover:bg-rose-50 hover:text-rose-700 rounded-lg text-left transition-colors cursor-pointer" onClick={() => { handleToolAction('video'); setAttachmentMenuOpen(false); }}>
+                                        <Video className="w-4 h-4 text-rose-600" /> Send Video
                                     </button>
-                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('document'); setAttachmentMenuOpen(false); }}>
-                                        <i className="ph-fill ph-file-text text-blue-600"></i> Document
+                                    <button className="flex items-center gap-2 px-2.5 py-2 text-xs text-slate-700 font-semibold hover:bg-blue-50 hover:text-blue-700 rounded-lg text-left transition-colors cursor-pointer" onClick={() => { handleToolAction('document'); setAttachmentMenuOpen(false); }}>
+                                        <FileText className="w-4 h-4 text-blue-600" /> Send Document
                                     </button>
                                 </div>
                             )}
@@ -3521,35 +4141,111 @@ export default function MetaInboxPage() {
                             className="h-5 w-5 rounded flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors"
                             title="Remove"
                           >
-                            <i className="ph-bold ph-x text-xs"></i>
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
 
-                      <SpellCheckTextarea
-                        value={composerText}
-                        onChange={handleComposerChange}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                        placeholder={autoCorrectEnabled ? "Type message... (Auto ON)" : "Type message..."}
-                        className="px-3 py-2 border-none focus:ring-0 max-h-56 min-h-[38px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] w-full bg-transparent resize-none leading-relaxed overflow-y-auto"
-                        token={token || ''}
-                      />
+                      {/* 24-Hour WhatsApp Window Notice */}
+                      {selected && (!windowRemaining || windowRemaining.diff <= 0) && (
+                        <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-amber-50/90 border-b border-amber-200/80 text-amber-900 text-[11.5px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="truncate font-medium text-[11px] sm:text-[11.5px]">24h window closed • Send template to reach customer</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActionModal({ type: 'template' })}
+                            className="shrink-0 px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-semibold text-[11px] rounded-md flex items-center gap-1 shadow-2xs transition-all"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Send Template
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Input row with Mobile Emoji, Textarea, and Action Icons */}
+                      <div className="flex items-center px-1 sm:px-0">
+                        {/* Mobile Emoji Button - WhatsApp Style */}
+                        <button
+                          type="button"
+                          onClick={() => handleToolAction('emoji')}
+                          className="sm:hidden p-2 text-[#54656f] hover:text-[#111b21] transition-colors shrink-0"
+                          title="Emojis"
+                        >
+                          <Smile className="w-6 h-6 text-[#54656f]" />
+                        </button>
+
+                        <div className="flex-1 min-w-0 py-0.5">
+                          <SpellCheckTextarea
+                            value={composerText}
+                            onChange={handleComposerChange}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendMessage();
+                              }
+                            }}
+                            placeholder="Message"
+                            className="px-1.5 py-2 sm:px-3 sm:py-2 border-none focus:ring-0 max-h-36 min-h-[38px] placeholder:text-[#8696a0] font-normal text-[#111b21] text-[15px] w-full bg-transparent resize-none leading-relaxed overflow-y-auto"
+                            token={token || ''}
+                          />
+                        </div>
+
+                        {/* Mobile Action Icons inside the pill - EXACTLY like WhatsApp on Android */}
+                        <div className="flex items-center sm:hidden shrink-0 pr-1.5 gap-0.5">
+                          {/* Quick replies shortcut */}
+                          <button
+                            type="button"
+                            onClick={() => openAction('quick')}
+                            className="p-1.5 text-[#54656f] hover:text-amber-500 transition-colors shrink-0"
+                            title="Quick replies"
+                          >
+                            <Zap className="w-5 h-5 text-[#54656f] fill-[#54656f]/20" />
+                          </button>
+
+                          {/* Mobile Attach Button */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setAttachmentMenuOpen(!attachmentMenuOpen)}
+                              className="p-1.5 text-[#54656f] hover:text-[#00a884] transition-colors shrink-0"
+                              title="Attach Media"
+                            >
+                              <Paperclip className="w-5 h-5 text-[#54656f] -rotate-45" />
+                            </button>
+                          </div>
+
+                          {/* Mobile Camera / Photos button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToolAction('image')}
+                            className="p-1.5 text-[#54656f] hover:text-[#00a884] transition-colors shrink-0"
+                            title="Send Image"
+                          >
+                            <Camera className="w-5 h-5 text-[#54656f]" />
+                          </button>
+                        </div>
+                      </div>
                   </div>
                   )}
 
+                  {/* Floating Send Button - Authentic WhatsApp Android FAB */}
                   <button 
                     onClick={handleSendMessage}
-                    disabled={(!composerText.trim() && !attachedMedia) || sending || selected?.isBlocked}
-                    className="text-white h-10 w-10 md:h-8 md:w-auto md:px-4 rounded-full md:rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 disabled:transform-none flex items-center justify-center gap-1.5 shrink-0 self-end hover:shadow-lg hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 100%)', boxShadow: '0 2px 8px rgba(30,127,67,0.3)' }}
+                    disabled={sending || selected?.isBlocked}
+                    className={`h-11 w-11 sm:h-10 sm:w-10 rounded-full font-bold text-xs transition-transform active:scale-95 flex items-center justify-center shrink-0 self-end shadow-md cursor-pointer ${
+                      selected?.isBlocked
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-[#00a884] hover:bg-[#008f6f] text-white shadow-[#00a884]/30'
+                    }`}
+                    title="Send message"
                   >
-                    {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-lg md:text-sm"></i>}
-                    <span className="hidden md:inline">Send</span>
+                    {sending ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Send className="w-5 h-5 ml-0.5 text-white fill-white" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -3589,7 +4285,7 @@ export default function MetaInboxPage() {
                         onClick={closeActionModal}
                         title="Close"
                       >
-                        <i className="ph ph-x text-lg"></i>
+                        <X className="w-5 h-5" />
                       </button>
                     </div>
 
@@ -3761,50 +4457,73 @@ export default function MetaInboxPage() {
                               }
                             }}
                           />
-                          <button 
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-bold"
-                            onClick={() => {
-                              if (newQuickReply.trim()) {
-                                addQuickReply(newQuickReply);
-                                setNewQuickReply('');
-                              }
-                            }}
-                          >
-                            Add
-                          </button>
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            <button 
+                              type="button"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-xs cursor-pointer"
+                              onClick={() => {
+                                if (newQuickReply.trim()) {
+                                  addQuickReply(newQuickReply, true);
+                                  setNewQuickReply('');
+                                  closeActionModal();
+                                }
+                              }}
+                              title="Add to list and insert into current message"
+                            >
+                              Add & Use
+                            </button>
+                            <button 
+                              type="button"
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all active:scale-95 border border-slate-200 cursor-pointer"
+                              onClick={() => {
+                                if (newQuickReply.trim()) {
+                                  addQuickReply(newQuickReply, false);
+                                  setNewQuickReply('');
+                                }
+                              }}
+                              title="Save to list only"
+                            >
+                              Save Only
+                            </button>
+                          </div>
                         </div>
 
-                        <p className="text-[10px] text-slate-400 mb-3">Press <kbd className="px-1 py-0.5 bg-slate-100 rounded text-[9px] border border-slate-200">Ctrl+Enter</kbd> to add</p>
+                        <p className="text-[10px] text-slate-400 mb-3">Click any message below to insert into chat, or press <kbd className="px-1 py-0.5 bg-slate-100 rounded text-[9px] border border-slate-200">Ctrl+Enter</kbd> to add</p>
 
                         {/* List */}
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                           {quickReplies.map(qr => (
-                            <div key={qr.id} className="group flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-[#1E7F43]/30 hover:bg-[#E6F4EC]/50 transition-all">
-                              <p 
-                                className="text-sm text-slate-700 font-medium cursor-pointer flex-1 whitespace-pre-wrap line-clamp-4"
-                                onClick={() => {
-                                  appendToComposer(qr.text);
-                                  closeActionModal();
-                                }}
-                              >
+                            <div 
+                              key={qr.id} 
+                              onClick={() => {
+                                setComposerText((prev) => (prev ? `${prev} ${qr.text}` : qr.text));
+                                closeActionModal();
+                              }}
+                              className="group flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/60 transition-all cursor-pointer shadow-xs active:scale-[0.99]"
+                            >
+                              <p className="text-sm text-slate-800 font-medium flex-1 whitespace-pre-wrap leading-relaxed">
                                 {qr.text}
                               </p>
-                              <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold shadow-xs">
+                                  Use
+                                </span>
                                 <button 
-                                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                                  type="button"
+                                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     deleteQuickReply(qr.id);
                                   }}
-                                  title="Delete"
+                                  title="Delete reply"
                                 >
-                                  <i className="ph ph-trash"></i>
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>
                           ))}
                           {quickReplies.length === 0 && (
-                            <p className="text-xs text-slate-400 text-center py-4 italic">No quick replies yet.</p>
+                            <p className="text-xs text-slate-400 text-center py-4 italic">No quick replies yet. Type above and click Add & Use.</p>
                           )}
                         </div>
 
@@ -3817,12 +4536,12 @@ export default function MetaInboxPage() {
                         <p className="text-[11px] text-slate-400 mb-3">First message sends immediately. Next messages follow on user reply.</p>
                         {chatbotFlowsLoading ? (
                           <div className="flex items-center justify-center py-8 text-slate-400">
-                            <i className="ph ph-spinner animate-spin text-2xl mr-2"></i>
+                            <Loader2 className="w-6 h-6 animate-spin text-cyan-600 mr-2" />
                             Loading flows...
                           </div>
                         ) : chatbotFlows.length === 0 ? (
                           <div className="text-center py-8">
-                            <i className="ph ph-robot text-4xl text-slate-300 mb-2"></i>
+                            <Bot className="w-12 h-12 text-slate-300 mx-auto mb-2" />
                             <p className="text-sm text-slate-500">No chatbot flows found.</p>
                             <a href="/admin/crm/chatbots" className="text-xs text-cyan-600 hover:underline mt-1 inline-block">Create one in Chatbot Builder →</a>
                           </div>
@@ -4003,7 +4722,7 @@ export default function MetaInboxPage() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4" style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F0F7F2 100%)' }}>
               <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(30,127,67,0.08) 0%, rgba(30,127,67,0.18) 100%)', boxShadow: '0 8px 24px rgba(30,127,67,0.1), inset 0 1px 2px rgba(255,255,255,0.5)' }}>
-                <i className="ph ph-whatsapp-logo text-6xl text-[#1E7F43]/40"></i>
+                <WhatsAppIcon className="w-14 h-14 text-[#1E7F43]/40" />
               </div>
               <p className="font-bold text-lg text-slate-500">Select a conversation to start chatting</p>
               <p className="text-xs text-slate-400">Your chats will appear here.</p>
@@ -4027,8 +4746,12 @@ export default function MetaInboxPage() {
                   {selected.name ? selected.name[0].toUpperCase() : 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || selected.phoneNumber}</h3>
-                  <p className="text-xs text-slate-500">{selected.phoneNumber}</p>
+                  <h3 className="font-extrabold text-slate-900 leading-tight">
+                    {selected.name && selected.name !== 'Unknown User' && !selected.name.match(/^\+?\d+$/)
+                      ? selected.name
+                      : formatPhoneDisplay(selected.phoneNumber)}
+                  </h3>
+                  <p className="text-xs text-slate-500">{formatPhoneDisplay(selected.phoneNumber)}</p>
                 </div>
                 </div>
                   {/* Labels in a single row */}
@@ -4135,7 +4858,7 @@ export default function MetaInboxPage() {
                 <section>
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Follow Up Schedule</label>
                   <div className="relative">
-                    <i className="ph ph-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input 
                       type="date"
                       className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50" 
@@ -4150,7 +4873,7 @@ export default function MetaInboxPage() {
                   disabled={savingSidebar}
                   className="w-full bg-[#1E7F43] text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-extrabold hover:bg-[#166235] transition-colors shadow-sm disabled:opacity-50"
                 >
-                  {savingSidebar ? <LoadingSpinner size="sm" /> : <i className="ph ph-floppy-disk text-lg"></i>}
+                  {savingSidebar ? <LoadingSpinner size="sm" /> : <Save className="w-4 h-4" />}
                   <span>Save Changes</span>
                 </button>
 
@@ -4163,7 +4886,7 @@ export default function MetaInboxPage() {
                       : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
                   }`}
                 >
-                  <i className={`ph ${selected?.isBlocked ? 'ph-lock-key-open' : 'ph-prohibit'} text-lg`}></i>
+                  {selected?.isBlocked ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                   <span>{selected?.isBlocked ? 'Unblock User' : 'Block User'}</span>
                 </button>
                 {selected?.isBlocked && selected?.blockedReason && (
@@ -4175,7 +4898,7 @@ export default function MetaInboxPage() {
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-50 space-y-2">
-              <i className="ph ph-user-circle text-6xl"></i>
+              <User className="w-12 h-12 text-slate-300" />
               <p className="text-xs font-bold uppercase tracking-widest text-center px-4">Select lead for info</p>
             </div>
           )}
@@ -4282,7 +5005,7 @@ export default function MetaInboxPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
               <h3 className="font-bold text-slate-800 text-base">Forward Media</h3>
               <button onClick={() => { setForwardMedia(null); setForwardSearch(''); }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
-                <i className="ph ph-x text-lg"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
             
@@ -4295,7 +5018,7 @@ export default function MetaInboxPage() {
                   <video src={getProxiedMediaUrl(forwardMedia.url, token)} className="max-h-[120px]" controls />
                 ) : (
                   <div className="p-3 flex items-center gap-2">
-                    <i className="ph ph-file text-2xl text-slate-400"></i>
+                    <FileText className="w-6 h-6 text-slate-400" />
                     <span className="text-sm text-slate-600 truncate">{forwardMedia.caption || 'Document'}</span>
                   </div>
                 )}
@@ -4337,7 +5060,7 @@ export default function MetaInboxPage() {
                       <p className="text-sm font-semibold text-slate-800 truncate">{c.name || 'Unknown'}</p>
                       <p className="text-xs text-slate-500">{c.phoneNumber}</p>
                     </div>
-                    <i className="ph ph-paper-plane-right text-slate-400"></i>
+                    <Send className="w-4 h-4 text-slate-400" />
                   </button>
                 ))}
               {conversations.length === 0 && (
@@ -4364,7 +5087,7 @@ export default function MetaInboxPage() {
               className="absolute -top-2 -right-2 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
               title="Close"
             >
-              <i className="ph ph-x text-xl"></i>
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -4385,7 +5108,7 @@ export default function MetaInboxPage() {
               className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
               title="Close"
             >
-              <i className="ph ph-x text-xl"></i>
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -4398,11 +5121,11 @@ export default function MetaInboxPage() {
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <i className="ph-fill ph-robot text-blue-600"></i>
+                <Bot className="w-5 h-5 text-blue-600" />
                 AI-9 Q&A Approval for {selected.name || selected.phoneNumber}
               </h2>
               <button onClick={() => setIsAi9ModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <i className="ph ph-x text-xl"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -4412,7 +5135,7 @@ export default function MetaInboxPage() {
                     onClick={() => setAi9Data(prev => prev.filter((_, i) => i !== idx))}
                     className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <i className="ph ph-trash"></i>
+                    <Trash2 className="w-4 h-4" />
                   </button>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">Question {idx + 1}</label>
@@ -4448,7 +5171,7 @@ export default function MetaInboxPage() {
                 onClick={() => setAi9Data(prev => [...prev, { q: '', a: '' }])}
                 className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-semibold hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
               >
-                <i className="ph ph-plus"></i> Add Question
+                <Plus className="w-4 h-4" /> Add Question
               </button>
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-white">

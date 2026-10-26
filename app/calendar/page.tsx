@@ -1,13 +1,36 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Search, Sun, Loader, Download, CalendarDays, Eye } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Calendar, 
+  MapPin, 
+  Search, 
+  Sun, 
+  Sunset,
+  Moon,
+  Clock, 
+  Compass, 
+  Sparkles, 
+  Loader, 
+  Download, 
+  CalendarDays, 
+  Eye, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Info, 
+  ChevronDown, 
+  ChevronUp, 
+  RefreshCw,
+  ArrowRight
+} from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { 
   calculateHinduCalendar,
   calculateCompletePanchang,
-  calculateDayYoga
+  calculateDayYoga,
+  calculateSunTimes,
+  calculateAstroLogicDetails
 } from '@/lib/calendarCalculations';
 import { locationData } from '@/lib/locationData';
 
@@ -45,6 +68,12 @@ interface CalendarData {
   tithi: number;
   tithiName: string;
   sunriseTime: string;
+  sunsetTime: string;
+  sunsetTime12: string;
+  solarNoon12: string;
+  dayLength: string;
+  brahmaMuhurta: string;
+  brahmaMuhurta12: string;
   nadi: {
     type: 'Sun' | 'Moon';
     symbol: string;
@@ -56,7 +85,8 @@ interface CalendarData {
     latitude: number;
     longitude: number;
   };
-  panchang?: any; // Comprehensive Panchang data
+  astroLogic?: ReturnType<typeof calculateAstroLogicDetails>;
+  panchang?: any;
 }
 
 interface MonthlyCalendarData {
@@ -106,22 +136,23 @@ const getCityCoordinates = (
 };
 
 const SwarCalendar: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [selectedCountry, setSelectedCountry] = useState<string>('India');
   const [selectedState, setSelectedState] = useState<string>('Maharashtra');
   const [selectedCapital, setSelectedCapital] = useState<string>('Mumbai');
   const [latitude, setLatitude] = useState<number>(19.0760);
   const [longitude, setLongitude] = useState<number>(72.8777);
-  const [timezoneSelect, setTimezoneSelect] = useState<string>('Mumbai (+05:30)'); // Timezone name
-  const [showResults, setShowResults] = useState<boolean>(false);
+  const [timezoneSelect, setTimezoneSelect] = useState<string>('Mumbai (+05:30)');
+  const [showResults, setShowResults] = useState<boolean>(true);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showManualCoordinates, setShowManualCoordinates] = useState<boolean>(false);
+  const [showAstroDetails, setShowAstroDetails] = useState<boolean>(true);
   
   // Download form states
   const [showDownloadForm, setShowDownloadForm] = useState<boolean>(false);
-  const [downloadStartDate, setDownloadStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [downloadStartDate, setDownloadStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [downloadEndDate, setDownloadEndDate] = useState<string>('');
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
   const [previewData, setPreviewData] = useState<MonthlyCalendarData[] | null>(null);
@@ -134,7 +165,7 @@ const SwarCalendar: React.FC = () => {
   const [customLongitude, setCustomLongitude] = useState<string>('');
   const [customTimezoneOffset, setCustomTimezoneOffset] = useState<string>('0');
   
-  // Tomorrow's Swar Yoga data
+  // Tomorrow's Swar Yoga data for sleep guidance
   const [tomorrowData, setTomorrowData] = useState<{
     date: string;
     tithi: number;
@@ -145,34 +176,25 @@ const SwarCalendar: React.FC = () => {
 
   const availableCountries = [...getCountryNames(), 'Other'];
 
-  // The user's explicitly selected timezone offset (e.g. New York -05:00).
-  // Must be threaded into every calculateHinduCalendar() call — without it,
-  // the function falls back to a crude longitude/15 guess that ignores DST
-  // and real-world timezone boundaries (wrong for many non-Indian cities).
-  const getTimezoneOffset = (): number => {
+  const getTimezoneOffset = useCallback((): number => {
     const tz = TIMEZONE_DATA.find((t) => t.name === timezoneSelect);
     return tz?.offset ?? 5.5;
-  };
+  }, [timezoneSelect]);
 
   const updateCoordinates = (country: string, state: string, city: string) => {
     const coords = getCityCoordinates(country, state, city);
     if (coords) {
       setLatitude(coords.latitude);
       setLongitude(coords.longitude);
-      return;
+      
+      // Auto-select corresponding timezone if in India
+      if (country === 'India') {
+        setTimezoneSelect('Mumbai (+05:30)');
+      }
     }
-
-    setLatitude(0);
-    setLongitude(0);
   };
 
-  useEffect(() => {
-    if (selectedCountry && selectedState && selectedCapital) {
-      updateCoordinates(selectedCountry, selectedState, selectedCapital);
-    }
-  }, [selectedCountry, selectedState, selectedCapital]);
-
-  // Set default end date to one month from start date
+  // Set download end date to 1 month after start date by default
   useEffect(() => {
     if (downloadStartDate) {
       const startDate = new Date(downloadStartDate);
@@ -183,12 +205,161 @@ const SwarCalendar: React.FC = () => {
     }
   }, [downloadStartDate]);
 
-  // Handle country change
+  // Core calculation function
+  const runCalculation = useCallback(async (
+    targetDate: string,
+    lat: number,
+    lng: number,
+    tzName: string
+  ) => {
+    if (!targetDate || !lat || !lng) return;
+    
+    const tzOffset = TIMEZONE_DATA.find(t => t.name === tzName)?.offset ?? 5.5;
+    setLoading(true);
+    setConnectionError(null);
+
+    try {
+      const hinduData = await calculateHinduCalendar(targetDate, lat, lng, tzOffset);
+      if (!hinduData) {
+        throw new Error('Failed to calculate Hindu calendar data');
+      }
+
+      const dateObj = new Date(targetDate + 'T00:00:00');
+      const jsPanchang = calculateCompletePanchang(dateObj);
+      const astroLogic = calculateAstroLogicDetails(dateObj, lat, lng, tzOffset);
+
+      const formattedPanchang = {
+        nakshatra: {
+          name: jsPanchang.nakshatra.name,
+          symbol: jsPanchang.nakshatra.symbol,
+          symbolText: jsPanchang.nakshatra.planet,
+          pada: jsPanchang.nakshatra.pada,
+        },
+        yoga: {
+          name: jsPanchang.yoga.name,
+          symbol: jsPanchang.yoga.symbol,
+          effect: jsPanchang.yoga.effect.includes('Auspicious') ? 'Auspicious' : 'Inauspicious',
+        },
+        karana: {
+          name: jsPanchang.karana.name,
+          symbol: jsPanchang.karana.symbol,
+        },
+        moonRashi: {
+          name: jsPanchang.moonRashi.name,
+          symbol: jsPanchang.moonRashi.symbol,
+          element: jsPanchang.moonRashi.planet,
+          english: jsPanchang.moonRashi.english,
+        },
+        sunRashi: {
+          name: jsPanchang.sunRashi.name,
+          symbol: jsPanchang.sunRashi.symbol,
+          element: jsPanchang.sunRashi.planet,
+          english: jsPanchang.sunRashi.english,
+        },
+        sunNakshatra: {
+          name: jsPanchang.sunNakshatra.name,
+          symbol: jsPanchang.sunNakshatra.symbol,
+          planet: jsPanchang.sunNakshatra.planet,
+          pada: jsPanchang.sunNakshatra.pada,
+        },
+        dayQuality: jsPanchang.dayQuality,
+        vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
+        vatiapat: jsPanchang.yoga.name === 'Vyatipat',
+        recommendations: {
+          avoid: jsPanchang.dayQuality === 'Inauspicious' 
+            ? ['Starting new ventures', 'Long journeys', 'Important decisions']
+            : ['Avoid conflicts', 'Unnecessary risks'],
+          goodFor: jsPanchang.dayQuality === 'Auspicious'
+            ? ['New beginnings', 'Important meetings', 'Spiritual practices', 'Business deals']
+            : ['Meditation', 'Yoga', 'Self-reflection', 'Completing pending work'],
+        },
+        swarYoga: jsPanchang.swarYoga,
+        ayana: jsPanchang.ayana,
+      };
+
+      setCalendarData({
+        date: targetDate,
+        day: hinduData.day,
+        paksha: hinduData.paksha,
+        tithi: hinduData.tithi,
+        tithiName: hinduData.tithiName,
+        sunriseTime: hinduData.sunriseTime12,
+        sunsetTime: hinduData.sunsetTime,
+        sunsetTime12: hinduData.sunsetTime12,
+        solarNoon12: hinduData.solarNoon12,
+        dayLength: hinduData.dayLength,
+        brahmaMuhurta: hinduData.brahmaMuhurta,
+        brahmaMuhurta12: hinduData.brahmaMuhurta12,
+        nadi: hinduData.nadi,
+        location: `${selectedCapital || 'Selected Location'}, ${selectedState || ''}, ${selectedCountry || ''}`.replace(/^, |, $/g, ''),
+        timezone: tzName,
+        coordinates: {
+          latitude: lat,
+          longitude: lng
+        },
+        astroLogic,
+        panchang: formattedPanchang
+      });
+
+      // Calculate tomorrow's data for Sleep Guidance
+      const tomorrowDate = new Date(targetDate + 'T00:00:00');
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowDateString = tomorrowDate.toISOString().split('T')[0];
+      const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, lat, lng, tzOffset);
+      const tomorrowPanchang = calculateCompletePanchang(tomorrowDate);
+
+      const tomorrowDominant = tomorrowPanchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
+      const srTime = tomorrowHinduData.sunriseTime12 || '06:30 AM';
+      const srMatch = srTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      let sleepSwitch = '03:30 AM';
+      if (srMatch) {
+        let hrs = parseInt(srMatch[1], 10);
+        const mins = parseInt(srMatch[2], 10);
+        const ampm = srMatch[3].toUpperCase();
+        if (ampm === 'PM' && hrs !== 12) hrs += 12;
+        if (ampm === 'AM' && hrs === 12) hrs = 0;
+        let switchHrs = hrs - 3;
+        if (switchHrs < 0) switchHrs += 24;
+        const swAmPm = switchHrs >= 12 ? 'PM' : 'AM';
+        const dispHrs = switchHrs % 12 || 12;
+        sleepSwitch = `${dispHrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${swAmPm}`;
+      }
+
+      setTomorrowData({
+        date: tomorrowDateString,
+        tithi: tomorrowHinduData.tithi,
+        dominant: tomorrowDominant,
+        sunriseTime: srTime,
+        sleepSwitchTime: sleepSwitch
+      });
+
+      setShowResults(true);
+    } catch (err: any) {
+      console.error('Error calculating calendar:', err);
+      setConnectionError(err?.message || 'Calculation error. Please check parameters.');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCapital, selectedCountry, selectedState]);
+
+  // Initial calculation on page load
+  useEffect(() => {
+    runCalculation(selectedDate, latitude, longitude, timezoneSelect);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Quick Date Selectors
+  const setQuickDate = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const dateStr = d.toISOString().split('T')[0];
+    setSelectedDate(dateStr);
+    runCalculation(dateStr, latitude, longitude, timezoneSelect);
+  };
+
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const country = e.target.value;
     setSelectedCountry(country);
 
-    // If "Other" is selected, show the custom location popup
     if (country === 'Other') {
       setShowCustomLocationPopup(true);
       setSelectedState('');
@@ -206,13 +377,30 @@ const SwarCalendar: React.FC = () => {
 
     if (nextState && nextCity) {
       updateCoordinates(country, nextState, nextCity);
-    } else {
-      setLatitude(0);
-      setLongitude(0);
     }
   };
 
-  // Handle custom location form submission
+  const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const state = e.target.value;
+    setSelectedState(state);
+
+    const cities = state ? getCitiesForState(selectedCountry, state) : [];
+    const nextCity = cities[0] ?? '';
+    setSelectedCapital(nextCity);
+
+    if (state && nextCity) {
+      updateCoordinates(selectedCountry, state, nextCity);
+    }
+  };
+
+  const handleCapitalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const city = e.target.value;
+    setSelectedCapital(city);
+    if (city) {
+      updateCoordinates(selectedCountry, selectedState, city);
+    }
+  };
+
   const handleCustomLocationSubmit = () => {
     const lat = parseFloat(customLatitude);
     const lng = parseFloat(customLongitude);
@@ -236,45 +424,27 @@ const SwarCalendar: React.FC = () => {
     setSelectedState(customLocationName || 'Custom Location');
     setSelectedCapital(customLocationName || 'Custom Location');
     
-    // Format timezone string
     const sign = offset >= 0 ? '+' : '';
     const hours = Math.floor(Math.abs(offset));
     const minutes = (Math.abs(offset) % 1) * 60;
     const tzString = `Custom (${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')})`;
     setTimezoneSelect(tzString);
-    
-    // Add custom timezone to TIMEZONE_DATA if not exists (for display purposes)
     setShowCustomLocationPopup(false);
   };
 
-  // Handle state change
-  const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const state = e.target.value;
-    setSelectedState(state);
-
-    const cities = state ? getCitiesForState(selectedCountry, state) : [];
-    const nextCity = cities[0] ?? '';
-    setSelectedCapital(nextCity);
-
-    if (state && nextCity) {
-      updateCoordinates(selectedCountry, state, nextCity);
-    } else {
-      setLatitude(0);
-      setLongitude(0);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    runCalculation(selectedDate, latitude, longitude, timezoneSelect);
   };
 
-  // Handle capital change
-  const handleCapitalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const capital = e.target.value;
-    setSelectedCapital(capital);
-    if (capital) {
-      updateCoordinates(selectedCountry, selectedState, capital);
-    }
-  };
-
-  // Generate monthly calendar data
-  const generateMonthlyCalendarData = async (startDate: string, endDate: string, lat: number, lng: number, timezone: number): Promise<MonthlyCalendarData[]> => {
+  // Generate monthly calendar data for PDF & Preview
+  const generateMonthlyCalendarData = async (
+    startDate: string,
+    endDate: string,
+    lat: number,
+    lng: number,
+    timezone: number
+  ): Promise<MonthlyCalendarData[]> => {
     const data: MonthlyCalendarData[] = [];
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -284,11 +454,7 @@ const SwarCalendar: React.FC = () => {
     const actualEndDate = end > maxDate ? maxDate : end;
     
     let currentDate = new Date(start);
-    
-    // Day energy mapping: Mon, Wed, Thu, Fri = Moon; Sun, Tue, Sat = Sun
-    const moonDays = [1, 3, 4, 5]; // Monday, Wednesday, Thursday, Friday
-    
-    // Moon planets for nakshatra
+    const moonDays = [1, 3, 4, 5];
     const moonPlanets = ['Chandra', 'Shukra', 'Budh', 'Guru', 'Ketu'];
     
     while (currentDate <= actualEndDate) {
@@ -300,7 +466,6 @@ const SwarCalendar: React.FC = () => {
       const dayEnergy = moonDays.includes(dayOfWeek) ? '☽' as const : '☉' as const;
       const nakshatraEnergy = moonPlanets.includes(panchang.nakshatra.planet) ? '☽' as const : '☉' as const;
       
-      // Tithi energy based on Paksha
       const normalizedTithi = ((hinduData.tithi - 1) % 15) + 1;
       const shuklaGroup1 = [1, 2, 3, 7, 8, 9, 13, 14, 15];
       const krishnaGroupMoon = [4, 5, 6, 10, 11, 12];
@@ -311,13 +476,7 @@ const SwarCalendar: React.FC = () => {
         tithiEnergy = krishnaGroupMoon.includes(normalizedTithi) ? '☽' : '☉';
       }
       
-      // Determine dominant energy using the same canonical 5-factor calculation
-      // (ayana, paksha, tithi, day, nakshatra) as the single-day view, instead of
-      // a separate simplified 3-factor recount — otherwise this monthly view and
-      // the single-day view could disagree on the same date.
       const dominant = panchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
-      
-      // Calculate yoga for full day (may show combined yoga if it changes during the day)
       const dayYoga = calculateDayYoga(currentDate, lat, lng);
       
       data.push({
@@ -345,7 +504,6 @@ const SwarCalendar: React.FC = () => {
     return data;
   };
 
-  // Preview monthly calendar data
   const handlePreviewCalendar = async () => {
     if (!downloadStartDate || !downloadEndDate || !latitude || !longitude) {
       alert('Please fill in all required fields first');
@@ -354,8 +512,7 @@ const SwarCalendar: React.FC = () => {
     
     const start = new Date(downloadStartDate);
     const end = new Date(downloadEndDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
     if (diffDays > 31) {
       alert('Date range cannot exceed one month (31 days)');
@@ -363,7 +520,6 @@ const SwarCalendar: React.FC = () => {
     }
     
     setDownloadLoading(true);
-    
     try {
       const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude, getTimezoneOffset());
       setPreviewData(monthlyData);
@@ -377,7 +533,6 @@ const SwarCalendar: React.FC = () => {
     }
   };
 
-  // Download monthly calendar as PDF
   const handleDownloadMonthlyCalendar = async () => {
     if (!downloadStartDate || !downloadEndDate || !latitude || !longitude) {
       alert('Please fill in all required fields first');
@@ -386,8 +541,7 @@ const SwarCalendar: React.FC = () => {
     
     const start = new Date(downloadStartDate);
     const end = new Date(downloadEndDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
     if (diffDays > 31) {
       alert('Date range cannot exceed one month (31 days)');
@@ -395,18 +549,13 @@ const SwarCalendar: React.FC = () => {
     }
     
     setDownloadLoading(true);
-    
     try {
-      // Dynamic import of jspdf
       const { jsPDF } = await import('jspdf');
-      
       const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude, getTimezoneOffset());
       
-      // Get month-year and ayana from first data point
       const monthYear = new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const ayana = monthlyData[0]?.ayana || 'Uttarayana';
       
-      // Create A4 PDF (210mm x 297mm)
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -418,58 +567,41 @@ const SwarCalendar: React.FC = () => {
       const margin = 10;
       const tableWidth = pageWidth - margin * 2;
       
-      // === HEADER SECTION ===
       doc.setFillColor(70, 130, 180);
       doc.rect(0, 0, pageWidth, 28, 'F');
-      
-      // Border
       doc.setDrawColor(100, 149, 237);
       doc.setLineWidth(1);
       doc.rect(2, 2, pageWidth - 4, pageHeight - 4, 'S');
       
-      // Title
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text('SWAR YOGA CALENDAR', pageWidth / 2, 10, { align: 'center' });
       
-      // Month-Year and Ayana
       doc.setFontSize(14);
       doc.text(`${monthYear} | ${ayana}`, pageWidth / 2, 18, { align: 'center' });
       
-      // Creator info
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.text('Created by Mohan Kalburgi - Upamnyu International Education | Web: swaryoga.com | WhatsApp: +91 9779006820', pageWidth / 2, 25, { align: 'center' });
       
-      // Location info (small text)
       doc.setFontSize(6);
       doc.setTextColor(100, 100, 100);
       const locationLine = `${selectedCapital}, ${selectedState}, ${selectedCountry} | Lat: ${latitude.toFixed(4)}° | Long: ${longitude.toFixed(4)}° | Timezone: ${timezoneSelect}`;
       doc.text(locationLine, pageWidth / 2, 30, { align: 'center' });
       
-      // === TABLE SORTED BY DATE WITH PAKSHA HEADERS ===
-      // Sort data by date (1st to end of month)
-      const sortedData = [...monthlyData].sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      // Column positions: Date, Day, Yog, Nakshatra, Tithi, Tithi(M/S), Result
+      const sortedData = [...monthlyData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const colX = [margin + 2, margin + 22, margin + 50, margin + 85, margin + 125, margin + 150, margin + 175];
       
       let currentY = 38;
       let lastPaksha = '';
       
-      // Helper function to draw table header
       const drawTableHeader = (isShukla: boolean) => {
         const bgColor = isShukla ? [200, 230, 200] : [255, 200, 180];
         const textColor = isShukla ? [0, 100, 0] : [180, 0, 0];
         const headerBgColor = isShukla ? [230, 245, 230] : [255, 235, 230];
         const pakshaTitle = isShukla ? 'SHUKLA PAKSHA (Waxing Moon) ☽' : 'KRISHNA PAKSHA (Waning Moon) ☉';
         
-        // Paksha Section Header
         doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
         doc.rect(margin, currentY, tableWidth, 7, 'F');
         doc.setTextColor(textColor[0], textColor[1], textColor[2]);
@@ -478,7 +610,6 @@ const SwarCalendar: React.FC = () => {
         doc.text(pakshaTitle, pageWidth / 2, currentY + 5, { align: 'center' });
         currentY += 8;
         
-        // Column Headers
         doc.setFillColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
         doc.rect(margin, currentY, tableWidth, 6, 'F');
         doc.setTextColor(50, 50, 50);
@@ -494,42 +625,31 @@ const SwarCalendar: React.FC = () => {
         currentY += 7;
       };
       
-      // Data rows sorted by date with Paksha headers
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      sortedData.forEach((row, idx) => {
-        if (currentY > pageHeight - 45) return; // Leave space for footer
-        
-        // Determine if Shukla or Krishna Paksha
+      sortedData.forEach((row) => {
+        if (currentY > pageHeight - 45) return;
         const isShukla = row.paksha.includes('Shukla');
-        
-        // Draw Paksha header when Paksha changes
         if (row.paksha !== lastPaksha) {
           lastPaksha = row.paksha;
-          if (currentY > 50) currentY += 4; // Add spacing if not first
+          if (currentY > 50) currentY += 4;
           drawTableHeader(isShukla);
         }
         
-        // Check for bad yogas FIRST - these override paksha coloring
         const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat' || 
                           row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
         
-        // Row background - RED for bad yogas, otherwise paksha-based
         if (isBadYoga) {
-          // BAD YOGA - Light red background for entire row
           doc.setFillColor(255, 220, 220);
         } else if (isShukla) {
-          // Shukla Paksha - light green tint
           doc.setFillColor(240, 255, 240);
         } else {
-          // Krishna Paksha - light orange tint
           doc.setFillColor(255, 248, 245);
         }
         doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
         
-        // Paksha indicator bar on left (red bar for bad yoga)
         if (isBadYoga) {
-          doc.setFillColor(200, 0, 0); // Red bar for bad yoga
+          doc.setFillColor(200, 0, 0);
         } else if (isShukla) {
           doc.setFillColor(0, 150, 0);
         } else {
@@ -537,22 +657,15 @@ const SwarCalendar: React.FC = () => {
         }
         doc.rect(margin, currentY - 1, 1.5, 6, 'F');
         
-        // Date format: "1 Feb"
         const dateObj = new Date(row.date);
         const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
         doc.setTextColor(50, 50, 50);
         doc.text(dateStr, colX[0], currentY + 3);
         
-        // Day with M/S indicator
         const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
-        if (row.dayEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
+        doc.setTextColor(row.dayEnergy === '☽' ? 0 : 180, row.dayEnergy === '☽' ? 100 : 0, 0);
         doc.text(`${row.dayShort} (${dayEnergySym})`, colX[1], currentY + 3);
         
-        // Yoga - Red and bold for Vaidhriti and Vyatipat
         if (isBadYoga) {
           doc.setTextColor(200, 0, 0);
           doc.setFont('helvetica', 'bold');
@@ -563,43 +676,25 @@ const SwarCalendar: React.FC = () => {
         doc.text(row.yoga.substring(0, 12), colX[2], currentY + 3);
         doc.setFont('helvetica', 'normal');
         
-        // Nakshatra with M/S indicator
         const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
-        if (row.nakshatraEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
+        doc.setTextColor(row.nakshatraEnergy === '☽' ? 0 : 180, row.nakshatraEnergy === '☽' ? 100 : 0, 0);
         doc.text(`${row.nakshatra.substring(0, 10)} (${nakEnergySym})`, colX[3], currentY + 3);
         
-        // Tithi as number only
         doc.setTextColor(50, 50, 50);
         doc.text(`${row.tithi}`, colX[4], currentY + 3);
         
-        // Tithi energy (M/S)
         const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
-        if (row.tithiEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
+        doc.setTextColor(row.tithiEnergy === '☽' ? 0 : 180, row.tithiEnergy === '☽' ? 100 : 0, 0);
         doc.text(tithiEnergySym, colX[5], currentY + 3);
         
-        // Dominant result
-        if (row.dominant === 'Prakruti') {
-          doc.setTextColor(0, 100, 0);
-          doc.setFont('helvetica', 'bold');
-        } else {
-          doc.setTextColor(180, 0, 0);
-          doc.setFont('helvetica', 'bold');
-        }
+        doc.setTextColor(row.dominant === 'Prakruti' ? 0 : 180, row.dominant === 'Prakruti' ? 100 : 0, 0);
+        doc.setFont('helvetica', 'bold');
         doc.text(row.dominant, colX[6], currentY + 3);
         doc.setFont('helvetica', 'normal');
         
         currentY += 6;
       });
       
-      // === LEGEND BAR ===
       currentY = Math.max(currentY + 4, pageHeight - 42);
       doc.setFillColor(240, 240, 240);
       doc.rect(margin, currentY, tableWidth, 8, 'F');
@@ -608,50 +703,40 @@ const SwarCalendar: React.FC = () => {
       doc.setFont('helvetica', 'bold');
       doc.text('Legend:', margin + 3, currentY + 5);
       doc.setFont('helvetica', 'normal');
-      // Shukla indicator
       doc.setFillColor(0, 150, 0);
       doc.rect(margin + 18, currentY + 2, 4, 4, 'F');
       doc.text('Shukla', margin + 24, currentY + 5);
-      // Krishna indicator
       doc.setFillColor(200, 100, 50);
       doc.rect(margin + 40, currentY + 2, 4, 4, 'F');
       doc.text('Krishna', margin + 46, currentY + 5);
-      // Bad Yoga indicator
       doc.setFillColor(255, 220, 220);
       doc.rect(margin + 65, currentY + 2, 4, 4, 'F');
       doc.setFillColor(200, 0, 0);
       doc.rect(margin + 65, currentY + 2, 1, 4, 'F');
       doc.setTextColor(200, 0, 0);
       doc.text('Vyatipat/Vaidhriti (Avoid)', margin + 71, currentY + 5);
-      // M/S Legend
       doc.setTextColor(0, 100, 0);
       doc.text('M = Moon', margin + 125, currentY + 5);
       doc.setTextColor(180, 0, 0);
       doc.text('S = Sun', margin + 150, currentY + 5);
       
-      // === FOOTER WITH PRAKRUTI & PURUSHA NOTES ===
       doc.setFillColor(70, 130, 180);
       doc.rect(0, pageHeight - 32, pageWidth, 32, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(6);
       doc.setFont('helvetica', 'bold');
-      
-      // Prakruti explanation
       doc.text('PRAKRUTI (☽ Moon Energy):', margin, pageHeight - 27);
       doc.setFont('helvetica', 'normal');
       doc.text('Associated with Left Nostril (Ida Nadi). Best for: Learning, creativity, healing, meditation, spiritual practices.', margin, pageHeight - 23);
-      doc.text('Moon-dominant days support receptive, calming, and nurturing activities. Ideal for starting new education, arts, and healing work.', margin, pageHeight - 19);
+      doc.text('Moon-dominant days support receptive, calming, and nurturing activities.', margin, pageHeight - 19);
       
-      // Purusha explanation
       doc.setFont('helvetica', 'bold');
       doc.text('PURUSHA (☉ Sun Energy):', margin, pageHeight - 13);
       doc.setFont('helvetica', 'normal');
-      doc.text('Associated with Right Nostril (Pingala Nadi). Best for: Physical activity, business, travel, competitions, assertive actions.', margin, pageHeight - 9);
-      doc.text('Sun-dominant days support active, dynamic, and outward-focused activities. Ideal for exercise, negotiations, and adventures.', margin, pageHeight - 5);
+      doc.text('Associated with Right Nostril (Pingala Nadi). Best for: Physical activity, business, travel, assertive actions.', margin, pageHeight - 9);
+      doc.text('Sun-dominant days support dynamic and outward-focused activities.', margin, pageHeight - 5);
       
-      // Save PDF
       doc.save(`Swar-Calendar-${monthYear.replace(' ', '-')}.pdf`);
-      
       setShowDownloadForm(false);
     } catch (error) {
       console.error('Error generating monthly calendar:', error);
@@ -661,166 +746,8 @@ const SwarCalendar: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || !timezoneSelect) return;
-    
-    // Get timezone offset from the selected timezone name
-    const timezoneData = TIMEZONE_DATA.find(tz => tz.name === timezoneSelect);
-    const timezone = timezoneData?.offset || 5.5;
-    
-    setLoading(true);
-    setConnectionError(null);
-    
-    try {
-      // First get basic calendar data
-      const hinduData = await calculateHinduCalendar(selectedDate, latitude, longitude, timezone);
-      
-      if (!hinduData) {
-        throw new Error('Failed to calculate Hindu calendar data');
-      }
-      
-      // Calculate JavaScript-based Panchang data as primary source
-      const dateObj = new Date(selectedDate);
-      const jsPanchang = calculateCompletePanchang(dateObj);
-      
-      // Format the JS panchang data to match expected structure
-      const formattedPanchang = {
-        nakshatra: {
-          name: jsPanchang.nakshatra.name,
-          symbol: jsPanchang.nakshatra.symbol,
-          symbolText: jsPanchang.nakshatra.planet, // Ruling planet for Swar Yoga
-          pada: jsPanchang.nakshatra.pada,
-        },
-        yoga: {
-          name: jsPanchang.yoga.name,
-          symbol: jsPanchang.yoga.symbol,
-          effect: jsPanchang.yoga.effect.includes('Auspicious') ? 'Auspicious' : 'Inauspicious',
-        },
-        karana: {
-          name: jsPanchang.karana.name,
-          symbol: jsPanchang.karana.symbol,
-        },
-        moonRashi: {
-          name: jsPanchang.moonRashi.name,
-          symbol: jsPanchang.moonRashi.symbol,
-          element: jsPanchang.moonRashi.planet, // Ruling planet instead of element
-          english: jsPanchang.moonRashi.english,
-        },
-        sunRashi: {
-          name: jsPanchang.sunRashi.name,
-          symbol: jsPanchang.sunRashi.symbol,
-          element: jsPanchang.sunRashi.planet, // Ruling planet instead of element
-          english: jsPanchang.sunRashi.english,
-        },
-        sunNakshatra: {
-          name: jsPanchang.sunNakshatra.name,
-          symbol: jsPanchang.sunNakshatra.symbol,
-          planet: jsPanchang.sunNakshatra.planet,
-          pada: jsPanchang.sunNakshatra.pada,
-        },
-        dayQuality: jsPanchang.dayQuality,
-        vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
-        vatiapat: jsPanchang.yoga.name === 'Vyatipat',
-        recommendations: {
-          avoid: jsPanchang.dayQuality === 'Inauspicious' 
-            ? ['Starting new ventures', 'Long journeys', 'Important decisions']
-            : ['Avoid conflicts', 'Unnecessary risks'],
-          goodFor: jsPanchang.dayQuality === 'Auspicious'
-            ? ['New beginnings', 'Important meetings', 'Spiritual practices', 'Business deals']
-            : ['Meditation', 'Yoga', 'Self-reflection', 'Completing pending work'],
-        },
-        swarYoga: jsPanchang.swarYoga,
-        ayana: jsPanchang.ayana,
-      };
-      
-      // Optionally try the API for more detailed data (but don't fail if it errors)
-      let apiPanchang: any = null;
-      try {
-        const panchangResponse = await fetch('/api/panchang/calculate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: selectedDate,
-            latitude,
-            longitude,
-            timezone,
-            locationName: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
-          })
-        });
-        const panchangData = await panchangResponse.json();
-        if (panchangData.data) {
-          apiPanchang = panchangData.data;
-        }
-      } catch (apiError) {
-        console.log('API panchang unavailable, using JS calculations');
-      }
-      
-      setCalendarData({
-        date: selectedDate,
-        day: hinduData.day,
-        paksha: hinduData.paksha,
-        tithi: hinduData.tithi,
-        tithiName: hinduData.tithiName,
-        sunriseTime: apiPanchang?.sunrise || hinduData.sunriseTime12,
-        nadi: hinduData.nadi,
-        location: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
-        timezone: timezoneSelect,
-        coordinates: {
-          latitude,
-          longitude
-        },
-        // Use API data if available, otherwise use JS-calculated panchang
-        panchang: apiPanchang || formattedPanchang
-      });
-      
-      // Calculate tomorrow's data for sleep guidance
-      const tomorrowDate = new Date(selectedDate);
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const tomorrowDateString = tomorrowDate.toISOString().split('T')[0];
-      const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, latitude, longitude, timezone);
-      const tomorrowPanchang = calculateCompletePanchang(tomorrowDate);
-      
-      // Determine tomorrow's dominant energy
-      const tomorrowDominant = tomorrowPanchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
-      
-      // Calculate sleep switch time (sunrise - 3 hours)
-      const sunriseTime = tomorrowHinduData.sunriseTime12 || '07:00 AM';
-      const sunriseMatch = sunriseTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      let sleepSwitchTime = '04:00 AM';
-      if (sunriseMatch) {
-        let hours = parseInt(sunriseMatch[1]);
-        const minutes = parseInt(sunriseMatch[2]);
-        const ampm = sunriseMatch[3].toUpperCase();
-        if (ampm === 'PM' && hours !== 12) hours += 12;
-        if (ampm === 'AM' && hours === 12) hours = 0;
-        // Subtract 3 hours
-        let switchHours = hours - 3;
-        if (switchHours < 0) switchHours += 24;
-        const switchAmPm = switchHours >= 12 ? 'PM' : 'AM';
-        const displayHours = switchHours > 12 ? switchHours - 12 : (switchHours === 0 ? 12 : switchHours);
-        sleepSwitchTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${switchAmPm}`;
-      }
-      
-      setTomorrowData({
-        date: tomorrowDateString,
-        tithi: tomorrowHinduData.tithi,
-        dominant: tomorrowDominant,
-        sunriseTime: sunriseTime,
-        sleepSwitchTime: sleepSwitchTime
-      });
-      
-      setShowResults(true);
-    } catch (error) {
-      console.error('Error calculating calendar data:', error);
-      setConnectionError('Failed to calculate calendar data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString + 'T00:00:00');
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -829,13 +756,13 @@ const SwarCalendar: React.FC = () => {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       <Navigation />
       
-      {/* Custom Location Popup Modal */}
+      {/* Custom Location Modal */}
       {showCustomLocationPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => {
                 setShowCustomLocationPopup(false);
@@ -845,913 +772,1201 @@ const SwarCalendar: React.FC = () => {
                 const cities = getCitiesForState('India', states[0] || '');
                 setSelectedCapital(cities[0] || '');
               }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Close"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ✕
             </button>
             
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="w-8 h-8 text-blue-600" />
+              <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <Compass className="w-7 h-7" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-800">Custom Location</h3>
-              <p className="text-gray-600 mt-2">Enter your location coordinates manually</p>
+              <h3 className="text-xl font-bold text-gray-900">Custom Geographic Coordinates</h3>
+              <p className="text-xs text-gray-500 mt-1">Specify exact Latitude, Longitude &amp; Timezone</p>
             </div>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location Name (Optional)
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
+                  Place Name (Optional)
                 </label>
                 <input
                   type="text"
                   value={customLocationName}
                   onChange={(e) => setCustomLocationName(e.target.value)}
-                  placeholder="e.g., My City"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., My Ashram, Sedona, Rishikesh"
+                  className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
                     Latitude <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={customLatitude}
                     onChange={(e) => setCustomLatitude(e.target.value)}
-                    placeholder="-90 to 90"
+                    placeholder="e.g. 19.0760"
                     step="0.0001"
                     min="-90"
                     max="90"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
-                  <p className="text-xs text-gray-500 mt-1">North (+) / South (-)</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">North (+) / South (-)</p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
                     Longitude <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     value={customLongitude}
                     onChange={(e) => setCustomLongitude(e.target.value)}
-                    placeholder="-180 to 180"
+                    placeholder="e.g. 72.8777"
                     step="0.0001"
                     min="-180"
                     max="180"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
-                  <p className="text-xs text-gray-500 mt-1">East (+) / West (-)</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">East (+) / West (-)</p>
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">
                   Timezone Offset (UTC) <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={customTimezoneOffset}
                   onChange={(e) => setCustomTimezoneOffset(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="-12">UTC -12:00</option>
-                  <option value="-11">UTC -11:00</option>
-                  <option value="-10">UTC -10:00 (Hawaii)</option>
-                  <option value="-9">UTC -09:00 (Alaska)</option>
                   <option value="-8">UTC -08:00 (Pacific Time)</option>
-                  <option value="-7">UTC -07:00 (Mountain Time)</option>
-                  <option value="-6">UTC -06:00 (Central Time)</option>
                   <option value="-5">UTC -05:00 (Eastern Time)</option>
-                  <option value="-4">UTC -04:00 (Atlantic)</option>
-                  <option value="-3.5">UTC -03:30 (Newfoundland)</option>
-                  <option value="-3">UTC -03:00 (Brazil)</option>
-                  <option value="-2">UTC -02:00</option>
-                  <option value="-1">UTC -01:00</option>
                   <option value="0">UTC +00:00 (London/GMT)</option>
                   <option value="1">UTC +01:00 (Paris/Berlin)</option>
-                  <option value="2">UTC +02:00 (Cairo/Johannesburg)</option>
-                  <option value="3">UTC +03:00 (Moscow/Istanbul)</option>
-                  <option value="3.5">UTC +03:30 (Tehran)</option>
+                  <option value="2">UTC +02:00 (Cairo)</option>
+                  <option value="3">UTC +03:00 (Istanbul/Moscow)</option>
                   <option value="4">UTC +04:00 (Dubai)</option>
-                  <option value="4.5">UTC +04:30 (Kabul)</option>
-                  <option value="5">UTC +05:00 (Pakistan)</option>
-                  <option value="5.5">UTC +05:30 (India/Sri Lanka)</option>
-                  <option value="5.75">UTC +05:45 (Nepal)</option>
-                  <option value="6">UTC +06:00 (Bangladesh)</option>
-                  <option value="6.5">UTC +06:30 (Myanmar)</option>
-                  <option value="7">UTC +07:00 (Bangkok/Jakarta)</option>
-                  <option value="8">UTC +08:00 (Singapore/China)</option>
-                  <option value="9">UTC +09:00 (Japan/Korea)</option>
-                  <option value="9.5">UTC +09:30 (Australia Central)</option>
-                  <option value="10">UTC +10:00 (Australia East)</option>
-                  <option value="11">UTC +11:00</option>
-                  <option value="12">UTC +12:00 (New Zealand)</option>
-                  <option value="13">UTC +13:00</option>
-                  <option value="14">UTC +14:00</option>
+                  <option value="5.5">UTC +05:30 (India IST)</option>
+                  <option value="7">UTC +07:00 (Bangkok)</option>
+                  <option value="8">UTC +08:00 (Singapore)</option>
+                  <option value="9">UTC +09:00 (Tokyo)</option>
+                  <option value="10">UTC +10:00 (Sydney)</option>
                 </select>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
-                <p className="text-sm text-blue-800">
-                  💡 <strong>Tip:</strong> You can find your coordinates by searching your location on Google Maps and copying the lat/lng from the URL.
-                </p>
               </div>
               
               <button
                 onClick={handleCustomLocationSubmit}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white py-3 rounded-xl font-semibold shadow-md transition-all mt-2"
               >
-                Set Location
+                Apply Custom Coordinates
               </button>
             </div>
           </div>
         </div>
       )}
-      
-      <div className="container mx-auto px-4 py-8 space-y-8 min-h-screen">
-        {/* Hero Section */}
-        <section className="text-center py-10 px-6 bg-gradient-to-r from-swar-primary via-swar-accent to-swar-primary text-white rounded-3xl shadow-xl overflow-hidden relative">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
-            <div className="absolute top-0 right-0 w-96 h-96 bg-swar-primary-light rounded-full mix-blend-multiply filter blur-3xl"></div>
-          </div>
-          <div className="relative z-10 max-w-4xl mx-auto">
-            <Calendar className="w-12 h-12 mx-auto mb-3" />
-            <h1 className="text-3xl md:text-4xl font-bold mb-3">Swar Calendar</h1>
-            <p className="text-base md:text-lg mb-6 max-w-2xl mx-auto leading-relaxed text-white/90">
-              Ancient Hindu astrology, calculated precisely for your exact location.
+
+      {/* Main Container */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 bg-white">
+        
+        {/* Hero Section: Clean, Luminous White & Emerald Vedic Aesthetic */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#F4FAF6] via-white to-[#FBF8F1] p-6 sm:p-10 shadow-sm border border-emerald-100">
+          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-80 h-80 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-80 h-80 bg-amber-200/20 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10 max-w-3xl">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-gray-900 mb-2">
+              Swar Yoga Calender
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+              Precision Vedic astronomical calculations computed at local Sunrise (Udaya Tithi) with NOAA solar ephemeris, Panchang elements, and Swar Shastra breath analysis.
             </p>
-            <div className="flex flex-wrap gap-3 justify-center items-center">
-              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
-                <Sun className="w-4 h-4" />
-                <span>Sunrise Time</span>
+          </div>
+        </div>
+
+        {/* INPUT CARD: Steps 1 through 4 */}
+        <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 transition-all hover:shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-gray-100 gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-amber-100 text-amber-700 font-bold text-sm">
+                  1-4
+                </span>
+                <h2 className="text-xl font-bold text-gray-900">Date, Country, Place &amp; Coordinates</h2>
               </div>
-              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
-                <Calendar className="w-4 h-4" />
-                <span>Paksh &amp; Tithi</span>
-              </div>
-              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
-                <span>☄️</span>
-                <span>Nadi Analysis</span>
-              </div>
-              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
-                <MapPin className="w-4 h-4" />
-                <span>100+ Countries</span>
-              </div>
+              <p className="text-xs text-gray-500 mt-1">Select date and geographical place to calculate solar position and Vedic timings</p>
+            </div>
+
+            {/* Quick Date Chips */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-gray-400 font-medium mr-1">Quick:</span>
+              <button
+                type="button"
+                onClick={() => setQuickDate(-1)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickDate(0)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickDate(1)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Tomorrow
+              </button>
             </div>
           </div>
-        </section>
 
-        {/* Form Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="flex items-center space-x-2 mb-6">
-            <MapPin className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-swar-text">Location & Date Information</h2>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Date */}
-              <div>
-                <label htmlFor="date" className="block text-sm font-medium text-swar-text mb-1">
-                  Select Date
-                </label>
-                <input
-                  type="date"
-                  id="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              {/* Country */}
-              <div>
-                <label htmlFor="country" className="block text-sm font-medium text-swar-text mb-1">
-                  Country
+              {/* Step 1: Date */}
+              <div className="space-y-1.5">
+                <label htmlFor="calendar-date" className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Step 1: Select Date 📅
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    id="calendar-date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full pl-3.5 pr-3 py-2.5 text-sm font-semibold text-gray-800 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Step 2: Country */}
+              <div className="space-y-1.5">
+                <label htmlFor="calendar-country" className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Step 2: Country 🌍
                 </label>
                 <select
-                  id="country"
+                  id="calendar-country"
                   value={selectedCountry}
                   onChange={handleCountryChange}
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  className="w-full px-3.5 py-2.5 text-sm font-medium text-gray-800 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50"
                   required
                 >
                   <option value="">Select Country</option>
-                  {availableCountries.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
+                  {availableCountries.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
                     </option>
                   ))}
                 </select>
               </div>
-              
-              {/* State */}
-              <div>
-                <label htmlFor="state" className="block text-sm font-medium text-swar-text mb-1">
-                  State/Region
+
+              {/* Step 3: State / Region */}
+              <div className="space-y-1.5">
+                <label htmlFor="calendar-state" className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Step 3: State / Region 📍
                 </label>
                 {selectedCountry === 'Other' ? (
                   <input
                     type="text"
-                    id="state"
+                    id="calendar-state"
                     value={selectedState}
                     onChange={(e) => setSelectedState(e.target.value)}
-                    placeholder="Enter your state/region"
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    placeholder="Enter state"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50"
                   />
                 ) : (
                   <select
-                    id="state"
+                    id="calendar-state"
                     value={selectedState}
                     onChange={handleStateChange}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                    required
                     disabled={!selectedCountry}
+                    className="w-full px-3.5 py-2.5 text-sm font-medium text-gray-800 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50 disabled:opacity-50"
+                    required
                   >
-                    <option value="">Select State/Region</option>
-                    {selectedCountry && getStatesForCountry(selectedCountry).map((state) => (
-                      <option key={state} value={state}>
-                        {state}
-                      </option>
+                    <option value="">Select State</option>
+                    {selectedCountry && getStatesForCountry(selectedCountry).map((s) => (
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 )}
               </div>
-              
-              {/* Capital City */}
-              <div>
-                <label htmlFor="capital" className="block text-sm font-medium text-swar-text mb-1">
-                  City
+
+              {/* Step 3b: City */}
+              <div className="space-y-1.5">
+                <label htmlFor="calendar-city" className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Place / City 🏙️
                 </label>
                 {selectedCountry === 'Other' ? (
                   <input
                     type="text"
-                    id="capital"
+                    id="calendar-city"
                     value={selectedCapital}
                     onChange={(e) => setSelectedCapital(e.target.value)}
-                    placeholder="Enter your city"
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    placeholder="Enter city"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50"
                   />
                 ) : (
                   <select
-                    id="capital"
+                    id="calendar-city"
                     value={selectedCapital}
                     onChange={handleCapitalChange}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                    required
                     disabled={!selectedState}
+                    className="w-full px-3.5 py-2.5 text-sm font-medium text-gray-800 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50/50 disabled:opacity-50"
+                    required
                   >
                     <option value="">Select City</option>
-                    {selectedState && getCitiesForState(selectedCountry, selectedState).map((capital) => (
-                      <option key={capital} value={capital}>
-                        {capital}
-                      </option>
+                    {selectedState && getCitiesForState(selectedCountry, selectedState).map((city) => (
+                      <option key={city} value={city}>{city}</option>
                     ))}
                   </select>
                 )}
-              </div>
-              
-              {/* Timezone */}
-              <div>
-                <label htmlFor="timezone" className="block text-sm font-medium text-swar-text mb-1">
-                  Timezone (Place + UTC) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="timezone"
-                  value={timezoneSelect}
-                  onChange={(e) => setTimezoneSelect(e.target.value)}
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                >
-                  <option value="">Select Your Timezone</option>
-                  {TIMEZONE_DATA.map((tz) => (
-                    <option key={tz.name} value={tz.name}>
-                      {tz.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-swar-text-secondary mt-1">
-                  Select your city/timezone (e.g., Mumbai +05:30, New York -05:00)
-                </p>
               </div>
             </div>
 
-            {/* Advanced: manual coordinate override — coordinates already auto-fill
-                from the selected city, so this is tucked away by default and only
-                needed to fine-tune within a city or double-check the exact values. */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowManualCoordinates((v) => !v)}
-                className="text-sm font-medium text-swar-primary hover:text-swar-primary-hover inline-flex items-center gap-1"
-              >
-                <span>{showManualCoordinates ? '▾' : '▸'}</span>
-                Advanced: fine-tune coordinates manually
-                <span className="text-swar-text-secondary font-normal">
-                  ({latitude.toFixed(4)}°, {longitude.toFixed(4)}°)
-                </span>
-              </button>
-              {showManualCoordinates && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 p-4 bg-swar-bg rounded-lg border border-swar-border">
+            {/* Step 4: Latitude & Longitude & Timezone Display Badge */}
+            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-xs flex items-center justify-center text-emerald-600 border border-emerald-100">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                    <span>Step 4: Active Coordinates &amp; Timezone</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      Live
+                    </span>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-700 flex flex-wrap items-center gap-2 mt-0.5">
+                    <span>Latitude: <strong className="font-mono text-emerald-700">{latitude.toFixed(4)}°</strong></span>
+                    <span>•</span>
+                    <span>Longitude: <strong className="font-mono text-emerald-700">{longitude.toFixed(4)}°</strong></span>
+                    <span>•</span>
+                    <span>Timezone: <strong className="text-emerald-700">{timezoneSelect}</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualCoordinates(v => !v)}
+                  className="px-3.5 py-1.5 rounded-xl border border-emerald-200/80 bg-white hover:bg-emerald-50/60 text-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                >
+                  <span>{showManualCoordinates ? 'Close Override' : 'Edit Coordinates'}</span>
+                  {showManualCoordinates ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Manual Coordinate Override Drawer */}
+            {showManualCoordinates && (
+              <div className="p-4 rounded-2xl bg-gray-50/70 border border-gray-200 space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-700">Manual Coordinates Override</span>
+                  <span className="text-[11px] text-gray-500">Fine-tune for your exact location / GPS</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label htmlFor="latitude" className="block text-sm font-medium text-swar-text mb-1">
-                      Latitude
-                    </label>
+                    <label className="block text-xs text-gray-600 mb-1">Latitude (°)</label>
                     <input
                       type="number"
-                      id="latitude"
                       value={latitude}
                       onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
-                      step="0.000001"
-                      placeholder="e.g., 19.0760"
-                      className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                      step="0.0001"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                   </div>
                   <div>
-                    <label htmlFor="longitude" className="block text-sm font-medium text-swar-text mb-1">
-                      Longitude
-                    </label>
+                    <label className="block text-xs text-gray-600 mb-1">Longitude (°)</label>
                     <input
                       type="number"
-                      id="longitude"
                       value={longitude}
                       onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
-                      step="0.000001"
-                      placeholder="e.g., 72.8777"
-                      className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                      step="0.0001"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    <p className="text-xs text-swar-text-secondary mt-1">
-                      Overrides the city's default coordinates for this calculation only.
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Timezone</label>
+                    <select
+                      value={timezoneSelect}
+                      onChange={(e) => setTimezoneSelect(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                      {TIMEZONE_DATA.map(t => (
+                        <option key={t.name} value={t.name}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Action Button: Fresh, Light Emerald styling */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-6 rounded-2xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 text-sm sm:text-base disabled:opacity-50 active:scale-[0.99]"
+              >
+                {loading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    <span>Calculating Solar &amp; Panchang Ephemeris...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-5 h-5" />
+                    <span>Recalculate Swar Yoga Calender</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDownloadForm(true)}
+                className="px-5 py-3.5 rounded-2xl border border-emerald-300 text-emerald-700 bg-emerald-50/40 hover:bg-emerald-50 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-xs"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Swar Yoga Calender (PDF)</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* Error notification if any */}
+        {connectionError && (
+          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+            <p className="text-sm font-medium">{connectionError}</p>
+          </div>
+        )}
+
+        {/* RESULTS SECTION: Steps 5 through 8 */}
+        {showResults && calendarData && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            
+            {/* Header Summary Strip: Clean, Light & Prestigious */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-emerald-100 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  <span>{calendarData.location}</span>
+                  <span>•</span>
+                  <span>{calendarData.timezone}</span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                  {calendarData.day}, {formatDate(calendarData.date)}
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mt-2 flex flex-wrap items-center gap-2">
+                  <span>Tithi:</span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-800 font-bold border border-purple-200">
+                    {calendarData.tithiName} ({calendarData.tithi})
+                  </span>
+                  <span>•</span>
+                  <span>Paksha:</span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    {calendarData.paksha}
+                  </span>
+                  <span>•</span>
+                  <span>Ayana:</span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-800 font-bold border border-amber-200">
+                    {calendarData.panchang?.ayana?.name || 'Uttarayana'}
+                  </span>
+                </p>
+              </div>
+
+              {/* Dominance Badge Preview: Light, Soft & Airy */}
+              <div className="flex items-center gap-3 self-start md:self-auto">
+                <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-2xl px-5 py-3.5 text-center shadow-xs">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-700">Active Nadi at Sunrise</div>
+                  <div className="text-lg sm:text-xl font-bold text-emerald-800 flex items-center justify-center gap-1.5 mt-0.5">
+                    <span>{calendarData.nadi.symbol}</span>
+                    <span>{calendarData.nadi.name}</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-600 font-medium">
+                    {calendarData.nadi.type === 'Sun' ? 'Right Nostril (Pingala)' : 'Left Nostril (Ida)'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 5: SUNRISE / SUNSET TIME & SOLAR TIMINGS CARD */}
+            <section className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-orange-100 text-orange-700 font-bold text-xs shrink-0">
+                    5
+                  </span>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">Sun Rise / Set Times &amp; Solar Ephemeris</h3>
+                    <p className="text-[11px] text-gray-500">Accurate NOAA solar calculation with 90.833° atmospheric refraction</p>
+                  </div>
+                </div>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 shrink-0">
+                  <Sun className="w-3 h-3" /> Udaya Kaal
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-3.5">
+                
+                {/* Sunrise */}
+                <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-200/70 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Sunrise (Udaya)</span>
+                    <Sun className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="my-1">
+                    <div className="text-lg sm:text-xl font-extrabold text-amber-900 leading-tight">{calendarData.sunriseTime}</div>
+                    <div className="text-[10px] text-amber-700 font-medium">Hindu Day Start</div>
+                  </div>
+                  <span className="text-[9px] text-amber-800 font-semibold bg-amber-100/70 px-1.5 py-0.5 rounded-md w-fit">
+                    Nadi begins here
+                  </span>
+                </div>
+
+                {/* Sunset */}
+                <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-200/70 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-orange-800">Sunset (Asta)</span>
+                    <Sunset className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <div className="my-1">
+                    <div className="text-lg sm:text-xl font-extrabold text-orange-900 leading-tight">{calendarData.sunsetTime12}</div>
+                    <div className="text-[10px] text-orange-700 font-medium">24h: {calendarData.sunsetTime}</div>
+                  </div>
+                  <span className="text-[9px] text-orange-800 font-semibold bg-orange-100/70 px-1.5 py-0.5 rounded-md w-fit">
+                    Sayam Sandhya
+                  </span>
+                </div>
+
+                {/* Day Length */}
+                <div className="p-3 rounded-xl bg-sky-50/50 border border-sky-200/70 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800">Day Length</span>
+                    <Clock className="w-4 h-4 text-sky-500" />
+                  </div>
+                  <div className="my-1">
+                    <div className="text-lg sm:text-xl font-extrabold text-sky-900 leading-tight">{calendarData.dayLength}</div>
+                    <div className="text-[10px] text-sky-700 font-medium">Noon: {calendarData.solarNoon12}</div>
+                  </div>
+                  <span className="text-[9px] text-sky-800 font-semibold bg-sky-100/70 px-1.5 py-0.5 rounded-md w-fit">
+                    Daylight Span
+                  </span>
+                </div>
+
+                {/* Brahma Muhurta */}
+                <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-200/70 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800">Brahma Muhurta</span>
+                    <Moon className="w-4 h-4 text-purple-500" />
+                  </div>
+                  <div className="my-1">
+                    <div className="text-lg sm:text-xl font-extrabold text-purple-900 leading-tight">{calendarData.brahmaMuhurta12}</div>
+                    <div className="text-[10px] text-purple-700 font-medium">96m before sunrise</div>
+                  </div>
+                  <span className="text-[9px] text-purple-800 font-semibold bg-purple-100/70 px-1.5 py-0.5 rounded-md w-fit">
+                    Sadhana Window
+                  </span>
+                </div>
+              </div>
+
+              {/* Sandhya Kaal Natural Swar Shift Explainer */}
+              <div className="mt-3 p-2.5 rounded-xl bg-amber-50/60 border border-amber-100 text-[11px] text-amber-800 flex items-center gap-2 leading-relaxed">
+                <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <div>
+                  <strong>Swar Yoga Sandhya Science:</strong> Equilibrium triggers Sushumna Nadi at sunrise ({calendarData.sunriseTime}), solar noon ({calendarData.solarNoon12}), &amp; sunset ({calendarData.sunsetTime12}) for ~5-10m. Ideal for Dhyana &amp; Pranayama.
+                </div>
+              </div>
+            </section>
+
+            {/* STEP 6: COMPLETE VEDIC PANCHANG GRID (MOVED IMMEDIATELY AFTER SUNRISE) */}
+            <section className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-purple-100/70">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-gray-100 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-purple-100 text-purple-700 font-bold text-xs shrink-0">
+                    6
+                  </span>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">Vedic Panchang (Five Limbs of Time)</h3>
+                    <p className="text-[11px] text-gray-500">Tithi, Nakshatra, Yoga, Karana, Var &amp; Planetary Rashis</p>
+                  </div>
+                </div>
+
+                {/* Day Quality Indicator */}
+                {calendarData.panchang?.dayQuality && (
+                  <div className={`px-3 py-1 rounded-full text-[11px] font-bold border flex items-center gap-1.5 self-start sm:self-auto shrink-0 ${
+                    calendarData.panchang.dayQuality === 'Auspicious'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : calendarData.panchang.dayQuality === 'Inauspicious'
+                      ? 'bg-red-50 text-red-800 border-red-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}>
+                    <span>{calendarData.panchang.dayQuality === 'Auspicious' ? '✨' : calendarData.panchang.dayQuality === 'Inauspicious' ? '⚡' : '⚖️'}</span>
+                    <span>Day Quality: {calendarData.panchang.dayQuality}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Bad Yoga / Inauspicious Warnings */}
+              {(calendarData.panchang?.vaidhriti || calendarData.panchang?.vatiapat) && (
+                <div className="mt-3 p-3 rounded-xl bg-rose-50/80 border border-rose-200 text-rose-800 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-xs">Special Astrological Alert: Avoid New Ventures</h4>
+                    <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                      {calendarData.panchang.vaidhriti ? 'Vaidhriti Yoga is active today. Inauspicious for starting business or commercial investments. Ideal strictly for Japa, meditation, yoga, and inner retreat.' : ''}
+                      {calendarData.panchang.vatiapat ? 'Vyatipat Yoga is present. Avoid long travels and initiating conflicts.' : ''}
                     </p>
                   </div>
                 </div>
               )}
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading || !selectedDate || !selectedCountry || !latitude || !longitude || !timezoneSelect}
-              className="w-full bg-swar-primary hover:bg-swar-primary-hover text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader className="h-4 w-4 animate-spin mr-2" />
-                  Calculating...
-                </>
-              ) : (
-                <>
-                  <Search className="h-4 w-4 mr-2" />
-                  Calculate Hindu Calendar
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* Error Display */}
-        {connectionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {connectionError}
-          </div>
-        )}
-
-        {/* Results Section */}
-        {showResults && calendarData && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
-                <Calendar className="w-6 h-6 text-swar-primary" />
-                <span>Panchang Results</span>
-              </h2>
-              <button
-                onClick={() => setShowDownloadForm(true)}
-                className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Monthly Calendar</span>
-              </button>
-            </div>
-
-            {/* Location & Basic Info Card */}
-            <div className="bg-gradient-to-r from-swar-primary-light to-blue-50 rounded-lg border border-swar-border p-4 mb-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    <MapPin className="h-4 w-4 text-swar-primary" />
-                    <h3 className="text-base font-semibold text-swar-text">{calendarData.location} • {calendarData.timezone}</h3>
-                  </div>
-                  <div className="text-xs text-swar-text-secondary">
-                    <p>📅 {formatDate(calendarData.date)} | 🕐 {calendarData.day}</p>
-                    <p>📍 Lat: {calendarData.coordinates.latitude.toFixed(4)}, Lng: {calendarData.coordinates.longitude.toFixed(4)}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center space-x-1.5 text-orange-600">
-                    <Sun className="h-5 w-5" />
-                    <div>
-                      <div className="text-lg font-bold">{calendarData.sunriseTime}</div>
-                      <div className="text-xs">Sunrise</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Warnings Section */}
-            {calendarData.panchang && (calendarData.panchang.vaidhriti || calendarData.panchang.vatiapat) && (
-              <div className="mb-4 space-y-2">
-                {calendarData.panchang.vaidhriti && (
-                  <div className="bg-red-50 border-l-4 border-red-600 p-3 rounded-lg">
-                    <div className="flex items-start space-x-2">
-                      <span className="text-lg">⚠️</span>
-                      <div>
-                        <h4 className="font-bold text-red-800 text-sm">Vaidhriti Yoga - Avoid New Ventures</h4>
-                        <p className="text-xs text-red-700 mt-0.5">This yoga is inauspicious for starting new work or business. Good for meditation, yoga, and introspection only.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {calendarData.panchang.vatiapat && (
-                  <div className="bg-red-50 border-l-4 border-red-600 p-3 rounded-lg">
-                    <div className="flex items-start space-x-2">
-                      <span className="text-lg">🚫</span>
-                      <div>
-                        <h4 className="font-bold text-red-800 text-sm">Vatiapat - Avoid Travel</h4>
-                        <p className="text-xs text-red-700 mt-0.5">Kritika Nakshatra in Krishna Paksha is inauspicious for long journeys. Plan your travels carefully.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Day Quality Indicator */}
-            {calendarData.panchang && (
-              <div className={`mb-6 rounded-xl border-2 p-4 text-center ${
-                calendarData.panchang.dayQuality === 'Auspicious' 
-                  ? 'bg-green-50 border-green-500' 
-                  : calendarData.panchang.dayQuality === 'Inauspicious'
-                  ? 'bg-red-50 border-red-500'
-                  : 'bg-yellow-50 border-yellow-500'
-              }`}>
-                <div className="text-3xl mb-1">
-                  {calendarData.panchang.dayQuality === 'Auspicious' ? '✨' : calendarData.panchang.dayQuality === 'Inauspicious' ? '⚡' : '⚖️'}
-                </div>
-                <div className={`text-lg font-bold ${
-                  calendarData.panchang.dayQuality === 'Auspicious' 
-                    ? 'text-green-800' 
-                    : calendarData.panchang.dayQuality === 'Inauspicious'
-                    ? 'text-red-800'
-                    : 'text-yellow-800'
-                }`}>
-                  Day is {calendarData.panchang.dayQuality}
-                </div>
-              </div>
-            )}
-
-            {/* Panchang Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-              {/* Tithi Card */}
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
-                <div className="text-xs font-semibold text-purple-700 mb-2 uppercase tracking-wider">Tithi</div>
-                <div className="mb-2">
-                  <div className="text-2xl font-bold text-purple-800">{calendarData.tithi}</div>
-                  <div className="text-xs text-purple-600">{calendarData.tithiName}</div>
-                </div>
-                <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-200 text-purple-800">
-                  {calendarData.paksha}
-                </div>
-              </div>
-
-              {/* Yoga Card */}
-              {calendarData.panchang?.yoga && (
-                <div className={`rounded-lg border-2 p-3 hover:shadow-md transition-shadow ${
-                  calendarData.panchang.yoga.effect === 'Auspicious'
-                    ? 'bg-green-50 border-green-300'
-                    : 'bg-red-50 border-red-300'
-                }`}>
-                  <div className={`text-xs font-semibold mb-2 uppercase tracking-wider ${
-                    calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-700' : 'text-red-700'
-                  }`}>Yoga</div>
-                  <div className="mb-2">
-                    <div className={`text-2xl font-bold mb-0.5 ${
-                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-800' : 'text-red-800'
-                    }`}>{calendarData.panchang.yoga.symbol}</div>
-                    <div className={`text-xs font-medium ${
-                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-700' : 'text-red-700'
-                    }`}>{calendarData.panchang.yoga.name}</div>
-                    <div className={`text-xs mt-0.5 ${
-                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-600' : 'text-red-600'
-                    }`}>{calendarData.panchang.yoga.effect}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Nakshatra Card */}
-              {calendarData.panchang?.nakshatra && (
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-200 p-3 hover:shadow-md transition-shadow">
-                  <div className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wider">Nakshatra</div>
-                  <div className="mb-2">
-                    <div className="text-2xl font-bold text-blue-800">{calendarData.panchang.nakshatra.symbol}</div>
-                    <div className="text-xs font-medium text-blue-700">{calendarData.panchang.nakshatra.name}</div>
-                    <div className="text-xs text-blue-600 mt-0.5">🔯 {calendarData.panchang.nakshatra.symbolText}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Karana Card */}
-              {calendarData.panchang?.karana && (
-                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200 p-3 hover:shadow-md transition-shadow">
-                  <div className="text-xs font-semibold text-orange-700 mb-2 uppercase tracking-wider">Karana</div>
-                  <div className="mb-2">
-                    <div className="text-2xl font-bold text-orange-800">{calendarData.panchang.karana.symbol}</div>
-                    <div className="text-xs font-medium text-orange-700">{calendarData.panchang.karana.name}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Moon Rashi Card */}
-              {calendarData.panchang?.moonRashi && (
-                <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg border border-pink-200 p-3 hover:shadow-md transition-shadow">
-                  <div className="text-xs font-semibold text-pink-700 mb-2 uppercase tracking-wider">Moon Rashi</div>
-                  <div className="mb-2">
-                    <div className="text-2xl font-bold text-pink-800">{calendarData.panchang.moonRashi.symbol}</div>
-                    <div className="text-xs font-medium text-pink-700">{calendarData.panchang.moonRashi.name}</div>
-                    <div className="text-xs text-pink-600 mt-0.5">🌙 {calendarData.panchang.moonRashi.element}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sun Rashi Card */}
-              {calendarData.panchang?.sunRashi && (
-                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg border border-yellow-200 p-3 hover:shadow-md transition-shadow">
-                  <div className="text-xs font-semibold text-yellow-700 mb-2 uppercase tracking-wider">Sun Rashi</div>
-                  <div className="mb-2">
-                    <div className="text-2xl font-bold text-yellow-800">{calendarData.panchang.sunRashi.symbol}</div>
-                    <div className="text-xs font-medium text-yellow-700">{calendarData.panchang.sunRashi.name}</div>
-                    <div className="text-xs text-yellow-600 mt-0.5">☀️ {calendarData.panchang.sunRashi.element}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sun Nakshatra Card */}
-              {calendarData.panchang?.sunNakshatra && (
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-3 hover:shadow-md transition-shadow">
-                  <div className="text-xs font-semibold text-amber-700 mb-2 uppercase tracking-wider">Sun Nakshatra</div>
-                  <div className="mb-2">
-                    <div className="text-2xl font-bold text-amber-800">{calendarData.panchang.sunNakshatra.symbol}</div>
-                    <div className="text-xs font-medium text-amber-700">{calendarData.panchang.sunNakshatra.name}</div>
-                    <div className="text-xs text-amber-600 mt-0.5">☀️ {calendarData.panchang.sunNakshatra.planet}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Swar Yoga Dominance Card */}
-            {calendarData.panchang?.swarYoga && (
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-6">
-                <h3 className="text-lg font-bold text-indigo-900 mb-4">🔮 Today's Swar Yoga Analysis</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Left Side - 5 Factors */}
-                  <div>
-                    <h4 className="font-semibold text-indigo-700 mb-2 text-sm">📊 Today's 5 Factors</h4>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {([
-                        ['Ayana', calendarData.panchang.swarYoga.factors.ayana.value, calendarData.panchang.swarYoga.factors.ayana.energy],
-                        ['Paksha', calendarData.panchang.swarYoga.factors.paksha.value.replace(' Paksha', ''), calendarData.panchang.swarYoga.factors.paksha.energy],
-                        ['Tithi', calendarData.panchang.swarYoga.factors.tithi.value, calendarData.panchang.swarYoga.factors.tithi.energy],
-                        ['Nakshatra', `${calendarData.panchang.swarYoga.factors.nakshatra.value} (${calendarData.panchang.swarYoga.factors.nakshatra.planet})`, calendarData.panchang.swarYoga.factors.nakshatra.energy],
-                        ['Day', calendarData.panchang.swarYoga.factors.day.value, calendarData.panchang.swarYoga.factors.day.energy],
-                      ] as [string, string | number, string][]).map(([label, value, energy]) => (
-                        <div key={label} className="text-xs bg-white/50 rounded-lg px-2 py-1.5">
-                          <div className="text-gray-600">{label}</div>
-                          <div className="font-medium truncate">
-                            {value} <span className={energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{energy}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Summary */}
-                    <div className="mt-3 p-3 bg-white rounded-lg border border-indigo-200">
-                      <div className="flex justify-between items-center">
-                        <span className="text-blue-600 font-medium">☽ Moon: {calendarData.panchang.swarYoga.moonCount}</span>
-                        <span className="text-orange-600 font-medium">☉ Sun: {calendarData.panchang.swarYoga.sunCount}</span>
-                      </div>
-                      <div className="text-center mt-2">
-                        <span className={`text-lg font-bold ${calendarData.panchang.swarYoga.dominant.includes('Moon') ? 'text-blue-700' : 'text-orange-700'}`}>
-                          Dominant: {calendarData.panchang.swarYoga.dominant} ({calendarData.panchang.swarYoga.recommendation.type})
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Right Side - Recommendations */}
-                  <div>
-                    <h4 className="font-semibold text-green-700 mb-3">✅ Good For Today ({calendarData.panchang.swarYoga.recommendation.type})</h4>
-                    <ul className="space-y-2 mb-4">
-                      {calendarData.panchang.swarYoga.recommendation.bestFor.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-gray-700 flex items-start">
-                          <span className="mr-2 text-green-500">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <h4 className="font-semibold text-red-700 mb-3">❌ Not Suitable For</h4>
-                    <ul className="space-y-2">
-                      {calendarData.panchang.swarYoga.recommendation.avoid.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-gray-700 flex items-start">
-                          <span className="mr-2 text-red-500">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
+              {/* 6 Compact Small Cards Grid (Green & Lavender theme) */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 mt-3.5">
                 
-                {/* Tomorrow's Sleep Guidance Note */}
-                {tomorrowData && (
-                  <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200 hover:shadow-lg hover:border-green-400 transition-all duration-300 cursor-default">
-                    <h4 className="font-bold text-green-800 mb-3 flex items-center">
-                      <span className="mr-2">🌙</span>
-                      Tomorrow's Preparation - {new Date(tomorrowData.date).toLocaleDateString('en-GB')} | Tithi {tomorrowData.tithi} ({tomorrowData.dominant === 'Prakruti' ? '☽ Moon' : '☉ Sun'})
-                    </h4>
-                    
-                    {tomorrowData.dominant === 'Prakruti' ? (
-                      // Moon dominant tomorrow
-                      <div className="text-green-800 space-y-2">
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">🛏️ Tonight's Sleep Position:</span> Sleep on your <strong>LEFT side</strong> the entire night.
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">🛋️ Use proper pillow</span> to maintain comfortable left-side position.
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">🌅 Result:</span> At sunrise ({tomorrowData.sunriseTime}), your <strong>☽ Moon Swar (Ida Nadi)</strong> will be automatically active.
-                        </p>
+                {/* 1. Tithi Card (Lavender) */}
+                <div className="p-3 rounded-xl bg-[#F7F4FE] border border-[#E9D5FF] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7C3AED]">1. Tithi (Phase)</span>
+                    <span className="text-base">🌙</span>
+                  </div>
+                  <div className="my-1">
+                    <div className="text-base sm:text-lg font-extrabold text-[#581C87] leading-tight truncate">
+                      {calendarData.tithi} • {calendarData.tithiName}
+                    </div>
+                    <div className="text-[11px] font-semibold text-[#7E22CE] leading-tight mt-0.5">{calendarData.paksha}</div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-tight">
+                    {calendarData.paksha === 'Shukla Paksha' ? 'Waxing bright fortnight' : 'Waning dark fortnight'}
+                  </p>
+                </div>
+
+                {/* 2. Nakshatra Card (Emerald Green) */}
+                {calendarData.panchang?.nakshatra && (
+                  <div className="p-3 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#059669]">2. Nakshatra</span>
+                      <span className="text-base">{calendarData.panchang.nakshatra.symbol}</span>
+                    </div>
+                    <div className="my-1">
+                      <div className="text-base sm:text-lg font-extrabold text-[#065F46] leading-tight truncate">
+                        {calendarData.panchang.nakshatra.name}
                       </div>
-                    ) : (
-                      // Sun dominant tomorrow
-                      <div className="text-green-800 space-y-2">
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">🛏️ Tonight's Sleep Position:</span> Sleep on your <strong>LEFT side</strong> until <strong>{tomorrowData.sleepSwitchTime}</strong> (sunrise {tomorrowData.sunriseTime} - 3 hours).
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">↪️ Then switch:</span> Sleep on your <strong>RIGHT side</strong> for the last 2.5-3 hours before sunrise.
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-semibold">🌅 Result:</span> At sunrise ({tomorrowData.sunriseTime}), your <strong>☉ Sun Swar (Pingala Nadi)</strong> will be automatically active.
-                        </p>
+                      <div className="text-[11px] font-semibold text-[#047857] leading-tight mt-0.5">
+                        Pada: {calendarData.panchang.nakshatra.pada || 1} • Planet: <strong>{calendarData.panchang.nakshatra.symbolText}</strong>
                       </div>
-                    )}
-                    
-                    <div className="mt-4 pt-3 border-t border-green-200">
-                      <p className="text-xs text-green-700 italic flex items-center">
-                        <span className="mr-2">✨</span>
-                        <strong>Note:</strong> Swar Yoga gives best results with consistent practice. Regularity is the key to success!
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">Lunar constellation governing prana</p>
+                  </div>
+                )}
+
+                {/* 3. Yoga Card (Lavender) */}
+                {calendarData.panchang?.yoga && (
+                  <div className="p-3 rounded-xl bg-[#F7F4FE] border border-[#E9D5FF] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7C3AED]">3. Yoga</span>
+                      <span className="text-base">{calendarData.panchang.yoga.symbol}</span>
+                    </div>
+                    <div className="my-1">
+                      <div className="text-base sm:text-lg font-extrabold text-[#581C87] leading-tight truncate">
+                        {calendarData.panchang.yoga.name}
+                      </div>
+                      <div className={`text-[11px] font-semibold leading-tight mt-0.5 ${calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-[#059669]' : 'text-rose-600'}`}>
+                        {calendarData.panchang.yoga.effect}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">Harmonic Sun-Moon angle</p>
+                  </div>
+                )}
+
+                {/* 4. Karana Card (Emerald Green) */}
+                {calendarData.panchang?.karana && (
+                  <div className="p-3 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#059669]">4. Karana</span>
+                      <span className="text-base">{calendarData.panchang.karana.symbol}</span>
+                    </div>
+                    <div className="my-1">
+                      <div className="text-base sm:text-lg font-extrabold text-[#065F46] leading-tight truncate">
+                        {calendarData.panchang.karana.name}
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#047857] leading-tight mt-0.5">Action execution period</div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">Half-Tithi 6° elongation interval</p>
+                  </div>
+                )}
+
+                {/* 5. Moon Rashi (Lavender) */}
+                {calendarData.panchang?.moonRashi && (
+                  <div className="p-3 rounded-xl bg-[#F7F4FE] border border-[#E9D5FF] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7C3AED]">5. Moon Rashi</span>
+                      <span className="text-base">{calendarData.panchang.moonRashi.symbol}</span>
+                    </div>
+                    <div className="my-1">
+                      <div className="text-base sm:text-lg font-extrabold text-[#581C87] leading-tight truncate">
+                        {calendarData.panchang.moonRashi.name}
+                        {calendarData.panchang.moonRashi.english ? ` (${calendarData.panchang.moonRashi.english})` : ''}
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#7E22CE] leading-tight mt-0.5">
+                        Lord: <strong>{calendarData.panchang.moonRashi.element}</strong>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">Chandra emotional &amp; mind matrix</p>
+                  </div>
+                )}
+
+                {/* 6. Sun Rashi & Ayana (Emerald Green) */}
+                {calendarData.panchang?.sunRashi && (
+                  <div className="p-3 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#059669]">6. Sun Rashi</span>
+                      <span className="text-base">{calendarData.panchang.sunRashi.symbol}</span>
+                    </div>
+                    <div className="my-1">
+                      <div className="text-base sm:text-lg font-extrabold text-[#065F46] leading-tight truncate">
+                        {calendarData.panchang.sunRashi.name}
+                        {calendarData.panchang.sunRashi.english ? ` (${calendarData.panchang.sunRashi.english})` : ''}
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#047857] leading-tight mt-0.5 truncate">
+                        {calendarData.panchang.ayana?.name} ({calendarData.panchang.ayana?.symbol || '☀️'})
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-tight">Solar celestial transit position</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* STEP 7: ASTRO LOGIC & CALCULATION CARD */}
+            <section className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 font-bold text-xs shrink-0">
+                    7
+                  </span>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">Astro Logic &amp; Mathematical Calculations</h3>
+                    <p className="text-[11px] text-gray-500">Transparent astronomical verification: Lahiri Ayanamsha, Perturbations &amp; Elongation</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAstroDetails(v => !v)}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 shrink-0"
+                >
+                  <span>{showAstroDetails ? 'Hide Formulas' : 'Show Formulas'}</span>
+                  {showAstroDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {showAstroDetails && calendarData.astroLogic && (
+                <div className="mt-4 space-y-4">
+                  {/* Calculation Parameters Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-xl bg-gray-50/70 border border-gray-100">
+                      <div className="text-gray-500 font-medium text-[11px]">Epoch / Days (J2000)</div>
+                      <div className="font-mono font-bold text-gray-800 text-sm mt-0.5">{calendarData.astroLogic.daysSinceJ2000} d</div>
+                      <div className="text-[10px] text-gray-400">Mean time metric</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-gray-50/70 border border-gray-100">
+                      <div className="text-gray-500 font-medium text-[11px]">Lahiri Ayanamsha</div>
+                      <div className="font-mono font-bold text-gray-800 text-sm mt-0.5">{calendarData.astroLogic.ayanamsha}</div>
+                      <div className="text-[10px] text-gray-400">Chitrapaksha basis</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-100">
+                      <div className="text-amber-800 font-medium text-[11px]">Sun Nirayana</div>
+                      <div className="font-mono font-bold text-amber-800 text-sm mt-0.5">{calendarData.astroLogic.sunSiderealLong}</div>
+                      <div className="text-[10px] text-amber-600">Trop: {calendarData.astroLogic.sunTropicalLong}</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                      <div className="text-indigo-800 font-medium text-[11px]">Moon Nirayana</div>
+                      <div className="font-mono font-bold text-indigo-800 text-sm mt-0.5">{calendarData.astroLogic.moonSiderealLong}</div>
+                      <div className="text-[10px] text-indigo-600">Meeus corrected</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-purple-50/50 border border-purple-100">
+                      <div className="text-purple-800 font-medium text-[11px]">Angular Elongation (D)</div>
+                      <div className="font-mono font-bold text-purple-800 text-sm mt-0.5">{calendarData.astroLogic.elongation}</div>
+                      <div className="text-[10px] text-purple-600">Moon - Sun mod 360°</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                      <div className="text-emerald-800 font-medium text-[11px]">Calculated Tithi</div>
+                      <div className="font-mono font-bold text-emerald-800 text-sm mt-0.5 truncate">
+                        #{calendarData.astroLogic.tithiIndex} ({calendarData.tithiName})
+                      </div>
+                      <div className="text-[10px] text-emerald-600">Raw: {calendarData.astroLogic.tithiRaw}</div>
+                    </div>
+                  </div>
+
+                  {/* Tithi Progression Bar */}
+                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border border-indigo-100/70 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-indigo-800">Tithi Elapsed: {calendarData.astroLogic.tithiPassedPercent}% of {calendarData.tithiName}</span>
+                      <span className="text-purple-800">{calendarData.astroLogic.tithiLeftPercent}% remaining</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-inner flex">
+                      <div 
+                        className="bg-gradient-to-r from-amber-400 to-indigo-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${calendarData.astroLogic.tithiPassedPercent}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      <strong>Astro Rule:</strong> Each Tithi = 12° of Moon-Sun elongation. In Vedic astrology, the <strong>Udaya Tithi</strong> (Tithi active at local sunrise: {calendarData.sunriseTime}) defines the spiritual nature of the day.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* STEP 8: TITHI & SWAR YOGA DOMINANCE & SLEEP GUIDANCE */}
+            <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-gray-100">
+              <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
+                <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-amber-100 text-amber-700 font-bold text-sm">
+                  8
+                </span>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Swar Yoga Breath Dominance &amp; 5-Factor Analysis</h3>
+                  <p className="text-xs text-gray-500">Matching Tithi, Paksha, Ayana, Weekday &amp; Nakshatra to the science of breath</p>
+                </div>
+              </div>
+
+              {calendarData.panchang?.swarYoga && (
+                <div className="mt-6 space-y-6">
+                  
+                  {/* Dominant Energy Hero Box: Light, Soft & Balanced */}
+                  <div className={`p-6 rounded-3xl border flex flex-col md:flex-row md:items-center md:justify-between gap-6 ${
+                    calendarData.panchang.swarYoga.dominant.includes('Moon')
+                      ? 'bg-blue-50/40 border-blue-200/70'
+                      : 'bg-orange-50/40 border-orange-200/70'
+                  }`}>
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Today's Overall Dominance
+                      </div>
+                      <div className={`text-2xl sm:text-3xl font-black flex items-center gap-2 ${
+                        calendarData.panchang.swarYoga.dominant.includes('Moon') ? 'text-blue-900' : 'text-orange-900'
+                      }`}>
+                        <span>{calendarData.panchang.swarYoga.dominant}</span>
+                        <span>({calendarData.panchang.swarYoga.recommendation.type} Energy)</span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed max-w-xl">
+                        {calendarData.panchang.swarYoga.dominant.includes('Moon')
+                          ? 'Prakruti (Chandra / Cooling / Creative) energy dominates today. Nurtures creative expansion, mental clarity, artistic endeavors, and healing.'
+                          : 'Purusha (Surya / Heating / Transformational) energy dominates today. Ideal for physical execution, decision making, breaking obstacles, and athletic exertion.'}
                       </p>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Nadi Info (Legacy) */}
-            <div className="mt-6 px-6 py-4 bg-swar-bg border-t border-swar-border rounded-lg">
-              <div className="text-sm text-swar-text-secondary">
-                <p className="flex items-center space-x-2"><span className="font-medium">Nadi Energy:</span> <span>{calendarData.nadi.symbol}</span> <span>{calendarData.nadi.name}</span> ({calendarData.nadi.type === 'Sun' ? 'Sun Energy ☀️' : 'Moon Energy 🌙'})</p>
-                <p className="mt-2 text-xs">In {calendarData.paksha}, Tithi {calendarData.tithi} corresponds to {calendarData.nadi.name} energy</p>
-              </div>
-            </div>
+                    {/* Moon vs Sun Score Cards */}
+                    <div className="flex items-center gap-3">
+                      <div className="px-5 py-3 rounded-2xl bg-white shadow-2xs border border-blue-100 text-center">
+                        <div className="text-xs font-semibold text-blue-600">☽ Moon Factors</div>
+                        <div className="text-2xl font-black text-blue-900">{calendarData.panchang.swarYoga.moonCount} / 5</div>
+                      </div>
+                      <div className="px-5 py-3 rounded-2xl bg-white shadow-2xs border border-orange-100 text-center">
+                        <div className="text-xs font-semibold text-orange-600">☉ Sun Factors</div>
+                        <div className="text-2xl font-black text-orange-900">{calendarData.panchang.swarYoga.sunCount} / 5</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5-Factor Breakdown Cards */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+                      The 5 Canonical Swar Shastra Factors
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {([
+                        ['1. Ayana', calendarData.panchang.swarYoga.factors.ayana.value, calendarData.panchang.swarYoga.factors.ayana.energy],
+                        ['2. Paksha', calendarData.panchang.swarYoga.factors.paksha.value.replace(' Paksha', ''), calendarData.panchang.swarYoga.factors.paksha.energy],
+                        ['3. Tithi', `Tithi ${calendarData.panchang.swarYoga.factors.tithi.value}`, calendarData.panchang.swarYoga.factors.tithi.energy],
+                        ['4. Weekday', calendarData.panchang.swarYoga.factors.day.value, calendarData.panchang.swarYoga.factors.day.energy],
+                        ['5. Nakshatra', `${calendarData.panchang.swarYoga.factors.nakshatra.value} (${calendarData.panchang.swarYoga.factors.nakshatra.planet})`, calendarData.panchang.swarYoga.factors.nakshatra.energy],
+                      ] as [string, string, string][]).map(([factorLabel, factorVal, factorEnergy]) => {
+                        const isMoon = factorEnergy.includes('Moon');
+                        return (
+                          <div 
+                            key={factorLabel}
+                            className={`p-3.5 rounded-2xl border ${
+                              isMoon ? 'bg-blue-50/40 border-blue-100' : 'bg-orange-50/40 border-orange-100'
+                            }`}
+                          >
+                            <div className="text-[10px] font-bold uppercase text-gray-400">{factorLabel}</div>
+                            <div className="text-sm font-bold text-gray-800 mt-1 truncate">{factorVal}</div>
+                            <div className={`text-xs font-bold mt-1 inline-flex items-center gap-1 ${
+                              isMoon ? 'text-blue-600' : 'text-orange-600'
+                            }`}>
+                              <span>{factorEnergy}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Recommendations: Good For vs Avoid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm mb-3">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Best Activities Today ({calendarData.panchang.swarYoga.recommendation.type})</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-emerald-900 font-medium">
+                        {calendarData.panchang.swarYoga.recommendation.bestFor.map((act: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-emerald-500 font-bold">•</span>
+                            <span>{act}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-rose-50/50 border border-rose-100">
+                      <div className="flex items-center gap-2 text-rose-800 font-bold text-sm mb-3">
+                        <AlertTriangle className="w-4 h-4 text-rose-500" />
+                        <span>Activities to Avoid Today</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-rose-900 font-medium">
+                        {calendarData.panchang.swarYoga.recommendation.avoid.map((act: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-rose-400 font-bold">•</span>
+                            <span>{act}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Tonight's Sleep Guidance Card: Light, Soft Pastels, Pure White */}
+                  {tomorrowData && (
+                    <div className="p-6 sm:p-8 rounded-3xl bg-white text-gray-800 shadow-sm border border-indigo-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-gray-100 gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+                            <Moon className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-lg sm:text-xl text-gray-900 tracking-tight">
+                              Tonight's Sleep Posture &amp; Tomorrow's Alignment
+                            </h4>
+                            <p className="text-xs sm:text-sm text-indigo-700 font-medium mt-0.5">
+                              Prepares for tomorrow ({formatDate(tomorrowData.date)}) • Tithi {tomorrowData.tithi}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="self-start sm:self-auto text-xs px-3.5 py-1.5 rounded-full bg-indigo-50/70 text-indigo-700 font-semibold border border-indigo-100">
+                          🌙 Swar Sleep Protocol
+                        </span>
+                      </div>
+
+                      <div className="mt-6 space-y-4">
+                        {tomorrowData.dominant === 'Prakruti' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-5 rounded-2xl bg-sky-50/50 border border-sky-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🛏️</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-sky-800">Sleep Posture</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  Sleep on your LEFT side
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                Maintain left-side posture throughout the night to stabilize lunar pranic channels.
+                              </p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🛋️</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-purple-800">Spine &amp; Pillow Support</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  Support Head &amp; Neck
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                Use a supportive pillow to keep head and spine naturally aligned without nostril obstruction.
+                              </p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🌅</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Sunrise Activation</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  At {tomorrowData.sunriseTime} Sunrise
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                Your <strong className="text-gray-900 font-semibold">☽ Moon Swar (Ida / Left Nostril)</strong> will naturally awaken and flow!
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-5 rounded-2xl bg-sky-50/50 border border-sky-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🛏️</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-sky-800">Phase 1: Initial Sleep</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  Sleep on your LEFT side
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                Sleep on your <strong className="text-gray-900 font-semibold">LEFT side</strong> from bedtime until <strong className="text-gray-900 font-semibold">{tomorrowData.sleepSwitchTime}</strong> (~3 hours before sunrise).
+                              </p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🔄</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-purple-800">Phase 2: Switch Posture</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  Turn to RIGHT side
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                At <strong className="text-gray-900 font-semibold">{tomorrowData.sleepSwitchTime}</strong>, turn and sleep on your <strong className="text-gray-900 font-semibold">RIGHT side</strong> for the remaining 2.5–3 hours.
+                              </p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-100 flex flex-col justify-between">
+                              <div>
+                                <div className="text-3xl mb-2">🌅</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Sunrise Activation</div>
+                                <div className="text-base font-bold text-gray-900 mt-1">
+                                  At {tomorrowData.sunriseTime} Sunrise
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed mt-2.5">
+                                Your <strong className="text-gray-900 font-semibold">☉ Sun Swar (Pingala / Right Nostril)</strong> will naturally activate at dawn!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-xs sm:text-sm text-emerald-800 font-medium flex items-center gap-3">
+                          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Consistent Swar Yoga synchronization with lunar tithi harmonizes mental clarity, vitality, and cellular immunity.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+            </section>
+
           </div>
         )}
 
-        {/* Download Form Modal */}
+        {/* Download Modal */}
         {showDownloadForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
-                  <CalendarDays className="w-6 h-6 text-blue-600" />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-amber-600" />
                   <span>Download Monthly Calendar</span>
                 </h3>
                 <button
                   onClick={() => setShowDownloadForm(false)}
-                  className="text-swar-text-secondary hover:text-swar-text-secondary text-2xl"
+                  className="p-1 text-gray-400 hover:text-gray-700 text-xl font-bold"
                 >
-                  ×
+                  ✕
                 </button>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-swar-text mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1">
                     Start Date
                   </label>
                   <input
                     type="date"
                     value={downloadStartDate}
                     onChange={(e) => setDownloadStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-swar-text mb-1">
-                    End Date (Max 1 Month)
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1">
+                    End Date (Max 31 Days)
                   </label>
                   <input
                     type="date"
                     value={downloadEndDate}
                     onChange={(e) => setDownloadEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                     required
                   />
                 </div>
                 
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 mb-2">Download Features:</h4>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Separate sections for Shukla Paksha and Krishna Paksha</li>
-                    <li>• Same table format as today's results</li>
-                    <li>• Complete Nadi calculation logic included</li>
-                    <li>• A4 PDF format for printing</li>
-                    <li>• Maximum one month period allowed</li>
-                  </ul>
+                <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+                  <div className="font-bold">PDF Format Includes:</div>
+                  <div>• Shukla Paksha &amp; Krishna Paksha tables</div>
+                  <div>• Daily Tithi, Nakshatra, Yoga, and Day Energy</div>
+                  <div>• Prakruti / Purusha Dominance column</div>
+                  <div>• High-resolution printable A4 format</div>
                 </div>
                 
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowDownloadForm(false)}
-                    className="px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex gap-2 pt-2">
                   <button
                     onClick={handlePreviewCalendar}
-                    disabled={downloadLoading || !downloadStartDate || !downloadEndDate}
-                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={downloadLoading}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-sm"
                   >
-                    {downloadLoading ? (
-                      <>
-                        <Loader className="w-4 h-4 animate-spin mr-2" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </>
-                    )}
+                    <Eye className="w-4 h-4" />
+                    <span>View Table</span>
                   </button>
                   <button
                     onClick={handleDownloadMonthlyCalendar}
-                    disabled={downloadLoading || !downloadStartDate || !downloadEndDate}
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={downloadLoading}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-sm shadow-sm"
                   >
-                    {downloadLoading ? (
-                      <>
-                        <Loader className="w-4 h-4 animate-spin mr-2" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </>
-                    )}
+                    {downloadLoading ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    <span>Download PDF</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
-        
-        {/* Preview Modal */}
+
+        {/* Monthly Preview Modal */}
         {showPreview && previewData && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-swar-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="flex justify-between items-center p-4 border-b border-swar-border bg-gradient-to-r from-blue-500 to-purple-600">
-                <h3 className="text-xl font-bold text-white">
-                  Calendar Preview: {new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </h3>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-100">
+              <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                <div>
+                  <h3 className="text-lg font-bold">
+                    Calendar Preview: {new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <p className="text-xs text-white/90">Computed for {selectedCapital}, {selectedCountry}</p>
+                </div>
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="text-white hover:text-gray-200 text-2xl"
+                  className="p-1 text-white hover:text-gray-200 text-xl font-bold"
                 >
-                  ×
+                  ✕
                 </button>
               </div>
               
-              <div className="overflow-auto flex-1 p-4">
-                {/* Krishna Paksha Table - TOP */}
-                <div className="mb-6">
-                  <h4 className="text-lg font-bold text-red-700 mb-2 flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-                    KRISHNA PAKSHA (Waning Moon) ☉
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-red-100">
-                          <th className="border border-red-300 px-2 py-2 text-left">Tithi</th>
-                          <th className="border border-red-300 px-2 py-2 text-left">Date</th>
-                          <th className="border border-red-300 px-2 py-2 text-left">Day (M/S)</th>
-                          <th className="border border-red-300 px-2 py-2 text-left">Nakshatra (M/S)</th>
-                          <th className="border border-red-300 px-2 py-2 text-left">Yoga</th>
-                          <th className="border border-red-300 px-2 py-2 text-center">Tithi (M/S)</th>
-                          <th className="border border-red-300 px-2 py-2 text-center">Result</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.filter(d => d.paksha === 'Krishna Paksha').map((row, idx) => {
-                          const isBadYoga = row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
-                          return (
-                          <tr key={idx} className={isBadYoga ? 'bg-red-200' : (idx % 2 === 0 ? 'bg-red-50' : 'bg-white')}>
-                            <td className="border border-red-200 px-2 py-1 font-medium">{row.tithi}</td>
-                            <td className="border border-red-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
-                            <td className={`border border-red-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.dayShort} ({row.dayEnergy === '☽' ? 'M' : 'S'})
-                            </td>
-                            <td className={`border border-red-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
-                            </td>
-                            <td className={`border border-red-200 px-2 py-1 font-medium ${isBadYoga ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
-                              {row.yoga}
-                            </td>
-                            <td className={`border border-red-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.tithiEnergy === '☽' ? 'Moon' : 'Sun'}
-                            </td>
-                            <td className={`border border-red-200 px-2 py-1 text-center font-bold ${row.dominant === 'Prakruti' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.dominant}
-                            </td>
-                          </tr>
-                        );})}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+              <div className="overflow-auto flex-1 p-5 space-y-6">
                 
-                {/* Shukla Paksha Table - BOTTOM */}
+                {/* Krishna Paksha */}
                 <div>
-                  <h4 className="text-lg font-bold text-green-700 mb-2 flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                    SHUKLA PAKSHA (Waxing Moon) ☽
+                  <h4 className="text-sm font-bold text-red-700 mb-2 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                    <span>KRISHNA PAKSHA (Waning Moon) ☉</span>
                   </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-green-100">
-                          <th className="border border-green-300 px-2 py-2 text-left">Tithi</th>
-                          <th className="border border-green-300 px-2 py-2 text-left">Date</th>
-                          <th className="border border-green-300 px-2 py-2 text-left">Day (M/S)</th>
-                          <th className="border border-green-300 px-2 py-2 text-left">Nakshatra (M/S)</th>
-                          <th className="border border-green-300 px-2 py-2 text-left">Yoga</th>
-                          <th className="border border-green-300 px-2 py-2 text-center">Tithi (M/S)</th>
-                          <th className="border border-green-300 px-2 py-2 text-center">Result</th>
+                  <div className="overflow-x-auto border border-gray-200 rounded-2xl">
+                    <table className="w-full text-xs">
+                      <thead className="bg-red-50 text-red-900 border-b border-red-200">
+                        <tr>
+                          <th className="py-2.5 px-3 text-left">Tithi</th>
+                          <th className="py-2.5 px-3 text-left">Date</th>
+                          <th className="py-2.5 px-3 text-left">Day</th>
+                          <th className="py-2.5 px-3 text-left">Nakshatra</th>
+                          <th className="py-2.5 px-3 text-left">Yoga</th>
+                          <th className="py-2.5 px-3 text-center">Tithi (M/S)</th>
+                          <th className="py-2.5 px-3 text-center">Result</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {previewData.filter(d => d.paksha === 'Shukla Paksha').map((row, idx) => {
-                          const isBadYoga = row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
-                          return (
-                          <tr key={idx} className={isBadYoga ? 'bg-red-200' : (idx % 2 === 0 ? 'bg-green-50' : 'bg-white')}>
-                            <td className="border border-green-200 px-2 py-1 font-medium">{row.tithi}</td>
-                            <td className="border border-green-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
-                            <td className={`border border-green-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                      <tbody className="divide-y divide-gray-100">
+                        {previewData.filter(d => d.paksha === 'Krishna Paksha').map((row, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-red-50/30'}>
+                            <td className="py-2 px-3 font-bold">{row.tithi}</td>
+                            <td className="py-2 px-3">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
+                            <td className={`py-2 px-3 font-semibold ${row.dayEnergy === '☽' ? 'text-blue-700' : 'text-orange-700'}`}>
                               {row.dayShort} ({row.dayEnergy === '☽' ? 'M' : 'S'})
                             </td>
-                            <td className={`border border-green-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
-                            </td>
-                            <td className={`border border-green-200 px-2 py-1 font-medium ${isBadYoga ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
-                              {row.yoga}
-                            </td>
-                            <td className={`border border-green-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                            <td className="py-2 px-3">{row.nakshatra}</td>
+                            <td className="py-2 px-3 font-medium">{row.yoga}</td>
+                            <td className={`py-2 px-3 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-blue-700' : 'text-orange-700'}`}>
                               {row.tithiEnergy === '☽' ? 'Moon' : 'Sun'}
                             </td>
-                            <td className={`border border-green-200 px-2 py-1 text-center font-bold ${row.dominant === 'Prakruti' ? 'text-green-700' : 'text-red-600'}`}>
-                              {row.dominant}
+                            <td className="py-2 px-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                row.dominant === 'Prakruti' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {row.dominant}
+                              </span>
                             </td>
                           </tr>
-                        );})}
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+                {/* Shukla Paksha */}
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-700 mb-2 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <span>SHUKLA PAKSHA (Waxing Moon) ☽</span>
+                  </h4>
+                  <div className="overflow-x-auto border border-gray-200 rounded-2xl">
+                    <table className="w-full text-xs">
+                      <thead className="bg-emerald-50 text-emerald-900 border-b border-emerald-200">
+                        <tr>
+                          <th className="py-2.5 px-3 text-left">Tithi</th>
+                          <th className="py-2.5 px-3 text-left">Date</th>
+                          <th className="py-2.5 px-3 text-left">Day</th>
+                          <th className="py-2.5 px-3 text-left">Nakshatra</th>
+                          <th className="py-2.5 px-3 text-left">Yoga</th>
+                          <th className="py-2.5 px-3 text-center">Tithi (M/S)</th>
+                          <th className="py-2.5 px-3 text-center">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {previewData.filter(d => d.paksha === 'Shukla Paksha').map((row, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-emerald-50/30'}>
+                            <td className="py-2 px-3 font-bold">{row.tithi}</td>
+                            <td className="py-2 px-3">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
+                            <td className={`py-2 px-3 font-semibold ${row.dayEnergy === '☽' ? 'text-blue-700' : 'text-orange-700'}`}>
+                              {row.dayShort} ({row.dayEnergy === '☽' ? 'M' : 'S'})
+                            </td>
+                            <td className="py-2 px-3">{row.nakshatra}</td>
+                            <td className="py-2 px-3 font-medium">{row.yoga}</td>
+                            <td className={`py-2 px-3 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-blue-700' : 'text-orange-700'}`}>
+                              {row.tithiEnergy === '☽' ? 'Moon' : 'Sun'}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                row.dominant === 'Prakruti' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {row.dominant}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
-              
-              {/* Preview Footer Actions */}
-              <div className="flex justify-end space-x-3 p-4 border-t border-swar-border bg-gray-50">
+
+              <div className="flex justify-end gap-2 p-4 border-t border-gray-100 bg-gray-50">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors"
                 >
                   Close
                 </button>
@@ -1760,23 +1975,20 @@ const SwarCalendar: React.FC = () => {
                     setShowPreview(false);
                     handleDownloadMonthlyCalendar();
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition-colors flex items-center gap-1.5 shadow-sm"
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download PDF
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF Document</span>
                 </button>
               </div>
             </div>
           </div>
         )}
-        
-        <div className="text-center text-xs text-swar-text-secondary">
-          <p>Calculations based on authentic Hindu Panchang and astronomical methods</p>
-          <p>Powered by Swar Yoga Science</p>
-        </div>
-      </div>
+
+      </main>
+      
       <Footer />
-    </>
+    </div>
   );
 };
 

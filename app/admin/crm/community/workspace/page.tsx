@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { MediaPreview } from '@/components/admin/crm';
@@ -96,6 +97,7 @@ const DEFAULT_COMMUNITIES: Community[] = [
   { id: 'swar-yoga-l3', name: 'Swar Yoga L-3', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l3' },
   { id: 'swar-yoga-l4', name: 'Swar Yoga L-4', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l4' },
   { id: 'swar-yoga-l5', name: 'Swar Yoga L-5', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l5' },
+  { id: 'multi-workshop', name: 'Multi Workshop', icon: '🎪', memberCount: 0, joinLink: 'https://swaryoga.com/join/multi-workshop', type: 'workshop' },
   // Health — Other
   { id: 'aahar', name: 'Aahar (Diet & Nutrition)', icon: '🌿', memberCount: 0, joinLink: 'https://swaryoga.com/join/aahar' },
   { id: 'i-am-fit', name: 'I am Fit', icon: '💪', memberCount: 0, joinLink: 'https://swaryoga.com/join/i-am-fit' },
@@ -2169,6 +2171,13 @@ function CommunityWorkspaceContent() {
             >
               📊 Analytics
             </button>
+            <Link
+              href="/admin/crm/community/call-requests"
+              className="px-6 py-4 font-bold text-sm uppercase tracking-tight border-b-2 border-transparent text-amber-600 hover:text-amber-700 flex items-center gap-1.5 transition-all"
+            >
+              <span>📞 1:1 Calls & Zoom</span>
+              <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 text-amber-800 rounded-full font-black">NEW</span>
+            </Link>
           </div>
 
           {/* Members Panel - Extracted Sub-component */}

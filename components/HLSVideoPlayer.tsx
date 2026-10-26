@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 
 interface HLSVideoPlayerProps {
   src: string;
@@ -9,19 +9,21 @@ interface HLSVideoPlayerProps {
   muted?: boolean;
   className?: string;
   isLiveStream?: boolean;
-  offsetSeconds?: number; // For synchronized playback - seek to this position
+  offsetSeconds?: number;
   videoRef?: React.RefObject<HTMLVideoElement>;
   onError?: (error: string) => void;
   onLoadedMetadata?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
+  onEnded?: () => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
   onMinimizeMaximize?: (isMinimized: boolean) => void;
 }
 
 export default function HLSVideoPlayer({
   src,
   autoPlay = false,
-  muted = true,
+  muted = false,
   className = 'w-full h-full',
   isLiveStream = false,
   offsetSeconds = 0,
@@ -30,6 +32,8 @@ export default function HLSVideoPlayer({
   onLoadedMetadata,
   onPlay,
   onPause,
+  onEnded,
+  onTimeUpdate,
   onMinimizeMaximize,
 }: HLSVideoPlayerProps) {
   const internalVideoRef = useRef<HTMLVideoElement>(null);
@@ -38,171 +42,177 @@ export default function HLSVideoPlayer({
   const [error, setError] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const hlsRef = useRef<any>(null);
+  const loadedSrcRef = useRef<string>('');
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Enable video controls with proper styling
+  // Store all callbacks in refs so changing their references never triggers re-initialization
+  const callbacksRef = useRef({
+    onError,
+    onLoadedMetadata,
+    onPlay,
+    onPause,
+    onEnded,
+    onTimeUpdate,
+    onMinimizeMaximize,
+  });
+
   useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      /* Video player styling */
-      video {
-        display: block !important;
-        width: 100% !important;
-        height: 100% !important;
-        background: #000 !important;
-      }
+    callbacksRef.current = {
+      onError,
+      onLoadedMetadata,
+      onPlay,
+      onPause,
+      onEnded,
+      onTimeUpdate,
+      onMinimizeMaximize,
+    };
+  });
 
-      /* Show and style WebKit media controls */
-      video::-webkit-media-controls {
-        display: flex !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
-      }
-
-      video::-webkit-media-controls-panel {
-        display: flex !important;
-        visibility: visible !important;
-      }
-
-      /* Show all control buttons */
-      video::-webkit-media-controls-play-button { display: block !important; }
-      video::-webkit-media-controls-timeline-container { display: block !important; }
-      video::-webkit-media-controls-current-time-display { display: inline !important; }
-      video::-webkit-media-controls-time-remaining-display { display: inline !important; }
-      video::-webkit-media-controls-timeline { display: block !important; }
-      video::-webkit-media-controls-volume-slider-container { display: flex !important; }
-      video::-webkit-media-controls-volume-slider { display: block !important; }
-      video::-webkit-media-controls-mute-button { display: block !important; }
-      video::-webkit-media-controls-fullscreen-button { display: block !important; }
-      video::-webkit-media-controls-download-button { display: block !important; }
-      video::-webkit-media-controls-seek-backward-button { display: block !important; }
-      video::-webkit-media-controls-seek-forward-button { display: block !important; }
-    `;
-    document.head.appendChild(style);
-    return () => style.remove();
-  }, []);
-
-  // Initialize HLS.js with permanent unmute enforcement
+  // Handle muted attribute dynamically without tearing down playback
   useEffect(() => {
-    if (!videoRef.current || !src) return;
-
     const video = videoRef.current;
-    let seekPerformed = false;
+    if (!video) return;
+    video.muted = muted;
+  }, [muted]);
 
-    // Permanent unmute enforcement (critical for free videos)
-    video.muted = false;
-    video.volume = 1;
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+
+    // CRITICAL: If this exact src is already loaded on this video element, DO NOT RE-INITIALIZE!
+    // This stops the infinite re-render / on-off crackling loop when the parent component updates time.
+    if (loadedSrcRef.current === src) {
+      return;
+    }
+    loadedSrcRef.current = src;
+
+    let seekPerformed = false;
+    setError(null);
+    setIsLoading(true);
+
     video.autoplay = autoPlay;
+    video.muted = muted;
     video.playsInline = true;
     video.preload = 'auto';
 
-    // Prevent user from controlling playback
-    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
-    const handleCanPlay = () => {
-      if (video.paused && autoPlay) {
-        video.play().catch((err) => {
-          if (err.name !== 'NotAllowedError') console.error('Play error:', err);
-        });
-      }
-    };
-    const handleVolumeChange = () => { if (video.muted || video.volume !== 1) { video.muted = false; video.volume = 1; } };
-    const handlePause = () => {
-      if (autoPlay) {
-        video.play().catch((err) => {
-          if (err.name !== 'NotAllowedError') console.error('Play error:', err);
-        });
-      }
-    };
-
-    video.addEventListener('ratechange', handleRateChange);
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('volumechange', handleVolumeChange);
-    video.addEventListener('pause', handlePause);
+    let destroyed = false;
 
     const setupHLS = async () => {
       try {
-        // Only attempt autoplay if muted (browser policy: autoplay with sound requires user interaction)
-        if (autoPlay && !video.muted) {
-          video.muted = true;
-          console.warn('Autoplay requires muted video - enforcing muted mode for browser autoplay policy');
-        }
-
         const HLS = (await import('hls.js')).default;
 
-        if (!HLS.isSupported()) {
-          video.src = src;
-          return;
+        if (destroyed) return;
+
+        // Clean up any existing HLS instance before loading new src
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
         }
 
-        const hls = new HLS({
-          enableWorker: true,
-          lowLatencyMode: isLiveStream,
-          backBufferLength: isLiveStream ? 8 : 30,
-          maxBufferLength: isLiveStream ? 15 : 30,
-          maxBufferSize: 60 * 1000 * 1000,
-          maxMaxBufferLength: isLiveStream ? 30 : 60,
-          fragLoadingTimeOut: 20000,
-          fragLoadingMaxRetry: 6,
-          levelLoadingTimeOut: 10000,
-          levelLoadingMaxRetry: 4,
-          manifestLoadingTimeOut: 10000,
-          manifestLoadingMaxRetry: 1,
-        });
+        if (HLS.isSupported()) {
+          const hls = new HLS({
+            enableWorker: true,
+            lowLatencyMode: isLiveStream,
+            backBufferLength: isLiveStream ? 8 : 60,
+            maxBufferLength: isLiveStream ? 15 : 60,
+            maxMaxBufferLength: isLiveStream ? 30 : 120,
+            maxBufferSize: 60 * 1000 * 1000,
+            fragLoadingTimeOut: 20000,
+            fragLoadingMaxRetry: 6,
+            levelLoadingTimeOut: 15000,
+            levelLoadingMaxRetry: 4,
+            manifestLoadingTimeOut: 15000,
+            manifestLoadingMaxRetry: 3,
+            startLevel: -1, // Auto quality
+          });
 
-        hlsRef.current = hls;
-        hls.loadSource(src);
-        hls.attachMedia(video);
+          hlsRef.current = hls;
 
-        hls.on(HLS.Events.MANIFEST_PARSED, () => {
-          console.log(`✅ HLS ${isLiveStream ? 'live stream' : 'stream'} ready`);
+          hls.on(HLS.Events.MANIFEST_PARSED, () => {
+            if (destroyed) return;
+            setIsLoading(false);
 
-          // Synchronized playback: seek to the current session time
-          if (offsetSeconds && offsetSeconds > 0 && !seekPerformed) {
-            console.log(`🎬 Seeking to ${offsetSeconds}s for synchronized playback`);
-            video.currentTime = offsetSeconds;
-            seekPerformed = true;
-          }
-
-          if (autoPlay) {
-            video.play().catch(err => {
-              console.warn('Autoplay prevented:', err.message);
-            });
-          }
-        });
-
-        hls.on(HLS.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            let errorMsg = `Stream error: ${data.type}`;
-            if (data.type === HLS.ErrorTypes.NETWORK_ERROR) {
-              errorMsg = 'Network error';
-            } else if (data.type === HLS.ErrorTypes.MEDIA_ERROR) {
-              errorMsg = 'Media error';
+            if (offsetSeconds > 0 && !seekPerformed) {
+              video.currentTime = offsetSeconds;
+              seekPerformed = true;
             }
-            setError(errorMsg);
-            onError?.(errorMsg);
-          }
-        });
+
+            if (autoPlay) {
+              video.play().catch(() => {});
+            }
+          });
+
+          hls.on(HLS.Events.ERROR, (_event: any, data: any) => {
+            if (destroyed) return;
+            if (data.fatal) {
+              switch (data.type) {
+                case HLS.ErrorTypes.NETWORK_ERROR:
+                  console.warn('[HLS] Network error, recovering...');
+                  hls.startLoad();
+                  break;
+                case HLS.ErrorTypes.MEDIA_ERROR:
+                  console.warn('[HLS] Media error, recovering...');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('[HLS] Fatal unrecoverable error:', data);
+                  setIsLoading(false);
+                  setError('Video stream error. Click Retry to reload.');
+                  callbacksRef.current.onError?.('Fatal stream error');
+                  hls.destroy();
+                  hlsRef.current = null;
+                  break;
+              }
+            }
+          });
+
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS fallback (e.g. mobile Safari)
+          video.src = src;
+
+          const onMeta = () => {
+            if (destroyed) return;
+            setIsLoading(false);
+            if (offsetSeconds > 0 && !seekPerformed) {
+              video.currentTime = offsetSeconds;
+              seekPerformed = true;
+            }
+            if (autoPlay) {
+              video.play().catch(() => {});
+            }
+          };
+
+          video.addEventListener('loadedmetadata', onMeta, { once: true });
+        } else {
+          video.src = src;
+          setIsLoading(false);
+        }
       } catch (err: any) {
-        video.src = src;
+        if (!destroyed) {
+          console.error('[HLS] setup error:', err);
+          setIsLoading(false);
+          video.src = src;
+        }
       }
     };
 
     setupHLS();
 
     return () => {
-      video.removeEventListener('ratechange', handleRateChange);
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('volumechange', handleVolumeChange);
-      video.removeEventListener('pause', handlePause);
+      destroyed = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      loadedSrcRef.current = '';
     };
-  }, [src, autoPlay, isLiveStream, offsetSeconds, onError]);
+  }, [src, isLiveStream]); // ONLY depends on src and isLiveStream
 
-  // Show/hide controls on mouse movement
+  // Show/hide controls overlay on mouse movement
   useEffect(() => {
     const handleMouseMove = () => {
       if (!isMinimized) {
@@ -212,10 +222,11 @@ export default function HLSVideoPlayer({
       }
     };
 
-    if (playerRef.current) {
-      playerRef.current.addEventListener('mousemove', handleMouseMove);
+    const container = playerRef.current;
+    if (container) {
+      container.addEventListener('mousemove', handleMouseMove);
       return () => {
-        playerRef.current?.removeEventListener('mousemove', handleMouseMove);
+        container.removeEventListener('mousemove', handleMouseMove);
       };
     }
   }, [isMinimized]);
@@ -223,27 +234,43 @@ export default function HLSVideoPlayer({
   const toggleMinimize = () => {
     const newState = !isMinimized;
     setIsMinimized(newState);
-    onMinimizeMaximize?.(newState);
+    callbacksRef.current.onMinimizeMaximize?.(newState);
     setShowControls(true);
   };
 
   const handleLoadedMetadata = () => {
-    console.log('Video loaded');
-    onLoadedMetadata?.();
+    setIsLoading(false);
+    callbacksRef.current.onLoadedMetadata?.();
   };
 
-  const handleContextMenu = (e: React.MouseEvent<HTMLVideoElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    return false;
+  const handleRetry = () => {
+    setError(null);
+    setIsLoading(true);
+    loadedSrcRef.current = '';
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (videoRef.current) {
+      const v = videoRef.current;
+      v.load();
+      v.play().catch(() => {});
+    }
   };
 
   if (error) {
     return (
-      <div className={`${className} flex items-center justify-center bg-black`}>
-        <div className="text-center text-red-400">
-          <p className="font-semibold mb-2">Stream Error</p>
-          <p className="text-sm">{error}</p>
+      <div className={`${className} flex flex-col items-center justify-center bg-black p-6 text-center`}>
+        <div className="max-w-md bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-2xl">
+          <p className="text-red-400 font-semibold mb-2">Video Stream Notice</p>
+          <p className="text-gray-400 text-sm mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Retry Video
+          </button>
         </div>
       </div>
     );
@@ -252,7 +279,9 @@ export default function HLSVideoPlayer({
   return (
     <div
       ref={playerRef}
-      className={`relative bg-black overflow-hidden ${isMinimized ? 'w-64 h-36 rounded-lg shadow-2xl' : className}`}
+      className={`relative bg-black overflow-hidden flex items-center justify-center ${
+        isMinimized ? 'w-64 h-36 rounded-lg shadow-2xl' : className
+      }`}
     >
       {/* Live indicator */}
       {isLiveStream && (
@@ -262,51 +291,65 @@ export default function HLSVideoPlayer({
         </div>
       )}
 
-      {/* Minimize/Maximize button */}
-      <div
-        className={`absolute z-20 transition-opacity duration-300 ${
-          showControls || isMinimized ? 'opacity-100' : 'opacity-0 hover:opacity-100'
-        } ${isMinimized ? 'top-2 right-2' : 'bottom-4 right-4'}`}
-      >
-        <button
-          onClick={toggleMinimize}
-          className="bg-white/20 hover:bg-white/40 backdrop-blur-sm p-2 rounded-full transition-colors"
-          title={isMinimized ? 'Maximize' : 'Minimize'}
-        >
-          {isMinimized ? (
-            <Maximize2 className="w-4 h-4 text-white" />
-          ) : (
-            <Minimize2 className="w-4 h-4 text-white" />
-          )}
-        </button>
-      </div>
+      {/* Loading Spinner */}
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 pointer-events-none">
+          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
 
-      {/* Video element */}
+      {/* Minimize/Maximize button (for live/floating mode) */}
+      {isLiveStream && (
+        <div
+          className={`absolute z-20 transition-opacity duration-300 ${
+            showControls || isMinimized ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+          } ${isMinimized ? 'top-2 right-2' : 'bottom-4 right-4'}`}
+        >
+          <button
+            onClick={toggleMinimize}
+            className="bg-white/20 hover:bg-white/40 backdrop-blur-sm p-2 rounded-full transition-colors cursor-pointer"
+            title={isMinimized ? 'Maximize' : 'Minimize'}
+          >
+            {isMinimized ? (
+              <Maximize2 className="w-4 h-4 text-white" />
+            ) : (
+              <Minimize2 className="w-4 h-4 text-white" />
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Video element with native controls */}
       <video
         ref={videoRef}
         data-hls-player
-        className="w-full h-full bg-black"
+        className="w-full h-full bg-black block"
         controls
-        autoPlay={autoPlay}
-        muted={muted}
         playsInline
         crossOrigin="anonymous"
-        onContextMenu={handleContextMenu}
         onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => onPlay?.()}
-        onPause={() => onPause?.()}
+        onPlay={() => {
+          setIsLoading(false);
+          callbacksRef.current.onPlay?.();
+        }}
+        onPause={() => callbacksRef.current.onPause?.()}
+        onEnded={() => callbacksRef.current.onEnded?.()}
+        onTimeUpdate={(e) => {
+          const ct = e.currentTarget.currentTime;
+          const dur = e.currentTarget.duration;
+          callbacksRef.current.onTimeUpdate?.(ct, dur);
+        }}
         onError={(e) => {
-          const errorMsg = (e.currentTarget.error?.message || 'Video error');
-          setError(errorMsg);
-          onError?.(errorMsg);
+          const errorMsg = e.currentTarget.error?.message || 'Video stream error';
+          console.warn('[HLSVideoPlayer] video error:', errorMsg);
         }}
         style={{
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
+          width: '100%',
+          height: '100%',
+          maxHeight: '82vh',
           backgroundColor: '#000',
-        } as React.CSSProperties}
+        }}
       />
-
     </div>
   );
 }

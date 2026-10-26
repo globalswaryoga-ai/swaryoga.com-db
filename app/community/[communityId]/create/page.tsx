@@ -28,10 +28,11 @@ export default function CommunityCreatePostPage() {
     setError('');
 
     try {
+      const activeLang = localStorage.getItem('swar_community_lang') || 'hindi';
       const res = await fetch('/api/community/post/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ communityId, content }),
+        body: JSON.stringify({ communityId, content, language: activeLang }),
       });
 
       const json = await res.json().catch(() => null);

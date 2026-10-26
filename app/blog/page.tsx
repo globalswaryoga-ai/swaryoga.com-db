@@ -264,20 +264,47 @@ export default function BlogEBookPage() {
     return field[key] || field.hi || field.en || '';
   };
 
-  // Filter chapters based on active pillar and search
+  // Filter chapters based on active pillar and search (supporting words and chapter numbers)
   const filteredChapters = useMemo(() => {
+    const trimmed = searchQuery.trim().toLowerCase();
+
+    // If no search query, filter by the active pillar
+    if (!trimmed) {
+      return EBOOK_CHAPTERS.filter((chap) => chap.pillar === activePillar);
+    }
+
+    // Number matching (e.g. "5", "Chapter 5", "Ch 5", "#5")
+    const numMatch = trimmed.match(/\d+/);
+    const searchNum = numMatch ? parseInt(numMatch[0], 10) : null;
+
     return EBOOK_CHAPTERS.filter((chap) => {
-      const matchesPillar = chap.pillar === activePillar;
-      if (!matchesPillar) return false;
+      // 1. Direct Chapter Number Match (e.g. searching "5" or "Chapter 5")
+      if (searchNum !== null && chap.chapterNumber === searchNum) {
+        return true;
+      }
 
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      const titleMatch = getLocalized(chap.title, selectedLang).toLowerCase().includes(q);
-      const excerptMatch = getLocalized(chap.excerpt, selectedLang).toLowerCase().includes(q);
-      const shortNameMatch = getLocalized(chap.shortName, selectedLang).toLowerCase().includes(q);
-      const tagMatch = chap.tags.some((t) => t.toLowerCase().includes(q));
+      // 2. Word matches across current language and all translated languages
+      const titleMatch =
+        getLocalized(chap.title, selectedLang).toLowerCase().includes(trimmed) ||
+        (chap.title.en && chap.title.en.toLowerCase().includes(trimmed)) ||
+        (chap.title.hi && chap.title.hi.toLowerCase().includes(trimmed)) ||
+        (chap.title.mr && chap.title.mr.toLowerCase().includes(trimmed));
 
-      return titleMatch || excerptMatch || shortNameMatch || tagMatch;
+      const excerptMatch =
+        getLocalized(chap.excerpt, selectedLang).toLowerCase().includes(trimmed) ||
+        (chap.excerpt.en && chap.excerpt.en.toLowerCase().includes(trimmed)) ||
+        (chap.excerpt.hi && chap.excerpt.hi.toLowerCase().includes(trimmed)) ||
+        (chap.excerpt.mr && chap.excerpt.mr.toLowerCase().includes(trimmed));
+
+      const shortNameMatch =
+        getLocalized(chap.shortName, selectedLang).toLowerCase().includes(trimmed) ||
+        (chap.shortName.en && chap.shortName.en.toLowerCase().includes(trimmed));
+
+      const tagMatch = chap.tags.some((t) => t.toLowerCase().includes(trimmed));
+
+      const pillarMatch = chap.pillar.toLowerCase().includes(trimmed);
+
+      return titleMatch || excerptMatch || shortNameMatch || tagMatch || pillarMatch;
     });
   }, [activePillar, searchQuery, selectedLang]);
 
@@ -835,14 +862,14 @@ export default function BlogEBookPage() {
               <span>{getLocalized(activePillarObj.shortName, 'en')} Topics</span>
             </button>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-56">
+            {/* Search Input (By Word or Number) */}
+            <div className="relative w-full sm:w-72">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={selectedLang === 'hi' ? 'अध्याय खोजें...' : 'Search chapters...'}
+                placeholder={selectedLang === 'hi' ? 'शब्द या नंबर खोजें (उदा. 5, स्वर, नींद)...' : 'Search word or number (e.g. 5, breath, sleep)...'}
                 className="w-full bg-gray-50 border border-gray-300 rounded-full pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                 style={{ fontFamily: "'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Mukta', system-ui, sans-serif" }}
               />
@@ -850,7 +877,8 @@ export default function BlogEBookPage() {
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2 text-gray-400 hover:text-slate-900 text-xs"
+                  className="absolute right-2.5 top-2 text-gray-400 hover:text-slate-900 text-xs cursor-pointer font-bold"
+                  title="Clear"
                 >
                   ✕
                 </button>
@@ -866,6 +894,25 @@ export default function BlogEBookPage() {
           5. MAIN VIEWPORT: STANDARD CHAPTERS FEED
       ───────────────────────────────────────────────────────────── */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6">
+        {searchQuery.trim() && (
+          <div className="mb-5 flex items-center justify-between bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs text-emerald-900 font-medium shadow-xs">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                {selectedLang === 'hi'
+                  ? `"${searchQuery}" के लिए ${filteredChapters.length} अध्याय मिले`
+                  : `Found ${filteredChapters.length} chapter${filteredChapters.length === 1 ? '' : 's'} matching "${searchQuery}"`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+            >
+              {selectedLang === 'hi' ? 'खोज हटाएं' : 'Clear search'}
+            </button>
+          </div>
+        )}
         {filteredChapters.length === 0 ? (
           <div className="py-20 text-center space-y-3">
             <BookOpen className="w-12 h-12 text-slate-600 mx-auto" />

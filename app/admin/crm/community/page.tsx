@@ -28,6 +28,8 @@ import {
   CheckCircle2,
   Settings,
   Flame,
+  PhoneCall,
+  Phone,
 } from 'lucide-react';
 
 type CommunityTabKey = 'all' | 'channels' | 'members-content' | 'recordings-media' | 'moderation-settings' | 'external-groups';
@@ -48,6 +50,36 @@ interface PageCard {
 }
 
 const communityPages: PageCard[] = [
+  // ── 0. Call & Zoom 1:1 Requests ──
+  {
+    id: 'community-call-requests',
+    label: '1:1 Call & Zoom Video Requests',
+    tagline: 'Member Consultations with Mohan ji',
+    description: 'Track and manage direct 1:1 phone calls and Zoom video meeting requests from community members with one-tap WhatsApp & phone dial actions.',
+    href: '/admin/crm/community/call-requests',
+    icon: PhoneCall,
+    gradient: 'from-amber-500 via-orange-500 to-red-500',
+    badge: '1:1 Requests',
+    badgeColor: 'bg-amber-500/10 text-amber-600 border-amber-200',
+    category: 'members-content',
+    primaryActionLabel: 'View Call Requests',
+    features: ['1:1 Zoom Video Meetings', 'Direct Phone Call Requests', 'WhatsApp Quick Connect', 'Status Tracking'],
+  },
+  {
+    id: 'primary-communities-topics',
+    label: '5 Primary Communities & 5 Symbolic Topics',
+    tagline: 'Global, L1, L2, L3, Multi Workshop',
+    description: 'Unified studio to manage the 5 primary communities (Global, Swar Yoga L1-L3, Multi Workshop) and the 5 symbolic categories (Health 🧘, Wealth 💰, Parenting 👥, Spiritual 🪷, Behavior 💛).',
+    href: '/admin/crm/community/workspace',
+    icon: Globe,
+    gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
+    badge: '5 Primary',
+    badgeColor: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
+    category: 'channels',
+    primaryActionLabel: 'Open Studio',
+    features: ['5 Primary Communities', '5 Symbolic Categories', 'Member Roster', 'Discussion Moderation'],
+  },
+
   // ── 1. Channels & Discussion ──
   {
     id: 'community-workspace',

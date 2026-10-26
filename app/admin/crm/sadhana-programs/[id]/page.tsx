@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X, Pencil, Tr
 
 interface Program {
   id: string; slug: string; name: string; description?: string;
+  passcode?: string;
   timeSlots: string[]; timezone: string;
   videoDuration: number; countdownMinutes: number; active: boolean;
   playerMode?: string; playerUrl?: string;
@@ -48,7 +49,7 @@ export default function ProgramDetailPage() {
   const [form, setForm] = useState({ title: '', videoUrl: '', hlsUrl: '' });
   const [toast, setToast] = useState('');
   const [editingProgram, setEditingProgram] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '', botName: '', botJoinMinutes: 5, enableBotAutomation: true });
+  const [editForm, setEditForm] = useState({ name: '', description: '', passcode: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 1, playerMode: 'player', playerUrl: '', botName: '', botJoinMinutes: 5, enableBotAutomation: true });
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [chatCount, setChatCount] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<string>('offline');
@@ -200,11 +201,13 @@ export default function ProgramDetailPage() {
 
   const openProgramEdit = () => {
     if (!program) return;
-    const slots = [...program.timeSlots];
+    const rawSlots = Array.isArray(program.timeSlots) ? program.timeSlots : [];
+    const slots = [...rawSlots];
     while (slots.length < 4) slots.push('');
     setEditForm({
       name: program.name,
       description: program.description || '',
+      passcode: program.passcode || program.slug.toUpperCase(),
       timeSlots: slots.slice(0, 4),
       timezone: program.timezone,
       videoDuration: program.videoDuration,
@@ -291,8 +294,24 @@ export default function ProgramDetailPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1 sm:gap-2 text-xs sm:text-sm mb-3 sm:mb-4">
-          {program.timeSlots.map((time, idx) => (
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm mb-3 sm:mb-4">
+          <span className="bg-amber-400/20 text-amber-200 border border-amber-400/40 px-2.5 py-1 rounded-lg font-mono font-bold inline-flex items-center gap-1.5">
+            🔑 Batch Code: {program.passcode || program.slug.toUpperCase()}
+            <button
+              type="button"
+              onClick={() => {
+                const c = program.passcode || program.slug.toUpperCase();
+                navigator.clipboard.writeText(c);
+                setToast(`📋 Batch Code "${c}" copied!`);
+                setTimeout(() => setToast(''), 3000);
+              }}
+              className="hover:text-white transition ml-1"
+              title="Copy Batch Code"
+            >
+              <Copy size={12} />
+            </button>
+          </span>
+          {(Array.isArray(program?.timeSlots) ? program.timeSlots : []).map((time, idx) => (
             <span key={idx} className="bg-black/50 text-purple-100 px-2 py-1 rounded inline-flex items-center gap-1">
               <Clock size={14} /> {time}
             </span>
@@ -587,6 +606,17 @@ export default function ProgramDetailPage() {
             </div>
 
             <div>
+              <label className="block text-sm text-gray-100 mb-1">Batch Code / Passcode</label>
+              <input
+                value={editForm.passcode || ''}
+                onChange={(e) => setEditForm({ ...editForm, passcode: e.target.value.toUpperCase().replace(/\s+/g, '-') })}
+                placeholder="e.g. SWAR108 or MORNING"
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none font-mono uppercase"
+              />
+              <span className="text-xs text-gray-400 block mt-1">Students use this code to join in 1 click.</span>
+            </div>
+
+            <div>
               <label className="block text-sm text-gray-100 mb-2">Time Slots (up to 4) *</label>
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {editForm.timeSlots.map((time, idx) => (
@@ -727,7 +757,7 @@ export default function ProgramDetailPage() {
                 <p className="text-gray-400 text-center py-8">No users joined during a scheduled session on this date</p>
               ) : (
                 <div className="space-y-4">
-                  {program?.timeSlots.map((timeSlot) => {
+                  {(Array.isArray(program?.timeSlots) ? program.timeSlots : []).map((timeSlot) => {
                     const usersInSlot = participantsBySlot[timeSlot] || [];
 
                     if (usersInSlot.length === 0) return null;

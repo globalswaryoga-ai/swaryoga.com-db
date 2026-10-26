@@ -134,10 +134,33 @@ export function recordSuccess(provider: string, responseTime?: number): void {
   console.log(`[Protection] ✅ ${provider} success recorded`);
 }
 
+export function isRecipientLevelError(errorMsg?: string): boolean {
+  if (!errorMsg) return false;
+  const msg = errorMsg.toLowerCase();
+  return (
+    msg.includes('24-hour') ||
+    msg.includes('24 hours') ||
+    msg.includes('re-engagement') ||
+    msg.includes('131047') ||
+    msg.includes('131026') ||
+    msg.includes('undeliverable') ||
+    msg.includes('invalid phone') ||
+    msg.includes('cannot receive') ||
+    msg.includes('own registered whatsapp') ||
+    msg.includes('blocked user')
+  );
+}
+
 /**
  * Record a failed attempt
  */
 export function recordFailure(provider: string, error?: string): void {
+  // Never trip the circuit breaker for recipient-specific conditions
+  if (isRecipientLevelError(error)) {
+    console.warn(`[Protection] ℹ️ Recipient-level error for ${provider} (circuit breaker unaffected): ${error}`);
+    return;
+  }
+
   const state = getCircuitState(provider);
   state.failures++;
   state.lastFailure = new Date();
@@ -211,6 +234,32 @@ export function calculateBackoffDelay(attempt: number): number {
   return Math.floor(delay + jitter);
 }
 
+function isNonRetryableError(error: Error): boolean {
+  const msg = error.message || '';
+  if (
+    msg.includes('(#100)') ||
+    msg.includes('(#131047)') ||
+    msg.includes('(#131026)') ||
+    msg.includes('(#131051)') ||
+    msg.includes('(#132000)') ||
+    msg.includes('(#132001)') ||
+    msg.includes('(#133010)') ||
+    msg.includes('OAuthException') ||
+    msg.includes('GraphMethodException') ||
+    msg.includes('Invalid parameter') ||
+    msg.includes('Re-engagement') ||
+    msg.includes('24-Hour') ||
+    msg.includes('24 hours') ||
+    msg.includes('Template') ||
+    msg.includes('template') ||
+    msg.includes('cannot send') ||
+    msg.includes('Cannot send')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Retry wrapper with exponential backoff
  */
@@ -229,6 +278,11 @@ export async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // Do not retry permanent client/Meta errors (fail fast <200ms)
+      if (isNonRetryableError(lastError)) {
+        throw lastError;
+      }
       
       if (attempt < maxRetries) {
         const delay = calculateBackoffDelay(attempt);

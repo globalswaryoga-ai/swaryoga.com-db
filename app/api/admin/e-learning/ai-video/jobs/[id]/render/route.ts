@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
-import { submitAvatarVideo } from '@/lib/aiVideo/customAvatar'; // Switched from heygen.ts to customAvatar.ts
+import { submitAvatarVideo as submitHeyGenVideo } from '@/lib/aiVideo/heygen';
+import { submitAvatarVideo as submitCustomAvatarVideo } from '@/lib/aiVideo/customAvatar';
+import { SwarNeuralVideoService } from '@/lib/aiVideo/swarNeuralVideo';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,22 +49,29 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       if (already && already.status !== 'failed') continue; // don't resubmit a render in progress or done
 
       const avatar = avatarByLanguage[script.language];
-      if (!avatar?.voiceId) {
-        errors.push(`Missing voiceId for language "${script.language}"`);
-        continue;
-      }
+      const voiceId = avatar?.voiceId || '43961498a7894b25be7eb6c3382b6502';
+      const avatarId = avatar?.avatarId || '11236c340a0f4ece98638134c021b166';
 
       try {
-        const providerJobId = await submitAvatarVideo({
-          avatarPrompt: avatar.avatarPrompt,
-          avatarId: avatar.avatarId,
-          voiceId: avatar.voiceId,
+        // Primary: In-House Swar Yoga Digital Human Engine (Zero HeyGen fees, Multilingual, Sitting/Standing/Walking)
+        const swarJob = await SwarNeuralVideoService.createJob({
+          avatarName: 'Mohan Sir (Vedic Twin)',
+          posture: 'sitting',
+          backgroundId: 'bg_meditation_room',
           script: script.text,
+          language: script.language,
+          voiceId: voiceId,
+          adminId: 'admin',
         });
-        
-        // We keep the key named 'heygenVideoId' for frontend backwards compatibility 
-        // during polling, even though it's now a Replicate/Fal job ID.
-        const renderEntry = { language: script.language, heygenVideoId: providerJobId, status: 'rendering' as const };
+
+        // Trigger processing
+        const processed = await SwarNeuralVideoService.processJob(swarJob.jobId);
+        const renderEntry = {
+          language: script.language,
+          heygenVideoId: swarJob.jobId,
+          videoUrl: processed.videoUrl,
+          status: (processed.status === 'completed' ? 'completed' : processed.status === 'failed' ? 'failed' : 'rendering') as any,
+        };
         if (already) {
           newRenders[alreadyIndex] = { ...already, ...renderEntry };
         } else {
@@ -70,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         }
         anySubmitted = true;
       } catch (submitError) {
-        errors.push(submitError instanceof Error ? submitError.message : `Custom Avatar submit failed for "${script.language}"`);
+        errors.push(submitError instanceof Error ? submitError.message : `Avatar submit failed for "${script.language}"`);
       }
     }
 

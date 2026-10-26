@@ -22,9 +22,26 @@
 // https://github.com/distubejs/ytdl-core/issues/144).
 
 const LANGUAGE_NAMES: Record<string, string> = {
-  hi: 'Hindi',
   en: 'English',
+  hi: 'Hindi',
   mr: 'Marathi',
+  kn: 'Kannada',
+  ne: 'Nepali',
+  zh: 'Mandarin Chinese',
+  es: 'Spanish',
+  fr: 'French',
+  ar: 'Arabic',
+  de: 'German',
+  pt: 'Portuguese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  ru: 'Russian',
+  it: 'Italian',
+  tr: 'Turkish',
+  nl: 'Dutch',
+  sv: 'Swedish',
+  th: 'Thai',
+  id: 'Indonesian',
 };
 
 export interface ExtractedAudio {
@@ -115,7 +132,16 @@ export async function condenseAndTranslate(correctedTranscript: string, sourceLa
     ? ''
     : ` Translate it faithfully from ${sourceName} into ${targetName} — translate meaning, not word-for-word, so it sounds natural when spoken aloud in ${targetName}.`;
 
-  const prompt = `Here is a corrected transcript of a workshop session titled "${topicTitle}", in ${sourceName}. Rewrite it as a polished spoken lecture script suitable for an AI avatar to read aloud in about 30 minutes (roughly 4000-4500 words).${translateClause} Condense it ONLY by removing material that is already there — live audience Q&A, tangents, redundant explanations of the same point — restructured into a clear, natural-sounding lecture. Do NOT add any new content, fact, or example that is not already in the transcript below. If the transcript is shorter than 30 minutes of content, output it at its natural length rather than padding it with invented material.\n\nYour entire response must be the final script in ${targetName} ONLY — every single word of your output must be in ${targetName}. Do not include the original-language version, do not include a translation of your own output back into ${sourceName}, do not add labels like "${targetName} Script:" or "${sourceName} Script:", and do not add any heading, note, or explanation. The first character of your response must be the first word of the ${targetName} script itself.\n\nCorrected transcript:\n${correctedTranscript}`;
+  const prompt = `Here is a corrected transcript of a workshop session titled "${topicTitle}", in ${sourceName}. Translate and rewrite it as a polished spoken script suitable for an AI avatar in ${targetName}.${translateClause} 
+
+STRICT LENGTH & FAITHFULNESS RULES:
+1. If the input is short (a single sentence, single line, or short paragraph), translate ONLY that exact content at its natural length. Do NOT pad, lengthen, or invent any new speech.
+2. If the input is a long workshop session, condense it ONLY by removing live audience Q&A, banter, and repetitive tangents — never by adding new facts or examples.
+3. Every single word of your output must be in ${targetName} ONLY.
+4. Do not include labels, notes, or explanations. The first character of your response must be the first word of the script itself.
+
+Corrected transcript:
+${correctedTranscript}`;
   return generateTextWithFallback(prompt);
 }
 

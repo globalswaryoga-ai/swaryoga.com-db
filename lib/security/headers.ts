@@ -27,7 +27,7 @@ export const securityHeaders = [
   // Feature Policy / Permissions Policy
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), usb=()',
+    value: 'camera=(self), microphone=(self), geolocation=(), usb=()',
   },
   // HSTS - Forces HTTPS
   {
@@ -39,12 +39,12 @@ export const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' cdn.cashfree.com checkout.cashfree.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.cashfree.com https://sdk.cashfree.com cdn.cashfree.com checkout.cashfree.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https: wss: http://localhost:3333", // Include bridge for dev
-      "frame-src 'self' checkout.cashfree.com", // Cashfree checkout frame
+      "connect-src 'self' https: wss: https://*.cashfree.com http://localhost:3333", // Include bridge for dev
+      "frame-src 'self' https://*.cashfree.com checkout.cashfree.com", // Cashfree checkout frame
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

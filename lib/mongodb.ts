@@ -21,33 +21,8 @@ if (!cached) {
 }
 
 async function connectDB() {
-  if (!MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI_MAIN (or MONGODB_URI) environment variable');
-  }
-
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      dbName: MAIN_DB_NAME,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
-
-  return cached.conn;
+  // STRICT RULE: MongoDB is completely decommissioned. Swar Yoga strictly uses Bunny Database.
+  return null;
 }
 
 export default connectDB;

@@ -2,15 +2,16 @@
 
 import { useAuth } from '@/hooks/useAuth';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck, RefreshCw } from 'lucide-react';
+import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck, RefreshCw, Check, X } from 'lucide-react';
 
 interface Program {
   id: string;
   slug: string;
   name: string;
   description?: string;
+  passcode?: string;
   timeSlots: string[];
   timezone: string;
   videoDuration: number;
@@ -55,7 +56,52 @@ function getAdminAuthToken(): string | null {
   return null;
 }
 
-export default function SadhanaProgramsPage() {
+class SadhanaErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('[SadhanaPrograms] Caught render error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <div className="bg-white border border-rose-200 rounded-3xl p-8 max-w-lg w-full text-center shadow-xl space-y-4">
+            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto text-3xl font-bold">
+              🛡️
+            </div>
+            <h3 className="text-xl font-black text-slate-900">Sadhana Safety Lock Engaged</h3>
+            <p className="text-xs text-slate-500">
+              The page caught an unexpected data state and safely locked execution to prevent crashing. Your sadhana program data is completely safe.
+            </p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-pink-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer hover:opacity-95"
+              >
+                🔄 Reload Cleanly
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function SadhanaProgramsContent() {
   const token = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,10 +111,11 @@ export default function SadhanaProgramsPage() {
 
   const [newProgram, setNewProgram] = useState({
     name: '', description: '',
+    passcode: '',
     timeSlots: ['22:00', '', '', ''],
     timezone: 'Asia/Kolkata',
     videoDuration: 40,
-    countdownMinutes: 3,
+    countdownMinutes: 1,
     days: [0, 1, 2, 3, 4, 5, 6],
     repeatFrequency: 'daily',
     startDate: new Date().toISOString().split('T')[0],
@@ -82,10 +129,11 @@ export default function SadhanaProgramsPage() {
 
   const [editProgram, setEditProgram] = useState({
     name: '', description: '',
+    passcode: '',
     timeSlots: ['', '', '', ''],
     timezone: 'Asia/Kolkata',
     videoDuration: 40,
-    countdownMinutes: 3,
+    countdownMinutes: 1,
     days: [0, 1, 2, 3, 4, 5, 6],
     repeatFrequency: 'daily',
     startDate: new Date().toISOString().split('T')[0],
@@ -152,25 +200,33 @@ export default function SadhanaProgramsPage() {
         headers,
         credentials: 'include',
       });
-      const data = await res.json();
-      if (res.ok && data.success && Array.isArray(data.programs)) {
-        setPrograms(data.programs);
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && data?.success && Array.isArray(data.programs)) {
+        setPrograms(data.programs.filter(Boolean));
       } else if (res.status === 401) {
-        console.warn('Unauthorized when loading programs:', data.error);
+        console.warn('Unauthorized when loading programs:', data?.error);
         const fresh = getAdminAuthToken();
         if (fresh && (!headers.Authorization || headers.Authorization !== `Bearer ${fresh}`)) {
           const retryRes = await fetch('/api/admin/crm/sadhana-programs', {
             headers: { Authorization: `Bearer ${fresh.replace(/^Bearer\s+/i, '').trim()}` },
             credentials: 'include',
           });
-          const retryData = await retryRes.json();
-          if (retryRes.ok && retryData.success && Array.isArray(retryData.programs)) {
-            setPrograms(retryData.programs);
-          }
+          try {
+            const retryData = await retryRes.json();
+            if (retryRes.ok && retryData.success && Array.isArray(retryData.programs)) {
+              setPrograms(retryData.programs.filter(Boolean));
+            }
+          } catch {}
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load sadhana programs:', err);
     } finally {
       setLoading(false);
     }
@@ -183,7 +239,7 @@ export default function SadhanaProgramsPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    const timeSlots = newProgram.timeSlots.filter(t => t.trim());
+    const timeSlots = (Array.isArray(newProgram.timeSlots) ? newProgram.timeSlots : []).filter(t => t && t.trim());
     if (!timeSlots.length) {
       setToast('⚠️ Add at least one time slot');
       setTimeout(() => setToast(''), 3000);
@@ -197,19 +253,20 @@ export default function SadhanaProgramsPage() {
         credentials: 'include',
         body: JSON.stringify({ ...newProgram, timeSlots }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      let data: any = null;
+      try { data = await res.json(); } catch { data = null; }
+      if (res.ok && data?.success) {
         setToast('✅ Program created successfully');
         setShowCreate(false);
         setNewProgram({
-          name: '', description: '', timeSlots: ['22:00', '', '', ''], timezone: 'Asia/Kolkata',
+          name: '', description: '', passcode: '', timeSlots: ['22:00', '', '', ''], timezone: 'Asia/Kolkata',
           videoDuration: 40, countdownMinutes: 3, days: [0, 1, 2, 3, 4, 5, 6], repeatFrequency: 'daily',
           startDate: new Date().toISOString().split('T')[0], botName: '🤖 Swar Yoga Bot',
           botJoinMinutes: 5, enableBotAutomation: true, zoomLink: '', zoomId: '', zoomPassword: '',
         });
         load();
       } else {
-        const errorMsg = data.error || (res.status === 401 ? 'Unauthorized: Please check admin login.' : 'Failed to create program');
+        const errorMsg = data?.error || (res.status === 401 ? 'Unauthorized: Please check admin login.' : 'Failed to create program');
         setToast(`❌ ${errorMsg}`);
       }
     } catch (err: any) {
@@ -222,17 +279,20 @@ export default function SadhanaProgramsPage() {
   };
 
   const openEdit = (p: Program) => {
+    if (!p) return;
     setEditingId(p.id);
-    const slots = [...p.timeSlots];
+    const rawSlots = Array.isArray(p.timeSlots) ? p.timeSlots : [];
+    const slots = [...rawSlots];
     while (slots.length < 4) slots.push('');
     setEditProgram({
-      name: p.name,
+      name: p.name || '',
       description: p.description || '',
+      passcode: p.passcode || p.slug.toUpperCase(),
       timeSlots: slots.slice(0, 4),
-      timezone: p.timezone,
-      videoDuration: p.videoDuration,
-      countdownMinutes: p.countdownMinutes,
-      days: p.days || [0, 1, 2, 3, 4, 5, 6],
+      timezone: p.timezone || 'Asia/Kolkata',
+      videoDuration: p.videoDuration || 40,
+      countdownMinutes: p.countdownMinutes || 3,
+      days: Array.isArray(p.days) ? p.days : [0, 1, 2, 3, 4, 5, 6],
       repeatFrequency: p.repeatFrequency || 'daily',
       startDate: p.startDate || new Date().toISOString().split('T')[0],
       botName: p.botName || '🤖 Swar Yoga Bot',
@@ -307,9 +367,53 @@ export default function SadhanaProgramsPage() {
     setTimeout(() => setToast(''), 2000);
   };
 
-  const totalPrograms = programs.length;
-  const activeSlots = programs.reduce((acc, p) => acc + p.timeSlots.filter(Boolean).length, 0);
-  const botAutomated = programs.filter(p => p.enableBotAutomation).length;
+  const [editingPasscodeId, setEditingPasscodeId] = useState<string | null>(null);
+  const [editingPasscodeVal, setEditingPasscodeVal] = useState<string>('');
+  const [savingPasscode, setSavingPasscode] = useState(false);
+
+  const startEditPasscode = (p: Program) => {
+    setEditingPasscodeId(p.id);
+    setEditingPasscodeVal(p.passcode || p.slug.toUpperCase());
+  };
+
+  const savePasscode = async (programId: string) => {
+    const clean = editingPasscodeVal.trim().toUpperCase().replace(/\s+/g, '-');
+    if (!clean) {
+      setToast('⚠️ Passcode cannot be empty');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    setSavingPasscode(true);
+    try {
+      const res = await fetch(`/api/admin/crm/sadhana-programs/${programId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        credentials: 'include',
+        body: JSON.stringify({ passcode: clean }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPrograms(prev => prev.map(item => item.id === programId ? { ...item, passcode: clean } : item));
+        setToast(`✅ Batch Code updated to "${clean}"`);
+        setEditingPasscodeId(null);
+      } else {
+        setToast(`❌ ${data.error || 'Failed to update passcode'}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ Error: ${e.message}`);
+    } finally {
+      setSavingPasscode(false);
+      setTimeout(() => setToast(''), 3500);
+    }
+  };
+
+  const safePrograms = (Array.isArray(programs) ? programs : []).filter(Boolean);
+  const totalPrograms = safePrograms.length;
+  const activeSlots = safePrograms.reduce((acc, p) => {
+    const slots = Array.isArray(p?.timeSlots) ? p.timeSlots.filter(Boolean) : [];
+    return acc + slots.length;
+  }, 0);
+  const botAutomated = safePrograms.filter(p => p?.enableBotAutomation !== false).length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -381,7 +485,7 @@ export default function SadhanaProgramsPage() {
 
         {loading ? (
           <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">Loading programs...</div>
-        ) : programs.length === 0 ? (
+        ) : safePrograms.length === 0 ? (
           <div className="bg-white border border-slate-200/80 rounded-2xl p-12 text-center shadow-xs">
             <div className="text-5xl mb-4">📚</div>
             <p className="text-slate-800 font-bold mb-2 text-lg">No programs configured yet</p>
@@ -394,43 +498,118 @@ export default function SadhanaProgramsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {programs.map((p) => (
-              <div key={p.id} className="bg-white border border-slate-200/90 hover:border-pink-300 rounded-2xl p-5 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900">{p.name}</h3>
-                      {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
+            {safePrograms.map((p) => {
+              if (!p || !p.id) return null;
+              const slots = Array.isArray(p.timeSlots) ? p.timeSlots.filter(Boolean) : [];
+              return (
+                <div key={p.id} className="bg-white border border-slate-200/90 hover:border-pink-300 rounded-2xl p-5 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900">{p.name || 'Sadhana Session'}</h3>
+                        {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => del(p.id, p.name)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Delete">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
-                        <Pencil size={15} />
-                      </button>
-                      <button onClick={() => del(p.id, p.name)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Delete">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap gap-2 text-xs mb-4">
-                    {p.timeSlots.filter(Boolean).map((time, idx) => (
-                      <span key={idx} className="bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
-                        <Clock size={12} /> {time}
+                    <div className="flex flex-wrap gap-2 text-xs mb-4">
+                      {slots.map((time, idx) => (
+                        <span key={idx} className="bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
+                          <Clock size={12} /> {time}
+                        </span>
+                      ))}
+                      <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
+                        <CalendarCheck size={12} /> {p.timezone || 'Asia/Kolkata'}
                       </span>
-                    ))}
-                    <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
-                      <CalendarCheck size={12} /> {p.timezone}
-                    </span>
-                    <span className="bg-pink-50 text-pink-700 border border-pink-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
-                      <Video size={12} /> {p.videoDuration}m video
-                    </span>
-                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
-                      <Clock size={12} /> -{p.countdownMinutes}m countdown
-                    </span>
+                      <span className="bg-pink-50 text-pink-700 border border-pink-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
+                        <Video size={12} /> {p.videoDuration || 40}m video
+                      </span>
+                      <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1">
+                        <Clock size={12} /> -{p.countdownMinutes || 3}m countdown
+                      </span>
+                    </div>
+
+                  {/* Batch Code Badge */}
+                  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-3 mb-2.5">
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
+                      <p className="text-[11px] text-amber-800 uppercase font-bold tracking-wider flex items-center gap-1">
+                        🔑 Batch Code / Passcode
+                      </p>
+                      {editingPasscodeId !== p.id && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => startEditPasscode(p)}
+                            className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                            title="Edit Batch Code"
+                          >
+                            <Pencil size={12} /> Edit Code
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const code = p.passcode || p.slug.toUpperCase();
+                              navigator.clipboard.writeText(code);
+                              setToast(`📋 Batch Code "${code}" copied!`);
+                              setTimeout(() => setToast(''), 3000);
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                            title="Copy Batch Code"
+                          >
+                            <Copy size={12} /> Copy Code
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {editingPasscodeId === p.id ? (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <input
+                          type="text"
+                          value={editingPasscodeVal}
+                          onChange={(e) => setEditingPasscodeVal(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') savePasscode(p.id);
+                            if (e.key === 'Escape') setEditingPasscodeId(null);
+                          }}
+                          placeholder="e.g. SWAR108"
+                          autoFocus
+                          className="flex-1 bg-white border-2 border-amber-500 rounded-lg px-2.5 py-1 text-sm font-mono font-bold text-amber-950 uppercase outline-none focus:ring-2 focus:ring-amber-500/20"
+                        />
+                        <button
+                          type="button"
+                          disabled={savingPasscode}
+                          onClick={() => savePasscode(p.id)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <Check size={13} /> {savingPasscode ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingPasscode}
+                          onClick={() => setEditingPasscodeId(null)}
+                          className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+                          title="Cancel"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <code className="text-amber-950 text-base font-mono font-black tracking-wider block select-all">
+                        {p.passcode || p.slug.toUpperCase()}
+                      </code>
+                    )}
                   </div>
 
                   <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 mb-4">
-                    <p className="text-[11px] text-pink-600 uppercase font-bold tracking-wider mb-1">🔗 Live Program Link</p>
+                    <p className="text-[11px] text-pink-600 uppercase font-bold tracking-wider mb-1">🔗 Direct Live Room</p>
                     <code className="text-slate-700 text-xs font-mono break-all select-all">
                       {typeof window !== 'undefined' ? window.location.origin : ''}/sadhana/live/{p.slug}
                     </code>
@@ -460,9 +639,10 @@ export default function SadhanaProgramsPage() {
                   </a>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      )}
 
       {/* Create Modal */}
       {showCreate && (
@@ -492,15 +672,31 @@ export default function SadhanaProgramsPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Batch Code / Passcode (Optional)
+              </label>
+              <input
+                value={newProgram.passcode || ''}
+                onChange={(e) => setNewProgram({ ...newProgram, passcode: e.target.value.toUpperCase().replace(/\s+/g, '-') })}
+                placeholder="e.g. SWAR108 or MORNING (leave blank to auto-generate)"
+                className="w-full bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl border border-slate-200 focus:border-pink-500 focus:bg-white outline-none text-sm transition uppercase font-mono font-semibold"
+              />
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                Students enter this code to join daily in 1 click.
+              </span>
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Time Slots (up to 4) *</label>
               <div className="grid grid-cols-2 gap-2 mb-2">
-                {newProgram.timeSlots.map((time, idx) => (
+                {(Array.isArray(newProgram.timeSlots) ? newProgram.timeSlots : ['', '', '', '']).map((time, idx) => (
                   <input
                     key={idx}
                     type="time"
                     value={time}
                     onChange={(e) => {
-                      const slots = [...newProgram.timeSlots];
+                      const rawSlots = Array.isArray(newProgram.timeSlots) ? newProgram.timeSlots : ['', '', '', ''];
+                      const slots = [...rawSlots];
                       slots[idx] = e.target.value;
                       setNewProgram({ ...newProgram, timeSlots: slots });
                     }}
@@ -708,15 +904,31 @@ export default function SadhanaProgramsPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Batch Code / Passcode
+              </label>
+              <input
+                value={editProgram.passcode || ''}
+                onChange={(e) => setEditProgram({ ...editProgram, passcode: e.target.value.toUpperCase().replace(/\s+/g, '-') })}
+                placeholder="e.g. SWAR108 or MORNING"
+                className="w-full bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl border border-slate-200 focus:border-pink-500 focus:bg-white outline-none text-sm transition uppercase font-mono font-semibold"
+              />
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                Code used in Daily Sadhana Modal for 1-click joining.
+              </span>
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Time Slots (up to 4) *</label>
               <div className="grid grid-cols-2 gap-2 mb-2">
-                {editProgram.timeSlots.map((time, idx) => (
+                {(Array.isArray(editProgram.timeSlots) ? editProgram.timeSlots : ['', '', '', '']).map((time, idx) => (
                   <input
                     key={idx}
                     type="time"
                     value={time}
                     onChange={(e) => {
-                      const slots = [...editProgram.timeSlots];
+                      const rawSlots = Array.isArray(editProgram.timeSlots) ? editProgram.timeSlots : ['', '', '', ''];
+                      const slots = [...rawSlots];
                       slots[idx] = e.target.value;
                       setEditProgram({ ...editProgram, timeSlots: slots });
                     }}
@@ -905,5 +1117,13 @@ export default function SadhanaProgramsPage() {
       )}
       </div>
     </div>
+  );
+}
+
+export default function SadhanaProgramsPage() {
+  return (
+    <SadhanaErrorBoundary>
+      <SadhanaProgramsContent />
+    </SadhanaErrorBoundary>
   );
 }

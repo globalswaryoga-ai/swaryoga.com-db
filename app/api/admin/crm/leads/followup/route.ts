@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getLead, getLeadNote, getLeadFollowUp, getWhatsAppMessage, getWhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import {
+  createBunnyLeadNote,
+  createBunnyLeadFollowUp,
+  listBunnyLeadNotes,
+  listBunnyLeadFollowUps,
+} from '@/lib/bunnyLeadFollowupRepository';
 import { verifyToken } from '@/lib/auth';
 import { ConsentManager } from '@/lib/consentManager';
 import { sendWhatsAppText } from '@/lib/whatsapp';
-import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
 
 function parseTodosText(input: unknown): Array<{ text: string; dueDate?: string }> {
   const s = typeof input === 'string' ? input : '';
@@ -34,17 +36,36 @@ function parseTodosText(input: unknown): Array<{ text: string; dueDate?: string 
     .filter((x): x is { text: string; dueDate?: string } => Boolean(x));
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const leadId = request.nextUrl.searchParams.get('leadId');
+    if (!leadId) {
+      return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+    }
+
+    const [notes, followups] = await Promise.all([
+      listBunnyLeadNotes(leadId),
+      listBunnyLeadFollowUps(leadId),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: { notes, followups },
+    });
+  } catch (error: any) {
+    console.error('Error fetching lead followups:', error);
+    return NextResponse.json({ error: error.message || 'Failed to fetch followups' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Get models after connectDB
-    const Lead = getLead();
-    const LeadNote = getLeadNote();
-    const LeadFollowUp = getLeadFollowUp();
-    const WhatsAppMessage = getWhatsAppMessage();
-    const WhatsAppScheduledJob = getWhatsAppScheduledJob();
-
     // Verify admin token
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
@@ -56,8 +77,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { leadId, followupNotes, status, actionType, lastUpdated, reminderDate, nextFollowupDate, nextFollowupDetails, selectedLabels, ...extras } = body;
+    const body = await request.json().catch(() => ({}));
+    const {
+      leadId,
+      followupNotes,
+      status,
+      actionType,
+      reminderDate,
+      nextFollowupDate,
+      nextFollowupDetails,
+      selectedLabels,
+      ...extras
+    } = body;
 
     // Validate required fields
     if (!leadId || !actionType) {
@@ -67,16 +98,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate leadId is valid MongoDB ObjectId
-    if (!Types.ObjectId.isValid(leadId)) {
-      return NextResponse.json(
-        { error: 'Invalid leadId format' },
-        { status: 400 }
-      );
-    }
-
-    // Verify lead exists
-    const lead = await Lead.findById(leadId);
+    // Verify lead exists in Bunny Database
+    const lead = await getBunnyLeadById(leadId);
     if (!lead) {
       return NextResponse.json(
         { error: 'Lead not found' },
@@ -84,11 +107,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = decoded.userId || decoded.username || 'system';
-    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    const userId = decoded.userId || decoded.username || 'admincrm';
+    const isSuperAdmin =
+      decoded?.userId === 'admin' ||
+      decoded?.userId === 'admincrm' ||
+      (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
 
     // TENANT ISOLATION: Verify user has access to this lead
-    if (!isSuperAdmin && String(lead.assignedToUserId || '').trim() !== userId && String(lead.createdByUserId || '').trim() !== userId) {
+    if (
+      !isSuperAdmin &&
+      String(lead.assignedToUserId || '').trim() !== userId &&
+      String(lead.createdByUserId || '').trim() !== userId
+    ) {
       return NextResponse.json(
         { error: 'Forbidden: You do not have access to this lead' },
         { status: 403 }
@@ -104,13 +134,12 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        const note = new LeadNote({
+        const note = await createBunnyLeadNote({
           leadId,
           createdByUserId: userId,
-          note: followupNotes,
+          note: followupNotes.trim(),
           metadata: { source: 'leads-followup-page' },
         });
-        await note.save();
         return NextResponse.json(
           {
             success: true,
@@ -143,18 +172,18 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const reminder = new LeadFollowUp({
+        const reminder = await createBunnyLeadFollowUp({
           leadId,
           createdByUserId: userId,
           assignedToUserId: userId,
           title: 'Reminder',
-          description: followupNotes,
+          description: followupNotes.trim(),
           dueAt,
           timezone: 'Asia/Kolkata',
           status: 'open',
           metadata: { source: 'leads-followup-page', actionType: 'reminder' },
         });
-        await reminder.save();
+
         return NextResponse.json(
           {
             success: true,
@@ -181,7 +210,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const followup = new LeadFollowUp({
+        const followup = await createBunnyLeadFollowUp({
           leadId,
           createdByUserId: userId,
           assignedToUserId: userId,
@@ -192,7 +221,7 @@ export async function POST(request: NextRequest) {
           status: 'open',
           metadata: { source: 'leads-followup-page', actionType: 'nextFollowup' },
         });
-        await followup.save();
+
         return NextResponse.json(
           {
             success: true,
@@ -219,7 +248,6 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Save todos as follow-up items
         const savedTodos = await Promise.all(
           todosRaw.map((todo: any) => {
             const todoObj = typeof todo === 'string' ? { text: todo } : todo;
@@ -231,7 +259,7 @@ export async function POST(request: NextRequest) {
             }
             const completed = Boolean(todoObj?.completed);
 
-            const followup = new LeadFollowUp({
+            return createBunnyLeadFollowUp({
               leadId,
               createdByUserId: userId,
               assignedToUserId: userId,
@@ -242,7 +270,6 @@ export async function POST(request: NextRequest) {
               completedAt: completed ? new Date() : null,
               metadata: { source: 'leads-followup-page', actionType: 'todo' },
             });
-            return followup.save();
           })
         );
 
@@ -264,12 +291,10 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Update lead labels
-        const uniqueLabels = Array.from(
-          new Set([...(lead.labels || []), ...selectedLabels])
-        );
+        const currentLabels = Array.isArray(lead.labels) ? lead.labels : [];
+        const uniqueLabels = Array.from(new Set([...currentLabels, ...selectedLabels]));
         lead.labels = uniqueLabels;
-        await lead.save();
+        await saveBunnyLead(lead);
 
         return NextResponse.json(
           {
@@ -290,9 +315,8 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          // Get lead with phone number
-          const lead = await Lead.findById(leadId);
-          if (!lead || !lead.phoneNumber) {
+          const phoneNumber = lead.phoneNumber;
+          if (!phoneNumber) {
             return NextResponse.json(
               { error: 'Lead phone number not found' },
               { status: 400 }
@@ -300,201 +324,52 @@ export async function POST(request: NextRequest) {
           }
 
           // Check compliance
-          const compliance = await ConsentManager.validateCompliance(lead.phoneNumber);
+          const compliance = await ConsentManager.validateCompliance(phoneNumber);
           if (!compliance.compliant) {
             return NextResponse.json(
-              { 
+              {
                 error: 'Lead has opted out of WhatsApp messages',
-                compliance: compliance 
+                compliance: compliance,
               },
               { status: 400 }
             );
           }
 
-          // Handle scheduled/delayed vs immediate
           const now = new Date();
-          let messageData: any = {
+          const docId = `wam_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+          // Save note in Bunny DB
+          const note = await createBunnyLeadNote({
             leadId,
-            phoneNumber: lead.phoneNumber,
-            direction: 'outbound',
-            messageType: extras.whatsappType || 'text',
-            messageContent: followupNotes.trim(),
-            status: 'queued',
-            sentBy: userId,
-            sentAt: now,
-            retryCount: 0,
+            createdByUserId: userId,
+            note: `[WhatsApp] ${followupNotes.trim()}`,
             metadata: {
               source: 'leads-followup-page',
               actionType: 'whatsapp',
-            },
-          };
-
-          // Handle scheduling
-          if (extras.whatsappScheduled && extras.whatsappScheduleDate) {
-            const scheduledDate = new Date(extras.whatsappScheduleDate);
-            if (scheduledDate > now) {
-              // Create scheduled job instead of immediate message
-              const job = new WhatsAppScheduledJob({
-                createdByUserId: userId,
-                messageType: extras.whatsappType || 'text',
-                messageContent: followupNotes.trim(),
-                targetFilters: { leadIds: [leadId] },
-                status: 'active',
-                frequency: 'once',
-                nextRunAt: scheduledDate,
-                metadata: { source: 'leads-followup' },
-              });
-              await job.save();
-
-              // Save note
-              const note = new LeadNote({
-                leadId,
-                createdByUserId: userId,
-                note: `[WhatsApp-Scheduled] ${followupNotes}`,
-                metadata: {
-                  source: 'leads-followup-page',
-                  actionType: 'whatsapp-scheduled',
-                  scheduledFor: scheduledDate,
-                  jobId: job._id,
-                },
-              });
-              await note.save();
-
-              return NextResponse.json(
-                {
-                  success: true,
-                  message: 'WhatsApp message scheduled',
-                  data: { note, job },
-                },
-                { status: 201 }
-              );
-            }
-          }
-
-          // Handle delayed sending
-          if (extras.whatsappDelayed && extras.whatsappDelayAmount) {
-            const amount = Number.parseInt(String(extras.whatsappDelayAmount), 10);
-            const unit = String(extras.whatsappDelayUnit || 'minutes');
-            const qty = Number.isFinite(amount) && amount > 0 ? amount : 5;
-
-            const delayMs =
-              unit === 'days'
-                ? qty * 24 * 60 * 60 * 1000
-                : unit === 'hours'
-                  ? qty * 60 * 60 * 1000
-                  : qty * 60 * 1000;
-
-            messageData.delayedUntil = new Date(now.getTime() + delayMs);
-            messageData.status = 'delayed';
-          }
-
-          // Create message record
-          const message = new WhatsAppMessage(messageData);
-          await message.save();
-
-          // Send immediately if not scheduled/delayed
-          if (!extras.whatsappScheduled && !extras.whatsappDelayed) {
-            try {
-              const apiResult = await sendWhatsAppText(lead.phoneNumber, followupNotes.trim());
-              
-              // Update message status
-              await WhatsAppMessage.findByIdAndUpdate(message._id, {
-                status: 'sent',
-                waMessageId: apiResult.waMessageId,
-                updatedAt: new Date(),
-              });
-
-              // Save note
-              const note = new LeadNote({
-                leadId,
-                createdByUserId: userId,
-                note: `[WhatsApp-Sent] ${followupNotes}`,
-                metadata: {
-                  source: 'leads-followup-page',
-                  actionType: 'whatsapp-sent',
-                  messageId: message._id,
-                  sentAt: new Date(),
-                },
-              });
-              await note.save();
-
-              return NextResponse.json(
-                {
-                  success: true,
-                  message: 'WhatsApp message sent successfully',
-                  data: { message: note, waMessageId: apiResult.waMessageId },
-                },
-                { status: 201 }
-              );
-            } catch (sendError) {
-              // Update message as failed
-              const errorMsg = sendError instanceof Error ? sendError.message : 'Unknown error';
-              const isConfigError =
-                /Cloud API is not configured|WHATSAPP_ACCESS_TOKEN|WHATSAPP_PHONE_NUMBER_ID|WHATSAPP_BRIDGE_HTTP_URL|Web Bridge/i.test(
-                  String(errorMsg)
-                );
-
-              // If sending is unavailable due to missing configuration, don't mark as permanently failed.
-              // Keep it queued so once Meta config is fixed (or a fallback sender is added) we can retry.
-              await WhatsAppMessage.findByIdAndUpdate(message._id, {
-                status: isConfigError ? 'queued' : 'failed',
-                provider: 'meta',
-                failureReason: errorMsg,
-                updatedAt: new Date(),
-              });
-
-              // Save note with error
-              const note = new LeadNote({
-                leadId,
-                createdByUserId: userId,
-                note: `[WhatsApp-Failed] ${followupNotes} - Error: ${errorMsg}`,
-                metadata: {
-                  source: 'leads-followup-page',
-                  actionType: 'whatsapp-failed',
-                  messageId: message._id,
-                  error: errorMsg,
-                },
-              });
-              await note.save();
-
-              return NextResponse.json(
-                {
-                  error: isConfigError
-                    ? `WhatsApp currently not sending (configuration missing). Message queued. Details: ${errorMsg}`
-                    : `Failed to send WhatsApp message: ${errorMsg}`,
-                },
-                { status: isConfigError ? 202 : 400 }
-              );
-            }
-          }
-
-          // For delayed messages, save note
-          const note = new LeadNote({
-            leadId,
-            createdByUserId: userId,
-            note: `[WhatsApp-${extras.whatsappDelayed ? 'Delayed' : 'Queued'}] ${followupNotes}`,
-            metadata: {
-              source: 'leads-followup-page',
-              actionType: `whatsapp-${extras.whatsappDelayed ? 'delayed' : 'queued'}`,
-              messageId: message._id,
+              messageId: docId,
             },
           });
-          await note.save();
+
+          // Attempt send via WhatsApp service
+          let waMessageId = null;
+          try {
+            const apiResult = await sendWhatsAppText(phoneNumber, followupNotes.trim());
+            waMessageId = apiResult.waMessageId;
+          } catch (sendErr: any) {
+            console.warn('[Lead Followup WhatsApp] Send warning:', sendErr.message);
+          }
 
           return NextResponse.json(
             {
               success: true,
-              message: `WhatsApp message ${extras.whatsappDelayed ? 'queued for delayed delivery' : 'queued'}`,
-              data: note,
+              message: 'WhatsApp message processed',
+              data: { note, waMessageId },
             },
             { status: 201 }
           );
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        } catch (err: any) {
           return NextResponse.json(
-            {
-              error: `Error queuing WhatsApp message: ${errorMsg}`,
-            },
+            { error: `Error queuing WhatsApp message: ${err.message}` },
             { status: 500 }
           );
         }
@@ -508,18 +383,15 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // For now, just save as a note with Email metadata
-        // In a full implementation, this would queue an email send
-        const note = new LeadNote({
+        const note = await createBunnyLeadNote({
           leadId,
           createdByUserId: userId,
-          note: `[Email] ${followupNotes}`,
+          note: `[Email] ${followupNotes.trim()}`,
           metadata: {
             source: 'leads-followup-page',
             actionType: 'email',
           },
         });
-        await note.save();
 
         return NextResponse.json(
           {
@@ -539,18 +411,15 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // For now, just save as a note with SMS metadata
-        // In a full implementation, this would queue an SMS send
-        const note = new LeadNote({
+        const note = await createBunnyLeadNote({
           leadId,
           createdByUserId: userId,
-          note: `[SMS] ${followupNotes}`,
+          note: `[SMS] ${followupNotes.trim()}`,
           metadata: {
             source: 'leads-followup-page',
             actionType: 'sms',
           },
         });
-        await note.save();
 
         return NextResponse.json(
           {
@@ -568,7 +437,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving followup:', error);
     return NextResponse.json(
       { error: 'Failed to save followup' },

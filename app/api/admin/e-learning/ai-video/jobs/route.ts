@@ -86,37 +86,46 @@ export async function POST(request: NextRequest) {
       createdByUserId: viewerUserId,
     });
 
-    if (sourceMode === 'url') {
-      job = await updateAiVideoJob(job._id, { 
-        transcript: '',
-        correctedTranscript: '',
-        status: 'awaiting_correction_review',
-        errorMessage: undefined
-      }) as any;
-    } else {
-      try {
-        // Pasted text skips transcription entirely — it's already the raw
-        // transcript, so go straight to the correction stage.
-        const rawTranscript = audioFile
-          ? await transcribeAudio(
-              { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
-            )
-          : sourceText;
+    try {
+      let rawTranscript = sourceText;
 
-        job = await updateAiVideoJob(job._id, { transcript: rawTranscript }) as any;
+      if (audioFile) {
+        rawTranscript = await transcribeAudio(
+          { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
+        );
+      } else if (sourceMode === 'url' && sourceYoutubeUrl) {
+        try {
+          const fetchRes = await fetch(sourceYoutubeUrl);
+          if (fetchRes.ok) {
+            const buf = Buffer.from(await fetchRes.arrayBuffer());
+            const cType = fetchRes.headers.get('content-type') || 'audio/webm';
+            rawTranscript = await transcribeAudio({ buffer: buf, mimeType: cType });
+          }
+        } catch (fetchErr) {
+          console.warn('URL auto-transcribe fallback:', fetchErr);
+        }
+      }
 
+      job = await updateAiVideoJob(job._id, { transcript: rawTranscript || '' }) as any;
+
+      if (rawTranscript && rawTranscript.trim()) {
         const corrected = await correctTranscript(rawTranscript, sourceLanguage);
         job = await updateAiVideoJob(job._id, { 
           correctedTranscript: corrected,
           status: 'awaiting_correction_review',
           errorMessage: undefined
         }) as any;
-      } catch (pipelineError) {
-        job = await updateAiVideoJob(job._id, {
-          status: 'failed',
-          errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
+      } else {
+        job = await updateAiVideoJob(job._id, { 
+          status: 'awaiting_correction_review',
+          errorMessage: undefined
         }) as any;
       }
+    } catch (pipelineError) {
+      job = await updateAiVideoJob(job._id, {
+        status: 'failed',
+        errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
+      }) as any;
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 201 });

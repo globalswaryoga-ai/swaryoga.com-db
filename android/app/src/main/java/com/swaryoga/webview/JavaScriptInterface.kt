@@ -155,4 +155,33 @@ class JavaScriptInterface(
         )
         return gson.toJson(deviceInfo)
     }
+
+    /**
+     * Native orientation control from Web app
+     */
+    @JavascriptInterface
+    fun toggleOrientation() {
+        activity.runOnUiThread {
+            val isLandscape = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            activity.requestedOrientation = if (isLandscape) {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun setOrientationLandscape() {
+        activity.runOnUiThread {
+            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
+    @JavascriptInterface
+    fun setOrientationPortrait() {
+        activity.runOnUiThread {
+            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
 }

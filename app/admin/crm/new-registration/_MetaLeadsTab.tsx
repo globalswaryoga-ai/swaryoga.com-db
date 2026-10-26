@@ -1,4 +1,5 @@
 'use client';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { registrationFetch as fetch, saveRegistrationState } from '@/lib/registrationClient';
 
 
@@ -9,8 +10,7 @@ import { registrationPage } from '@/lib/registrationPagination';
 import { formatLeadDate, leadDateMs } from '@/lib/leadDate';
 import { RegistrationPagination, useRegistrationPage } from './_RegistrationPagination';
 import { MetaConnectionStatus } from './_MetaConnectionStatus';
-import React, { useState, useEffect, useRef } from 'react';
-import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Square, Settings2, X, ChevronDown, ChevronUp, Database, Activity, BarChart3, RefreshCcw, AlertCircle, AlertTriangle, CheckCircle2, Eye, ArrowLeft, Upload, ArrowUpRight, ArrowUp } from 'lucide-react';
+import { Save, Facebook, Download, RefreshCw, Bot, Trash2, CheckCircle, Clock, XCircle, MessageCircle, Archive, Search, Filter, Settings, Play, Square, Settings2, X, ChevronDown, ChevronUp, Database, Activity, BarChart3, RefreshCcw, AlertCircle, AlertTriangle, CheckCircle2, Eye, ArrowLeft, Upload, ArrowUpRight, ArrowUp, Loader2 } from 'lucide-react';
 
 // After Stage 1 (AI-9B) a lead is approved, pending or rejected. Legacy Stage 2/3 statuses stay visible here.
 const STAGE_1_STATUSES = ['stage_1_new', 'stage_1_pending', 'stage_1_rejected', 'stage_2_new', 'stage_2_pending', 'stage_2_rejected', 'stage_3_new', 'stage_3_pending', 'stage_3_rejected', 'approved'];
@@ -21,6 +21,37 @@ export function MetaLeadsTab({
     refreshLeads
 }: any) {
     const [formId, setFormId] = useState(selectedWorkshop?.metadata?.facebookFormId || '');
+
+    // Live Meta form questions
+    const [metaQuestions, setMetaQuestions] = useState<Array<{ key: string; label: string; type: string; options: string[] }>>([]);
+    const [loadingQuestions, setLoadingQuestions] = useState(false);
+
+    const fetchFormQuestions = useCallback(async (targetFormId?: string) => {
+        const idToFetch = (targetFormId || formId || selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '').trim();
+        if (!idToFetch) return;
+        setLoadingQuestions(true);
+        try {
+            const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '') : '';
+            const res = await fetch(`/api/admin/crm/meta-leads/form-questions?formId=${encodeURIComponent(idToFetch)}&workshopId=${encodeURIComponent(selectedWorkshop?.id || '')}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.questions)) {
+                setMetaQuestions(data.questions);
+            }
+        } catch (e) {
+            console.warn('Failed to fetch Meta form questions:', e);
+        } finally {
+            setLoadingQuestions(false);
+        }
+    }, [formId, selectedWorkshop?.id, selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId]);
+
+    useEffect(() => {
+        const targetId = formId || selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId;
+        if (targetId) {
+            fetchFormQuestions(targetId);
+        }
+    }, [formId, selectedWorkshop?.id, selectedWorkshop?.metadata?.facebookFormId, selectedWorkshop?.metadata?.metaFormId, fetchFormQuestions]);
 
     // Self-contained Meta leads state — fetched independently from the parent
     const [metaLeads, setMetaLeads] = useState<any[]>([]);
@@ -123,6 +154,7 @@ export function MetaLeadsTab({
 
     // WhatsApp Auto-Trigger Management Popup State
     const [showWTSettingsPopup, setShowWTSettingsPopup] = useState(false);
+    const [savingWTSettings, setSavingWTSettings] = useState(false);
     const [activeTab, setActiveTab] = useState<'approved' | 'pending'>('approved');
     
     // Load existing WT settings or defaults
@@ -392,10 +424,29 @@ export function MetaLeadsTab({
 
     const [expandedDummyFields, setExpandedDummyFields] = useState<number[]>([]);
 
-    // Extract dynamic questions from actual rawFieldData only (not dummyFields, which uses different key names)
+    // Extract dynamic questions from Meta Graph API, dummyFields, and rawFieldData
     const uniqueQuestionsMap = new Map<string, string>();
-    const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state'];
+    const EXCLUDED_COLS = ['full_name', 'phone_number', 'email', 'name', 'phone', 'first_name', 'last_name', 'country', 'state', 'city', 'zip_code', 'street_address'];
 
+    // 1. Live Meta Instant Form questions
+    metaQuestions.forEach(q => {
+        const key = q.key || '';
+        const normalized = key.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (!EXCLUDED_COLS.includes(normalized) && !uniqueQuestionsMap.has(normalized)) {
+            uniqueQuestionsMap.set(normalized, q.label || key);
+        }
+    });
+
+    // 2. Dummy fields from dummyFormConfig
+    dummyFields.forEach((field: any) => {
+        const key = field.name || '';
+        const normalized = key.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (!EXCLUDED_COLS.includes(normalized) && !uniqueQuestionsMap.has(normalized)) {
+            uniqueQuestionsMap.set(normalized, key.replace(/_/g, ' '));
+        }
+    });
+
+    // 3. Observed in incoming metaLeads rawFieldData
     metaLeads.forEach((lead: any) => {
         if (lead.metadata?.rawFieldData && Array.isArray(lead.metadata.rawFieldData)) {
             lead.metadata.rawFieldData.forEach((item: any) => {
@@ -409,6 +460,17 @@ export function MetaLeadsTab({
             });
         }
     });
+
+    // 4. Preserve any saved filter questions
+    [...(ai9AConfig?.filters || []), ...(ai9BConfig?.filters || []), ...(ai9EConfig?.filters || [])].forEach((f: any) => {
+        if (f?.question) {
+            const normalized = f.question.toLowerCase().replace(/\s+/g, ' ').trim();
+            if (!uniqueQuestionsMap.has(normalized)) {
+                uniqueQuestionsMap.set(normalized, f.question);
+            }
+        }
+    });
+
     const dynamicColumns = Array.from(uniqueQuestionsMap.keys());
     const getColLabel = (normalized: string) => uniqueQuestionsMap.get(normalized) || normalized;
 
@@ -611,36 +673,66 @@ export function MetaLeadsTab({
                 facebookFormId: formId
             }
         });
-        alert('Facebook Form ID connected successfully! Webhooks will automatically populate data below.');
+        await fetchFormQuestions(formId);
+        alert('Facebook Form ID connected successfully! Instant form questions loaded.');
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Failed to save Meta form');
       }
     };
 
     const saveWTSettings = async () => {
-        if (!selectedWorkshop?.id) return alert('Connect the Meta form to a saved batch before enabling automatic WhatsApp.');
-        const metadata = { ...(selectedWorkshop.metadata || {}),
-            ai9AConfig, ai9BConfig,
-            facebookFormId: formId, wtSettings };
-        const configurationError = metaApprovalConfigurationError(metadata);
-        if (configurationError) return alert(configurationError);
-        const newAI9EConfig = { ...ai9EConfig, isActive: true };
+        const workshopId = selectedWorkshop?.id || selectedWorkshop?._id;
+        if (!workshopId) return alert('Please connect or select a saved workshop batch before saving WhatsApp settings.');
         
-      try {
-        await saveWorkshopSettings({
-            ...selectedWorkshop,
-            metadata: {
-                ...metadata,
-                ai9EConfig: newAI9EConfig,
-                metaAutomation: { ...(selectedWorkshop.metadata?.metaAutomation || {}), enabled: true, approvalOnly: true }
+        setSavingWTSettings(true);
+        const resolvedFormId = formId || selectedWorkshop.metadata?.facebookFormId || selectedWorkshop.metadata?.metaFormId || '';
+        const metadata = { 
+            ...(selectedWorkshop.metadata || {}),
+            ai9AConfig, 
+            ai9BConfig,
+            facebookFormId: resolvedFormId, 
+            wtSettings 
+        };
+        const configurationError = metaApprovalConfigurationError(metadata);
+
+        try {
+            if (configurationError) {
+                // If AI-9A/B stages are not yet configured or started, still save user template and delay settings safely
+                await saveWorkshopSettings({
+                    ...selectedWorkshop,
+                    id: workshopId,
+                    _id: workshopId,
+                    metadata: {
+                        ...metadata,
+                        wtSettings,
+                        metaAutomation: { ...(selectedWorkshop.metadata?.metaAutomation || {}), enabled: false }
+                    }
+                });
+                setShowWTSettingsPopup(false);
+                alert(`WhatsApp template & delay settings saved successfully!\n\nNote: Automatic sending is paused until prerequisites are completed:\n• ${configurationError}\n\nPlease configure & start AI-9A and AI-9B to enable full automatic delivery.`);
+            } else {
+                const newAI9EConfig = { ...ai9EConfig, isActive: true };
+                await saveWorkshopSettings({
+                    ...selectedWorkshop,
+                    id: workshopId,
+                    _id: workshopId,
+                    metadata: {
+                        ...metadata,
+                        ai9EConfig: newAI9EConfig,
+                        metaAutomation: { ...(selectedWorkshop.metadata?.metaAutomation || {}), enabled: true, approvalOnly: true }
+                    }
+                });
+                setAi9EConfig(newAI9EConfig);
+                setShowWTSettingsPopup(false);
+                alert('Saved & Enabled: leads approved after activation (all four AI-9 stages, or manually marked Approved) receive the approved template once. Pending/rejected leads and contacts already sent this template, including manual broadcasts, are skipped.');
             }
-        });
-        setAi9EConfig(newAI9EConfig);
-        alert('Saved: leads approved after activation (all four AI-9 stages, or manually marked Approved) receive the approved template once. Pending/rejected leads and contacts already sent this template, including manual broadcasts, are skipped.');
-        setShowWTSettingsPopup(false);
-      } catch (error) {
-        alert(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
-      }
+        } catch (error) {
+            console.error('Failed to save WhatsApp settings:', error);
+            alert(error instanceof Error ? error.message : 'Failed to save WhatsApp settings');
+        } finally {
+            setSavingWTSettings(false);
+            setShowWTSettingsPopup(false);
+        }
     };
 
     const triggerManualWhatsApp = async () => {
@@ -693,56 +785,61 @@ export function MetaLeadsTab({
         }
     };
 
-    // Calculate Reports
-    const leadCounts = metaLeadCounts(metaLeads);
+    // Calculate Reports (memoized to prevent recalculation on unrelated re-renders)
+    const leadCounts = useMemo(() => metaLeadCounts(metaLeads), [metaLeads]);
     const { total: totalLeads, approved: approvedLeads, pending: pendingLeads, rejected: rejectedLeads } = leadCounts;
 
-    // Filter & Sort Logic
-    let filteredLeads = metaLeads.filter((lead: any) => {
-        const matchesSearch = 
-            (lead.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (lead.phoneNumber || '').includes(searchQuery) ||
-            (lead.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-        
-        const currentStatus = lead.status || 'new';
-        
-        let matchesStage = true;
-        if (activeStageTab === 'stage-1') {
-            matchesStage = STAGE_1_STATUSES.includes(currentStatus);
-        }
-        
-        let matchesStatus = true;
-        if (statusFilter === 'Approved') {
-            matchesStatus = currentStatus === 'approved';
-        }
-        if (statusFilter === 'Pending') {
-            if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_new', 'stage_1_pending', 'stage_2_new', 'stage_2_pending', 'stage_3_new', 'stage_3_pending'].includes(currentStatus);
-            else matchesStatus = currentStatus === 'pending' || currentStatus === 'new' || currentStatus === 'lead' || currentStatus.endsWith('_pending');
-        }
-        if (statusFilter === 'Rejected') {
-            if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_rejected', 'stage_2_rejected', 'stage_3_rejected'].includes(currentStatus);
-            else matchesStatus = currentStatus.includes('rejected');
-        }
-        if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
+    // Filter & Sort Logic (memoized so typing, modal toggling, and selections do not trigger expensive array re-sorting)
+    const filteredLeads = useMemo(() => {
+        const query = (searchQuery || '').trim().toLowerCase();
+        const filtered = metaLeads.filter((lead: any) => {
+            const matchesSearch = !query ||
+                (lead.name || '').toLowerCase().includes(query) ||
+                (lead.phoneNumber || '').includes(query) ||
+                (lead.email || '').toLowerCase().includes(query);
+            
+            const currentStatus = lead.status || 'new';
+            
+            let matchesStage = true;
+            if (activeStageTab === 'stage-1') {
+                matchesStage = STAGE_1_STATUSES.includes(currentStatus);
+            }
+            
+            let matchesStatus = true;
+            if (statusFilter === 'Approved') {
+                matchesStatus = currentStatus === 'approved';
+            }
+            if (statusFilter === 'Pending') {
+                if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_new', 'stage_1_pending', 'stage_2_new', 'stage_2_pending', 'stage_3_new', 'stage_3_pending'].includes(currentStatus);
+                else matchesStatus = currentStatus === 'pending' || currentStatus === 'new' || currentStatus === 'lead' || currentStatus.endsWith('_pending');
+            }
+            if (statusFilter === 'Rejected') {
+                if (activeStageTab === 'stage-1') matchesStatus = ['stage_1_rejected', 'stage_2_rejected', 'stage_3_rejected'].includes(currentStatus);
+                else matchesStatus = currentStatus.includes('rejected');
+            }
+            if (statusFilter === 'Old Data') matchesStatus = currentStatus === 'old_data';
 
-        if (activeStageTab === 'pending') {
-            matchesStatus = metaLeadBucket(lead) === 'pending';
-        }
-        if (activeStageTab === 'rejected') {
-            matchesStatus = metaLeadBucket(lead) === 'rejected';
-        }
-        if (activeStageTab === 'processing') matchesStatus = metaLeadBucket(lead) === 'processing';
-        if (activeStageTab === 'other') matchesStatus = metaLeadBucket(lead) === 'other';
+            if (activeStageTab === 'pending') {
+                matchesStatus = metaLeadBucket(lead) === 'pending';
+            }
+            if (activeStageTab === 'rejected') {
+                matchesStatus = metaLeadBucket(lead) === 'rejected';
+            }
+            if (activeStageTab === 'processing') matchesStatus = metaLeadBucket(lead) === 'processing';
+            if (activeStageTab === 'other') matchesStatus = metaLeadBucket(lead) === 'other';
 
-        return matchesSearch && matchesStage && matchesStatus;
-    });
+            return matchesSearch && matchesStage && matchesStatus;
+        });
 
-    // Sort: New leads first, Old data at the bottom
-    filteredLeads.sort((a: any, b: any) => {
-        if (a.status === 'old_data' && b.status !== 'old_data') return 1;
-        if (a.status !== 'old_data' && b.status === 'old_data') return -1;
-        return (leadDateMs(b.createdAt) ?? 0) - (leadDateMs(a.createdAt) ?? 0);
-    });
+        // Sort: New leads first, Old data at the bottom
+        return filtered.sort((a: any, b: any) => {
+            if (a.status === 'old_data' && b.status !== 'old_data') return 1;
+            if (a.status !== 'old_data' && b.status === 'old_data') return -1;
+            const bMs = leadDateMs(b.createdAt) ?? 0;
+            const aMs = leadDateMs(a.createdAt) ?? 0;
+            return bMs - aMs;
+        });
+    }, [metaLeads, searchQuery, activeStageTab, statusFilter]);
 
     // Checkbox toggles
     const toggleLead = (id: string) => {
@@ -797,12 +894,12 @@ export function MetaLeadsTab({
         );
     }
 
-    const tabCounts = {
+    const tabCounts = useMemo(() => ({
         all: metaLeads.length,
         stage1: metaLeads.filter((l: any) => STAGE_1_STATUSES.includes(l.status || 'new')).length,
         pending: leadCounts.pending,
         rejected: leadCounts.rejected,
-    };
+    }), [metaLeads, leadCounts]);
 
     return (
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4 animate-fade-in p-3 sm:p-4 bg-slate-50 h-full relative">
@@ -965,7 +1062,21 @@ export function MetaLeadsTab({
                 </div>
                 <div className="p-5 bg-slate-50 flex items-center gap-4 flex-wrap">
                     <div className="flex-1 min-w-[250px] max-w-md">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Facebook Form ID</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-bold text-slate-500">Facebook Form ID</label>
+                            {formId && (
+                                <button
+                                    type="button"
+                                    onClick={() => fetchFormQuestions(formId)}
+                                    disabled={loadingQuestions}
+                                    className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"
+                                    title="Reload Instant Form questions from Meta"
+                                >
+                                    <RefreshCw size={10} className={loadingQuestions ? 'animate-spin' : ''} />
+                                    {loadingQuestions ? 'Fetching...' : 'Reload Questions'}
+                                </button>
+                            )}
+                        </div>
                         <input 
                             type="text" 
                             list="formIdHistoryList"
@@ -979,6 +1090,16 @@ export function MetaLeadsTab({
                                 <option key={index} value={id} />
                             ))}
                         </datalist>
+                        {metaQuestions.filter(q => !EXCLUDED_COLS.includes(q.key.toLowerCase().trim())).length > 0 && (
+                            <span className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                                <CheckCircle2 size={12} /> {metaQuestions.filter(q => !EXCLUDED_COLS.includes(q.key.toLowerCase().trim())).length} Instant Form questions loaded from Meta
+                            </span>
+                        )}
+                        {loadingQuestions && (
+                            <span className="text-xs text-blue-600 font-semibold mt-1 flex items-center gap-1">
+                                <RefreshCw size={12} className="animate-spin" /> Fetching questions from Meta...
+                            </span>
+                        )}
                     </div>
                     
                     <div className="pt-5 flex flex-wrap items-center gap-2">
@@ -1275,32 +1396,68 @@ export function MetaLeadsTab({
                                         <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-800">
                                             <div className="flex items-center gap-2">
                                                 {lead.name || answers['full_name'] || answers['name'] || '-'}
-                                                {lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered' ? (
-                                                    <div className="flex items-center justify-center w-5 h-5 bg-green-100 rounded-full" title={`WhatsApp ${lead.metadata?.wtStatus}`}>
-                                                        <ArrowUp size={12} className="text-green-600 font-bold" />
-                                                    </div>
-                                                ) : lead.metadata?.wtStatus === 'pending' ? (
-                                                    <div className="flex items-center justify-center w-5 h-5 bg-yellow-100 rounded-full" title="WhatsApp Pending">
-                                                        <ArrowUp size={12} className="text-yellow-600 font-bold" />
-                                                    </div>
-                                                ) : lead.metadata?.wtStatus === 'failed' || lead.metadata?.wtStatus === 'blocked' ? (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <div className="flex items-center justify-center w-5 h-5 bg-red-100 rounded-full" title={lead.metadata?.wtError || "WhatsApp Failed"}>
-                                                            <ArrowUp size={12} className="text-red-600 font-bold" />
-                                                        </div>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedLeads([lead._id || lead.id]);
-                                                                setShowManualWTPopup(true);
-                                                            }}
-                                                            className="px-1.5 py-0.5 text-[10px] font-black bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors"
-                                                            title="Trigger Again"
-                                                        >
-                                                            T A
-                                                        </button>
-                                                    </div>
-                                                ) : null}
+                                                {(() => {
+                                                    const isSentOrDelivered = lead.metadata?.wtStatus === 'sent' || lead.metadata?.wtStatus === 'delivered' || (Boolean(lead.metadata?.wtLocked) && lead.metadata?.wtStatus !== 'queued' && lead.metadata?.wtStatus !== 'skipped' && lead.metadata?.wtStatus !== 'failed');
+                                                    const isQueued = lead.metadata?.wtStatus === 'queued';
+                                                    const isSkippedOrLocked = lead.metadata?.wtStatus === 'skipped' || (!isSentOrDelivered && !isQueued && (Boolean(lead.metadata?.wtLocked) || Boolean(lead.metadata?.wtSkipReason)));
+                                                    const sentTemplateName = lead.metadata?.wtSentTemplate || (lead.metadata?.wtSentTemplates ? Object.keys(lead.metadata.wtSentTemplates)[0] : '') || (lead.metadata?.wtLastTemplates ? Object.keys(lead.metadata.wtLastTemplates)[0] : '');
+
+                                                    if (isSentOrDelivered) {
+                                                        return (
+                                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black shrink-0 shadow-xs" title={`WhatsApp Sent (${sentTemplateName || 'Template'}). 1-Time delivery lock active: system will never repeat.`}>
+                                                                <span>🔒</span>
+                                                                <span>Sent (1x Lock)</span>
+                                                                {sentTemplateName && <span className="font-semibold text-[9px] text-emerald-600 max-w-[120px] truncate">· {sentTemplateName}</span>}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (isQueued) {
+                                                        return (
+                                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black shrink-0" title={`WhatsApp Queued for 1-Time Delivery (${sentTemplateName || 'Scheduled'}). Locked against repeat.`}>
+                                                                <span>⏳</span>
+                                                                <span>Queued (1x Lock)</span>
+                                                                {sentTemplateName && <span className="font-semibold text-[9px] text-amber-700 max-w-[120px] truncate">· {sentTemplateName}</span>}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (isSkippedOrLocked) {
+                                                        return (
+                                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold shrink-0" title={lead.metadata?.wtSkipReason || lead.metadata?.wtLockedReason || `Already received ${sentTemplateName || 'template'}; repeat locked.`}>
+                                                                <span>🛡️</span>
+                                                                <span>1x Locked</span>
+                                                                {sentTemplateName && <span className="font-normal text-[9px] text-slate-500 max-w-[120px] truncate">· {sentTemplateName}</span>}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (lead.metadata?.wtStatus === 'pending') {
+                                                        return (
+                                                            <div className="flex items-center justify-center w-5 h-5 bg-yellow-100 rounded-full" title="WhatsApp Pending">
+                                                                <ArrowUp size={12} className="text-yellow-600 font-bold" />
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (lead.metadata?.wtStatus === 'failed' || lead.metadata?.wtStatus === 'blocked') {
+                                                        return (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="flex items-center justify-center w-5 h-5 bg-red-100 rounded-full" title={lead.metadata?.wtError || "WhatsApp Failed"}>
+                                                                    <ArrowUp size={12} className="text-red-600 font-bold" />
+                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedLeads([lead._id || lead.id]);
+                                                                        setShowManualWTPopup(true);
+                                                                    }}
+                                                                    className="px-1.5 py-0.5 text-[10px] font-black bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                                                                    title="Trigger Again"
+                                                                >
+                                                                    T A
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">{lead.email || answers['email'] || '-'}</td>
@@ -1400,71 +1557,89 @@ export function MetaLeadsTab({
             )}
 
             {/* WT Auto-Trigger Settings Popup */}
-            {showWTSettingsPopup && (
-                <div className="absolute inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
+            {showWTSettingsPopup && (() => {
+                const currentResolvedFormId = formId || selectedWorkshop?.metadata?.facebookFormId || selectedWorkshop?.metadata?.metaFormId || '';
+                const currentMetadata = {
+                    ...(selectedWorkshop?.metadata || {}),
+                    ai9AConfig,
+                    ai9BConfig,
+                    facebookFormId: currentResolvedFormId,
+                    wtSettings
+                };
+                const configWarning = metaApprovalConfigurationError(currentMetadata);
+
+                return (
+                <div 
+                    className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+                    onClick={() => setShowWTSettingsPopup(false)}
+                >
+                    <div 
+                        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg my-auto max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-slide-up"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         
                         {/* Header */}
-                        <div className="p-6 bg-[#25D366]/10 border-b border-[#25D366]/20 flex items-start justify-between">
-                            <div className="flex gap-4">
-                                <div className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shrink-0">
+                        <div className="p-4 sm:p-5 bg-[#25D366]/10 border-b border-[#25D366]/20 flex items-start justify-between shrink-0">
+                            <div className="flex gap-3 sm:gap-4 items-start">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-white font-black text-2xl sm:text-3xl shadow-lg shrink-0">
                                     W
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-slate-800 text-xl tracking-tight">AI-9W Configuration</h3>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5 mb-3">Automated WhatsApp Triggers</p>
-                                    
-                                    <div className="text-[11px] text-slate-600 bg-white/60 p-3 rounded-lg border border-emerald-100 space-y-1">
-                                        <p className="font-bold text-slate-700 mb-1">AI-9W Operations:</p>
-                                        <ul className="list-decimal pl-4 space-y-0.5">
-                                            <li>Process new leads only after saved activation time</li>
-                                            <li>Require approval from saved AI-9A and AI-9B (Stage 1) rules</li>
-                                            <li>Exclude pending, rejected, blocked and invalid numbers</li>
-                                            <li>Keep old bulk recipients out of automatic delivery</li>
-                                            <li>Queue the selected template once per lead and batch</li>
-                                            <li>Collect the selected template</li>
-                                            <li>Add auto-schedule time and submit</li>
-                                            <li>Auto-update data in Trigger Report and Main Broadcast Report</li>
-                                            <li>Auto-update arrow indicator after the name</li>
-                                        </ul>
-                                        <p className="text-emerald-700 font-bold mt-2 italic flex items-center gap-1"><Bot size={12}/> Server approval processing runs every 5 minutes; queued sends run every minute. Deployment and cron configuration are required.</p>
-                                    </div>
+                                    <h3 className="font-black text-slate-800 text-lg sm:text-xl tracking-tight">AI-9W Configuration</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Automated WhatsApp Triggers</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowWTSettingsPopup(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all shrink-0">
-                                <XCircle size={24} />
+                            <button 
+                                onClick={() => setShowWTSettingsPopup(false)} 
+                                className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all shrink-0 cursor-pointer"
+                                title="Close"
+                            >
+                                <XCircle size={22} />
                             </button>
                         </div>
 
                         {/* Tabs */}
-                        <div className="flex bg-slate-50 p-2 gap-2 border-b border-slate-200">
+                        <div className="flex bg-slate-50 p-2 gap-2 border-b border-slate-200 shrink-0">
                             <button 
                                 onClick={() => setActiveTab('approved')} 
-                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'approved' ? 'bg-white text-emerald-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                                className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'approved' ? 'bg-white text-emerald-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
                             >
                                 Stage 5: Approved Leads
                             </button>
                             <button 
                                 disabled
                                 title="Pending leads are excluded from automatic WhatsApp delivery"
-                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-white text-amber-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                                className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-white text-amber-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:bg-slate-200/50 opacity-60'}`}
                             >
                                 Pending: No Auto-Send
                             </button>
                         </div>
 
-                        {/* Body */}
-                        <div className="p-8 bg-white space-y-6">
+                        {/* Body - Scrollable */}
+                        <div className="p-4 sm:p-6 bg-white space-y-5 overflow-y-auto flex-1">
                             
+                            {configWarning && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-3.5 text-xs text-amber-800 flex items-start gap-2.5">
+                                    <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <strong className="block font-bold text-amber-900 mb-0.5">Prerequisite Notice</strong>
+                                        <span>{configWarning} Saving now will safely store your chosen template and trigger delay.</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {activeTab === 'approved' && (
-                                <div className="animate-fade-in space-y-6">
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800 shadow-inner">
-                                        <strong className="block mb-1 text-emerald-900">Approved Lead Trigger:</strong>
-                                        New leads must pass all four AI-9 stages after activation, or be manually marked Approved by an admin. Each approved lead receives the template once after the delay; contacts already sent this template (including manual broadcasts) are skipped.
+                                <div className="space-y-5">
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs sm:text-sm text-emerald-800 shadow-inner">
+                                        <strong className="block mb-1 text-emerald-900 flex items-center gap-1.5">
+                                            <span>🔒</span>
+                                            <span>Approved Lead Trigger (1-Time Lock Active):</span>
+                                        </strong>
+                                        Each approved lead receives this template <strong>at most ONCE</strong> after the delay. Contacts who already received this template (or are already queued) are permanently locked from repeat sends.
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Approved Template</label>
+                                        <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">Select Approved Template</label>
                                         <div className="flex gap-2">
                                             <select 
                                                 value={wtSettings.approved.template}
@@ -1473,7 +1648,7 @@ export function MetaLeadsTab({
                                                     const t = templates.find(temp => temp.templateName === wtSettings.approved.template);
                                                     if (t) setPreviewTemplate(t);
                                                 }}
-                                                className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
+                                                className="w-full p-3 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-xs sm:text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
                                             >
                                                 <option value="">-- No template selected --</option>
                                                 {templates.map(t => (
@@ -1486,18 +1661,18 @@ export function MetaLeadsTab({
                                                     if (t) setPreviewTemplate(t);
                                                 }}
                                                 disabled={!wtSettings.approved.template}
-                                                className="p-3.5 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors"
+                                                className="p-3 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors shrink-0"
                                                 title="Preview Template"
                                             >
-                                                <Eye size={20} />
+                                                <Eye size={18} />
                                             </button>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label className="flex justify-between block text-sm font-bold text-slate-700 mb-3">
+                                        <label className="flex justify-between items-center text-xs sm:text-sm font-bold text-slate-700 mb-2">
                                             <span>Schedule Trigger (Delay)</span>
-                                            <span className="text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">{wtSettings.approved.delay} Minutes</span>
+                                            <span className="text-emerald-700 bg-emerald-100 px-3 py-0.5 rounded-full text-xs font-black">{wtSettings.approved.delay} Minutes</span>
                                         </label>
                                         <input 
                                             type="range" 
@@ -1506,7 +1681,7 @@ export function MetaLeadsTab({
                                             onChange={(e) => setWtSettings({ ...wtSettings, approved: { ...wtSettings.approved, delay: parseInt(e.target.value) } })}
                                             className="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                                         />
-                                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase mt-2">
+                                        <div className="flex justify-between text-[11px] text-slate-400 font-bold uppercase mt-1.5">
                                             <span>0 min (Instant)</span>
                                             <span>600 min (10 hours)</span>
                                         </div>
@@ -1515,14 +1690,14 @@ export function MetaLeadsTab({
                             )}
 
                             {activeTab === 'pending' && (
-                                <div className="animate-fade-in space-y-6">
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 shadow-inner">
+                                <div className="space-y-5">
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs sm:text-sm text-amber-800 shadow-inner">
                                         <strong className="block mb-1 text-amber-900">Pending Lead Trigger:</strong>
                                         This template will be scheduled to send automatically to follow-up on leads sitting in 'Pending' stage.
                                     </div>
                                     
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Pending Template</label>
+                                        <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">Select Pending Template</label>
                                         <div className="flex gap-2">
                                             <select 
                                                 value={wtSettings.pending.template}
@@ -1531,7 +1706,7 @@ export function MetaLeadsTab({
                                                     const t = templates.find(temp => temp.templateName === wtSettings.pending.template);
                                                     if (t) setPreviewTemplate(t);
                                                 }}
-                                                className="w-full p-3.5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 bg-white text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
+                                                className="w-full p-3 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 bg-white text-xs sm:text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer"
                                             >
                                                 <option value="">-- No template selected --</option>
                                                 {templates.map(t => (
@@ -1544,18 +1719,18 @@ export function MetaLeadsTab({
                                                     if (t) setPreviewTemplate(t);
                                                 }}
                                                 disabled={!wtSettings.pending.template}
-                                                className="p-3.5 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors"
+                                                className="p-3 bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 rounded-xl text-slate-600 disabled:opacity-50 transition-colors shrink-0"
                                                 title="Preview Template"
                                             >
-                                                <Eye size={20} />
+                                                <Eye size={18} />
                                             </button>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label className="flex justify-between block text-sm font-bold text-slate-700 mb-3">
+                                        <label className="flex justify-between items-center text-xs sm:text-sm font-bold text-slate-700 mb-2">
                                             <span>Schedule Trigger (Delay)</span>
-                                            <span className="text-amber-600 bg-amber-100 px-3 py-1 rounded-full">{wtSettings.pending.delay} Minutes</span>
+                                            <span className="text-amber-700 bg-amber-100 px-3 py-0.5 rounded-full text-xs font-black">{wtSettings.pending.delay} Minutes</span>
                                         </label>
                                         <input 
                                             type="range" 
@@ -1564,7 +1739,7 @@ export function MetaLeadsTab({
                                             onChange={(e) => setWtSettings({ ...wtSettings, pending: { ...wtSettings.pending, delay: parseInt(e.target.value) } })}
                                             className="w-full accent-amber-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                                         />
-                                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase mt-2">
+                                        <div className="flex justify-between text-[11px] text-slate-400 font-bold uppercase mt-1.5">
                                             <span>0 min (Instant)</span>
                                             <span>600 min (10 hours)</span>
                                         </div>
@@ -1575,24 +1750,33 @@ export function MetaLeadsTab({
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
                             <span className="text-xs text-slate-500 font-bold flex items-center bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
                                 <Bot size={14} className="text-[#25D366] mr-2" />
                                 AI-9W
                             </span>
-                            <div className="flex gap-3">
-                                <button onClick={() => setShowWTSettingsPopup(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors">
+                            <div className="flex gap-2 sm:gap-3">
+                                <button 
+                                    onClick={() => setShowWTSettingsPopup(false)} 
+                                    className="px-4 py-2 text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-xl transition-colors cursor-pointer"
+                                >
                                     Cancel
                                 </button>
-                                <button onClick={saveWTSettings} className="px-6 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all transform hover:-translate-y-0.5 shadow-md hover:shadow-lg flex items-center gap-2">
-                                    <Save size={16} /> Save & Enable
+                                <button 
+                                    onClick={saveWTSettings} 
+                                    disabled={savingWTSettings}
+                                    className="px-5 py-2 bg-[#25D366] hover:bg-[#128C7E] disabled:opacity-50 text-white font-bold rounded-xl text-xs sm:text-sm transition-all transform hover:-translate-y-0.5 shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
+                                >
+                                    {savingWTSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    {savingWTSettings ? 'Saving...' : 'Save & Enable'}
                                 </button>
                             </div>
                         </div>
 
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* AI-9 Config Popup */}
             {showAI9Popup && (() => {
@@ -1699,21 +1883,79 @@ export function MetaLeadsTab({
                                     </button>
 
                                     <div className="mb-4 pr-6">
-                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Question Key (or column name)</label>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="block text-sm font-bold text-slate-700">Question Key (or column name)</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => fetchFormQuestions()}
+                                                disabled={loadingQuestions}
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"
+                                                title="Reload questions from Meta Instant Form"
+                                            >
+                                                <RefreshCw size={12} className={loadingQuestions ? 'animate-spin' : ''} />
+                                                {loadingQuestions ? 'Reloading...' : 'Reload Questions'}
+                                            </button>
+                                        </div>
                                         <select 
                                             value={filter.question}
                                             onChange={(e) => {
-                                                const newFilters = activeConfig.filters.map((item: any, position: number) =>
-                                                    position === index ? { ...item, question: e.target.value } : item);
+                                                const selectedVal = e.target.value;
+                                                const newFilters = activeConfig.filters.map((item: any, position: number) => {
+                                                    if (position !== index) return item;
+                                                    // Check if question has known options in metaQuestions or dummyFields
+                                                    const matchedMeta = metaQuestions.find(q => 
+                                                        q.key === selectedVal || 
+                                                        q.key.toLowerCase().trim() === selectedVal.toLowerCase().trim()
+                                                    );
+                                                    const matchedDummy = dummyFields.find(df => 
+                                                        df.name === selectedVal || 
+                                                        df.name.toLowerCase().trim() === selectedVal.toLowerCase().trim()
+                                                    );
+                                                    const availableOptions = (matchedMeta?.options && matchedMeta.options.length > 0)
+                                                        ? matchedMeta.options
+                                                        : (matchedDummy?.values && matchedDummy.values.length > 0)
+                                                        ? matchedDummy.values
+                                                        : [];
+                                                    let newOptions = item.options;
+                                                    if (availableOptions.length > 0) {
+                                                        // Auto-populate options if current options are empty or default 1 option
+                                                        if (!item.options || item.options.length <= 1) {
+                                                            newOptions = availableOptions.map((opt: string) => ({
+                                                                answer: opt,
+                                                                category: /yes|ready|definitely|agree|true/i.test(opt) ? 'approved' : /no|not|reject/i.test(opt) ? 'rejected' : 'pending'
+                                                            }));
+                                                        }
+                                                    }
+                                                    return { ...item, question: selectedVal, options: newOptions };
+                                                });
                                                 setActiveConfig({...activeConfig, filters: newFilters});
                                             }}
                                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
                                         >
-                                            <option value="">-- Search across all questions --</option>
-                                            {filter.question && !dynamicColumns.includes(filter.question) && <option value={filter.question}>{filter.question} (saved question)</option>}
-                                            {dynamicColumns.map(col => (
-                                                <option key={col} value={col}>{col.replace(/_/g, ' ')}</option>
-                                            ))}
+                                            <option value="">-- Search across all questions ({dynamicColumns.length} available) --</option>
+                                            {filter.question && !dynamicColumns.includes(filter.question) && (
+                                                <option value={filter.question}>{filter.question} (saved question)</option>
+                                            )}
+                                            {metaQuestions.filter(q => !EXCLUDED_COLS.includes(q.key.toLowerCase().trim())).length > 0 && (
+                                                <optgroup label="Meta Instant Form Questions">
+                                                    {metaQuestions
+                                                        .filter(q => !EXCLUDED_COLS.includes(q.key.toLowerCase().trim()))
+                                                        .map(q => (
+                                                            <option key={q.key} value={q.key}>
+                                                                {q.label} {q.options?.length ? `(${q.options.join(', ')})` : ''}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </optgroup>
+                                            )}
+                                            <optgroup label="All Detected Questions">
+                                                {dynamicColumns
+                                                    .filter(col => !metaQuestions.some(mq => mq.key === col || mq.key.toLowerCase().trim() === col.toLowerCase().trim()))
+                                                    .map(col => (
+                                                        <option key={col} value={col}>{getColLabel(col).replace(/_/g, ' ')}</option>
+                                                    ))
+                                                }
+                                            </optgroup>
                                         </select>
                                     </div>
 

@@ -29,14 +29,13 @@ This ensures all work is properly documented, prevents duplicate effort, and mai
 
 ## 🏗 Architecture & Data Flow
 - **Framework**: Next.js 14 (App Router) with TypeScript and Tailwind CSS.
-- **Database**: MongoDB (Atlas). Use `lib/db.ts` for connection and `lib/schemas/enterpriseSchemas.ts` for CRM/messaging models.
+- **Database (CRITICAL - BUNNY ONLY)**: **Bunny Database (Bunny Edge SQL) & Bunny Storage ONLY**. MongoDB is decommissioned and MUST NOT be used. Use `lib/bunnyDatabase.ts` and `lib/bunnyStorage.ts`.
 - **WhatsApp Integration**:
   - **Meta API (Primary)**: Handled via `app/api/whatsapp/webhook/route.ts`. Preferred for production.
   - **QR WhatsApp (Baileys Bridge)**: QR code scanning via external bridge service. Proxy at `app/api/admin/crm/whatsapp/qr-bridge/route.ts`.
-  - **Meta Inbound Ingestion**: Raw webhook payloads are logged in `whatsapp_webhook_events` (CRM DB) via `logWebhookEvent()`.
-- **Database Routing**: The app uses two logical databases on the same cluster:
-  - `swaryogaDB`: Primary website, user profiles, and Life Planner data.
-  - `swaryoga_admin_crm`: CRM leads, WhatsApp logs, audit data, `crm_user_settings`.
+  - **Meta Inbound Ingestion**: Raw webhook payloads are stored in Bunny Database (`whatsapp_webhook_events_sql`).
+- **Hosting**: Contabo VPS (Server IP: 169.58.238.255) with Caddy reverse proxy and PM2. Vercel is strictly disabled.
+
 
 ---
 

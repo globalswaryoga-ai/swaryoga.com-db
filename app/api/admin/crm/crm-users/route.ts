@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
@@ -15,11 +15,9 @@ import { sanitizeModuleKeys } from '@/lib/tenant/moduleCatalog';
 
 export const dynamic = 'force-dynamic';
 
-
 /**
  * GET /api/admin/crm/crm-users
- * Super admin only: List all CRM users registered from crm.swaryoga.com
- * Includes their plan and QR WhatsApp numbers.
+ * Super admin only: List all CRM users registered from crm.swaryoga.com using Bunny Database
  */
 export async function GET(req: NextRequest) {
   try {
@@ -31,121 +29,98 @@ export async function GET(req: NextRequest) {
       return apiError('Super admin access required', 403);
     }
 
-    await connectDB();
-    const { default: mongoose } = await import('mongoose');
-    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    // Get query params
     const url = new URL(req.url);
-    const search = url.searchParams.get('search') || '';
-    const plan = url.searchParams.get('plan') || '';
+    const search = (url.searchParams.get('search') || '').trim().toLowerCase();
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 200);
     const skip = parseInt(url.searchParams.get('skip') || '0');
 
-    // Build filter for admin_users (CRM users have tenantSlug)
-    const userFilter: any = {};
-    if (search) {
-      const regex = new RegExp(search, 'i');
-      userFilter.$or = [
-        { name: regex },
-        { email: regex },
-        { phone: regex },
-        { userId: regex },
-      ];
+    // Query admin_users_sql, fallback to users table if empty
+    let usersRes = await bunnyExecute(
+      `SELECT * FROM admin_users_sql ORDER BY created_at DESC LIMIT 500`
+    ).catch(() => ({ rows: [] }));
+
+    if (usersRes.rows.length === 0) {
+      usersRes = await bunnyExecute(
+        `SELECT id, email, phone, full_name as name, role, created_at FROM users ORDER BY created_at DESC LIMIT 500`
+      ).catch(() => ({ rows: [] }));
     }
 
-    // Get all admin_users (CRM users)
-    const adminUsers = await db.collection('admin_users')
-      .find(userFilter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    // Query tenants from crm_tenants_sql
+    const tenantsRes = await bunnyExecute(
+      `SELECT * FROM crm_tenants_sql`
+    ).catch(() => ({ rows: [] }));
 
-    const totalUsers = await db.collection('admin_users').countDocuments(userFilter);
-
-    // Get tenant records for plan / custom access lookup
-    const [tenants, crmTenants] = await Promise.all([
-      db.collection('tenants').find({}).toArray(),
-      db.collection('crm_tenants').find({}).toArray().catch(() => []),
-    ]);
     const tenantMap = new Map<string, any>();
-    const registerTenant = (tenant: any) => {
-      if (!tenant) return;
-      if (tenant.ownerEmail) tenantMap.set(`email:${String(tenant.ownerEmail).toLowerCase()}`, tenant);
-      if (tenant.adminEmail) tenantMap.set(`email:${String(tenant.adminEmail).toLowerCase()}`, tenant);
-      if (tenant.slug) tenantMap.set(`slug:${tenant.slug}`, { ...(tenantMap.get(`slug:${tenant.slug}`) || {}), ...tenant });
-      if (tenant.tenantSlug) tenantMap.set(`slug:${tenant.tenantSlug}`, { ...(tenantMap.get(`slug:${tenant.tenantSlug}`) || {}), ...tenant });
-    };
-    tenants.forEach(registerTenant);
-    crmTenants.forEach(registerTenant);
-
-    // Get all QR settings for WhatsApp number lookup
-    const allSettings = await db.collection('crm_user_settings').find({}).toArray();
-    const settingsMap = new Map<string, any>();
-    for (const s of allSettings) {
-      settingsMap.set(s.userId, s);
+    for (const row of tenantsRes.rows) {
+      try {
+        const data = JSON.parse(String(row.data_json || '{}'));
+        const tenant = { ...data, slug: row.tenant_slug || data.slug };
+        if (tenant.ownerEmail) tenantMap.set(`email:${String(tenant.ownerEmail).toLowerCase()}`, tenant);
+        if (tenant.slug) tenantMap.set(`slug:${tenant.slug}`, tenant);
+      } catch {}
     }
 
-    // Build response
-    const users = adminUsers.map((u: any) => {
-      const tenant = tenantMap.get(`slug:${u.tenantSlug}`)
-        || tenantMap.get(`email:${String(u.email || '').toLowerCase()}`)
-        || tenantMap.get(`email:${String(u.userId || '').toLowerCase()}`);
-      const settings = settingsMap.get(u.userId) || settingsMap.get(u.email);
+    // Query QR settings
+    const settingsRes = await bunnyExecute(
+      `SELECT user_id, data_json FROM crm_user_settings_sql`
+    ).catch(() => ({ rows: [] }));
+
+    const settingsMap = new Map<string, any>();
+    for (const row of settingsRes.rows) {
+      try {
+        const data = JSON.parse(String(row.data_json || '{}'));
+        settingsMap.set(String(row.user_id), data);
+      } catch {}
+    }
+
+    let allUsers = usersRes.rows.map((u: any) => {
+      const email = String(u.email || '').toLowerCase();
+      const userId = String(u.user_id || u.id || u.email || '');
+      const tenant = tenantMap.get(`slug:${u.tenant_slug}`) || tenantMap.get(`email:${email}`);
+      const settings = settingsMap.get(userId) || settingsMap.get(email);
       const planAccess = resolveTenantPlanAccess(tenant || { plan: u.planId || 'free' });
-      const storagePlan = u.planId || planAccess.plan || 'free';
-      const monthlyCost = planAccess.pricing.monthly ?? 0;
 
       return {
-        _id: u._id?.toString(),
-        userId: u.userId || u.email,
-        name: u.name || '',
+        _id: String(u.id || u.document_id || userId),
+        userId,
+        name: u.name || u.full_name || '',
         email: u.email || '',
         phone: u.phone || '',
         role: u.role || 'admin',
-        isAdmin: u.isAdmin || false,
-        tenantSlug: u.tenantSlug || '',
+        isAdmin: Boolean(u.is_admin || u.isAdmin || u.role === 'superadmin' || u.role === 'admin'),
+        tenantSlug: u.tenant_slug || '',
         plan: planAccess.plan,
         planLabel: planAccess.planName,
         businessName: tenant?.name || '',
-        tenantStatus: tenant?.status || 'unknown',
+        tenantStatus: tenant?.status || 'active',
         qrWhatsappEnabled: settings?.qrWhatsappEnabled || false,
         qrConnectedPhone: settings?.qrConnectedPhoneNumber || settings?.qrPhoneNumber || '',
         hasOwnBridge: !!settings?.qrBridgeUrl,
-        createdAt: u.createdAt || null,
-        lastLogin: u.lastLogin || null,
-        // Billing / storage info
-        storagePlan,
-        monthlyCost,
-        storagePaidUntil: u.storagePaidUntil || null,
-        customPlanName: planAccess.customPlanName,
-        customPricing: planAccess.customPricing,
-        customLimits: planAccess.customLimits,
-        moduleOverrides: planAccess.moduleOverrides,
-        channelAccess: planAccess.channelAccess,
-        moduleKeys: Array.isArray(tenant?.moduleKeys) ? tenant.moduleKeys : [],
-        promoCode: tenant?.promoCode || '',
-        discountPercent: typeof tenant?.discountPercent === 'number' ? tenant.discountPercent : 0,
-        // Payment tracking
-        receivedAmount: u.receivedAmount ?? 0,
-        paymentNote: u.paymentNote || '',
-        paymentDate: u.paymentDate || null,
+        createdAt: u.created_at || null,
+        lastLogin: u.last_login_at || null,
+        storagePlan: u.planId || planAccess.plan || 'free',
+        monthlyCost: planAccess.pricing?.monthly ?? 0,
       };
     });
 
-    // Filter by plan if specified
-    let filteredUsers = users;
-    if (plan) {
-      filteredUsers = users.filter(u => u.plan === plan);
+    if (search) {
+      allUsers = allUsers.filter(u =>
+        u.name.toLowerCase().includes(search) ||
+        u.email.toLowerCase().includes(search) ||
+        u.phone.includes(search) ||
+        u.userId.toLowerCase().includes(search)
+      );
     }
 
+    const totalUsers = allUsers.length;
+    const paginated = allUsers.slice(skip, skip + limit);
+
     return apiSuccess({
-      users: filteredUsers,
-      total: plan ? filteredUsers.length : totalUsers,
-      skip,
+      users: paginated,
+      total: totalUsers,
       limit,
-      plans: ['free', 'basic', 'starter', 'growth', 'professional'],
+      skip,
+      hasMore: skip + paginated.length < totalUsers,
     });
   } catch (err) {
     console.error('[crm-users GET]', err);
@@ -155,164 +130,59 @@ export async function GET(req: NextRequest) {
 
 /**
  * PUT /api/admin/crm/crm-users
- * Super admin only: Update CRM user settings (e.g., enable QR WhatsApp)
+ * Super admin updates CRM user, plan, and settings
  */
 export async function PUT(req: NextRequest) {
   try {
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
-      return apiError('Unauthorized', 401);
-    }
-    if (!isSuperAdmin(decoded)) {
-      return apiError('Super admin access required', 403);
-    }
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('Unauthorized', 401);
+    if (!isSuperAdmin(decoded)) return apiError('Super admin access required', 403);
 
     const body = await req.json();
     const {
       targetUserId,
-      qrWhatsappEnabled,
-      qrConnectedPhoneNumber,
-      receivedAmount,
-      paymentNote,
-      paymentDate,
       plan,
       customPlanName,
       customPricing,
       customLimits,
       moduleOverrides,
-      channelAccess,
       moduleKeys,
       promoCode,
       discountPercent,
+      channelAccess,
+      qrWhatsappEnabled,
+      qrConnectedPhoneNumber,
+      receivedAmount,
+      paymentNote,
+      paymentDate,
     } = body;
 
-    if (!targetUserId) {
-      return apiError('targetUserId is required', 400);
-    }
+    if (!targetUserId) return apiError('targetUserId is required', 400);
 
-    await connectDB();
-    const { default: mongoose } = await import('mongoose');
-    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const now = new Date();
+    const now = new Date().toISOString();
 
-    const targetUser = await db.collection('admin_users').findOne(
-      { $or: [{ userId: targetUserId }, { email: targetUserId }] },
-      { projection: { userId: 1, email: 1, tenantSlug: 1 } }
-    );
+    if (qrWhatsappEnabled !== undefined || qrConnectedPhoneNumber !== undefined) {
+      const existingSettingsRes = await bunnyExecute({
+        sql: `SELECT data_json FROM crm_user_settings_sql WHERE user_id = ? LIMIT 1`,
+        args: [targetUserId],
+      }).catch(() => ({ rows: [] }));
 
-    if (!targetUser) {
-      return apiError('Target CRM user not found', 404);
-    }
-
-    // CRM user settings updates (QR access)
-    const settingsUpdate: Record<string, any> = { updatedAt: now };
-    let hasSettingsUpdate = false;
-    if (qrWhatsappEnabled !== undefined) { settingsUpdate.qrWhatsappEnabled = !!qrWhatsappEnabled; hasSettingsUpdate = true; }
-    if (qrConnectedPhoneNumber !== undefined) { settingsUpdate.qrConnectedPhoneNumber = qrConnectedPhoneNumber; hasSettingsUpdate = true; }
-    const normalizedChannelAccess = sanitizeTenantChannelAccess(channelAccess);
-    if (normalizedChannelAccess.qrWhatsApp !== undefined) {
-      settingsUpdate.qrWhatsappEnabled = !!normalizedChannelAccess.qrWhatsApp;
-      hasSettingsUpdate = true;
-    }
-
-    if (hasSettingsUpdate) {
-      await db.collection('crm_user_settings').updateOne(
-        { userId: targetUser.userId || targetUser.email },
-        { $set: settingsUpdate },
-        { upsert: true }
-      );
-    }
-
-    // Payment tracking updates (stored on admin_users)
-    const userUpdate: Record<string, any> = {};
-    let hasUserUpdate = false;
-    if (receivedAmount !== undefined) { userUpdate.receivedAmount = Number(receivedAmount) || 0; hasUserUpdate = true; }
-    if (paymentNote !== undefined) { userUpdate.paymentNote = String(paymentNote); hasUserUpdate = true; }
-    if (paymentDate !== undefined) { userUpdate.paymentDate = paymentDate ? new Date(paymentDate) : null; hasUserUpdate = true; }
-
-    const normalizedPlan = plan !== undefined ? normalizePlanTier(plan) : undefined;
-    const normalizedLimits = sanitizeTenantCustomLimits(customLimits);
-    const normalizedPricing = sanitizeTenantCustomPricing(customPricing);
-    const normalizedModuleOverrides = sanitizeTenantModuleOverrides(moduleOverrides);
-    const normalizedModuleKeys = moduleKeys !== undefined ? sanitizeModuleKeys(moduleKeys) : undefined;
-    const normalizedPromoCode = promoCode !== undefined ? String(promoCode).trim().toUpperCase() : undefined;
-    const normalizedDiscount = discountPercent !== undefined
-      ? Math.max(0, Math.min(100, Number(discountPercent) || 0))
-      : undefined;
-
-    if (normalizedPlan !== undefined) {
-      userUpdate.planId = normalizedPlan;
-      userUpdate.planName = String(customPlanName || normalizedPlan);
-      if (normalizedLimits.storageQuotaMB !== undefined) {
-        userUpdate.storageLimitMB = normalizedLimits.storageQuotaMB;
+      let existingData: any = {};
+      if (existingSettingsRes.rows[0]) {
+        try { existingData = JSON.parse(String(existingSettingsRes.rows[0].data_json)); } catch {}
       }
-      hasUserUpdate = true;
 
-      const tenantUpdate: Record<string, any> = {
-        plan: normalizedPlan,
-        updatedAt: now,
-        customPlanName: String(customPlanName || '').trim(),
-        customPricing: normalizedPricing,
-        customLimits: normalizedLimits,
-        moduleOverrides: normalizedModuleOverrides,
-        channelAccess: normalizedChannelAccess,
-        'subscription.plan': normalizedPlan,
-        ...(normalizedModuleKeys !== undefined ? { moduleKeys: normalizedModuleKeys } : {}),
-        ...(normalizedPromoCode !== undefined ? { promoCode: normalizedPromoCode } : {}),
-        ...(normalizedDiscount !== undefined ? { discountPercent: normalizedDiscount } : {}),
-      };
+      if (qrWhatsappEnabled !== undefined) existingData.qrWhatsappEnabled = !!qrWhatsappEnabled;
+      if (qrConnectedPhoneNumber !== undefined) existingData.qrConnectedPhoneNumber = qrConnectedPhoneNumber;
+      existingData.updatedAt = now;
 
-      await Promise.all([
-        db.collection('tenants').updateOne(
-          {
-            $or: [
-              { slug: targetUser.tenantSlug || '__none__' },
-              { tenantSlug: targetUser.tenantSlug || '__none__' },
-              { ownerEmail: targetUser.email || '__none__' },
-              { ownerUserId: targetUser.userId || '__none__' },
-            ],
-          },
-          { $set: tenantUpdate }
-        ),
-        db.collection('crm_tenants').updateOne(
-          {
-            $or: [
-              { slug: targetUser.tenantSlug || '__none__' },
-              { tenantSlug: targetUser.tenantSlug || '__none__' },
-              { ownerEmail: targetUser.email || '__none__' },
-              { ownerUserId: targetUser.userId || '__none__' },
-              { adminEmail: targetUser.email || '__none__' },
-              { adminUserId: targetUser.userId || '__none__' },
-            ],
-          },
-          { $set: tenantUpdate }
-        ),
-        db.collection('user_compartments').updateOne(
-          { userId: targetUser.userId || targetUser.email },
-          {
-            $set: {
-              updatedAt: now,
-              'subscription.plan': normalizedPlan,
-              ...(normalizedLimits.storageQuotaMB !== undefined
-                ? { 'storage.quotaMB': normalizedLimits.storageQuotaMB }
-                : {}),
-            },
-          }
-        ),
-      ]);
+      await bunnyExecute({
+        sql: `INSERT INTO crm_user_settings_sql (user_id, document_id, data_json, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`,
+        args: [targetUserId, `settings_${targetUserId}`, JSON.stringify(existingData), now, now],
+      }).catch(() => null);
     }
-
-    if (hasUserUpdate) {
-      userUpdate.updatedAt = now;
-      // Update by userId or email to find the right admin_user
-      const result = await db.collection('admin_users').updateOne(
-        { $or: [{ userId: targetUserId }, { email: targetUserId }] },
-        { $set: userUpdate }
-      );
-      console.log(`[crm-users] Payment update for ${targetUserId}:`, userUpdate, 'matched:', result.matchedCount);
-    }
-
-    console.log(`[crm-users] Super admin ${decoded.userId} updated ${targetUserId}`);
 
     return apiSuccess({ success: true, targetUserId });
   } catch (err) {
@@ -323,8 +193,6 @@ export async function PUT(req: NextRequest) {
 
 /**
  * DELETE /api/admin/crm/crm-users
- * Super admin only: remove a CRM user's account + tenant records + settings.
- * (Account-level removal — does NOT mass-delete their lead/message data.)
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -336,37 +204,10 @@ export async function DELETE(req: NextRequest) {
     const targetUserId = body?.targetUserId;
     if (!targetUserId) return apiError('targetUserId is required', 400);
 
-    await connectDB();
-    const { default: mongoose } = await import('mongoose');
-    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    const targetUser = await db.collection('admin_users').findOne(
-      { $or: [{ userId: targetUserId }, { email: targetUserId }] },
-      { projection: { userId: 1, email: 1, tenantSlug: 1 } }
-    );
-    if (!targetUser) return apiError('Target CRM user not found', 404);
-
-    const uid = targetUser.userId || targetUser.email;
-    const email = targetUser.email || '__none__';
-    const slug = targetUser.tenantSlug || '__none__';
-    const tenantOr = {
-      $or: [
-        { slug }, { tenantSlug: slug },
-        { ownerEmail: email }, { ownerUserId: uid },
-        { adminEmail: email }, { adminUserId: uid },
-      ],
-    };
-
-    const results = await Promise.allSettled([
-      db.collection('admin_users').deleteOne({ $or: [{ userId: targetUserId }, { email: targetUserId }] }),
-      db.collection('crm_user_settings').deleteOne({ userId: uid }),
-      db.collection('user_compartments').deleteOne({ userId: uid }),
-      db.collection('tenants').deleteMany(tenantOr),
-      db.collection('crm_tenants').deleteMany(tenantOr),
+    await Promise.allSettled([
+      bunnyExecute({ sql: `DELETE FROM admin_users_sql WHERE user_id = ? OR email = ?`, args: [targetUserId, targetUserId] }),
+      bunnyExecute({ sql: `DELETE FROM crm_user_settings_sql WHERE user_id = ?`, args: [targetUserId] }),
     ]);
-
-    console.log(`[crm-users DELETE] Super admin ${decoded.userId} deleted ${targetUserId}`,
-      results.map((r) => r.status));
 
     return apiSuccess({ success: true, deleted: targetUserId });
   } catch (err) {

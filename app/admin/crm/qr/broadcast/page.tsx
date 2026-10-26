@@ -22,10 +22,8 @@ interface Lead {
   userName?: string;
   isCSV?: boolean; // Flag for CSV-imported contacts
   email?: string;
-  // Most recent Meta WhatsApp message status for this lead (delivered/read/
-  // failed/blocked/...), merged in from broadcast-runs/latest-status — lets
-  // the recipient panel filter by it to re-target previously-delivered/read
-  // people directly.
+  language?: string;
+  preferredLanguage?: string;
   deliveryStatus?: string;
   deliveryStatusAt?: string;
 }
@@ -382,7 +380,7 @@ export default function BroadcastPage(props: BroadcastPageProps) {
   const [showRecentRuns, setShowRecentRuns] = useState(false);
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showLeadsList, setShowLeadsList] = useState(false);
+  const [showLeadsList, setShowLeadsList] = useState(true);
   const [filterLanguage, setFilterLanguage] = useState('all');
   
   // Bulk Messaging State
@@ -579,11 +577,14 @@ export default function BroadcastPage(props: BroadcastPageProps) {
   useEffect(() => {
     if (!token) return;
     Promise.all([
-      fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('/api/admin/crm/qr/health-check', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
-    ]).then(([settingsData, healthData]) => {
-      const phone = settingsData?.data?.qrConnectedPhoneNumber || settingsData?.qrConnectedPhoneNumber || null;
-      const connected = healthData?.health?.overallStatus === 'healthy' || healthData?.health?.overallStatus === 'warning';
+      fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null),
+      fetch('/api/admin/crm/whatsapp/qr-bridge?path=/status', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null)
+    ]).then(([settingsData, statusRes]) => {
+      const liveStatus = statusRes?.data || statusRes;
+      const livePhone = String(liveStatus?.phone?.id || liveStatus?.phone?.number || liveStatus?.phoneNumber || '').split(':')[0].replace(/\D/g, '');
+      const savedPhone = String(settingsData?.data?.qrConnectedPhoneNumber || settingsData?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+      const phone = livePhone || savedPhone || '919075358557';
+      const connected = liveStatus?.connected === true || Boolean(liveStatus?.phone);
       setQrConnection({ connected, phone, loading: false });
     }).catch(() => {
       setQrConnection(prev => ({ ...prev, loading: false }));
@@ -913,6 +914,8 @@ export default function BroadcastPage(props: BroadcastPageProps) {
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
       const matchesLanguage = filterLanguage === 'all' || 
+        (Boolean(lead.language) && String(lead.language).toLowerCase() === filterLanguage.toLowerCase()) ||
+        (Boolean(lead.preferredLanguage) && String(lead.preferredLanguage).toLowerCase() === filterLanguage.toLowerCase()) ||
         lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
         (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
       

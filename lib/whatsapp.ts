@@ -59,13 +59,6 @@ export async function getPublicMediaUrl(url: string): Promise<string> {
 }
 
 export function normalizePhone(raw: string): string {
-  // IMPORTANT: We standardize phone numbers across the app as **digits-only**.
-  // This avoids mismatches between:
-  // - Lead storage (Mongo unique index)
-  // - Meta Cloud API `to` format
-  // - WhatsApp Web bridge formats
-  // Common inbound formats include: "+91 98...", "0091 98...", "(98) ...".
-  
   // Handle WhatsApp ID format: "919309986820@c.us" or "919309986820@lid"
   let input = String(raw || '');
   if (input.includes('@')) {
@@ -73,22 +66,27 @@ export function normalizePhone(raw: string): string {
   }
   
   // Remove everything except digits
-  const digits = input.replace(/\D/g, '');
+  let digits = input.replace(/\D/g, '');
   
-  // Validate: phone numbers should be 10-15 digits
-  // Anything outside this range is likely not a phone number (e.g., timestamp, group ID)
-  if (digits.length < 10 || digits.length > 15) {
-    console.warn(`[normalizePhone] Invalid phone format: "${raw}" -> "${digits}" (${digits.length} digits)`);
-    return digits; // Return as-is but log warning
+  // Remove international dialing prefix "00" (e.g. 0091... or 001...)
+  if (digits.startsWith('00') && digits.length > 10) {
+    digits = digits.replace(/^0+/, '');
   }
-  
+  // Remove single domestic trunk prefix 0 (e.g. 09876543210 -> 9876543210)
+  else if (digits.startsWith('0') && digits.length === 11) {
+    digits = digits.slice(1);
+  }
+
+  // If 10 digits, default to India (+91)
   if (digits.length === 10) {
     return `91${digits}`;
   }
-  // Remove leading 0s if it's like 091...
-  if (digits.startsWith('0') && digits.length > 10) {
-    return digits.replace(/^0+/, '');
+
+  // Validate: phone numbers should be 10-15 digits
+  if (digits.length < 10 || digits.length > 15) {
+    console.warn(`[normalizePhone] Invalid phone format: "${raw}" -> "${digits}" (${digits.length} digits)`);
   }
+  
   return digits;
 }
 
@@ -384,6 +382,11 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
   const to = normalizePhone(toRaw);
   const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
+  // Prevent sending to own registered WhatsApp business phone
+  if (env?.phoneNumber && to === normalizePhone(env.phoneNumber)) {
+    throw new Error('Cannot send a message to your own registered WhatsApp business number. Please select a customer conversation.');
+  }
+
   console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen(circuitKey)}`);
 
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
@@ -396,11 +399,12 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
         
         const payload: any = {
           messaging_product: 'whatsapp',
+          recipient_type: 'individual',
           to,
           type: 'text',
           text: { 
             body,
-            preview_url: true,
+            preview_url: false,
           },
         };
 
@@ -432,9 +436,17 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
         
         // Log the full error for debugging
         console.error(`[sendWhatsAppText] ❌ Meta API error (${res.status}):`, JSON.stringify(data));
-        const errorMsg = data?.error?.message || data?.error?.error_data?.details || 'Meta API error';
-        throw new Error(errorMsg);
-      }, { maxRetries: 2 });
+        const rawErrorMsg = data?.error?.message || data?.error?.error_data?.details || 'Meta API error';
+        
+        // Provide clear actionable guidance for common WhatsApp errors
+        if (data?.error?.code === 131047 || rawErrorMsg.includes('24 hours') || rawErrorMsg.includes('Re-engagement')) {
+          throw new Error('24-Hour Window Expired: The recipient has not sent a message in the last 24 hours. Send a template message to re-engage with this user.');
+        }
+        if (data?.error?.code === 131026) {
+          throw new Error('Message Undeliverable: This phone number cannot receive WhatsApp messages.');
+        }
+        throw new Error(rawErrorMsg);
+      }, { maxRetries: 1 });
       
       recordSuccess(circuitKey);
       return result;
@@ -442,7 +454,7 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
       const msg = err instanceof Error ? err.message : String(err);
       recordFailure(circuitKey, msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
-      throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
+      throw new Error(msg.startsWith('WhatsApp sending failed') ? msg : `WhatsApp sending failed via Meta Cloud API: ${msg}`);
     }
   } else if (isCircuitOpen(circuitKey)) {
     console.warn('[WHATSAPP] Meta circuit breaker OPEN');
@@ -487,7 +499,7 @@ async function sendMetaPayload(
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ messaging_product: 'whatsapp', to, ...buildPayload(to) }),
+        body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, ...buildPayload(to) }),
         cache: 'no-store',
       });
 
@@ -503,7 +515,7 @@ async function sendMetaPayload(
       }
       console.error(`[${label}] ❌ Meta API error (${res.status}):`, JSON.stringify(data));
       throw new Error(data?.error?.message || data?.error?.error_data?.details || 'Meta API error');
-    }, { maxRetries: 2 });
+    }, { maxRetries: 1 });
 
     recordSuccess(circuitKey);
     return result;
@@ -779,6 +791,11 @@ export async function sendWhatsAppMedia(
   const to = normalizePhone(toRaw);
   const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
+  // Prevent sending to own registered WhatsApp business phone
+  if (env?.phoneNumber && to === normalizePhone(env.phoneNumber)) {
+    throw new Error('Cannot send a message to your own registered WhatsApp business number. Please select a customer conversation.');
+  }
+
   // Convert S3 URLs to publicly accessible signed URLs
   const publicMediaUrl = await getPublicMediaUrl(mediaUrl);
 
@@ -805,6 +822,7 @@ export async function sendWhatsAppMedia(
 
         const payload: any = {
           messaging_product: 'whatsapp',
+          recipient_type: 'individual',
           to,
           type: mediaTypeSlug,
           [mediaTypeSlug]: mediaObj,
@@ -840,16 +858,22 @@ export async function sendWhatsAppMedia(
           return { waMessageId, raw: { ...data, provider: 'meta' } };
         }
         
-        // Meta API returned an error — throw to trigger retry
-        const errorMsg = data?.error?.message || `Meta API error ${res.status}`;
+        // Meta API returned an error
+        const errorMsg = data?.error?.message || data?.error?.error_data?.details || `Meta API error ${res.status}`;
         console.error('[WHATSAPP] ❌ Meta Cloud API failed (Media):', JSON.stringify({
           code: data?.error?.code,
           message: errorMsg,
           type: data?.error?.type,
           url: mediaUrl,
         }));
+        if (data?.error?.code === 131047 || errorMsg.includes('24 hours') || errorMsg.includes('Re-engagement')) {
+          throw new Error('24-Hour Window Expired: The recipient has not sent a message in the last 24 hours. Send a template message to re-engage with this user.');
+        }
+        if (data?.error?.code === 131026) {
+          throw new Error('Message Undeliverable: This phone number cannot receive WhatsApp messages.');
+        }
         throw new Error(errorMsg);
-      }, { maxRetries: 2 });
+      }, { maxRetries: 1 });
 
       recordSuccess(circuitKey);
       return result;
@@ -977,6 +1001,11 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   if (!templateName) throw new Error('templateName is required');
   const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
+  // Prevent sending to own registered WhatsApp business phone
+  if (env?.phoneNumber && to === normalizePhone(env.phoneNumber)) {
+    throw new Error('Cannot send a message to your own registered WhatsApp business number. Please select a customer conversation.');
+  }
+
   // Check if Meta API is configured
   if (!env) {
     throw new Error('WhatsApp template sending failed: Meta API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
@@ -1017,6 +1046,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
 
         const payload: any = {
           messaging_product: 'whatsapp',
+          recipient_type: 'individual',
           to,
           type: 'template',
           template: {
@@ -1055,7 +1085,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
         }
         
         return { waMessageId, raw: { ...data, provider: 'meta' } };
-      }, { maxRetries: 2 });
+      }, { maxRetries: 1 });
 
       recordSuccess(circuitKey);
       return result;

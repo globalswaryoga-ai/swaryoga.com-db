@@ -1,42 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
-
-// Chatbot Config Schema (stored in settings collection)
-const ChatbotConfigSchema = new mongoose.Schema({
-  key: { type: String, default: 'chatbot_config', unique: true },
-  enabled: { type: Boolean, default: false },
-  welcomeMessage: { type: String, default: '' },
-  fallbackMessage: { type: String, default: '' },
-  keywords: [{
-    keyword: String,
-    response: String,
-    action: { type: String, enum: ['reply', 'forward_to_agent', 'send_template'], default: 'reply' },
-    templateName: String,
-  }],
-  autoReplyDelay: { type: Number, default: 2 },
-  workingHours: {
-    enabled: { type: Boolean, default: false },
-    start: { type: String, default: '09:00' },
-    end: { type: String, default: '18:00' },
-    timezone: { type: String, default: 'Asia/Kolkata' },
-    offHoursMessage: { type: String, default: '' },
-  },
-  aiEnabled: { type: Boolean, default: false },
-  aiModel: { type: String, default: 'gpt-3.5-turbo' },
-  aiSystemPrompt: { type: String, default: '' },
-  maxAiTokens: { type: Number, default: 150 },
-  updatedAt: { type: Date, default: Date.now },
-  updatedBy: { type: String },
-}, { collection: 'crm_settings' });
-
-function getChatbotConfig() {
-  return mongoose.models.ChatbotConfig || mongoose.model('ChatbotConfig', ChatbotConfigSchema);
+async function initChatbotConfigSchema() {
+  await bunnyExecute(`
+    CREATE TABLE IF NOT EXISTS crm_chatbot_config_sql (
+      config_key TEXT PRIMARY KEY,
+      data_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).catch(() => null);
 }
 
 /**
@@ -47,16 +22,19 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    
+
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded);
 
-    await connectDB();
-    const ChatbotConfig = getChatbotConfig();
+    await initChatbotConfigSchema();
 
-    const config = await ChatbotConfig.findOne({ key: 'chatbot_config', ...tf });
+    const rs = await bunnyExecute({
+      sql: `SELECT data_json FROM crm_chatbot_config_sql WHERE config_key = 'chatbot_config' LIMIT 1`,
+      args: [],
+    }).catch(() => ({ rows: [] }));
+
+    const config = rs.rows.length > 0 ? JSON.parse(String(rs.rows[0].data_json || '{}')) : null;
 
     return NextResponse.json({
       success: true,
@@ -64,10 +42,13 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Chatbot Config] GET error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get config',
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get config',
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -79,51 +60,56 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    
+
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded);
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
+    await initChatbotConfigSchema();
 
-    await connectDB();
-    const ChatbotConfig = getChatbotConfig();
-
-    const config = await ChatbotConfig.findOneAndUpdate(
-      { key: 'chatbot_config', ...tf },
-      {
-        $set: {
-          enabled: body.enabled,
-          welcomeMessage: body.welcomeMessage,
-          fallbackMessage: body.fallbackMessage,
-          keywords: body.keywords,
-          autoReplyDelay: body.autoReplyDelay,
-          workingHours: body.workingHours,
-          aiEnabled: body.aiEnabled,
-          aiModel: body.aiModel,
-          aiSystemPrompt: body.aiSystemPrompt,
-          maxAiTokens: body.maxAiTokens,
-          updatedAt: new Date(),
-          updatedBy: decoded.userId || 'admin',
-          createdByUserId: getViewerUserId(decoded),
-        },
+    const configData = {
+      key: 'chatbot_config',
+      enabled: Boolean(body.enabled),
+      welcomeMessage: body.welcomeMessage || '',
+      fallbackMessage: body.fallbackMessage || '',
+      keywords: Array.isArray(body.keywords) ? body.keywords : [],
+      autoReplyDelay: Number(body.autoReplyDelay) || 2,
+      workingHours: body.workingHours || {
+        enabled: false,
+        start: '09:00',
+        end: '18:00',
+        timezone: 'Asia/Kolkata',
+        offHoursMessage: '',
       },
-      { upsert: true, new: true }
-    );
+      aiEnabled: Boolean(body.aiEnabled),
+      aiModel: body.aiModel || 'gpt-3.5-turbo',
+      aiSystemPrompt: body.aiSystemPrompt || '',
+      maxAiTokens: Number(body.maxAiTokens) || 150,
+      updatedAt: new Date().toISOString(),
+      updatedBy: decoded.userId || decoded.username || 'admin',
+    };
 
-    console.log('[Chatbot Config] Saved by:', decoded.userId);
+    await bunnyExecute({
+      sql: `INSERT INTO crm_chatbot_config_sql (config_key, data_json, updated_at)
+            VALUES ('chatbot_config', ?, ?)
+            ON CONFLICT(config_key) DO UPDATE SET data_json=excluded.data_json, updated_at=excluded.updated_at`,
+      args: [JSON.stringify(configData), configData.updatedAt],
+    });
 
     return NextResponse.json({
       success: true,
-      message: 'Configuration saved',
-      config,
+      message: 'Chatbot configuration saved',
+      config: configData,
     });
   } catch (error) {
     console.error('[Chatbot Config] POST error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to save config',
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to save config',
+      },
+      { status: 500 }
+    );
   }
 }

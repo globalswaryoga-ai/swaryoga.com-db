@@ -15,11 +15,13 @@ import { applyQrStatusToBunny, persistQrWebhookToBunny } from '@/lib/qrBunnyWebh
 
 /** Legacy MongoDB persistence is best-effort; Bunny SQL is the QR source of truth. */
 async function legacyMongo<T>(label: string, run: () => Promise<T>, fallback: T): Promise<T> {
+  if (process.env.USE_BUNNY_DATABASE_ONLY === 'true' || process.env.DISABLE_MONGODB === 'true') {
+    return fallback;
+  }
   try {
     await connectDB();
     return await run();
   } catch (err: any) {
-    console.warn(`[QR WEBHOOK] Legacy ${label} skipped:`, err?.message || err);
     return fallback;
   }
 }

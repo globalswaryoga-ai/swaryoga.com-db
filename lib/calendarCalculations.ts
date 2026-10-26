@@ -1,111 +1,13 @@
 /**
- * Hindu Calendar Calculation Logic with Accurate Tithi & Paksha
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}  require('fs').unlinkSync('test-swar-yoga.ts');  // Clean up} finally {  execSync('npx tsx test-swar-yoga.ts', { stdio: 'inherit' });  console.log('Running Swar Yoga test...\n');try {require('fs').writeFileSync('test-swar-yoga.ts', testCode);`;});  );    p.swarYoga.recommendation.type    dominant,    'S:', p.swarYoga.sunCount,    '| M:', p.swarYoga.moonCount,    '(' + n.planet.padEnd(7) + ')',    '| N:', n.name.padEnd(18),    '| T:', t.tithi1to15.toString().padStart(2),    dateStr, '(' + dayName + ')',  console.log(    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });  const dominant = p.swarYoga.dominant === 'Moon' ? '🌙' : '☀️';    const n = calculateNakshatra(d);  const t = calculateTithiAccurate(d);  const p = calculateCompletePanchang(d);  const d = new Date(dateStr + 'T07:10:00+05:30');testDates.forEach(dateStr => {];  '2026-08-01', // Aug 1 - Dakshinayana  '2026-02-10', // Feb 10  '2026-02-05', // Feb 5 - Thursday  '2026-02-03', // Feb 3 - Tuesday  '2026-02-02', // Feb 2 - Monday    '2026-02-01', // Feb 1 - Purnima, Sundayconst testDates = [console.log('='.repeat(50));console.log('📅 TESTING MULTIPLE DATES:');console.log('\\n' + '='.repeat(50));// Test multiple datesconsole.log('  SUN energy: Surya, Mangal, Shani, Rahu');console.log('  MOON energy: Chandra, Shukra, Budh, Guru, Ketu');console.log('\\n📜 NAKSHATRA PLANET → ENERGY MAPPING:');// Nakshatra ruling planet mapping referencepanchang.swarYoga.recommendation.avoid.forEach(item => console.log('   •', item));console.log('\\n❌ AVOID:');panchang.swarYoga.recommendation.bestFor.forEach(item => console.log('   •', item));console.log('\\n✅ BEST FOR:');console.log('  Type:', panchang.swarYoga.recommendation.type);console.log('  DOMINANT:', panchang.swarYoga.dominant === 'Moon' ? '🌙 MOON (Prakruti)' : '☀️ SUN (Purusha)');console.log('  Sun factors:', panchang.swarYoga.sunCount);console.log('  Moon factors:', panchang.swarYoga.moonCount);console.log('\\n📈 RESULT:');console.log('  5. Nakshatra:', factors.nakshatra.value, '(' + factors.nakshatra.planet + ') →', factors.nakshatra.energy);console.log('  4. Day:', factors.day.value, '→', factors.day.energy);console.log('  3. Tithi:', factors.tithi.value, '→', factors.tithi.energy);console.log('  2. Paksha:', factors.paksha.value, '→', factors.paksha.energy);console.log('  1. Ayana:', factors.ayana.value, '→', factors.ayana.energy);const factors = panchang.swarYoga.factors;console.log('\\n🌙☀️ SWAR YOGA FACTORS:');console.log('  Ayana:', ayana.name);console.log('  Nakshatra:', nakshatra.name, '(Planet:', nakshatra.planet + ')');console.log('  Paksha:', tithi.paksha);console.log('  Tithi:', tithi.tithi1to15, '(' + tithi.tithiName + ')');console.log('  Day:', testDate.toLocaleDateString('en-US', { weekday: 'long' }));console.log('  Date:', testDate.toDateString());console.log('\\n📊 INPUT DATA:');const ayana = calculateAyana(testDate);const nakshatra = calculateNakshatra(testDate);const tithi = calculateTithiAccurate(testDate);const panchang = calculateCompletePanchang(testDate);// Get complete Panchangconsole.log('='.repeat(50));console.log('\\n🔮 SWAR YOGA DOMINANCE TEST - Feb 1, 2026');const testDate = new Date('2026-02-01T07:10:00+05:30');// Test date: Feb 1, 2026 (Purnima)import { calculateCompletePanchang, calculateTithiAccurate, calculateNakshatra, calculateAyana } from './lib/calendarCalculations';const testCode = `// Create a temporary TypeScript test fileconst { execSync } = require('child_process'); * Based on: github.com/Turya-Kalburgi/swar-yoga-latest
+ * Hindu Calendar & Swar Yoga Calculation Engine
  * 
- * Flow: Date → Location (Lat/Lng) → Sunrise Time → Tithi (via NOAA) → Paksha → Nadi
+ * Flow: Date → Location (Lat/Lng) → Sunrise & Sunset Times (NOAA) → Tithi (at Sunrise) → Paksha → Nadi & 5-Factor Swar Analysis
  * 
- * Uses:
- * - NOAA algorithms for sunrise calculation
- * - Improved new moon reference: January 1, 2024, 10:00 UTC
- * - For API routes: @bidyashish/panchang library for Swiss Ephemeris calculations
+ * Features:
+ * - NOAA solar algorithms with atmospheric refraction for precise Sunrise and Sunset
+ * - Meeus/Schlyter lunar perturbation series for accurate Moon-Sun elongation and Tithi
+ * - Complete Vedic Panchang: Tithi, Nakshatra, Yoga, Karana, Moon/Sun Rashi, Ayana
+ * - Swar Shastra: Active Nadi at Sunrise, 5-Factor Dominance (Prakruti/Moon vs Purusha/Sun), Sleep Guidance
  */
 
 /**
@@ -140,31 +42,50 @@ export const calculateSolarDeclination = (dayOfYear: number): number => {
 };
 
 /**
- * Calculate sunrise time using NOAA Solar Calculator algorithm
- * Includes atmospheric refraction for accurate results
- * 
- * @param date - Date to calculate sunrise for
- * @param latitude - Location latitude (in degrees)
- * @param longitude - Location longitude (in degrees, negative for West)
- * @param timezone - Timezone offset from UTC (e.g., 5.5 for IST)
- * @returns Sunrise time in HH:MM format (24-hour)
+/**
+ * Convert 24-hour time to 12-hour AM/PM format (Universal)
  */
-export const calculateSunriseTime = (
+export const formatTime12Hour = (time24: string): string => {
+  if (!time24 || !time24.includes(':')) return time24;
+  const [hoursStr, minutesStr] = time24.split(':');
+  let hours = parseInt(hoursStr, 10);
+  const minutes = parseInt(minutesStr, 10);
+  if (isNaN(hours) || isNaN(minutes)) return time24;
+  
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+
+/**
+ * Calculate complete NOAA solar ephemeris times:
+ * Sunrise, Sunset, Solar Noon, Day Length, and Brahma Muhurta
+ * Includes atmospheric refraction (zenith 90.833°)
+ */
+export const calculateSunTimes = (
   date: Date,
   latitude: number,
   longitude: number,
   timezone?: number
-): string => {
+): {
+  sunrise: string;
+  sunrise12: string;
+  sunset: string;
+  sunset12: string;
+  solarNoon: string;
+  solarNoon12: string;
+  dayLength: string;
+  dayLengthMinutes: number;
+  brahmaMuhurta: string;
+  brahmaMuhurta12: string;
+} => {
   try {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
     
-    // Calculate day of year
+    // Day of year
     const dayOfYear = Math.floor((date.getTime() - new Date(year, 0, 0).getTime()) / 86400000);
-    
-    // Use provided timezone or default to 5.5 for India
-    // Note: For India, always use 5.5 (IST = UTC+5:30)
     const tz = timezone !== undefined ? timezone : 5.5;
     
     // Julian Day calculation
@@ -181,7 +102,7 @@ export const calculateSunriseTime = (
     // Mean anomaly of sun (degrees)
     let M = (357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360;
     if (M < 0) M += 360;
-    const Mrad = M * Math.PI / 180;
+    const Mrad = (M * Math.PI) / 180;
     
     // Eccentricity of Earth's orbit
     const e = 0.016708634 - 0.000042037 * T - 0.0000001267 * T * T;
@@ -197,16 +118,16 @@ export const calculateSunriseTime = (
     
     // Obliquity of ecliptic (corrected)
     const obliq = 23.439291 - 0.0130042 * T - 0.00000016 * T * T + 0.000000504 * T * T * T;
-    const obliqRad = obliq * Math.PI / 180;
+    const obliqRad = (obliq * Math.PI) / 180;
     
     // Sun's declination
-    const sinDecl = Math.sin(obliqRad) * Math.sin(sunLong * Math.PI / 180);
+    const sinDecl = Math.sin(obliqRad) * Math.sin((sunLong * Math.PI) / 180);
     const decl = Math.asin(sinDecl);
     
     // Equation of time (minutes)
     const y = Math.tan(obliqRad / 2) ** 2;
-    const L0rad = L0 * Math.PI / 180;
-    let eot = 4 * (180 / Math.PI) * (
+    const L0rad = (L0 * Math.PI) / 180;
+    const eot = 4 * (180 / Math.PI) * (
       y * Math.sin(2 * L0rad) - 
       2 * e * Math.sin(Mrad) + 
       4 * e * y * Math.sin(Mrad) * Math.cos(2 * L0rad) -
@@ -214,68 +135,115 @@ export const calculateSunriseTime = (
       1.25 * e * e * Math.sin(2 * Mrad)
     );
     
-    // Hour angle for sunrise
-    // Zenith = 90.833° (includes atmospheric refraction of 0.833°)
-    const latRad = latitude * Math.PI / 180;
-    const zenith = 90.833 * Math.PI / 180;
+    // Hour angle for sunrise & sunset
+    // Zenith = 90.833° (standard atmospheric refraction 0.833°)
+    const latRad = (latitude * Math.PI) / 180;
+    const zenith = (90.833 * Math.PI) / 180;
     
     const cosHA = (Math.cos(zenith) / (Math.cos(latRad) * Math.cos(decl))) - 
                   Math.tan(latRad) * Math.tan(decl);
     
-    // Check for polar conditions
-    if (cosHA > 1) return '00:00'; // Polar night - no sunrise
-    if (cosHA < -1) return '23:59'; // Polar day - sun never sets
-    
-    const HA = Math.acos(cosHA) * 180 / Math.PI;
-    
-    // Sunrise time in minutes from midnight UTC
-    const sunriseUTC = 720 - 4 * (longitude + HA) - eot;
-    
-    // Convert to local time
-    const sunriseLocal = sunriseUTC + tz * 60;
-    
-    // Convert to hours and minutes
-    let hours = Math.floor(sunriseLocal / 60);
-    let minutes = Math.round(sunriseLocal % 60);
-    
-    // Handle minute overflow
-    if (minutes >= 60) {
-      minutes -= 60;
-      hours += 1;
+    let HA = 90;
+    if (cosHA > 1) {
+      HA = 0; // Polar night
+    } else if (cosHA < -1) {
+      HA = 180; // Polar day
+    } else {
+      HA = (Math.acos(cosHA) * 180) / Math.PI;
     }
     
-    // Normalize hours
-    if (hours < 0) hours += 24;
-    if (hours >= 24) hours -= 24;
+    // Minutes from midnight UTC
+    const solarNoonUTC = 720 - 4 * longitude - eot;
+    const sunriseUTC = 720 - 4 * (longitude + HA) - eot;
+    const sunsetUTC = 720 - 4 * (longitude - HA) - eot;
+    const brahmaMuhurtaUTC = sunriseUTC - 96; // 2 muhurtas (96 mins) before sunrise
     
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    const toTimeStr = (minUTC: number) => {
+      const localMin = minUTC + tz * 60;
+      let totalMinutes = Math.round(localMin);
+      let hours = Math.floor(totalMinutes / 60);
+      let mins = totalMinutes % 60;
+      if (mins < 0) {
+        mins += 60;
+        hours -= 1;
+      }
+      if (hours < 0) hours = ((hours % 24) + 24) % 24;
+      if (hours >= 24) hours = hours % 24;
+      const h24 = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      return {
+        h24,
+        h12: formatTime12Hour(h24)
+      };
+    };
+    
+    const sr = toTimeStr(sunriseUTC);
+    const ss = toTimeStr(sunsetUTC);
+    const sn = toTimeStr(solarNoonUTC);
+    const bm = toTimeStr(brahmaMuhurtaUTC);
+    
+    const dayLengthMinutes = Math.max(0, Math.round(HA * 8));
+    const dlHours = Math.floor(dayLengthMinutes / 60);
+    const dlMins = dayLengthMinutes % 60;
+    const dayLength = `${dlHours}h ${dlMins.toString().padStart(2, '0')}m`;
+    
+    return {
+      sunrise: sr.h24,
+      sunrise12: sr.h12,
+      sunset: ss.h24,
+      sunset12: ss.h12,
+      solarNoon: sn.h24,
+      solarNoon12: sn.h12,
+      dayLength,
+      dayLengthMinutes,
+      brahmaMuhurta: bm.h24,
+      brahmaMuhurta12: bm.h12,
+    };
   } catch (error) {
-    console.error('Error calculating sunrise:', error);
-    return '06:00'; // Fallback
+    console.error('Error calculating solar times:', error);
+    return {
+      sunrise: '06:00',
+      sunrise12: '06:00 AM',
+      sunset: '18:00',
+      sunset12: '06:00 PM',
+      solarNoon: '12:00',
+      solarNoon12: '12:00 PM',
+      dayLength: '12h 00m',
+      dayLengthMinutes: 720,
+      brahmaMuhurta: '04:24',
+      brahmaMuhurta12: '04:24 AM',
+    };
   }
 };
 
 /**
- * Convert 24-hour time to 12-hour AM/PM format
- * IMPORTANT: Sunrise time MUST always be AM (00:00-11:59)
- * If calculation returns PM, it indicates an error in the calculation
+ * Calculate sunrise time using NOAA Solar Calculator algorithm
+ */
+export const calculateSunriseTime = (
+  date: Date,
+  latitude: number,
+  longitude: number,
+  timezone?: number
+): string => {
+  return calculateSunTimes(date, latitude, longitude, timezone).sunrise;
+};
+
+/**
+ * Calculate sunset time using NOAA Solar Calculator algorithm
+ */
+export const calculateSunsetTime = (
+  date: Date,
+  latitude: number,
+  longitude: number,
+  timezone?: number
+): string => {
+  return calculateSunTimes(date, latitude, longitude, timezone).sunset;
+};
+
+/**
+ * Convert 24-hour time to 12-hour AM/PM format (Sunrise legacy check)
  */
 export const convertTo12Hour = (time24: string): string => {
-  const [hours, minutes] = time24.split(':').map(Number);
-  
-  // Validate: Sunrise should always be AM (0-11 hours)
-  if (hours >= 12) {
-    console.warn(`⚠️  WARNING: Sunrise calculated as ${hours}:${minutes} (PM). This is INCORRECT.`);
-    console.warn(`   Sunrise must always be AM (00:00-11:59). Check latitude/longitude/timezone.`);
-    // Force AM even if calculation is wrong
-    const correctedHour = hours === 12 ? 12 : hours - 12;
-    return `${correctedHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} AM`;
-  }
-  
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const hour12 = hours % 12 || 12;
-  
-  return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+  return formatTime12Hour(time24);
 };
 
 /**
@@ -495,6 +463,12 @@ export const calculateHinduCalendar = async (
   tithiName: string;
   sunriseTime: string;
   sunriseTime12: string;
+  sunsetTime: string;
+  sunsetTime12: string;
+  solarNoon12: string;
+  dayLength: string;
+  brahmaMuhurta: string;
+  brahmaMuhurta12: string;
   nadi: { type: 'Sun' | 'Moon'; symbol: string; name: string };
   source: 'api' | 'local';
 }> => {
@@ -506,9 +480,10 @@ export const calculateHinduCalendar = async (
   const isIndianLongitude = longitude >= 68 && longitude <= 97;
   const timezoneOffset = timezone ?? (isIndianLongitude ? 5.5 : Math.round(longitude / 15));
 
-  // Calculate sunrise time
-  const sunriseTime24 = calculateSunriseTime(date, latitude, longitude, timezoneOffset);
-  const sunriseTime12 = convertTo12Hour(sunriseTime24);
+  // Calculate full solar ephemeris
+  const sunTimes = calculateSunTimes(date, latitude, longitude, timezoneOffset);
+  const sunriseTime24 = sunTimes.sunrise;
+  const sunriseTime12 = sunTimes.sunrise12;
   
   // Create date at sunrise time for Panchang calculations (Hindu day starts at sunrise)
   // Sunrise is in local time (IST), convert to UTC for Date object
@@ -552,8 +527,56 @@ export const calculateHinduCalendar = async (
     tithiName,
     sunriseTime: sunriseTime24,
     sunriseTime12,
+    sunsetTime: sunTimes.sunset,
+    sunsetTime12: sunTimes.sunset12,
+    solarNoon12: sunTimes.solarNoon12,
+    dayLength: sunTimes.dayLength,
+    brahmaMuhurta: sunTimes.brahmaMuhurta,
+    brahmaMuhurta12: sunTimes.brahmaMuhurta12,
     nadi,
     source
+  };
+};
+
+/**
+ * Detailed Astronomical Logic and Mathematical Derivation
+ * For transparent breakdown of astronomical formulas
+ */
+export const calculateAstroLogicDetails = (
+  date: Date,
+  latitude: number,
+  longitude: number,
+  timezone: number = 5.5
+) => {
+  const sunTimes = calculateSunTimes(date, latitude, longitude, timezone);
+  const J2000 = new Date('2000-01-01T12:00:00Z');
+  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24);
+  const ayanamsha = calculateAyanamsha(date);
+  const sunSiderealLong = calculateSunLongitude(date);
+  const sunTropicalLong = (sunSiderealLong + ayanamsha) % 360;
+  const moonSiderealLong = calculateMoonLongitude(date);
+  const moonTropicalLong = (moonSiderealLong + ayanamsha) % 360;
+  
+  // Elongation: Moon sidereal - Sun sidereal
+  const elongation = ((moonSiderealLong - sunSiderealLong) % 360 + 360) % 360;
+  const tithiRaw = elongation / 12;
+  const tithiIndex = Math.floor(tithiRaw) + 1; // 1 to 30
+  const tithiPassedPercent = Math.min(100, Math.max(0, Math.round((tithiRaw - Math.floor(tithiRaw)) * 100)));
+  const tithiLeftPercent = 100 - tithiPassedPercent;
+
+  return {
+    sunTimes,
+    daysSinceJ2000: daysSinceJ2000.toFixed(2),
+    ayanamsha: `${ayanamsha.toFixed(4)}° (Lahiri Chitrapaksha)`,
+    sunTropicalLong: `${sunTropicalLong.toFixed(2)}°`,
+    sunSiderealLong: `${sunSiderealLong.toFixed(2)}°`,
+    moonTropicalLong: `${moonTropicalLong.toFixed(2)}°`,
+    moonSiderealLong: `${moonSiderealLong.toFixed(2)}°`,
+    elongation: `${elongation.toFixed(2)}°`,
+    tithiRaw: tithiRaw.toFixed(3),
+    tithiIndex,
+    tithiPassedPercent,
+    tithiLeftPercent
   };
 };
 

@@ -51,13 +51,21 @@ export default function VisitorTracker() {
       source: visitorInfo.name ? 'registered-lead' : 'organic',
     };
 
-    fetch('/api/visitors/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      // ignore tracking errors silently
-    });
+    const sendTrack = () => {
+      fetch('/api/visitors/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {
+        // ignore tracking errors silently
+      });
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(sendTrack, { timeout: 3000 });
+    } else {
+      setTimeout(sendTrack, 1500);
+    }
   }, [pathname]);
 
   return null;

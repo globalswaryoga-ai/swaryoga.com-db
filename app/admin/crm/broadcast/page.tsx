@@ -397,7 +397,7 @@ export default function BroadcastPage(props: any) {
   const [showRecentRuns, setShowRecentRuns] = useState(false);
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showLeadsList, setShowLeadsList] = useState(false);
+  const [showLeadsList, setShowLeadsList] = useState(true);
   const [filterLanguage, setFilterLanguage] = useState('all');
   
   // Bulk Messaging State

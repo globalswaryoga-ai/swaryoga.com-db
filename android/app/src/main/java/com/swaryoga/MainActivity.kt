@@ -53,6 +53,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Ensure status bar is deep Swar green with white icons
+        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.primary_dark)
+        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
+
         tokenManager = TokenManager(this)
         webView = findViewById(R.id.webview)
         progressBar = findViewById(R.id.progressBar)
@@ -76,6 +80,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // setupBottomNavigation() is removed so only the new unified HTML bottom bar is used
+
+        // Handle physical and gesture back button navigation
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         // Setup retry button
         findViewById<TextView>(R.id.btnRetry)?.setOnClickListener {
             if (isNetworkAvailable()) {
@@ -84,6 +102,13 @@ class MainActivity : AppCompatActivity() {
                 loadWebsite()
             }
         }
+    }
+
+    /**
+     * Old native bottom navigation removed - WebView now uses the new unified bottom bar
+     */
+    private fun setupBottomNavigation() {
+        // No-op: Native bottom navigation removed to prevent duplicate buttons
     }
 
     /**

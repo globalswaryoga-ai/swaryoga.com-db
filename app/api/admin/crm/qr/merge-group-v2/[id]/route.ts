@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
-import { ObjectId } from 'mongodb';
 import { formatMergeGroupV2Progress } from '@/lib/safeGroupMergeV2';
+import {
+  getMergeJobByIdBunny,
+  updateMergeJobBunny,
+} from '@/lib/bunnyGroupMergeRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET: Get merge operation details
+ * GET: Get merge operation details from Bunny Database
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verify JWT
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 });
@@ -27,17 +27,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = decoded.userId as string;
-
-    await connectDB();
-
-    const db = mongoose.connection.db!;
-    const collection = db.collection('merge_group_v2_queue');
-
-    const operation = await collection.findOne({
-      _id: new ObjectId(params.id) as any,
-      userId,
-    });
+    const operation = await getMergeJobByIdBunny(params.id);
 
     if (!operation) {
       return NextResponse.json(
@@ -46,12 +36,16 @@ export async function GET(
       );
     }
 
+    if (operation.userId !== decoded.userId && !decoded.isAdmin) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const progress = formatMergeGroupV2Progress(operation as any);
 
     return NextResponse.json({
       success: true,
       operation: {
-        id: operation._id.toString(),
+        id: operation._id || operation.id,
         targetGroupId: operation.targetGroupId,
         totalParticipants: operation.totalOperations,
         ...progress,
@@ -71,14 +65,13 @@ export async function GET(
 }
 
 /**
- * DELETE: Cancel merge operation
+ * DELETE: Cancel merge operation in Bunny Database
  */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verify JWT
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 });
@@ -90,23 +83,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = decoded.userId as string;
-
-    await connectDB();
-
-    const db = mongoose.connection.db!;
-    const collection = db.collection('merge_group_v2_queue');
-
-    const operation = await collection.findOne({
-      _id: new ObjectId(params.id) as any,
-      userId,
-    });
+    const operation = await getMergeJobByIdBunny(params.id);
 
     if (!operation) {
       return NextResponse.json(
         { error: 'Operation not found' },
         { status: 404 }
       );
+    }
+
+    if (operation.userId !== decoded.userId && !decoded.isAdmin) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     if (operation.status === 'completed') {
@@ -116,16 +103,7 @@ export async function DELETE(
       );
     }
 
-    // Mark as cancelled
-    await collection.updateOne(
-      { _id: new ObjectId(params.id) as any },
-      {
-        $set: {
-          status: 'cancelled',
-          updatedAt: new Date(),
-        },
-      }
-    );
+    await updateMergeJobBunny(params.id, { status: 'cancelled' });
 
     return NextResponse.json({
       success: true,

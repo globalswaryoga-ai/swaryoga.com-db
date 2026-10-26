@@ -1,15 +1,14 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, parsePagination } from '@/lib/crm-handlers';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
-
 /**
- * Super Admin Payments API
- * GET: List all orders/payments with filters
+ * Super Admin Payments API using Bunny Database
+ * GET: List all orders/payments from orders_sql
  */
 export async function GET(request: NextRequest) {
   try {
@@ -19,88 +18,64 @@ export async function GET(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    await connectDB();
-
-    const { default: mongoose } = await import('mongoose');
-    const db = mongoose.connection.db;
-    if (!db) return apiError('SERVER_ERROR', 'Database not connected');
-
-    const ordersCol = db.collection('orders');
-
     const url = new URL(request.url);
     const { limit, skip } = parsePagination(request);
     const status = url.searchParams.get('status') || '';
-    const search = url.searchParams.get('search') || '';
-    const startDate = url.searchParams.get('startDate');
-    const endDate = url.searchParams.get('endDate');
-    const paymentMethod = url.searchParams.get('paymentMethod') || '';
-    const sortBy = url.searchParams.get('sortBy') || 'createdAt';
-    const sortOrder = url.searchParams.get('sortOrder') === 'asc' ? 1 : -1;
+    const search = (url.searchParams.get('search') || '').trim().toLowerCase();
 
-    const filter: any = {};
+    const res = await bunnyExecute(
+      `SELECT * FROM orders_sql ORDER BY created_at DESC LIMIT 1000`
+    ).catch(() => ({ rows: [] }));
 
-    if (status) filter.paymentStatus = status;
-    if (paymentMethod) filter.paymentMethod = paymentMethod;
+    let orders = res.rows.map((row: any) => {
+      let data: any = {};
+      try { data = JSON.parse(String(row.data_json || '{}')); } catch {}
+      return {
+        _id: row.document_id,
+        id: row.document_id,
+        userId: row.user_id || data.userId || '',
+        total: Number(row.total || data.total || 0),
+        currency: row.currency || data.currency || 'INR',
+        paymentStatus: row.payment_status || data.paymentStatus || 'pending',
+        paymentMethod: data.paymentMethod || 'online',
+        items: data.items || [],
+        createdAt: row.created_at || data.createdAt,
+        updatedAt: row.updated_at || data.updatedAt,
+      };
+    });
+
+    if (status) {
+      orders = orders.filter(o => o.paymentStatus.toLowerCase() === status.toLowerCase());
+    }
 
     if (search) {
-      filter.$or = [
-        { userId: { $regex: search, $options: 'i' } },
-        { 'items.name': { $regex: search, $options: 'i' } },
-        { payuTxnId: { $regex: search, $options: 'i' } },
-        { cashfreeOrderId: { $regex: search, $options: 'i' } },
-        { transactionId: { $regex: search, $options: 'i' } },
-      ];
+      orders = orders.filter(o =>
+        o.userId.toLowerCase().includes(search) ||
+        o.id.toLowerCase().includes(search)
+      );
     }
 
-    if (startDate || endDate) {
-      filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
-      if (endDate) filter.createdAt.$lte = new Date(endDate);
-    }
+    const total = orders.length;
+    const paginated = orders.slice(skip, skip + limit);
 
-    const sortObj: any = {};
-    sortObj[sortBy] = sortOrder;
-
-    const [orders, total] = await Promise.all([
-      ordersCol.find(filter).sort(sortObj).skip(skip).limit(limit).toArray(),
-      ordersCol.countDocuments(filter),
-    ]);
-
-    // Revenue summary for current filter
-    const summaryAgg = await ordersCol.aggregate([
-      { $match: { ...filter, paymentStatus: 'completed' } },
-      {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: '$total' },
-          count: { $sum: 1 },
-          avgOrderValue: { $avg: '$total' },
-        },
-      },
-    ]).toArray();
-
-    // Status breakdown
-    const statusBreakdown = await ordersCol.aggregate([
-      { $match: filter.createdAt ? { createdAt: filter.createdAt } : {} },
-      { $group: { _id: '$paymentStatus', count: { $sum: 1 }, total: { $sum: '$total' } } },
-    ]).toArray();
+    const completed = orders.filter(o => o.paymentStatus === 'completed' || o.paymentStatus === 'PAID');
+    const totalRevenue = completed.reduce((sum, o) => sum + (o.total || 0), 0);
 
     return apiSuccess({
-      orders,
+      orders: paginated,
       total,
       limit,
       skip,
       hasMore: skip + limit < total,
       summary: {
-        totalRevenue: summaryAgg[0]?.totalRevenue || 0,
-        completedCount: summaryAgg[0]?.count || 0,
-        avgOrderValue: summaryAgg[0]?.avgOrderValue || 0,
+        totalRevenue,
+        completedCount: completed.length,
+        avgOrderValue: completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0,
       },
-      statusBreakdown: statusBreakdown.map((s: any) => ({
-        status: s._id || 'unknown',
-        count: s.count,
-        total: s.total,
-      })),
+      statusBreakdown: [
+        { status: 'completed', count: completed.length, total: totalRevenue },
+        { status: 'pending', count: orders.length - completed.length, total: 0 },
+      ],
     });
   } catch (err: any) {
     console.error('[super-admin/payments] Error:', err);

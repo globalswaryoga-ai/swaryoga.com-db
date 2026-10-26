@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { formatPersonName } from '@/lib/formatName';
-import mongoose from 'mongoose';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { createBunnySale } from '@/lib/bunnySalesRepository';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,9 +25,6 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) throw new Error('Unauthorized');
     if (!isSuperAdmin(decoded)) throw new Error('Forbidden');
 
-    await connectDB();
-    const crmDb = mongoose.connection.useDb('swaryoga_admin_crm', { useCache: true });
-
     const body: GenerateRequest = await request.json();
     const { startMonth, endMonth, workshops } = body;
 
@@ -35,33 +32,26 @@ export async function POST(request: NextRequest) {
       throw new Error('Missing required fields: startMonth, endMonth, workshops');
     }
 
-    // Parse months to get date range
     const [startYear, startMonthNum] = startMonth.split('-').map(Number);
     const [endYear, endMonthNum] = endMonth.split('-').map(Number);
 
-    const leadCollection = crmDb.collection('leads');
-    const saleCollection = crmDb.collection('sales_reports');
-
+    const allLeads = await loadBunnyLeads();
     const createdSales = [];
 
     for (const workshop of workshops) {
-      // Find enrolled leads for this workshop
-      const leads = await leadCollection
-        .find({
-          $or: [
-            { workshopName: workshop.workshopName },
-            { 'workshops': workshop.workshopName },
-            { 'sales.stage': 'enrolled', workshopName: new RegExp(workshop.workshopName, 'i') },
-          ],
-          status: { $in: ['enrolled', 'repeater', 'completed'] },
-        })
-        .toArray();
+      const workshopLower = workshop.workshopName.toLowerCase();
+      const leads = allLeads.filter(lead => {
+        const leadWorkshop = String(lead.workshopName || '').toLowerCase();
+        const leadWorkshops = Array.isArray(lead.workshops) ? lead.workshops.map((w: any) => String(w).toLowerCase()) : [];
+        const matchesWorkshop = leadWorkshop === workshopLower || leadWorkshops.includes(workshopLower);
+        const matchesStatus = ['enrolled', 'repeater', 'completed'].includes(lead.status) || lead.sales?.stage === 'enrolled';
+        return matchesWorkshop && matchesStatus;
+      });
 
       if (leads.length === 0) continue;
 
-      // Calculate number of people per month to hit income target
       const monthCount = (endYear - startYear) * 12 + (endMonthNum - startMonthNum) + 1;
-      const peoplePerMonth = Math.ceil(leads.length / monthCount);
+      const peoplePerMonth = Math.ceil(leads.length / Math.max(1, monthCount));
       const actualFee = workshop.feePerPerson;
 
       let leadIndex = 0;
@@ -85,25 +75,17 @@ export async function POST(request: NextRequest) {
             saleAmount: actualFee,
             paidAmount: actualFee,
             dueAmount: 0,
-            saleDate: saleDate,
+            saleDate: saleDate.toISOString(),
             paymentType: 'full',
             paymentMode: 'bank_transfer',
             status: 'completed',
             labels: ['generated-from-leads'],
             reportedByUserId: 'admincrm',
-            targetAchieved: false,
-            superAdminApproved: false,
-            conversionPath: [],
             currency: 'INR',
-            createdAt: new Date(),
-            updatedAt: new Date(),
           };
 
-          const result = await saleCollection.insertOne(saleRecord);
-          createdSales.push({
-            ...saleRecord,
-            _id: result.insertedId,
-          });
+          const created = await createBunnySale(saleRecord);
+          createdSales.push(created);
         }
       }
     }

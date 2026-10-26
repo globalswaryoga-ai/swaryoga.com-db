@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3, Award, Check, Link as LinkIcon, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3, Award, Check, Link as LinkIcon, ArrowUp, ArrowDown, Loader2, Sparkles } from 'lucide-react';
 
 // All 19 language options
 const languageOptions = [
@@ -389,12 +389,20 @@ export default function ELearningPage() {
               </button>
             )}
             <Link
-              href="/admin/crm/e-learning/rag-video"
-              className="flex items-center gap-2 px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
-              title="YouTube to AI clone video pipeline"
+              href="/admin/crm/e-learning/recorder"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-purple-600/20"
+              title="Record 1080p video or studio voice samples directly on mobile or web"
             >
-              <GraduationCap size={18} />
-              RAG and Video
+              <Video size={18} />
+              Live Studio
+            </Link>
+            <Link
+              href="/admin/crm/e-learning/rag-video"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-purple-900/30 ring-1 ring-purple-400/30"
+              title="Mohan Sir AI Studio: RAG, Avatar Presets, Multi-Language Dubbing & E-Books"
+            >
+              <Sparkles size={18} className="text-purple-300" />
+              <span>RAG & Video Studio</span>
             </Link>
             <Link
               href="/admin/crm/e-learning/dashboard"

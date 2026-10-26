@@ -62,11 +62,16 @@ const HomePage = () => {
       {/* Hero Section */}
       <section className="relative h-[50vh] sm:h-[60vh] lg:h-[70vh] flex items-center">
         <div className="absolute inset-0 z-0">
-          <img
-            src="https://images.pexels.com/photos/1051838/pexels-photo-1051838.jpeg"
-            alt="Peaceful nature yoga setting"
-            className="w-full h-full object-cover"
-          />
+          <picture>
+            <source srcSet="/images/hero-yoga.webp" type="image/webp" />
+            <img
+              src="/images/hero-yoga.jpg"
+              alt="Peaceful nature yoga setting"
+              className="w-full h-full object-cover"
+              loading="eager"
+              fetchPriority="high"
+            />
+          </picture>
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40" />
         </div>
         
@@ -137,6 +142,8 @@ const HomePage = () => {
                   src="https://i.postimg.cc/J4zrWKT7/temp-Image6-FKl-H4.avif"
                   alt="Swar Yoga practice and meditation"
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
               </div>
               <div className="absolute -bottom-6 -left-6 bg-swar-accent text-white p-4 sm:p-6 rounded-lg shadow-lg hidden lg:block">
@@ -167,6 +174,8 @@ const HomePage = () => {
                 src="https://i.postimg.cc/kGRQhYJg/tempImageai7DlM.avif"
                 alt="Swar Yoga Workshops - Ancient Science of Brain Breathing"
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
               <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 text-white">
@@ -278,21 +287,29 @@ const HomePage = () => {
                 src="https://i.postimg.cc/vZ4BFXPF/temp-Image-IIb-JFp.avif"
                 alt="Resort exterior and natural surroundings"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
+                loading="lazy"
+                decoding="async"
               />
               <img
                 src="https://i.postimg.cc/MKmQ9snW/aaa-candal.avif"
                 alt="Yoga studio and meditation spaces"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                loading="lazy"
+                decoding="async"
               />
               <img
                 src="https://i.postimg.cc/5NTZkmTR/temp-Image-Gmbma-U.avif"
                 alt="Resort amenities and wellness facilities"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
+                loading="lazy"
+                decoding="async"
               />
               <img
                 src="https://i.postimg.cc/hGJyQCn0/tempImageCNl8Fp.avif"
                 alt="Dining area and organic cuisine"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                loading="lazy"
+                decoding="async"
               />
             </div>
           </div>

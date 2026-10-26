@@ -6,26 +6,32 @@ import { useEffect, useState } from 'react';
 
 export default function WhatsAppWidget() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [isCrmDomain, setIsCrmDomain] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     if (typeof window !== 'undefined') {
       setIsCrmDomain(window.location.hostname.startsWith('crm.'));
     }
   }, []);
 
-  // Hide on admin/CRM routes, CRM domain, workshops, e-learning courses/video players, sadhana, and mobile-chat
+  const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '');
+
+  // Hide on admin/CRM routes, CRM domain, workshops, e-learning courses/video players, sadhana, mobile-chat, and community
   if (
+    !mounted ||
     isCrmDomain ||
-    pathname?.startsWith('/admin') ||
-    pathname?.startsWith('/super-admin') ||
-    pathname?.startsWith('/e-learning') ||
-    pathname?.startsWith('/workshop') ||
-    pathname?.startsWith('/workshops') ||
-    pathname?.startsWith('/sadhana') ||
-    pathname?.startsWith('/mobile-chat') ||
-    pathname?.includes('/learn') ||
-    pathname?.includes('/videos')
+    currentPath?.startsWith('/admin') ||
+    currentPath?.startsWith('/super-admin') ||
+    currentPath?.includes('community') ||
+    currentPath?.startsWith('/e-learning') ||
+    currentPath?.startsWith('/workshop') ||
+    currentPath?.startsWith('/workshops') ||
+    currentPath?.startsWith('/sadhana') ||
+    currentPath?.startsWith('/mobile-chat') ||
+    currentPath?.includes('/learn') ||
+    currentPath?.includes('/videos')
   ) {
     return null;
   }
@@ -38,7 +44,7 @@ export default function WhatsAppWidget() {
       href={whatsappUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed right-6 bottom-6 z-40 flex items-center justify-center w-14 h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 group"
+      className="fixed right-4 sm:right-6 bottom-[calc(max(env(safe-area-inset-bottom,0px),0px)+72px)] sm:bottom-6 z-40 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 group select-none"
       aria-label="Contact us on WhatsApp"
       title="Chat with us on WhatsApp"
     >

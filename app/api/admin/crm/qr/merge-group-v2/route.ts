@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
 import {
   createMergeGroupV2Entry,
@@ -8,16 +6,18 @@ import {
   validateGroupOperationCompliance,
   randomizeParticipantOrder,
 } from '@/lib/safeGroupMergeV2';
+import {
+  createMergeJobBunny,
+  listMergeJobsBunny,
+} from '@/lib/bunnyGroupMergeRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * POST: Create new merge group operation
- * Add 60 participants in hour 1, remove in hour 2
+ * POST: Create new merge group operation in Bunny Database
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify JWT
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 });
@@ -29,14 +29,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = decoded.userId as string;
-
-    await connectDB();
+    const userId = (decoded.userId || decoded.username || 'admincrm') as string;
 
     const body = await req.json();
     const { sessionKey, targetGroupId, participantIds, operationType } = body;
 
-    // Validate input
     if (!sessionKey || !targetGroupId || !participantIds || !operationType) {
       return NextResponse.json(
         { error: 'Missing required fields: sessionKey, targetGroupId, participantIds, operationType' },
@@ -51,9 +48,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Removing people from a merged group (and the auto-delete-when-empty
-    // behavior that follows) is admin-only — team/non-admin logins must not
-    // be able to shrink or disband a group.
     if (operationType === 'remove' && !decoded.isAdmin) {
       return NextResponse.json(
         { error: 'Only an admin can remove participants from a merged group' },
@@ -68,7 +62,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate compliance (~15 ops/hr, spread over calculated hours)
     const spreadHours = Math.max(1, Math.ceil(participantIds.length / 15));
     const compliance = validateGroupOperationCompliance(participantIds.length, spreadHours);
     if (!compliance.valid) {
@@ -82,13 +75,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate gaps to show user
     const gaps = calculateGroupOperationGaps(participantIds.length);
-
-    // Randomize participant order (human-like)
     const randomizedParticipants = randomizeParticipantOrder(participantIds);
 
-    // Create entry
     const entry = createMergeGroupV2Entry(
       userId,
       sessionKey,
@@ -97,18 +86,11 @@ export async function POST(req: NextRequest) {
       operationType as 'add' | 'remove'
     );
 
-    // Store in MongoDB
-    const db = mongoose.connection.db!;
-    const collection = db.collection('merge_group_v2_queue');
-
-    const result = await collection.insertOne({
-      ...entry,
-      _id: undefined,
-    });
+    const jobId = await createMergeJobBunny(entry);
 
     return NextResponse.json({
       success: true,
-      jobId: result.insertedId.toString(),
+      jobId,
       operation: operationType,
       totalParticipants: participantIds.length,
       estimatedDuration: gaps.totalMinutes,
@@ -130,11 +112,10 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * GET: List all merge group operations for user
+ * GET: List all merge group operations for user from Bunny Database
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify JWT
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 });
@@ -146,32 +127,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = decoded.userId as string;
-
-    await connectDB();
-
-    const db = mongoose.connection.db!;
-    const collection = db.collection('merge_group_v2_queue');
-
-    const operations = await collection
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const userId = decoded.isAdmin ? undefined : (decoded.userId as string);
+    const operations = await listMergeJobsBunny(userId);
 
     return NextResponse.json({
       success: true,
       count: operations.length,
       operations: operations.map((op) => ({
-        id: op._id.toString(),
+        id: op._id || op.id,
         operationType: op.operationType,
         status: op.status,
         targetGroupId: op.targetGroupId,
         totalParticipants: op.totalOperations,
-        completed: op.completedOperations,
-        failed: op.failedOperations,
+        completed: op.completedOperations || 0,
+        failed: op.failedOperations || 0,
         successRate:
-          op.completedOperations + op.failedOperations > 0
-            ? Math.round((op.completedOperations / (op.completedOperations + op.failedOperations)) * 100)
+          (op.completedOperations || 0) + (op.failedOperations || 0) > 0
+            ? Math.round(((op.completedOperations || 0) / ((op.completedOperations || 0) + (op.failedOperations || 0))) * 100)
             : 0,
         groupDeleted: !!op.groupDeleted,
         createdAt: op.createdAt,

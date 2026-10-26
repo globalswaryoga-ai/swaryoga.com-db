@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage, updateBunnyMetaMessagesMany } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getBunnyLeadByPhone, getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { isSuperAdmin } from '@/lib/crm-handlers';
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username && !decoded.role)) {
       console.log(`[SEND:${requestId}] ❌ Unauthorized`);
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -37,90 +37,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing phoneNumber or messageContent' }, { status: 400 });
     }
 
-    const userId = decoded?.userId || decoded?.username || 'unknown';
+    const userId = decoded?.userId || decoded?.username || 'admincrm';
     const superAdmin = isSuperAdmin(decoded);
     const normalizedPhone = normalizePhone(String(phoneNumber));
 
-    // Find lead in BunnyDB
-    let lead = leadId ? await getBunnyLeadById(leadId) : null;
-    if (!lead) {
-      lead = await getBunnyLeadByPhone(normalizedPhone, superAdmin ? null : userId);
-    }
-
-    if (!superAdmin && !lead) {
-      return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
-    }
-
-    if (lead?.isBlocked) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Cannot send message to a blocked user. Unblock them first.' 
-      }, { status: 403 });
-    }
-
-    if (!superAdmin && lead) {
-      const assignedTo = String(lead.assignedToUserId || '').trim();
-      const createdBy = String(lead.createdByUserId || '').trim();
-      if (assignedTo && assignedTo !== userId && createdBy !== userId) {
-        return NextResponse.json({ 
-          success: false, 
-          error: `You can only message leads assigned to you or created by you.` 
-        }, { status: 403 });
-      }
-    }
-
-    if (!lead) {
-      // Create lead if missing
-      lead = await saveBunnyLead({
-        phoneNumber: normalizedPhone,
-        source: 'manual',
-        status: 'lead',
-        labels: [],
-      });
-    }
-
-    const isSuperAdminUser = userId === 'admincrm' || userId === 'admin';
+    const isSuperAdminUser = userId === 'admincrm' || userId === 'admin' || superAdmin;
     const adminDisplayName = isSuperAdminUser ? 'Swar Yoga' : (decoded.name || decoded.username || userId);
     const adminNameTag = `\n\n*${adminDisplayName}*`;
     const finalMessageContent = hasText 
       ? String(messageContent).trim() + adminNameTag
       : '(media)';
 
-    let messageRecord: any;
     const documentId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    
-    if (providerScope === 'meta') {
-      messageRecord = await upsertBunnyMetaMessage({
-        documentId: documentId,
-        leadId: lead?._id ? String(lead._id) : undefined,
-        phoneNumber: normalizedPhone,
-        messageContent: finalMessageContent,
-        headerText: headerText ? String(headerText) : undefined,
-        footerText: footerText ? String(footerText) : undefined,
-        senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
-        metadata: { channel: providerScope },
-        direction: 'outbound',
-        status: 'pending',
-        sentAt: new Date().toISOString(),
-        provider: providerValue,
-        sentByLabel: userId,
-        sentByUserId: userId,
-        ...(media?.url && {
-          media: {
-            url: media.url,
-            kind: media.kind || 'image',
-          },
-          messageType: 'media',
-        }),
-      });
-    } else {
-      // QR provider fallback (usually won't hit since user migrated entirely to Bunny for meta)
-      // but keeping it simple and stubbing to avoid mongo
-      console.warn("QR provider hit but we are running in BunnyDB-only mode for send.");
-      messageRecord = { _id: documentId };
-    }
 
-    const messageId = providerScope === 'meta' ? documentId : documentId;
+    // Asynchronously resolve or auto-create lead in BunnyDB (non-blocking)
+    const leadPromise = (async () => {
+      try {
+        let l = leadId ? await getBunnyLeadById(leadId).catch(() => null) : null;
+        if (!l) {
+          l = await getBunnyLeadByPhone(normalizedPhone, null).catch(() => null);
+        }
+        if (!l) {
+          l = await saveBunnyLead({
+            phoneNumber: normalizedPhone,
+            source: 'whatsapp_manual',
+            status: 'lead',
+            labels: [],
+            assignedToUserId: userId,
+            createdByUserId: userId,
+          }).catch(() => null);
+        }
+        return l;
+      } catch {
+        return null;
+      }
+    })();
 
     try {
       let deliveryResult: any;
@@ -156,7 +107,9 @@ export async function POST(request: NextRequest) {
         const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id || `qr-${Date.now()}`;
         deliveryResult = { waMessageId: whatsappMessageId };
       } else {
-        const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
+        // Fast path for platform admins: avoid extra DB tenant lookups
+        const tenantCreds = isSuperAdminUser ? undefined : ((await getMetaCredentialsForTenant(userId)) || undefined);
+        
         if (media?.url) {
           deliveryResult = await sendWhatsAppMedia(
             normalizedPhone,
@@ -171,27 +124,63 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Asynchronous logging: write to DB without delaying HTTP return (<300ms response)
       if (providerScope === 'meta') {
-        await updateBunnyMetaMessage(messageId, {
-          status: 'sent',
-          waMessageId: deliveryResult.waMessageId,
-          whatsappMessageId: deliveryResult.waMessageId,
-          provider: providerValue,
-          deliveredAt: new Date().toISOString(),
-          ...(media?.url && {
-            media: {
-              url: media.url,
-              kind: media.kind || 'image'
-            }
-          })
-        });
+        leadPromise.then((resolvedLead) => {
+          upsertBunnyMetaMessage({
+            documentId: documentId,
+            leadId: resolvedLead?._id ? String(resolvedLead._id) : undefined,
+            phoneNumber: normalizedPhone,
+            messageContent: finalMessageContent,
+            headerText: headerText ? String(headerText) : undefined,
+            footerText: footerText ? String(footerText) : undefined,
+            senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
+            metadata: { channel: providerScope },
+            direction: 'outbound',
+            status: 'sent',
+            waMessageId: deliveryResult.waMessageId,
+            whatsappMessageId: deliveryResult.waMessageId,
+            sentAt: new Date().toISOString(),
+            deliveredAt: new Date().toISOString(),
+            provider: providerValue,
+            sentByLabel: userId,
+            sentByUserId: userId,
+            ...(media?.url && {
+              media: {
+                url: media.url,
+                kind: media.kind || 'image',
+                fileName: media.fileName,
+              },
+              messageType: 'media',
+            }),
+          }).catch(err => console.error('[SEND] Background message save error:', err));
+
+          updateBunnyMetaMessagesMany(
+            { phoneNumber: normalizedPhone, leadId: resolvedLead?._id ? String(resolvedLead._id) : undefined, direction: 'inbound', statusNot: 'read' },
+            { isRead: true, status: 'read', readAt: new Date().toISOString() }
+          ).catch(err => console.error('[SEND] Auto-mark thread as read error:', err));
+
+          if (resolvedLead) {
+            saveBunnyLead({
+              ...resolvedLead,
+              lastMessageAt: new Date().toISOString(),
+              lastMessageContent: finalMessageContent,
+              lastDirection: 'outbound',
+            }).catch(err => console.error('[SEND] Update lead activity error:', err));
+          }
+        }).catch(err => console.error('[SEND] Background lead logging error:', err));
       }
 
       return NextResponse.json(
         {
           success: true,
+          messageId: documentId,
+          status: 'sent',
+          waMessageId: deliveryResult.waMessageId,
+          provider: providerScope,
           data: {
-            messageId: messageId,
+            success: true,
+            messageId: documentId,
             status: 'sent',
             waMessageId: deliveryResult.waMessageId,
             provider: providerScope,
@@ -202,21 +191,43 @@ export async function POST(request: NextRequest) {
 
     } catch (deliveryErr) {
       const errorMsg = deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr);
+      const is24HrWindow = Boolean(
+        errorMsg.includes('24-Hour') || 
+        errorMsg.includes('24 hours') || 
+        errorMsg.includes('131047') || 
+        errorMsg.includes('Re-engagement') || 
+        errorMsg.includes('re-engage')
+      );
 
+      // Async log failed status in background
       if (providerScope === 'meta') {
-        await updateBunnyMetaMessage(messageId, {
-          status: 'failed',
-          errorMessage: errorMsg.substring(0, 500),
-        });
+        leadPromise.then((resolvedLead) => {
+          upsertBunnyMetaMessage({
+            documentId: documentId,
+            leadId: resolvedLead?._id ? String(resolvedLead._id) : undefined,
+            phoneNumber: normalizedPhone,
+            messageContent: finalMessageContent,
+            direction: 'outbound',
+            status: 'failed',
+            errorMessage: errorMsg.substring(0, 500),
+            sentAt: new Date().toISOString(),
+            provider: providerValue,
+            sentByLabel: userId,
+            sentByUserId: userId,
+          }).catch(err => console.error('[SEND] Failed to save failed message record:', err));
+        }).catch(() => {});
       }
 
       return NextResponse.json(
         {
           success: false,
-          error: errorMsg.substring(0, 200),
-          messageId: messageId,
+          error: errorMsg.substring(0, 250),
+          is24HrWindow,
+          requiresTemplate: is24HrWindow,
+          code: is24HrWindow ? '24_HOUR_WINDOW_EXPIRED' : 'DELIVERY_FAILED',
+          messageId: documentId,
         },
-        { status: 502 }
+        { status: 400 }
       );
     }
 

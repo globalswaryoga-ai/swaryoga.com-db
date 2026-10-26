@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getLead, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { formatPersonName } from '@/lib/formatName';
-import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
-import { Types } from 'mongoose';
+import { createBunnySale } from '@/lib/bunnySalesRepository';
+import { getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
-
 
 function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'cash' | 'other' {
   const s = String(raw || '').trim().toLowerCase();
@@ -21,25 +18,7 @@ function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'ca
 }
 
 /**
- * POST: Bulk-import sales from a pre-parsed JSON array (CSV upload path).
- *
- * Body: {
- *   records: Array<{
- *     customerName?: string;
- *     customerPhone?: string;
- *     customerEmail?: string;
- *     customerAddress?: string;
- *     workshopName?: string;
- *     batchDate?: string;
- *     saleAmount: number;
- *     paymentMode?: string;
- *     saleDate?: string;
- *     customerId?: string;
- *     status?: string;
- *     labels?: string[];
- *   }>;
- *   reportedByUserId?: string;
- * }
+ * POST: Bulk-import sales from a pre-parsed JSON array into Bunny Database
  */
 export async function POST(request: NextRequest) {
   try {
@@ -68,10 +47,6 @@ export async function POST(request: NextRequest) {
         ? String(reportedByParam).trim()
         : viewerUserId;
 
-    await connectDB();
-    const SalesReport = getSalesReport();
-    const Lead = getLead();
-
     const results = { imported: 0, skipped: 0, failed: 0, errors: [] as any[] };
 
     for (const rec of records) {
@@ -95,52 +70,43 @@ export async function POST(request: NextRequest) {
         const batchDate = rec.batchDate ? new Date(rec.batchDate) : undefined;
         const saleDate = rec.saleDate ? new Date(rec.saleDate) : new Date();
 
-        // Try to link to Lead by customerId (leadNumber)
-        let leadId: Types.ObjectId | undefined;
-        if (customerId) {
-          const normalizedLN = normalizeLeadNumberInput(customerId);
-          if (normalizedLN) {
-            const lead: any = await Lead.findOne({ leadNumber: normalizedLN }).select('_id').lean();
-            if (lead?._id) leadId = lead._id as any;
-          }
+        let leadId: string | undefined;
+        if (customerPhone) {
+          const matchedLead = await getBunnyLeadByPhone(customerPhone).catch(() => null);
+          if (matchedLead?._id) leadId = String(matchedLead._id);
         }
 
         const labels = Array.isArray(rec.labels) ? rec.labels.map((l: any) => String(l).trim()).filter(Boolean) : [];
 
-        await SalesReport.create({
-          ...(leadId ? { leadId } : {}),
+        await createBunnySale({
+          leadId,
           customerId: customerId || undefined,
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           customerEmail: customerEmail || undefined,
           customerAddress: customerAddress || undefined,
           workshopName: workshopName || undefined,
-          ...(batchDate && !Number.isNaN(batchDate.getTime()) ? { batchDate } : {}),
+          batchDate: batchDate ? batchDate.toISOString() : undefined,
           saleAmount,
           paymentMode,
-          saleDate,
           status,
-          ...(labels.length ? { labels } : {}),
+          saleDate: saleDate.toISOString(),
           reportedByUserId,
-          metadata: {
-            import: {
-              source: 'csv-bulk-import',
-              importedAt: new Date().toISOString(),
-            },
-          },
+          labels,
         });
 
         results.imported++;
       } catch (err) {
         results.failed++;
-        results.errors.push({
-          record: rec,
-          reason: err instanceof Error ? err.message : 'Unknown error',
-        });
+        results.errors.push({ record: rec, reason: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
 
-    return NextResponse.json({ success: true, data: results }, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      message: `Bulk import completed: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed.`,
+      results,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to bulk-import sales';
     return NextResponse.json({ error: message }, { status: 500 });

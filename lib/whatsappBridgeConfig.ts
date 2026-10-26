@@ -1,7 +1,8 @@
-const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
-const DEFAULT_BRIDGE_SECRET = 'swar-bridge-secret-2024';
+const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:3333';
+const DEFAULT_BRIDGE_SECRET = 'swar-bridge-QTTaW9Iwdpv-nKSothvjVnYPIQX81si7';
 const ACTIVE_BRIDGE_URL = 'https://wa-bridge.swaryoga.com';
 const RETIRED_BRIDGE_HOSTS = new Set([
+  '130.210.54.75',
   '43.205.230.246',
   '52.91.198.23',
   '13.62.126.213',

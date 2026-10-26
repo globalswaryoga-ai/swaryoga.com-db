@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getAiVideoJobById, updateAiVideoJob, deleteAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
-import { checkCustomVideoStatus as checkVideoStatus } from '@/lib/aiVideo/customAvatar'; // Switched from heygen.ts to customAvatar.ts
+import { checkVideoStatus as checkHeyGenStatus } from '@/lib/aiVideo/heygen';
+import { checkCustomVideoStatus } from '@/lib/aiVideo/customAvatar';
 import { uploadToBunnyStream } from '@/lib/bunny-stream';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +42,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     for (const render of newRenders) {
       if (render.status !== 'rendering' || !render.heygenVideoId) continue;
       try {
-        const heygenStatus = await checkVideoStatus(render.heygenVideoId);
+        let heygenStatus;
+        try {
+          heygenStatus = await checkHeyGenStatus(render.heygenVideoId);
+        } catch {
+          heygenStatus = await checkCustomVideoStatus(render.heygenVideoId);
+        }
         render.heygenStatus = heygenStatus.status;
         rendersChanged = true;
 

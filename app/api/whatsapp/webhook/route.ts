@@ -14,7 +14,7 @@ import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
-import { upsertBunnyMetaMessage, updateBunnyMetaMessage, updateBunnyMetaMessageByWaId } from '@/lib/bunnyMetaWhatsAppRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage, updateBunnyMetaMessageByWaId, getBunnyMetaMessageByWaId } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { META_WHATSAPP_OWNER_IDS } from '@/lib/crm-handlers';
 import { broadcastRunMessageUpdateByWaMessageId } from '@/lib/bunnyBroadcastRepository';
@@ -244,6 +244,15 @@ async function handleWebhookPayload(payload: any) {
             const msgSentAt = Number.isFinite(msgTimestampSec) ? new Date(msgTimestampSec * 1000) : now;
 
             if (!from || !body) continue;
+
+            // Deduplication: prevent Meta webhook retries from re-processing or overwriting read status
+            if (inboundWaMessageId) {
+              const existingMsg = await getBunnyMetaMessageByWaId(inboundWaMessageId);
+              if (existingMsg) {
+                console.log(`[WEBHOOK] Inbound message ${inboundWaMessageId} already received. Skipping duplicate webhook delivery.`);
+                continue;
+              }
+            }
 
             // --- Media Handling ---
             let s3MediaUrl: string | undefined = undefined;

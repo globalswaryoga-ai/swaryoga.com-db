@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionsCollection } from '@/lib/sadhanaPrograms';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 

@@ -611,7 +611,9 @@ export function InlineMediaPreview({
   
   if (mediaType === 'audio') {
     return (
-      <audio src={url} controls className={`max-w-[250px] ${className}`} />
+      <div className="py-1 px-1">
+        <audio src={url} controls className={`w-[240px] max-w-full h-9 rounded-full ${className}`} />
+      </div>
     );
   }
   

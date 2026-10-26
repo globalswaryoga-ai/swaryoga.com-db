@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { getBunnyReceiptByLeadId, createBunnyReceipt } from '@/lib/bunnyReceiptRepository';
+import { getBunnySaleById, updateBunnySale } from '@/lib/bunnySalesRepository';
 
 export const dynamic = 'force-dynamic';
 
-
 /**
  * POST /api/admin/crm/sales/tally-sync
- * Sync a sale entry to Tally Prime and optionally generate/link a receipt.
- *
- * Body: { saleId, generateReceipt?: boolean }
- *
- * Flow:
- * 1. Mark sale as tallySynced
- * 2. Create a Tally voucher entry (RECEIPT type) in tally_vouchers collection
- * 3. If generateReceipt, create a CRM receipt and link it to the sale
+ * Sync a sale entry to Tally Prime and optionally generate/link a receipt using Bunny Database
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,66 +25,71 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({} as any));
     const { saleId, generateReceipt } = body;
 
-    if (!saleId || !mongoose.Types.ObjectId.isValid(saleId)) {
+    if (!saleId) {
       return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const SalesReport = getSalesReport();
-    const sale: any = await SalesReport.findById(saleId).lean();
+    const sale = await getBunnySaleById(String(saleId));
     if (!sale) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
 
     const viewerUserId = decoded?.userId || decoded?.email || 'admin';
     const now = new Date();
+    const voucherId = `tv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const voucherNumber = `SY-REC-${Date.now()}`;
 
-    // Create tally voucher in the tally_vouchers collection
-    const db = mongoose.connection.db;
-    if (!db) throw new Error('Database not connected');
+    // Create tally voucher in Bunny Database
+    await bunnyExecute(`
+      CREATE TABLE IF NOT EXISTS tally_vouchers_sql (
+        document_id TEXT PRIMARY KEY,
+        voucher_number TEXT,
+        voucher_type TEXT,
+        party_name TEXT,
+        amount REAL,
+        data_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    `).catch(() => null);
 
     const tallyVoucher = {
+      _id: voucherId,
+      id: voucherId,
       voucherType: 'RECEIPT',
-      voucherNumber: `SY-REC-${Date.now()}`,
-      date: sale.saleDate || now,
+      voucherNumber,
+      date: sale.saleDate || now.toISOString(),
       partyName: sale.customerName || 'Unknown',
       partyPhone: sale.customerPhone || '',
       amount: sale.saleAmount || 0,
-      narration: `Workshop: ${sale.workshopName || '-'} | Payment: ${sale.paymentMode || '-'} | Sale ID: ${sale._id}`,
-      ledgerEntries: [
-        { ledgerName: sale.customerName || 'Sundry Debtors', amount: sale.saleAmount || 0, drCr: 'Dr' },
-        { ledgerName: 'Workshop Revenue', amount: sale.saleAmount || 0, drCr: 'Cr' },
-      ],
-      saleId: sale._id,
-      syncedAt: now,
+      narration: `Workshop: ${sale.workshopName || '-'} | Payment: ${sale.paymentMode || '-'} | Sale ID: ${sale._id || saleId}`,
+      saleId: sale._id || saleId,
+      syncedAt: now.toISOString(),
       syncedBy: viewerUserId,
       source: 'crm_sales',
-      createdAt: now,
+      createdAt: now.toISOString(),
     };
 
-    const voucherResult = await db.collection('tally_vouchers').insertOne(tallyVoucher);
+    await bunnyExecute({
+      sql: `INSERT INTO tally_vouchers_sql (document_id, voucher_number, voucher_type, party_name, amount, data_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [voucherId, voucherNumber, 'RECEIPT', String(sale.customerName || 'Unknown'), Number(sale.saleAmount || 0), JSON.stringify(tallyVoucher), now.toISOString()],
+    });
 
-    // Update sale with tally sync status
     const updateFields: any = {
       tallySynced: true,
-      tallySyncedAt: now,
+      tallySyncedAt: now.toISOString(),
       tallySyncedBy: viewerUserId,
-      tallyVoucherId: voucherResult.insertedId.toString(),
+      tallyVoucherId: voucherId,
       tallyError: null,
     };
 
-    // Generate receipt if requested
     let receipt = null;
     if (generateReceipt && sale.leadId) {
       try {
-        // Check for existing receipt
         const existing = await getBunnyReceiptByLeadId(sale.leadId);
         if (existing) {
           receipt = existing;
         } else {
-          // Reuse the sale's own receipt number (YYMMSWNNN, assigned at
-          // creation) instead of minting a differently-formatted one.
           const receiptNumber = sale.receiptNumber || await generateInvoiceNumber();
 
           receipt = await createBunnyReceipt({
@@ -113,7 +111,7 @@ export async function POST(request: NextRequest) {
               transactionId: sale.transactionId,
               paidAt: sale.saleDate || now,
             },
-            metadata: { tallyVoucherId: voucherResult?.insertedId?.toString() || '', source: 'tally_sync' },
+            metadata: { tallyVoucherId: voucherId, source: 'tally_sync' },
           });
         }
 
@@ -121,26 +119,19 @@ export async function POST(request: NextRequest) {
         updateFields.receiptNumber = (receipt as any).receiptNumber;
       } catch (err: any) {
         console.error('[tally-sync] Receipt generation error:', err);
-        // Continue — tally sync succeeded even if receipt failed
       }
     }
 
-    await SalesReport.updateOne({ _id: sale._id }, { $set: updateFields });
+    await updateBunnySale(String(saleId), updateFields);
 
     return NextResponse.json({
       success: true,
       message: 'Sale synced to Tally successfully',
-      tallyVoucherId: voucherResult.insertedId.toString(),
+      tallyVoucherId: voucherId,
       receipt: receipt ? { _id: (receipt as any)._id, receiptNumber: (receipt as any).receiptNumber } : null,
     });
   } catch (err: any) {
     console.error('[tally-sync] Error:', err);
-
-    // Try to update the sale with error status
-    try {
-      const body = await Promise.resolve().then(() => ({}));
-    } catch { /* ignore */ }
-
     return NextResponse.json({ error: err.message || 'Tally sync failed' }, { status: 500 });
   }
 }

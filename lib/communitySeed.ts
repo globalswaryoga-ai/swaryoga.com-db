@@ -4,6 +4,10 @@ import { initCommunitySchema } from '@/lib/bunnyCommunityRepository';
 // Names are human-friendly labels stored in the Community collection.
 export const DEFAULT_COMMUNITIES = [
   { id: 'global', name: 'Global Community' },
+  { id: 'swar-yoga-l1', name: 'Swar Yoga Level-1' },
+  { id: 'swar-yoga-l2', name: 'Swar Yoga Level-2' },
+  { id: 'swar-yoga-l3', name: 'Swar Yoga Level-3' },
+  { id: 'multi-workshop', name: 'Multi Workshop' },
   { id: 'swar-yoga', name: 'Swar Yoga' },
   { id: 'aham-bramhasmi', name: 'Aham Bramhasmi' },
   { id: 'astavakra', name: 'Astavakra' },

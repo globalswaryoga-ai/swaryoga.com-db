@@ -602,11 +602,18 @@ export default function WorkshopManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (!selected?._id) return;
-    const refreshRecordings = () => { void load(selected._id); };
-    const timer = window.setInterval(refreshRecordings, 60_000);
+    if (!selected?._id || activeTab !== 'recordings') return;
+    const refreshRecordingsOnly = async () => {
+      try {
+        const res = await fetch(`/api/admin/crm/workshop-management?cohortId=${selected._id}&only=recordings`, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.recordings) setRecordings(data.recordings);
+      } catch {}
+    };
+    const timer = window.setInterval(refreshRecordingsOnly, 60_000);
     return () => window.clearInterval(timer);
-  }, [selected?._id]);
+  }, [selected?._id, activeTab]);
 
   const addHolidayDateField = () => {
     setForm((prev) => {

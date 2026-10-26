@@ -1,9 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const BUNNY_STREAM_HOST = 'vz-d0769ece-079.b-cdn.net';
 const thumbUrlCache = new Map<string, string>();
+
+function signBunnyUrl(rawUrl: string): string {
+  const streamCdnKey = process.env.BUNNY_STREAM_CDN_KEY || '588efc37-ac6a-4044-aeb9-a27bcd1bb3a8';
+  if (!streamCdnKey || !rawUrl.includes('b-cdn.net')) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    if (u.searchParams.has('token')) return rawUrl;
+    const expiry = Math.floor(Date.now() / 1000) + 86400;
+    const path = u.pathname;
+    const hashableBase = streamCdnKey + path + expiry;
+    const token = crypto
+      .createHash('sha256')
+      .update(hashableBase)
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    u.searchParams.set('token', token);
+    u.searchParams.set('expires', String(expiry));
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
 
 async function resolveThumbnailUrl(vid: string): Promise<string | null> {
   if (thumbUrlCache.has(vid)) {
@@ -65,7 +90,8 @@ export async function GET(request: NextRequest) {
 
   for (const cdnUrl of urlsToTry) {
     try {
-      const res = await fetch(cdnUrl, {
+      const targetUrl = signBunnyUrl(cdnUrl);
+      const res = await fetch(targetUrl, {
         headers: {
           Referer: 'https://swaryoga.com',
           'User-Agent': 'Mozilla/5.0 (compatible; SwarYogaProxy/1.0)',

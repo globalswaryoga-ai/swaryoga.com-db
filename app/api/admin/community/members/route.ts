@@ -81,3 +81,29 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+// PATCH - Update member language
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { memberId, language } = await request.json();
+    if (!memberId || !language) {
+      return NextResponse.json({ error: 'memberId and language are required' }, { status: 400 });
+    }
+
+    const { updateCommunityMemberLanguage } = await import('@/lib/bunnyCommunityRepository');
+    const updated = await updateCommunityMemberLanguage(memberId, language);
+
+    return NextResponse.json({ success: true, updated }, { status: 200 });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('❌ Error updating member language:', errorMsg);
+    return NextResponse.json({ error: 'Failed to update member language' }, { status: 500 });
+  }
+}

@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
-import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
-import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { loadBunnyLeads, saveBunnyLead, invalidateBunnyLeadsCache } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Bulk operations for leads
- * POST: Bulk import leads
- * PUT: Bulk update status/labels
+ * Bulk operations for leads using Bunny Database
+ * POST: Bulk import leads, bulk update status, bulk update labels
  * DELETE: Bulk delete leads
  * GET: Export leads as CSV/JSON
  */
@@ -49,8 +45,6 @@ export async function POST(request: NextRequest) {
       const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
       const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
-      await connectDB();
-
       const results = {
         imported: 0,
         skipped: 0,
@@ -58,8 +52,6 @@ export async function POST(request: NextRequest) {
         errors: [] as any[],
       };
 
-      // Deduplicate inside the same batch to avoid E11000 duplicate key errors.
-      // (DB check alone is not enough when the file itself contains duplicates.)
       const seenPhones = new Set<string>();
 
       for (const leadData of leads) {
@@ -72,7 +64,6 @@ export async function POST(request: NextRequest) {
           }
 
           const phoneNumber = normalized.phone;
-
           if (seenPhones.has(phoneNumber)) {
             results.skipped++;
             results.errors.push({ phoneNumber, reason: 'Duplicate phone number in this import batch' });
@@ -80,16 +71,18 @@ export async function POST(request: NextRequest) {
           }
           seenPhones.add(phoneNumber);
 
-          const existing = await Lead.findOne({ phoneNumber });
-          if (existing) {
+          // Check existing in Bunny DB
+          const clean10 = phoneNumber.slice(-10);
+          const existingRes = await bunnyExecute({
+            sql: `SELECT document_id FROM leads_sql WHERE substr(COALESCE(json_extract(data_json, '$.phoneNumber'), ''), -10) = ? LIMIT 1`,
+            args: [clean10],
+          });
+          if (existingRes.rows.length > 0) {
             results.skipped++;
             continue;
           }
 
-          const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
-
-          const lead = await Lead.create({
-            leadNumber,
+          await saveBunnyLead({
             phoneNumber,
             assignedToUserId,
             createdByUserId: viewerUserId,
@@ -99,8 +92,6 @@ export async function POST(request: NextRequest) {
             labels: Array.isArray(leadData.labels) ? leadData.labels : [],
             source: leadData.source || 'import',
           });
-          // Auto-add to main broadcast list
-          await addLeadToMainBroadcastList(lead);
 
           results.imported++;
         } catch (err) {
@@ -111,6 +102,8 @@ export async function POST(request: NextRequest) {
           });
         }
       }
+
+      invalidateBunnyLeadsCache();
 
       return NextResponse.json(
         { success: true, data: results, message: `Imported ${results.imported}, skipped ${results.skipped}, failed ${results.failed}` },
@@ -127,32 +120,29 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No lead IDs provided' }, { status: 400 });
       }
 
-      if (!['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post', 'lead', 'hot', 'prospect', 'customer'].includes(newStatus)) {
-        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      let modified = 0;
+      const nowIso = new Date().toISOString();
+
+      for (const id of ids) {
+        const whereClause = superAdmin
+          ? 'document_id = ?'
+          : 'document_id = ? AND (json_extract(data_json, "$.assignedToUserId") = ? OR json_extract(data_json, "$.createdByUserId") = ?)';
+        const args = superAdmin ? [newStatus, nowIso, String(id)] : [newStatus, nowIso, String(id), viewerUserId, viewerUserId];
+
+        const res = await bunnyExecute({
+          sql: `UPDATE leads_sql SET
+            data_json = json_set(data_json, '$.status', ?),
+            updated_at = ?
+            WHERE ${whereClause}`,
+          args,
+        });
+        if (res.rowsAffected) modified += res.rowsAffected;
       }
 
-      await connectDB();
-
-      const objectIds = ids
-        .map((id: any) => {
-          try {
-            return new mongoose.Types.ObjectId(id);
-          } catch {
-            return null;
-          }
-        })
-        .filter((id: any) => id !== null);
-
-      const result = await Lead.updateMany(
-        {
-          _id: { $in: objectIds },
-          ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
-        },
-        { $set: { status: newStatus, updatedAt: new Date() } }
-      );
+      invalidateBunnyLeadsCache();
 
       return NextResponse.json(
-        { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount } },
+        { success: true, data: { modified, matched: ids.length } },
         { status: 200 }
       );
     }
@@ -161,43 +151,48 @@ export async function POST(request: NextRequest) {
     if (operation === 'updateLabels') {
       const ids = body.ids || [];
       const labels = body.labels || [];
-      const mode = body.mode || 'set'; // set, add, remove
+      const mode = body.mode || 'set';
 
       if (!Array.isArray(ids) || ids.length === 0) {
         return NextResponse.json({ error: 'No lead IDs provided' }, { status: 400 });
       }
 
-      await connectDB();
+      let modified = 0;
+      const nowIso = new Date().toISOString();
 
-      const objectIds = ids
-        .map((id: any) => {
-          try {
-            return new mongoose.Types.ObjectId(id);
-          } catch {
-            return null;
-          }
-        })
-        .filter((id: any) => id !== null);
+      for (const id of ids) {
+        const whereClause = superAdmin
+          ? 'document_id = ?'
+          : 'document_id = ? AND (json_extract(data_json, "$.assignedToUserId") = ? OR json_extract(data_json, "$.createdByUserId") = ?)';
 
-      let update = {};
-      if (mode === 'set') {
-        update = { $set: { labels, updatedAt: new Date() } };
-      } else if (mode === 'add') {
-        update = { $addToSet: { labels: { $each: labels } }, $set: { updatedAt: new Date() } };
-      } else if (mode === 'remove') {
-        update = { $pullAll: { labels }, $set: { updatedAt: new Date() } };
+        let sql = '';
+        let args: any[] = [];
+
+        if (mode === 'set') {
+          sql = `UPDATE leads_sql SET data_json = json_set(data_json, '$.labels', json(?)), updated_at = ? WHERE ${whereClause}`;
+          args = superAdmin ? [JSON.stringify(labels), nowIso, String(id)] : [JSON.stringify(labels), nowIso, String(id), viewerUserId, viewerUserId];
+        } else {
+          // Add labels
+          sql = `UPDATE leads_sql SET
+            data_json = json_set(data_json, '$.labels', (
+              SELECT json_group_array(DISTINCT value) FROM (
+                SELECT value FROM json_each(COALESCE(json_extract(data_json, '$.labels'), '[]'))
+                UNION ALL SELECT value FROM json_each(?)
+              )
+            )),
+            updated_at = ?
+            WHERE ${whereClause}`;
+          args = superAdmin ? [JSON.stringify(labels), nowIso, String(id)] : [JSON.stringify(labels), nowIso, String(id), viewerUserId, viewerUserId];
+        }
+
+        const res = await bunnyExecute({ sql, args });
+        if (res.rowsAffected) modified += res.rowsAffected;
       }
 
-      const result = await Lead.updateMany(
-        {
-          _id: { $in: objectIds },
-          ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
-        },
-        update
-      );
+      invalidateBunnyLeadsCache();
 
       return NextResponse.json(
-        { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount } },
+        { success: true, data: { modified, matched: ids.length } },
         { status: 200 }
       );
     }
@@ -233,54 +228,24 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'No lead IDs provided' }, { status: 400 });
     }
 
-    await connectDB();
+    let deleted = 0;
+    for (const id of ids) {
+      const whereClause = superAdmin
+        ? 'document_id = ?'
+        : 'document_id = ? AND (json_extract(data_json, "$.assignedToUserId") = ? OR json_extract(data_json, "$.createdByUserId") = ?)';
+      const args = superAdmin ? [String(id)] : [String(id), viewerUserId, viewerUserId];
 
-    const objectIds = ids
-      .map((id: any) => {
-        try {
-          return new mongoose.Types.ObjectId(id);
-        } catch {
-          return null;
-        }
-      })
-      .filter((id: any) => id !== null);
-
-    // Snapshot leads before deletion for the delete-record log.
-    const toDelete = await Lead.find({
-      _id: { $in: objectIds },
-      ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
-    }).lean();
-
-    if (toDelete.length > 0) {
-      const deletionDocs = toDelete.map((l: any) => ({
-        leadId: l._id,
-        leadNumber: l.leadNumber,
-        assignedToUserId: l.assignedToUserId,
-        createdByUserId: l.createdByUserId,
-        deletedByUserId: viewerUserId,
-        name: l.name,
-        phoneNumber: l.phoneNumber,
-        email: l.email,
-        workshopName: l.workshopName,
-        status: l.status,
-        labels: Array.isArray(l.labels) ? l.labels : [],
-        source: l.source,
-        createdAtOriginal: l.createdAt,
-        updatedAtOriginal: l.updatedAt,
-        deletedAt: new Date(),
-        metadata: l.metadata,
-      }));
-      // Non-fatal if logging fails.
-      await DeletedLead.insertMany(deletionDocs, { ordered: false }).catch(() => null);
+      const res = await bunnyExecute({
+        sql: `DELETE FROM leads_sql WHERE ${whereClause}`,
+        args,
+      });
+      if (res.rowsAffected) deleted += res.rowsAffected;
     }
 
-    const result = await Lead.deleteMany({
-      _id: { $in: objectIds },
-      ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
-    });
+    invalidateBunnyLeadsCache();
 
     return NextResponse.json(
-      { success: true, data: { deleted: result.deletedCount } },
+      { success: true, data: { deleted } },
       { status: 200 }
     );
   } catch (error) {
@@ -304,42 +269,34 @@ export async function GET(request: NextRequest) {
     const superAdmin = isSuperAdmin(decoded);
 
     const url = new URL(request.url);
-    const format = url.searchParams.get('format') || 'json'; // json or csv
+    const format = url.searchParams.get('format') || 'json';
     const status = url.searchParams.get('status');
-    const userIdParam = url.searchParams.get('userId');
     const limit = Math.min(Number(url.searchParams.get('limit') || 500) || 500, 10000);
 
-    await connectDB();
-
-    const filter: any = {};
-    if (superAdmin) {
-      if (userIdParam && String(userIdParam).trim()) {
-        filter.assignedToUserId = String(userIdParam).trim();
-      }
-    } else {
-      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+    let leads = await loadBunnyLeads();
+    if (!superAdmin) {
+      leads = leads.filter(l => l.assignedToUserId === viewerUserId || l.createdByUserId === viewerUserId);
     }
-    if (status) filter.status = status;
-
-    const leads = await Lead.find(filter).limit(limit).lean();
+    if (status) {
+      leads = leads.filter(l => l.status === status);
+    }
+    leads = leads.slice(0, limit);
 
     if (format === 'csv') {
-      // Convert to CSV format
       if (leads.length === 0) {
         return new NextResponse('No data', { status: 200, headers: { 'Content-Type': 'text/csv' } });
       }
 
-      const headers = ['User', 'Phone Number', 'Name', 'Email', 'Status', 'Labels', 'Source', 'Last Message', 'Created At'];
+      const headers = ['User', 'Phone Number', 'Name', 'Email', 'Status', 'Labels', 'Source', 'Created At'];
       const rows = leads.map((lead: any) => [
         lead.assignedToUserId || '',
-        lead.phoneNumber,
+        lead.phoneNumber || '',
         lead.name || '',
         lead.email || '',
-        lead.status,
+        lead.status || '',
         (lead.labels || []).join(';'),
-        lead.source,
-        lead.lastMessageAt ? new Date(lead.lastMessageAt).toISOString() : '',
-        new Date(lead.createdAt).toISOString(),
+        lead.source || '',
+        lead.createdAt ? new Date(lead.createdAt).toISOString() : '',
       ]);
 
       const csv = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -349,7 +306,6 @@ export async function GET(request: NextRequest) {
         headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="leads.csv"' },
       });
     } else {
-      // JSON format
       return NextResponse.json({ success: true, data: { leads, count: leads.length } }, { status: 200 });
     }
   } catch (error) {

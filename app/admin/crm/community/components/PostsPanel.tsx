@@ -47,7 +47,18 @@ export const PostsPanel: React.FC<PostsPanelProps> = ({
   onFetchPosts,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'experiences' | 'tips' | 'transformations' | 'questions'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<
+    | 'all'
+    | 'health'
+    | 'wealth'
+    | 'parenting'
+    | 'spiritual'
+    | 'behavioral-change'
+    | 'experiences'
+    | 'tips'
+    | 'transformations'
+    | 'questions'
+  >('all');
 
   // Memoize filtered posts
   const filteredPosts = useMemo(() => {
@@ -67,6 +78,11 @@ export const PostsPanel: React.FC<PostsPanelProps> = ({
       filtered = filtered.filter(post => {
         const postCategory = (post?.category || 'general').toLowerCase();
         return postCategory.includes(categoryFilter) ||
+               (categoryFilter === 'health' && (postCategory.includes('health') || postCategory.includes('yoga'))) ||
+               (categoryFilter === 'wealth' && (postCategory.includes('wealth') || postCategory.includes('money') || postCategory.includes('career'))) ||
+               (categoryFilter === 'parenting' && (postCategory.includes('parent') || postCategory.includes('child'))) ||
+               (categoryFilter === 'spiritual' && (postCategory.includes('spirit') || postCategory.includes('sadhana') || postCategory.includes('meditation'))) ||
+               (categoryFilter === 'behavioral-change' && (postCategory.includes('behavior') || postCategory.includes('change') || postCategory.includes('habit'))) ||
                (categoryFilter === 'tips' && postCategory.includes('tip')) ||
                (categoryFilter === 'experiences' && postCategory.includes('experience')) ||
                (categoryFilter === 'transformations' && postCategory.includes('transformation')) ||
@@ -106,6 +122,11 @@ export const PostsPanel: React.FC<PostsPanelProps> = ({
         <div className="flex flex-wrap gap-2">
           {[
             { key: 'all', label: 'All Posts', icon: '📋' },
+            { key: 'health', label: 'Health', icon: '🧘' },
+            { key: 'wealth', label: 'Wealth', icon: '💰' },
+            { key: 'parenting', label: 'Parenting', icon: '👥' },
+            { key: 'spiritual', label: 'Spiritual', icon: '🪷' },
+            { key: 'behavioral-change', label: 'Behavioral Change', icon: '💛' },
             { key: 'experiences', label: 'Experiences', icon: '✨' },
             { key: 'tips', label: 'Tips & Tricks', icon: '💡' },
             { key: 'transformations', label: 'Transformations', icon: '🦋' },
@@ -114,9 +135,9 @@ export const PostsPanel: React.FC<PostsPanelProps> = ({
             <button
               key={cat.key}
               onClick={() => setCategoryFilter(cat.key as any)}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 categoryFilter === cat.key
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >

@@ -175,9 +175,6 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Some environments hit intermittent PackFileCacheStrategy ENOENT errors.
-    // Disabling persistent filesystem cache keeps builds stable.
-    config.cache = false;
 
     // Handle swisseph native module - don't bundle it, let it load at runtime
     if (!isServer) {
@@ -222,8 +219,6 @@ const nextConfig = {
     afterFiles: [],
     fallback: [],
   }),
-  // Disable Vercel toolbar
-  productionBrowserSourceMaps: false,
   env: {
     NEXT_PUBLIC_VERCEL_URL: process.env.VERCEL_URL || '',
   },

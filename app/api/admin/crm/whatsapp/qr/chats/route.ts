@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 import { getBunnyQrChats } from '@/lib/bunnyQrWhatsAppRepository';
-import { getBunnyLeadsByPhones } from '@/lib/bunnyLeadsRepository';
+import { getBunnyLeadsByPhones, loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
@@ -343,15 +343,76 @@ export async function GET(req: NextRequest) {
     }
     }
 
-    const Lead = getLead();
+    const searchParam = (req.nextUrl.searchParams.get('q') || '').trim();
+    const qLower = searchParam.toLowerCase();
+    const qDigits = searchParam.replace(/\D/g, '');
 
-    // NOTE: A previous version of this route also merged in CRM leads whose only
-    // history was a provider:'meta' (Cloud API/Business API) WhatsAppMessage —
-    // i.e. conversations from a DIFFERENT WhatsApp channel/number entirely. That
-    // surfaced ~200+ unrelated chats into this QR personal-number inbox, which is
-    // exactly the kind of cross-number/cross-channel leak isolation requires we
-    // avoid. The QR inbox should only ever show chats tied to qr_whatsapp_chats
-    // for THIS connectedPhone (handled above) plus the live bridge session.
+    // ── MERGE ALL CRM LEADS INTO QR WHATSAPP (SEARCH & INSTANT MESSAGE) ──
+    try {
+      const allLeads = await loadBunnyLeads();
+      const visibleLeads = (superAdmin || viewerUserId === sessionOwnerUserId)
+        ? allLeads
+        : allLeads.filter((l: any) => l.assignedToUserId === viewerUserId || l.createdByUserId === viewerUserId);
+
+      // If search query is present, search across all 6,000+ leads
+      // If no query, include the most recent 250 leads so the inbox is full of real contacts
+      let leadsToMerge: any[] = [];
+      if (searchParam) {
+        leadsToMerge = visibleLeads.filter((l: any) => {
+          const nameMatch = String(l.name || l.displayName || '').toLowerCase().includes(qLower);
+          const phoneMatch = qDigits ? String(l.phoneNumber || '').includes(qDigits) : false;
+          const emailMatch = String(l.email || '').toLowerCase().includes(qLower);
+          const workshopMatch = String(l.workshopName || '').toLowerCase().includes(qLower);
+          return nameMatch || phoneMatch || emailMatch || workshopMatch;
+        }).slice(0, 100);
+      } else {
+        leadsToMerge = visibleLeads.slice().sort((a: any, b: any) => {
+          const tA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+          const tB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+          return tB - tA;
+        }).slice(0, 250);
+      }
+
+      for (const l of leadsToMerge) {
+        const rawPhone = String(l.phoneNumber || '').trim();
+        const digits = rawPhone.replace(/\D/g, '');
+        if (!digits || digits.length < 7) continue;
+        const fullPhone = digits.length === 10 ? `91${digits}` : digits;
+        const jid = `${fullPhone}@s.whatsapp.net`;
+
+        const existing = data.chats.find((c: any) => {
+          const cId = typeof c.id === 'string' ? c.id : '';
+          return cId === jid || c.resolvedPhone === fullPhone || phoneDigitsForJid(cId) === fullPhone;
+        });
+
+        if (existing) {
+          if (!existing.leadStatus) existing.leadStatus = l.status || 'lead';
+          if (!existing.leadId) existing.leadId = l._id;
+          if (l.name) existing.name = l.name;
+          if (!existing.labels || existing.labels.length === 0) existing.labels = l.labels || [];
+        } else {
+          data.chats.push({
+            id: jid,
+            name: l.name || l.displayName || `+${fullPhone}`,
+            resolvedPhone: fullPhone,
+            phoneNumber: l.phoneNumber,
+            lastMessage: l.workshopName ? `Lead • ${l.workshopName}` : (l.status ? `Lead • ${l.status}` : 'CRM Lead'),
+            lastMessageTime: l.updatedAt || l.createdAt || null,
+            conversationTimestamp: l.updatedAt ? Math.floor(new Date(l.updatedAt).getTime() / 1000) : 0,
+            unreadCount: 0,
+            isGroup: false,
+            isLead: true,
+            leadStatus: l.status || 'lead',
+            leadId: l._id,
+            labels: Array.isArray(l.labels) ? l.labels : [],
+            fromDb: true,
+          });
+        }
+      }
+      console.log(`[QR Chats API] Merged ${leadsToMerge.length} CRM leads into QR chats (query: '${searchParam}')`);
+    } catch (leadsErr: any) {
+      console.warn('[QR Chats API] Failed to merge CRM leads:', leadsErr.message);
+    }
 
     // A "placeholder" chat name carries no information about the contact:
     // empty, bare digits, a JID, or the bridge's owner-name fallback.
@@ -449,8 +510,8 @@ export async function GET(req: NextRequest) {
       console.warn('[QR Chats API] Push-name harvest failed (non-fatal):', harvestErr.message);
     }
 
-    // 2. If Super Admin, return everything
-    if (superAdmin) {
+    // 2. If Super Admin or session owner who connected WhatsApp, return everything
+    if (superAdmin || viewerUserId === sessionOwnerUserId || !ownerSettings) {
       return NextResponse.json({ success: true, chats: data.chats });
     }
 

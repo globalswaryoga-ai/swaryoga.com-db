@@ -25,6 +25,12 @@ export async function GET(request: NextRequest) {
       if (!isSuperAdmin(decoded, request) && cohort.createdByUserId && cohort.createdByUserId !== viewerId) {
         return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
       }
+      // Fast path: only refresh recordings (used by 60s polling on frontend)
+      const onlyParam = request.nextUrl.searchParams.get('only');
+      if (onlyParam === 'recordings') {
+        const recordings = await listRecordings(cohortId).catch(() => []);
+        return NextResponse.json({ recordings });
+      }
       const [students, attendance, recordings, zoomMappings] = await Promise.all([
         listStudents(cohortId).catch(() => []),
         listAttendance(cohortId).catch(() => []),

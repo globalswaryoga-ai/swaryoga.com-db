@@ -23,7 +23,23 @@ ssh root@169.58.238.255 "cd /var/www/swaryoga && npm run build && pm2 reload swa
 
 ---
 
-## 2. Database & Storage Rules
-- **Bunny Storage / BunnyDB**:
-  - Always prioritize **Bunny Storage & Bunny Database** over MongoDB for CRM data, leads, workshop schedules, and content.
-  - Bunny Edge database reflects updates immediately across the cloud.
+## 2. Database & Storage Rules (STRICT: BUNNY ONLY)
+- **STRICTLY BUNNY ONLY — NO MONGODB**:
+  - We are using **ONLY Bunny Database (Bunny Edge SQL) and Bunny Storage**.
+  - **MongoDB is completely decommissioned and MUST NOT be used anywhere**.
+  - Do NOT connect to MongoDB or Atlas.
+  - Do NOT import or execute Mongoose models for active features.
+  - All CRM data, leads, workshop schedules, attendance, recordings, user accounts, authentication, QR WhatsApp data, and content MUST use **Bunny Database (`lib/bunnyDatabase.ts`)** and **Bunny Storage (`lib/bunnyStorage.ts`)**.
+  - Always ensure environment has `USE_BUNNY_DATABASE_ONLY=true` and `DISABLE_MONGODB=true`.
+
+---
+
+## 3. Contabo VPS Build & Memory Rules
+- **Memory Allocation for Builds**:
+  - Always build with `NODE_OPTIONS="--max-old-space-size=6144"`.
+  - Next.js production builds will crash with Out Of Memory (code 134) on Contabo without this flag.
+```bash
+# Correct Contabo build & reload command:
+ssh root@169.58.238.255 "cd /var/www/swaryoga && NODE_OPTIONS='--max-old-space-size=6144' npm run build && pm2 reload swaryoga"
+```
+

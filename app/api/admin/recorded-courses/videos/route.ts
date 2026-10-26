@@ -101,11 +101,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false, thumbnail } = body;
+    const { courseId, title, description, bunnyVideoId, bunnyLibraryId, videoUrl, duration = 0, isFree = false, thumbnail } = body;
 
-    if (!courseId || !title || !bunnyVideoId) {
+    if (!courseId || !title || (!bunnyVideoId && !videoUrl)) {
       return NextResponse.json(
-        { error: 'Missing required fields: courseId, title, bunnyVideoId' },
+        { error: 'Missing required fields: courseId, title, and either bunnyVideoId or videoUrl' },
         { status: 400 }
       );
     }
@@ -131,12 +131,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingByBunnyId = existingVideos.find((v) => v.bunnyVideoId === bunnyVideoId);
-    if (existingByBunnyId) {
-      return NextResponse.json(
-        { error: 'This video already exists in this course', existingId: existingByBunnyId.id },
-        { status: 409 }
-      );
+    if (bunnyVideoId) {
+      const existingByBunnyId = existingVideos.find((v) => v.bunnyVideoId === bunnyVideoId);
+      if (existingByBunnyId) {
+        return NextResponse.json(
+          { error: 'This video already exists in this course', existingId: existingByBunnyId.id },
+          { status: 409 }
+        );
+      }
     }
 
     const nextOrder = existingVideos.length + 1;
@@ -145,7 +147,7 @@ export async function POST(request: NextRequest) {
     if (!finalThumbnail && bunnyVideoId) {
       try {
         const apiKey = process.env.BUNNY_API_KEY;
-        const libId = process.env.BUNNY_STREAM_LIBRARY_ID || '606386';
+        const libId = bunnyLibraryId || process.env.BUNNY_STREAM_LIBRARY_ID || '606386';
         if (apiKey) {
           const bRes = await fetch(`https://video.bunnycdn.com/library/${libId}/videos/${bunnyVideoId}`, {
             headers: { AccessKey: apiKey },
@@ -164,13 +166,15 @@ export async function POST(request: NextRequest) {
       courseId,
       title,
       description: description || '',
-      bunnyVideoId,
+      bunnyVideoId: bunnyVideoId || '',
+      videoUrl: videoUrl || '',
       duration: parseInt(duration) || 0,
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
       content: {
         thumbnail: finalThumbnail || undefined,
+        bunnyLibraryId: bunnyLibraryId || undefined,
         en: { title, description: description || '', thumbnail: finalThumbnail || undefined },
       },
     });
@@ -182,6 +186,7 @@ export async function POST(request: NextRequest) {
         id: video.id,
         title: video.title,
         bunnyVideoId: video.bunnyVideoId,
+        videoUrl: video.videoUrl,
         duration: video.duration,
         isFree: video.isFree,
         thumbnail: finalThumbnail || undefined,
@@ -215,7 +220,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, bunnyVideoId, duration, isFree, order, thumbnail } = body;
+    const { videoId, title, description, bunnyVideoId, bunnyLibraryId, videoUrl, duration, isFree, order, thumbnail } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -230,6 +235,10 @@ export async function PUT(request: NextRequest) {
       ? thumbnail
       : ((existing.content as any)?.thumbnail || (existing.content as any)?.en?.thumbnail || existing.thumbnail || '');
 
+    const resolvedLibId = bunnyLibraryId !== undefined
+      ? bunnyLibraryId
+      : ((existing.content as any)?.bunnyLibraryId || undefined);
+
     const updated = await saveVideo({
       id: videoId,
       courseId: existing.courseId,
@@ -237,7 +246,7 @@ export async function PUT(request: NextRequest) {
       title: title || existing.title,
       description: description !== undefined ? description : existing.description,
       bunnyVideoId: bunnyVideoId !== undefined ? bunnyVideoId : existing.bunnyVideoId,
-      videoUrl: existing.videoUrl,
+      videoUrl: videoUrl !== undefined ? videoUrl : existing.videoUrl,
       duration: duration !== undefined ? parseInt(duration) || 0 : existing.duration,
       isFree: isFree !== undefined ? isFree === true : existing.isFree,
       accessType: existing.accessType,
@@ -246,6 +255,7 @@ export async function PUT(request: NextRequest) {
       content: {
         ...existing.content,
         thumbnail: finalThumb || undefined,
+        bunnyLibraryId: resolvedLibId,
         en: {
           ...(existing.content?.en || {}),
           title: title || existing.title,
@@ -263,6 +273,7 @@ export async function PUT(request: NextRequest) {
         title: updated.title,
         description: updated.description,
         bunnyVideoId: updated.bunnyVideoId,
+        videoUrl: updated.videoUrl,
         duration: updated.duration,
         isFree: updated.isFree,
         thumbnail: finalThumb || undefined,

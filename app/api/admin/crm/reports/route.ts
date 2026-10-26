@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import {
-  getLead,
-  getEmailLog,
-  getWhatsAppMessage,
-  getQrWhatsAppMessage,
-  getTelegramMessage,
-} from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +19,6 @@ function dateRange(range: string): Date {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) {
@@ -39,166 +30,133 @@ export async function GET(request: NextRequest) {
     const startDate = dateRange(range);
     const now = new Date();
 
+    const startIso = startDate.toISOString();
+    const nowIso = now.toISOString();
+
     const superAdmin = isSuperAdmin(decoded, request);
     const viewerUserId = getViewerUserId(decoded);
 
-    // Scope filter: super admin sees all, tenant sees only their own
-    const scopeFilter = superAdmin ? {} : { createdByUserId: viewerUserId };
-    const dateFilter = { createdAt: { $gte: startDate, $lte: now } };
-    const rangeFilter = { ...scopeFilter, ...dateFilter };
-
-    const { default: mongoose } = await import('mongoose');
-
-    // Get the CRM database where all enterprise schemas live
-    const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-    const crmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
-
-    if (!crmDb) return NextResponse.json({ error: 'CRM DB not connected' }, { status: 500 });
-
-    // ── Models ──
-    const Lead = getLead();
-    
-    const WhatsAppMsg = getWhatsAppMessage();
-    const QrMsg = getQrWhatsAppMessage();
-    const TelegramMsg = getTelegramMessage();
-
-    // ── Get main database for orders ──
-    const mainDb = mongoose.connection.db;
-    const ordersCol = mainDb?.collection('orders');
-
+    // Run parallel queries against Bunny SQL
     const [
-      // Leads
-      totalLeads,
-      newLeads,
-      interestedLeads,
-      inProgressLeads,
-      wonLeads,
-
-      // Revenue
-      revenueAgg,
-
-      // Email
-      emailSent,
-      emailOpened,
-      emailClicked,
-
-      // QR broadcasts aggregate
-      qrBroadcastAgg,
-
-      // Messages
-      metaWAOutbound,
-      qrWAOutbound,
-      telegramSent,
-
-      // Chatbot (chatbot_flows collection)
+      leadsStatsRes,
+      revenueRes,
+      emailSentRes,
+      emailOpenedRes,
+      emailClickedRes,
+      qrBroadcastRes,
+      metaMessagesRes,
+      qrMessagesRes,
+      chatbotRes,
     ] = await Promise.all([
-      // Total leads in range
-      Lead.countDocuments(rangeFilter),
+      // 1. Leads counts
+      bunnyExecute({
+        sql: `SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN json_extract(data_json, '$.status') = 'new_lead' THEN 1 ELSE 0 END) as new_leads,
+          SUM(CASE WHEN json_extract(data_json, '$.status') IN ('interested', 'hot', 'prospect') THEN 1 ELSE 0 END) as interested,
+          SUM(CASE WHEN json_extract(data_json, '$.status') IN ('contacted', 'demo_trial', 'negotiation') THEN 1 ELSE 0 END) as in_progress,
+          SUM(CASE WHEN json_extract(data_json, '$.status') IN ('enrolled', 'completed') OR json_extract(data_json, '$.sales.stage') = 'closed_won' THEN 1 ELSE 0 END) as won
+        FROM leads_sql
+        WHERE created_at >= ? AND created_at <= ?
+        ${!superAdmin ? 'AND (json_extract(data_json, "$.createdByUserId") = ? OR json_extract(data_json, "$.assignedToUserId") = ?)' : ''}`,
+        args: !superAdmin ? [startIso, nowIso, viewerUserId, viewerUserId] : [startIso, nowIso],
+      }).catch(() => ({ rows: [{ total: 0, new_leads: 0, interested: 0, in_progress: 0, won: 0 }] })),
 
-      // New leads (status = new_lead)
-      Lead.countDocuments({ ...rangeFilter, status: 'new_lead' }),
+      // 2. Orders Revenue
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as count, COALESCE(SUM(CAST(total AS REAL)), 0) as total
+          FROM orders_sql
+          WHERE (payment_status = 'completed' OR payment_status = 'PAID')
+          AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ count: 0, total: 0 }] })),
 
-      // Interested leads
-      Lead.countDocuments({ ...rangeFilter, status: { $in: ['interested', 'hot', 'prospect'] } }),
+      // 3. Email sent
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('sent', 'delivered', 'opened', 'clicked') AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ c: 0 }] })),
 
-      // In-progress leads
-      Lead.countDocuments({ ...rangeFilter, status: { $in: ['contacted', 'demo_trial', 'negotiation'] } }),
+      // 4. Email opened
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('opened', 'clicked') AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ c: 0 }] })),
 
-      // Won leads (closed_won stage or enrolled status)
-      Lead.countDocuments({
-        ...scopeFilter,
-        $or: [
-          { 'sales.stage': 'closed_won' },
-          { status: { $in: ['enrolled', 'completed'] } },
-        ],
-        'sales.enrolledAt': { $gte: startDate, $lte: now },
-      }).catch(() =>
-        Lead.countDocuments({ ...rangeFilter, status: { $in: ['enrolled', 'completed'] } })
-      ),
+      // 5. Email clicked
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as c FROM email_logs_sql WHERE status = 'clicked' AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ c: 0 }] })),
 
-      // Revenue: sum of completed orders in date range
-      ordersCol
-        ? ordersCol.aggregate([
-            { $match: { paymentStatus: 'completed', createdAt: { $gte: startDate, $lte: now } } },
-            { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } },
-          ]).toArray()
-        : Promise.resolve([]),
+      // 6. QR Broadcast Runs
+      bunnyExecute({
+        sql: `SELECT
+          COUNT(*) as totalRuns,
+          COALESCE(SUM(CAST(json_extract(data_json, '$.stats.sent') AS INTEGER)), 0) as totalSent,
+          COALESCE(SUM(CAST(json_extract(data_json, '$.stats.delivered') AS INTEGER)), 0) as totalDelivered,
+          COALESCE(SUM(CAST(json_extract(data_json, '$.stats.read') AS INTEGER)), 0) as totalRead,
+          COALESCE(SUM(CAST(json_extract(data_json, '$.stats.failed') AS INTEGER)), 0) as totalFailed
+        FROM broadcast_runs_sql
+        WHERE provider = 'qr' AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ totalRuns: 0, totalSent: 0, totalDelivered: 0, totalRead: 0, totalFailed: 0 }] })),
 
-      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('sent', 'delivered', 'opened', 'clicked') AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
+      // 7. Meta Messages Outbound
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as count FROM meta_messages_sql WHERE direction = 'outbound' AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ count: 0 }] })),
 
-      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('opened', 'clicked') AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
+      // 8. QR Messages Outbound
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as count FROM qr_whatsapp_messages_sql WHERE direction = 'outbound' AND created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ count: 0 }] })),
 
-      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status = 'clicked' AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
-
-      // QR broadcasts aggregate (sum stats from broadcast_runs)
-      crmDb.collection('broadcast_runs').aggregate([
-        {
-          $match: {
-            ...scopeFilter,
-            createdAt: { $gte: startDate, $lte: now },
-            provider: 'qr',
-            status: { $in: ['completed', 'running'] },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalRuns: { $sum: 1 },
-            totalSent: { $sum: '$stats.sent' },
-            totalDelivered: { $sum: '$stats.delivered' },
-            totalRead: { $sum: '$stats.read' },
-            totalFailed: { $sum: '$stats.failed' },
-          },
-        },
-      ]).toArray(),
-
-      // Meta WhatsApp outbound
-      WhatsAppMsg.countDocuments({
-        ...scopeFilter,
-        direction: 'outbound',
-        createdAt: { $gte: startDate, $lte: now },
-      }),
-
-      // QR WhatsApp outbound
-      QrMsg.countDocuments({
-        ...scopeFilter,
-        direction: 'outbound',
-        createdAt: { $gte: startDate, $lte: now },
-      }),
-
-      // Telegram sent
-      TelegramMsg.countDocuments({
-        ...scopeFilter,
-        createdAt: { $gte: startDate, $lte: now },
-      }),
+      // 9. Chatbot Runtime Events
+      bunnyExecute({
+        sql: `SELECT COUNT(*) as count FROM chatbot_runtime_events_sql WHERE created_at >= ? AND created_at <= ?`,
+        args: [startIso, nowIso],
+      }).catch(() => ({ rows: [{ count: 0 }] })),
     ]);
 
-    // ── Chatbot conversations (chatbot_flows collection) ──
-    const chatbotConversations = await crmDb.collection('chatbot_flows')
-      .countDocuments({ ...scopeFilter, createdAt: { $gte: startDate, $lte: now } })
-      .catch(() => 0);
+    const leadRow: any = leadsStatsRes.rows[0] || {};
+    const totalLeads = Number(leadRow.total || 0);
+    const newLeads = Number(leadRow.new_leads || 0);
+    const interestedLeads = Number(leadRow.interested || 0);
+    const inProgressLeads = Number(leadRow.in_progress || 0);
+    const wonLeads = Number(leadRow.won || 0);
 
-    // ── Derived stats ──
-    const totalRevenue = revenueAgg[0]?.total || 0;
-    const orderCount = revenueAgg[0]?.count || 0;
+    const revRow: any = revenueRes.rows[0] || {};
+    const totalRevenue = Number(revRow.total || 0);
+    const orderCount = Number(revRow.count || 0);
     const avgDealValue = orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0;
     const conversionRate = totalLeads > 0 ? parseFloat(((wonLeads / totalLeads) * 100).toFixed(1)) : 0;
 
-    const qrBroadcastStats = qrBroadcastAgg[0] || { totalRuns: 0, totalSent: 0, totalDelivered: 0, totalRead: 0, totalFailed: 0 };
-    const qrDeliveryRate = qrBroadcastStats.totalSent > 0
-      ? parseFloat(((qrBroadcastStats.totalDelivered / qrBroadcastStats.totalSent) * 100).toFixed(1))
-      : 0;
-
+    const emailSent = Number(emailSentRes.rows[0]?.c || 0);
+    const emailOpened = Number(emailOpenedRes.rows[0]?.c || 0);
+    const emailClicked = Number(emailClickedRes.rows[0]?.c || 0);
     const emailOpenRate = emailSent > 0 ? parseFloat(((emailOpened / emailSent) * 100).toFixed(1)) : 0;
     const emailClickRate = emailSent > 0 ? parseFloat(((emailClicked / emailSent) * 100).toFixed(1)) : 0;
 
-    const totalMessages = metaWAOutbound + qrWAOutbound + telegramSent;
-    const responseRate = 0; // Would need inbound/outbound ratio analysis
+    const qrRow: any = qrBroadcastRes.rows[0] || {};
+    const qrRuns = Number(qrRow.totalRuns || 0);
+    const qrSent = Number(qrRow.totalSent || 0);
+    const qrDelivered = Number(qrRow.totalDelivered || 0);
+    const qrRead = Number(qrRow.totalRead || 0);
+    const qrFailed = Number(qrRow.totalFailed || 0);
+    const qrDeliveryRate = qrSent > 0 ? parseFloat(((qrDelivered / qrSent) * 100).toFixed(1)) : 0;
+
+    const metaWAOutbound = Number(metaMessagesRes.rows[0]?.count || 0);
+    const qrWAOutbound = Number(qrMessagesRes.rows[0]?.count || 0);
+    const totalMessages = metaWAOutbound + qrWAOutbound;
+    const chatbotConversations = Number(chatbotRes.rows[0]?.count || 0);
 
     const reports = {
       dateRange: range,
-      startDate: startDate.toISOString(),
-      endDate: now.toISOString(),
+      startDate: startIso,
+      endDate: nowIso,
 
       totalRevenue,
       conversionRate,
@@ -222,18 +180,18 @@ export async function GET(request: NextRequest) {
       },
 
       qrBroadcast: {
-        runs: qrBroadcastStats.totalRuns,
-        sent: qrBroadcastStats.totalSent,
-        delivered: qrBroadcastStats.totalDelivered,
-        read: qrBroadcastStats.totalRead,
-        failed: qrBroadcastStats.totalFailed,
+        runs: qrRuns,
+        sent: qrSent,
+        delivered: qrDelivered,
+        read: qrRead,
+        failed: qrFailed,
         deliveryRate: qrDeliveryRate,
       },
 
       messaging: {
         whatsappMeta: metaWAOutbound,
         whatsappQR: qrWAOutbound,
-        telegram: telegramSent,
+        telegram: 0,
         total: totalMessages,
       },
 

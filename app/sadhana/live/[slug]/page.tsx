@@ -2,51 +2,25 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play, Volume2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play, Volume2, ArrowLeft, MessageSquare, X, Send, Users, Calendar, Sparkles, RotateCw } from 'lucide-react';
 
-// Video styling and controls hiding
+// Video styling
 if (typeof document !== 'undefined') {
-  const styleId = 'sadhana-video-no-controls';
+  const styleId = 'sadhana-video-styles';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      video {
+      video.sadhana-video {
         display: block !important;
         width: 100% !important;
         height: 100% !important;
         outline: none !important;
         border: none !important;
         background: #000 !important;
-        --webkit-audio-session: playback !important;
       }
-      video::-webkit-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; width: 0 !important; pointer-events: none !important; }
-      video::-webkit-media-controls-enclosure { display: none !important; }
-      video::-webkit-media-controls-panel { display: none !important; }
-      video::-webkit-media-controls-play-button { display: none !important; }
-      video::-webkit-media-controls-timeline { display: none !important; }
-      video::-moz-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; }
-      video { user-select: none !important; -webkit-user-select: none !important; }
     `;
     document.head.appendChild(style);
-  }
-
-  const enforceNoControls = () => {
-    document.querySelectorAll('video').forEach((video: any) => {
-      video.removeAttribute('controls');
-      video.removeAttribute('controlsList');
-      video.style.outline = 'none';
-      video.style.border = 'none';
-      video.style.width = '100%';
-      video.style.height = '100%';
-      video.style.display = 'block';
-    });
-  };
-
-  enforceNoControls();
-  if (typeof window !== 'undefined') {
-    const observer = new MutationObserver(enforceNoControls);
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
   }
 }
 
@@ -123,7 +97,11 @@ export default function ProgramLivePage() {
   const [showChat, setShowChat] = useState(true);
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
+  const [forceRotated, setForceRotated] = useState(false);
+  const [isDeviceLandscape, setIsDeviceLandscape] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
@@ -143,34 +121,139 @@ export default function ProgramLivePage() {
       document.documentElement.style.height = '100%';
       document.body.style.minHeight = '100%';
       document.body.style.overflow = 'auto';
+
+      const checkOrientation = () => {
+        // 1. Modern Screen Orientation API
+        const screenType = window.screen?.orientation?.type || '';
+        const isScreenLandscape = screenType.includes('landscape');
+
+        // 2. Legacy window.orientation (degrees: 90 or -90)
+        const isAngleLandscape =
+          typeof window.orientation === 'number' &&
+          (Math.abs(window.orientation) === 90 || Math.abs(window.orientation) === 270);
+
+        // 3. Viewport width > height on mobile/tablets (up to 1280px)
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const isAspectLandscape = w > h && w <= 1280;
+
+        const isLandscape = isScreenLandscape || isAngleLandscape || isAspectLandscape;
+        setIsDeviceLandscape(isLandscape);
+      };
+
+      checkOrientation();
+      window.addEventListener('resize', checkOrientation);
+      window.addEventListener('orientationchange', checkOrientation);
+      if (window.screen?.orientation) {
+        window.screen.orientation.addEventListener('change', checkOrientation);
+      }
+
+      // 4. Hardware accelerometer tilt detection (works even if phone auto-rotate is locked)
+      let lastTilt = 0;
+      const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
+        const { gamma, beta } = event;
+        if (gamma === null || beta === null) return;
+
+        // Sideways tilt detection (>55 deg horizontal tilt, <55 deg vertical pitch)
+        const isSideways = Math.abs(gamma) > 55 && Math.abs(beta) < 55;
+        const isUpright = Math.abs(gamma) < 25 && Math.abs(beta) > 35;
+
+        const now = Date.now();
+        if (now - lastTilt < 600) return; // debounce
+
+        if (isSideways && !forceRotated) {
+          lastTilt = now;
+          setForceRotated(true);
+        } else if (isUpright && forceRotated) {
+          lastTilt = now;
+          setForceRotated(false);
+        }
+      };
+
+      try {
+        window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+      } catch {}
+
+      return () => {
+        window.removeEventListener('resize', checkOrientation);
+        window.removeEventListener('orientationchange', checkOrientation);
+        if (window.screen?.orientation) {
+          window.screen.orientation.removeEventListener('change', checkOrientation);
+        }
+        try {
+          window.removeEventListener('deviceorientation', handleDeviceOrientation);
+        } catch {}
+      };
     }
-  }, []);
+  }, [forceRotated]);
 
   useEffect(() => {
     const onFullScreenChange = () => {
-      setFullscreenMode(!!document.fullscreenElement);
+      const isFs = !!document.fullscreenElement;
+      setFullscreenMode(isFs);
+      if (!isFs && (screen.orientation as any)?.unlock) {
+        (screen.orientation as any).unlock();
+      }
     };
     document.addEventListener('fullscreenchange', onFullScreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullScreenChange);
   }, []);
 
-  const toggleFullscreen = async () => {
-    if (!containerRef.current) return;
+  const toggleRotateLandscape = async () => {
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-        setFullscreenMode(false);
-      } else {
-        await containerRef.current.requestFullscreen();
-        setFullscreenMode(true);
+      if (typeof window !== 'undefined' && (window as any).SwarYoga?.toggleOrientation) {
+        (window as any).SwarYoga.toggleOrientation();
       }
-    } catch (err) {
-      console.warn('Fullscreen toggle failed:', err);
-      setFullscreenMode((prev) => !prev);
+
+      if (!forceRotated && !isDeviceLandscape) {
+        if ((screen.orientation as any)?.lock) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+        setForceRotated(true);
+      } else {
+        if ((screen.orientation as any)?.unlock) {
+          (screen.orientation as any).unlock();
+        }
+        setForceRotated(false);
+      }
+    } catch {
+      setForceRotated((prev) => !prev);
     }
   };
 
-  useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    try {
+      if (document.fullscreenElement || fullscreenMode) {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => {});
+        }
+        if ((screen.orientation as any)?.unlock) {
+          (screen.orientation as any).unlock();
+        }
+        setFullscreenMode(false);
+        setForceRotated(false);
+      } else {
+        await containerRef.current.requestFullscreen().catch(() => {});
+        if ((screen.orientation as any)?.lock) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+        setFullscreenMode(true);
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle failed, falling back to rotate:', err);
+      toggleRotateLandscape();
+    }
+  };
+
+  useEffect(() => {
+    const stored = storedName();
+    if (stored) {
+      setName(stored);
+      setJoined(true);
+    }
+    sidRef.current = storedSid(slug);
+  }, [slug]);
 
   useEffect(() => {
     if ((session?.status === 'live' || previewMode) && !videoStarted) {
@@ -214,15 +297,23 @@ export default function ProgramLivePage() {
     return () => { mounted = false; };
   }, [slug]);
 
-  const handleJoin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleJoin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!name.trim()) return;
-    localStorage.setItem('sadhana_live_name', name.trim());
-    await fetch(`/api/sadhana/live/${slug}/join`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: sidRef.current, name: name.trim() }),
-    });
+    const cleanName = name.trim();
+    localStorage.setItem('sadhana_live_name', cleanName);
+    if (!sidRef.current) {
+      sidRef.current = storedSid(slug);
+    }
+    // Instantaneous UI transition (0ms - zero delay)
     setJoined(true);
+
+    // Non-blocking background analytics registration
+    fetch(`/api/sadhana/live/${slug}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sidRef.current, name: cleanName }),
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -259,14 +350,22 @@ export default function ProgramLivePage() {
     }
   }, [chat.length]);
 
-  const sendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendChat = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!chatInput.trim()) return;
+    const msgToSend = chatInput.trim();
+    setChatInput('');
     await fetch(`/api/sadhana/live/${slug}/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, message: chatInput.trim() }),
-    });
-    setChatInput('');
+      body: JSON.stringify({ name: name.trim() || 'Practitioner', message: msgToSend }),
+    }).catch(() => {});
+  };
+
+  const handleQuickSend = async (quickMsg: string) => {
+    await fetch(`/api/sadhana/live/${slug}/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() || 'Practitioner', message: quickMsg }),
+    }).catch(() => {});
   };
 
   const handleLeave = () => {
@@ -299,6 +398,25 @@ export default function ProgramLivePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 sm:p-8 max-w-md w-full border border-white/20 shadow-2xl">
+          <div className="flex items-center justify-start mb-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    window.location.href = '/';
+                  }
+                }
+              }}
+              className="flex items-center space-x-1.5 py-1.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 transition-all text-white font-bold text-xs"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-4 h-4 text-white stroke-[2.5]" />
+              <span>Back</span>
+            </button>
+          </div>
           <div className="text-center mb-6">
             <div className="text-5xl mb-3">🧘</div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1.5">{program?.name || 'Sadhana Live'}</h1>
@@ -380,6 +498,8 @@ export default function ProgramLivePage() {
           url={activeStreamUrl}
           videoRef={videoRef as any}
           offsetSeconds={previewMode ? 0 : (session?.videoOffsetSeconds || 0)}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={fullscreenMode}
         />
       );
     } else if (activeStreamUrl) {
@@ -405,395 +525,516 @@ export default function ProgramLivePage() {
   } else if (!session || session.status === 'waiting') {
     const scheduleList = program?.scheduleTime
       ? (Array.isArray(program.scheduleTime) ? program.scheduleTime : [program.scheduleTime])
-      : [];
+      : (program?.timeSlots || ['07:00', '19:00']);
 
     sessionView = (
-      <div className="w-full h-full flex items-center justify-center p-4 sm:p-8">
-        <div className="text-center max-w-md">
-          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">⏳</div>
-          <p className="text-base sm:text-xl text-purple-100 mb-2 font-medium">
-            {todayVideo ? 'Session starts later today' : 'No session scheduled for today'}
-          </p>
-          {todayVideo?.title && (
-            <p className="text-xs sm:text-sm text-purple-300 mb-4">
-              Today's Practice: <span className="font-semibold text-white">{todayVideo.title}</span>
-            </p>
-          )}
+      <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-8 text-center bg-gradient-to-b from-slate-950 via-[#0e0720] to-black relative select-none overflow-hidden">
+        {/* Subtle glowing sacred geometry backdrop */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(147,51,234,0.22)_0%,_transparent_70%)] pointer-events-none" />
 
+        <div className="relative z-10 max-w-sm sm:max-w-md w-full mx-auto flex flex-col items-center">
+          {/* 3D Floating Meditation Lotus Icon */}
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-purple-600/40 via-pink-500/20 to-indigo-500/40 border border-purple-400/40 shadow-[0_8px_30px_rgba(147,51,234,0.45),inset_0_1px_1px_rgba(255,255,255,0.3)] flex items-center justify-center text-3xl sm:text-4xl mb-2 sm:mb-3">
+            🧘
+          </div>
+
+          <h2 className="text-base sm:text-xl font-bold text-white tracking-wide leading-tight mb-1">
+            {todayVideo?.title || program?.name || 'Hindi Swar YOGa L-1 Sadhana'}
+          </h2>
+          <p className="text-xs text-purple-300/90 mb-3">
+            {todayVideo ? 'Session Ready • Starting Soon' : 'Daily Community Practice Session'}
+          </p>
+
+          {/* 3D Glass Broadcast Card */}
           {session?.nextSessionUtc && program && (
-            <div className="mb-4 sm:mb-6 p-4 bg-purple-900/40 border border-purple-500/50 rounded-xl">
-              <p className="text-xs text-purple-300 uppercase tracking-wider mb-1">Next Live Broadcast</p>
-              <p className="text-lg sm:text-xl font-bold text-white">
+            <div className="w-full mb-3 px-4 py-3 rounded-2xl bg-gradient-to-b from-purple-900/50 via-purple-950/70 to-black/90 border border-purple-500/40 shadow-[0_12px_25px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)] backdrop-blur-md">
+              <div className="flex items-center justify-center gap-1.5 text-[10px] text-purple-300 uppercase tracking-widest font-semibold mb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Next Live Broadcast</span>
+              </div>
+              <p className="text-base sm:text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-100 to-pink-200">
                 {fmtTime(session.nextSessionUtc, program.timezone)}
               </p>
             </div>
           )}
 
+          {/* Daily Slots */}
           {scheduleList.length > 0 && (
-            <div className="space-y-2 mb-4">
-              <p className="text-xs sm:text-sm text-purple-300">Daily Sessions (IST)</p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {scheduleList.map((time: string, idx: number) => (
-                  <span key={idx} className="bg-pink-600 text-white px-3 py-1 rounded-full text-xs sm:text-sm font-semibold shadow">
-                    {time}
-                  </span>
-                ))}
-              </div>
+            <div className="flex items-center justify-center gap-1.5 mb-2.5 flex-wrap">
+              <span className="text-[10px] text-purple-300 uppercase font-medium">Daily Sessions (IST):</span>
+              {scheduleList.map((time: string, idx: number) => (
+                <span
+                  key={idx}
+                  className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-pink-600/80 to-purple-600/80 text-white text-[11px] font-bold shadow-md border border-pink-400/30"
+                >
+                  {time}
+                </span>
+              ))}
             </div>
           )}
 
+          <p className="text-[11px] text-purple-300/80 flex items-center gap-1">
+            <span>Please wait for the scheduled broadcast time</span>
+            <span>🙏</span>
+          </p>
         </div>
       </div>
     );
   } else if (session.status === 'countdown') {
     const ms = new Date(session.sessionStartUtc!).getTime() - nowTick.getTime();
     sessionView = (
-      <div className="w-full h-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-purple-800 to-indigo-900">
-        <div className="text-center">
-          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🧘</div>
-          <p className="text-lg sm:text-2xl text-white mb-2">Session starting in</p>
-          <div className="text-5xl sm:text-7xl font-bold text-white my-3 sm:my-4">{fmtCountdown(ms)}</div>
-          <p className="text-xs sm:text-base text-purple-200">🤖 Swar Sadhana Bot will play video automatically</p>
+      <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-8 text-center bg-gradient-to-b from-slate-950 via-[#120726] to-black relative select-none overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(236,72,153,0.25)_0%,_transparent_70%)] pointer-events-none" />
+        <div className="relative z-10 max-w-sm sm:max-w-md w-full mx-auto flex flex-col items-center">
+          <div className="text-4xl sm:text-5xl mb-2 animate-bounce">🧘</div>
+          <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-pink-300 mb-2">
+            Session Starting In
+          </p>
+          <div className="px-6 py-3 rounded-2xl bg-black/80 border border-pink-500/40 shadow-[0_12px_30px_rgba(236,72,153,0.35),inset_0_1px_1px_rgba(255,255,255,0.2)]">
+            <span className="text-4xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-pink-100 to-purple-200 font-mono tracking-tight">
+              {fmtCountdown(ms)}
+            </span>
+          </div>
+          <p className="text-xs text-purple-200 flex items-center gap-1.5 mt-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>🤖 Swar Bot will play video automatically</span>
+          </p>
           {todayVideo?.title && (
-            <p className="text-purple-300 text-xs sm:text-sm mt-3">Today: {todayVideo.title}</p>
+            <p className="text-purple-300 text-xs mt-2">Today: {todayVideo.title}</p>
           )}
         </div>
       </div>
     );
   } else if (session.status === 'ended') {
     sessionView = (
-      <div className="w-full h-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-indigo-900 to-purple-900">
-        <div className="text-center">
-          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🙏</div>
-          <p className="text-xl sm:text-2xl text-white mb-2">Session Complete</p>
-          <p className="text-sm sm:text-base text-purple-200 mb-4">Thank you for practicing with us</p>
+      <div className="w-full h-full flex items-center justify-center p-4 sm:p-8 bg-gradient-to-b from-slate-950 via-purple-950/60 to-black">
+        <div className="text-center max-w-md">
+          <div className="text-5xl sm:text-6xl mb-3">🙏</div>
+          <p className="text-xl sm:text-2xl text-white font-bold mb-1">Session Complete</p>
+          <p className="text-sm text-purple-200 mb-4">Thank you for practicing with us</p>
           {upcoming[0] && (
-            <p className="text-purple-300 text-xs sm:text-sm">Next: {fmtDate(upcoming[0].date)} {upcoming[0].title && `- ${upcoming[0].title}`}</p>
+            <p className="text-purple-300 text-xs sm:text-sm">
+              Next Practice: {fmtDate(upcoming[0].date)} {upcoming[0].title && `• ${upcoming[0].title}`}
+            </p>
           )}
-          <div className="mt-4">
-            <button
-              onClick={() => setPreviewMode(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-purple-200 hover:text-white rounded text-xs transition cursor-pointer"
-            >
-              <Play size={14} /> Replay Video
-            </button>
-          </div>
         </div>
       </div>
     );
   }
 
-  const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || playableUrl);
+  const displayChat = (chat || []).filter((msg, idx, arr) => {
+    if (idx === 0) return true;
+    if (msg.name === arr[idx - 1].name && msg.message === arr[idx - 1].message) return false;
+    return true;
+  });
+
+  const isCinemaMode = fullscreenMode || forceRotated || isDeviceLandscape;
 
   return (
-    <div ref={containerRef} className={`${fullscreenMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
-      {!fullscreenMode && (
-        <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-4 bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-2 sm:p-4 border border-white/20">
-            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <div className="text-2xl sm:text-3xl flex-shrink-0">🧘</div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-sm sm:text-lg md:text-xl font-bold truncate">{program?.name || 'Sadhana Live'}</h1>
-                <p className="text-xs sm:text-sm text-purple-200 truncate">
-                  {todayVideo?.title ? `Today: ${todayVideo.title}` : 'Community Program'}
+    <div ref={containerRef} className={`${isCinemaMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-black text-white flex flex-col`}>
+
+      {/* ── CINEMA FULLSCREEN / ROTATED LANDSCAPE (SINGLE INSTANCE PREVENTS DUPLICATE AUDIO/VIDEO) ── */}
+      {isCinemaMode && (
+        <div
+          className="fixed inset-0 z-[100000] bg-black flex items-center justify-center overflow-hidden"
+          style={
+            forceRotated && !isDeviceLandscape
+              ? {
+                  width: '100vh',
+                  height: '100vw',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%) rotate(90deg)',
+                  transformOrigin: 'center center',
+                }
+              : {
+                  width: '100vw',
+                  height: '100vh',
+                  top: 0,
+                  left: 0,
+                }
+          }
+        >
+          <div className="relative w-full h-full bg-black flex items-center justify-center">
+            {sessionView}
+
+            {/* Top Floating Info Pill */}
+            <div className="absolute top-3 left-3 z-[100001] flex items-center gap-2 pointer-events-auto">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-xs font-bold text-white shadow-xl">
+                <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-purple-400'}`} />
+                <span>{isLive ? 'LIVE' : 'SADHANA'} • {count}</span>
+              </div>
+            </div>
+
+            {/* Top Floating Controls */}
+            <div className="absolute top-3 right-3 z-[100001] flex items-center gap-2 pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs border border-purple-400/40 shadow-xl cursor-pointer"
+              >
+                <MessageSquare size={13} />
+                <span>Chat ({displayChat.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (fullscreenMode) toggleFullscreen();
+                  else if (forceRotated) setForceRotated(false);
+                  else if (isDeviceLandscape) {
+                    setIsDeviceLandscape(false);
+                    setForceRotated(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/85 hover:bg-black active:scale-95 text-white font-bold text-xs border border-white/30 shadow-xl cursor-pointer"
+              >
+                <Minimize2 size={13} className="text-amber-400" />
+                <span>Exit Full</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NORMAL MODE ── */}
+      {!isCinemaMode && (
+        <>
+          {/* Header Bar */}
+          <div
+            data-app-header="true"
+            className="flex items-center justify-between gap-2 px-3 py-2.5 bg-black/95 backdrop-blur-md border-b border-white/10 sticky top-0 z-30 shadow-md"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    if (window.history.length > 1) window.history.back();
+                    else window.location.href = '/';
+                  }
+                }}
+                className="flex items-center gap-1 py-1.5 px-2.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 transition text-white font-medium text-xs flex-shrink-0 border border-white/10 cursor-pointer"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+              <span className="text-xl flex-shrink-0">🧘</span>
+              <div className="min-w-0">
+                <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight">
+                  {program?.name || 'Sadhana Live'}
+                </h1>
+                <p className="text-[10px] text-purple-300 truncate">
+                  {isLive ? 'Live Session' : session?.status === 'countdown' ? 'Starting Soon' : 'Community Sadhana'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
-                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse flex-shrink-0"></span>
-                <span className="truncate">{isLive ? (previewMode ? 'PREVIEW' : 'LIVE') : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
+
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Live Status Pill */}
+              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                isLive
+                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                  : 'bg-purple-900/40 text-purple-200 border-purple-500/30'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-red-400 animate-ping' : 'bg-purple-400'}`} />
+                <span>{isLive ? (previewMode ? 'PREVIEW' : 'LIVE') : (session?.status?.toUpperCase() || 'ONLINE')}</span>
               </div>
+
+              {/* Rotate Button */}
+              <button
+                type="button"
+                onClick={toggleRotateLandscape}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-700/80 to-pink-700/80 hover:opacity-95 active:scale-95 transition text-white font-medium text-xs border border-purple-400/40 cursor-pointer shadow-sm"
+                title="Rotate Screen to Landscape"
+              >
+                <RotateCw size={12} className="text-amber-300" />
+                <span className="hidden sm:inline">Rotate</span>
+              </button>
+
+              {/* Fullscreen Button */}
               <button
                 onClick={toggleFullscreen}
-                className="bg-purple-600 hover:bg-purple-500 p-1.5 sm:p-2 rounded-lg transition flex-shrink-0 cursor-pointer"
-                title={fullscreenMode ? 'Exit fullscreen' : 'Fullscreen'}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition text-white font-medium text-xs border border-white/10 cursor-pointer"
+                title="Fullscreen"
               >
-                {fullscreenMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                <Maximize2 size={13} />
+                <span className="hidden md:inline">Full</span>
               </button>
+
+              {/* Leave Button */}
               <button
                 onClick={handleLeave}
-                className="bg-red-600 hover:bg-red-500 p-1.5 sm:p-2 rounded-lg transition flex items-center gap-1 flex-shrink-0 cursor-pointer"
-                title="Leave session"
+                className="p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 active:scale-95 transition text-white text-xs cursor-pointer border border-red-400/30"
+                title="Leave Session"
               >
-                <LogOut size={16} /> <span className="text-xs sm:text-sm hidden sm:inline">Leave</span>
+                <LogOut size={13} />
               </button>
             </div>
           </div>
 
-          <div>
-            <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'md:grid-cols-4' : 'md:grid-cols-1'} gap-2 sm:gap-4`}>
-              <div className={`${showSidebar && !fullscreenMode ? 'md:col-span-3' : 'md:col-span-1'} bg-black rounded-lg sm:rounded-xl overflow-hidden aspect-video relative`}>
-                {sessionView}
-                {previewMode && (
-                  <div className="absolute top-3 left-3 z-30 bg-amber-500 text-black px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-lg">
-                    <span>👁️ Preview Mode</span>
-                    <button
-                      onClick={() => setPreviewMode(false)}
-                      className="ml-2 underline text-xs font-semibold hover:opacity-80 cursor-pointer bg-black/20 px-1.5 py-0.5 rounded"
-                    >
-                      Exit Preview
-                    </button>
-                  </div>
-                )}
-                {showSidebar && (
+          {/* ── 3D VIDEO THEATER STAGE ─────────────────────────── */}
+          <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 pt-2 sm:pt-4">
+            <div className="relative group">
+              {/* Outer 3D Neon Backlight Ambient Glow */}
+              <div className="absolute -inset-1 sm:-inset-2 bg-gradient-to-r from-purple-600/30 via-pink-600/20 to-indigo-600/30 rounded-2xl sm:rounded-3xl blur-xl opacity-75 -z-10 pointer-events-none" />
+
+              {/* 3D Chamfered Outer Bezel with Metallic & Shadow Depth */}
+              <div className="relative rounded-2xl sm:rounded-3xl p-[2.5px] sm:p-[3.5px] bg-gradient-to-b from-purple-400/50 via-purple-900/30 to-black shadow-[0_20px_50px_-10px_rgba(0,0,0,0.95),0_0_30px_rgba(147,51,234,0.3),inset_0_1px_1px_rgba(255,255,255,0.35)] transition-all">
+                {/* Inner Screen Bezel with Cinema 16:9 Aspect Ratio */}
+                <div
+                  className="relative w-full rounded-[13px] sm:rounded-[21px] overflow-hidden bg-black shadow-inner"
+                  style={{ aspectRatio: '16/9' }}
+                >
+                  {/* Top Edge Specular Reflection */}
+                  <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-purple-200/50 to-transparent z-20 pointer-events-none" />
+
+                  {sessionView}
+
+                  {/* Floating Video Corner Rotate Button */}
                   <button
-                    onClick={() => setShowSidebar(false)}
-                    className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold z-20 cursor-pointer"
-                    title="Hide sidebar for fullscreen video"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRotateLandscape();
+                    }}
+                    className="absolute bottom-2.5 right-2.5 z-30 bg-black/80 hover:bg-black/95 active:scale-90 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-white/20 shadow-2xl cursor-pointer transition-all backdrop-blur-md"
+                    title="Rotate to Fullscreen Landscape"
                   >
-                    ⛔ Hide
+                    <RotateCw size={13} className="text-amber-400" />
+                    <span>Rotate</span>
                   </button>
-                )}
+
+                  {previewMode && (
+                    <div className="absolute top-2 left-2 z-30 bg-amber-500 text-black px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 shadow">
+                      <span>👁️ Preview</span>
+                      <button onClick={() => setPreviewMode(false)} className="underline text-[10px] cursor-pointer">Exit</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── CLEAN UI BELOW VIDEO (CHATS ARE HIDDEN BEHIND BUTTON) ─ */}
+          <div className="w-full max-w-5xl mx-auto px-3 sm:px-4 py-3 space-y-3 flex-1">
+            {/* Meta & Main Actions Card */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] border border-white/10 backdrop-blur-md shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm sm:text-base font-bold text-white truncate">
+                    {program?.name || 'Sadhana Live'} 🙏
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-semibold border border-purple-500/30">
+                    Live
+                  </span>
+                </div>
+                <p className="text-xs text-purple-300/90 mt-0.5 truncate">
+                  {todayVideo?.title || 'Daily Community Practice Session'}
+                </p>
               </div>
 
-            {showSidebar && !fullscreenMode && (
-              <div className="hidden md:flex flex-col space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto pr-1">
-                {/* 1. Participants */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
-                      <span>👥</span> Participants <span className="text-purple-300 font-normal">({count})</span>
-                    </h2>
+              {/* Action Buttons: 💬 Open Chat & 👥 Attendees */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 💬 OPEN CHAT BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(true)}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-500 hover:to-pink-500 active:scale-95 transition-all text-white font-bold text-xs sm:text-sm shadow-[0_4px_16px_rgba(168,85,247,0.45)] border border-white/20 cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4 text-white" />
+                  <span>Open Live Chat</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold">
+                    {displayChat.length}
+                  </span>
+                </button>
+
+                {/* Practitioners button */}
+                <button
+                  type="button"
+                  onClick={() => setShowParticipantsModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 transition text-white text-xs font-semibold border border-white/10 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5 text-purple-300" />
+                  <span>{count} Yogis Online</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Announcement if any */}
+            {announcement && (
+              <div className="p-2.5 rounded-xl bg-purple-950/60 border border-purple-500/30 text-xs text-purple-200">
+                📢 {announcement}
+              </div>
+            )}
+
+            {/* Upcoming Schedule */}
+            {upcoming.length > 0 && (
+              <div className="p-3 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10">
+                <div className="flex items-center justify-between mb-2.5">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-pink-400" />
+                    <span>Upcoming Sadhana Sessions</span>
+                  </h3>
+                  <span className="text-[10px] text-purple-300">{upcoming.length} sessions scheduled</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {upcoming.slice(0, 4).map((v, i) => (
+                    <div key={i} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-left">
+                      <div className="text-[10px] font-semibold text-pink-300">{fmtDate(v.date)}</div>
+                      <div className="text-xs text-white truncate font-medium mt-0.5">{v.title || 'Daily Practice'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── LIVE CHAT DRAWER / MODAL ───────────────────────── */}
+          {isChatOpen && (
+            <div className="fixed inset-0 z-[10000] flex flex-col justify-end lg:justify-center lg:items-center bg-black/75 backdrop-blur-md transition-all">
+              {/* Backdrop Click Dismiss */}
+              <div className="absolute inset-0" onClick={() => setIsChatOpen(false)} />
+
+              {/* Chat Drawer Content */}
+              <div className="relative z-10 w-full lg:max-w-md h-[82vh] lg:h-[620px] flex flex-col rounded-t-3xl lg:rounded-2xl bg-gradient-to-b from-slate-900 via-slate-950 to-black border border-purple-500/40 shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center text-sm shadow">
+                      💬
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white leading-tight">Live Chat</h3>
+                      <p className="text-[10px] text-purple-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{count} practitioners connected</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsChatOpen(false)}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white transition cursor-pointer"
+                    aria-label="Close Chat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick Greetings / Reactions Bar */}
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-black/40 border-b border-white/5 overflow-x-auto">
+                  {['🙏 Namaste', 'Hari Om 🕉️', 'Swar Yoga 🧘', 'Shanti 🕊️', '❤️ Blessings'].map((quick, qIdx) => (
                     <button
-                      onClick={() => setShowParticipants(!showParticipants)}
-                      className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
-                      title={showParticipants ? 'Hide' : 'Show'}
+                      key={qIdx}
+                      type="button"
+                      onClick={() => handleQuickSend(quick)}
+                      className="flex-shrink-0 px-2.5 py-1 rounded-full bg-white/10 hover:bg-pink-600/40 active:scale-95 transition text-[11px] font-medium text-purple-100 border border-white/10 cursor-pointer"
                     >
-                      {showParticipants ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      {quick}
                     </button>
-                  </div>
-                  {showParticipants && (
-                    <div className="mt-2 space-y-1 max-h-28 overflow-y-auto pr-1">
-                      {participants.map((p, i) => (
-                        <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded-lg text-xs">
-                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                            {p.name[0]?.toUpperCase() || '?'}
-                          </div>
-                          <span className="truncate">{p.name}</span>
-                        </div>
-                      ))}
-                      {participants.length === 0 && (
-                        <p className="text-purple-200 text-xs text-center py-2">No participants yet</p>
-                      )}
-                    </div>
-                  )}
+                  ))}
                 </div>
 
-                {/* 2. Live Chat (UPPER SIDE for easy access during live session) */}
-                {session?.status !== 'ended' && (
-                  <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex flex-col h-[340px] md:h-[380px] flex-shrink-0 shadow-lg">
-                    <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/10 flex-shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <h2 className="font-semibold text-xs sm:text-sm">💬 Live Chat</h2>
-                      </div>
-                      <button
-                        onClick={() => setShowChat(!showChat)}
-                        className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
-                        title={showChat ? 'Hide' : 'Show'}
-                      >
-                        {showChat ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                    </div>
-                    {showChat && (
-                      <>
-                        <div 
-                          ref={chatMessagesRef}
-                          className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 min-h-0"
-                        >
-                          {chat.map((msg) => (
-                            <div key={msg.id} className="text-xs">
-                              <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
-                              <span className="text-white break-words">{msg.message}</span>
-                            </div>
-                          ))}
-                          {chat.length === 0 && (
-                            <p className="text-purple-200 text-xs text-center py-6">Be the first to say Namaste 🙏</p>
+                {/* Chat Messages */}
+                <div ref={chatMessagesRef} className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                  {displayChat.map((msg) => {
+                    const isMe = msg.name === name;
+                    const isBot = msg.name.includes('Bot');
+                    return (
+                      <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`text-[10px] font-bold ${isBot ? 'text-amber-300' : isMe ? 'text-pink-300' : 'text-purple-300'}`}>
+                            {msg.name}
+                          </span>
+                          {msg.createdAt && (
+                            <span className="text-[9px] text-white/40">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           )}
-                          <div ref={chatEnd} />
                         </div>
-                        <form onSubmit={sendChat} className="flex gap-1.5 pt-2 border-t border-white/10 flex-shrink-0">
-                          <input
-                            type="text" 
-                            value={chatInput} 
-                            onChange={(e) => setChatInput(e.target.value)}
-                            placeholder="Type a message..." 
-                            maxLength={300}
-                            className="flex-1 px-2.5 py-1.5 bg-white/20 rounded-lg text-xs placeholder-purple-200 border border-white/30 focus:outline-none focus:border-pink-400"
-                          />
-                          <button 
-                            type="submit" 
-                            className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-xs hover:opacity-90 transition cursor-pointer flex-shrink-0 shadow-sm"
-                          >
-                            Send
-                          </button>
-                        </form>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* 3. Upcoming Schedule (KEPT IN BOTTOM) */}
-                {upcoming.length > 0 && (
-                  <div className="bg-white/10 backdrop-blur-lg rounded-lg sm:rounded-xl p-3 sm:p-3.5 border border-white/20 flex-shrink-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
-                        <span>📅</span> Upcoming Schedule <span className="text-purple-300 font-normal">({upcoming.length})</span>
-                      </h2>
-                      <button
-                        onClick={() => setShowUpcoming(!showUpcoming)}
-                        className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition cursor-pointer"
-                        title={showUpcoming ? 'Hide' : 'Show'}
-                      >
-                        {showUpcoming ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                    </div>
-                    {showUpcoming && (
-                      <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                        {upcoming.slice(0, 4).map((v, i) => (
-                          <div key={i} className="px-2.5 py-1.5 bg-white/5 rounded-lg text-xs">
-                            <div className="text-purple-300 text-[10px] font-medium">{fmtDate(v.date)}</div>
-                            {v.title && <div className="text-white text-xs truncate">{v.title}</div>}
-                          </div>
-                        ))}
+                        <div className={`px-3 py-1.5 rounded-2xl text-xs max-w-[85%] break-words ${
+                          isMe
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-tr-none shadow'
+                            : isBot
+                            ? 'bg-purple-950/70 text-purple-100 border border-purple-500/30 rounded-tl-none'
+                            : 'bg-white/10 text-white rounded-tl-none border border-white/10'
+                        }`}>
+                          {msg.message}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {showSidebar && !fullscreenMode && (
-              <div className="fixed inset-0 md:hidden bg-black/50 z-40" onClick={() => setShowSidebar(false)}></div>
-            )}
-
-            {showSidebar && !fullscreenMode && (
-              <div className="fixed bottom-0 left-0 right-0 md:hidden bg-gradient-to-br from-purple-900 via-indigo-900 to-black rounded-t-xl border-t border-white/20 z-50 max-h-[80vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-3 border-b border-white/10">
-                  <h2 className="font-semibold text-white">📱 Session Info</h2>
-                  <button onClick={() => setShowSidebar(false)} className="text-gray-300 hover:text-white">✕</button>
-                </div>
-                <div className="p-3 space-y-3">
-                  {/* 1. Mobile Participants */}
-                  <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-xs sm:text-sm flex items-center gap-1">👥 Participants ({count})</h3>
-                      <button
-                        onClick={() => setShowParticipants(!showParticipants)}
-                        className="text-gray-300 hover:text-white p-1 rounded transition cursor-pointer"
-                      >
-                        {showParticipants ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                    </div>
-                    {showParticipants && (
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {participants.map((p, i) => (
-                          <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-white/5 rounded text-xs">
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                              {p.name[0]?.toUpperCase() || '?'}
-                            </div>
-                            <span className="truncate">{p.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 2. Mobile Live Chat (UPPER SIDE) */}
-                  {session?.status !== 'ended' && (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20 flex flex-col h-64">
-                      <h3 className="font-semibold text-xs sm:text-sm mb-2 pb-1 border-b border-white/10">💬 Live Chat</h3>
-                      <div ref={mobileChatMessagesRef} className="flex-1 overflow-y-auto space-y-2 mb-2 min-h-0 pr-1">
-                        {chat.map((msg) => (
-                          <div key={msg.id} className="text-xs">
-                            <span className="font-semibold text-pink-300">{msg.name}:</span> <span className="text-white break-words">{msg.message}</span>
-                          </div>
-                        ))}
-                        {chat.length === 0 && (
-                          <p className="text-purple-200 text-xs text-center py-4">Be the first to say Namaste 🙏</p>
-                        )}
-                      </div>
-                      <form onSubmit={sendChat} className="flex gap-1.5 pt-1.5 border-t border-white/10">
-                        <input
-                          type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                          placeholder="Say Namaste..." maxLength={300}
-                          className="flex-1 px-2.5 py-1.5 bg-white/20 rounded text-xs placeholder-purple-300 border border-white/30 focus:outline-none focus:border-white"
-                        />
-                        <button type="submit" className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-violet-500 rounded font-semibold text-xs hover:opacity-90">Send</button>
-                      </form>
+                    );
+                  })}
+                  {displayChat.length === 0 && (
+                    <div className="text-center py-12 text-purple-300 text-xs">
+                      <p className="text-3xl mb-1">🧘</p>
+                      <p className="font-semibold text-white">Live Sadhana Chat</p>
+                      <p className="text-[11px] text-purple-400 mt-1">Tap a quick greeting or type your message below 🙏</p>
                     </div>
                   )}
-
-                  {/* 3. Mobile Upcoming Schedule (BOTTOM) */}
-                  {upcoming.length > 0 && (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-3 border border-white/20">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-xs sm:text-sm">📅 Upcoming Schedule</h3>
-                        <button
-                          onClick={() => setShowUpcoming(!showUpcoming)}
-                          className="text-gray-300 hover:text-white p-1 rounded transition cursor-pointer"
-                        >
-                          {showUpcoming ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
-                      {showUpcoming && (
-                        <div className="space-y-1 max-h-28 overflow-y-auto">
-                          {upcoming.slice(0, 3).map((v, i) => (
-                            <div key={i} className="px-2 py-1.5 bg-white/5 rounded text-xs">
-                              <div className="text-purple-200 text-[10px]">{fmtDate(v.date)}</div>
-                              {v.title && <div className="text-white text-xs truncate">{v.title}</div>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div ref={chatEnd} />
                 </div>
-              </div>
-            )}
-          </div>
 
-          {!showSidebar && (
-            <button
-              onClick={() => setShowSidebar(true)}
-              className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold hover:opacity-90 transition z-40 text-sm sm:text-base shadow-xl border border-white/20"
-              title="Show sidebar"
-            >
-              💬 Chat & Info
-            </button>
+                {/* Message Input Form */}
+                <form onSubmit={sendChat} className="p-3 bg-black/60 border-t border-white/10 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message or Namaste 🙏..."
+                    maxLength={300}
+                    className="flex-1 px-3 py-2.5 bg-white/10 rounded-xl text-xs sm:text-sm placeholder-purple-300 border border-white/20 focus:outline-none focus:border-pink-400 transition text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 disabled:opacity-40 rounded-xl font-bold text-xs text-white transition flex items-center gap-1 cursor-pointer flex-shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send</span>
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
 
-          {announcement && (
-            <div className="mt-3 sm:mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
-              <div className="py-2 px-2 sm:px-4">
-                <div className="animate-marquee whitespace-nowrap text-white text-xs sm:text-sm font-medium">
-                  📢 {announcement} • 📢 {announcement} •
+          {/* ── PRACTITIONERS MODAL ────────────────────────────── */}
+          {showParticipantsModal && (
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-purple-500/40 p-4 shadow-2xl">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-400" />
+                    <span>Practitioners Online ({count})</span>
+                  </h3>
+                  <button
+                    onClick={() => setShowParticipantsModal(false)}
+                    className="p-1 rounded-lg bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1.5 py-3">
+                  {participants.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-xs text-white">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-[10px] font-bold">
+                        {p.name[0]?.toUpperCase() || '?'}
+                      </div>
+                      <span className="font-medium truncate">{p.name}</span>
+                    </div>
+                  ))}
+                  {participants.length === 0 && (
+                    <p className="text-xs text-purple-300 text-center py-4">No practitioners connected yet</p>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          <div className="mt-3 sm:mt-4 text-center text-purple-200 text-[10px] sm:text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
-        </div>
-      </div>
-    )}
-
-      {fullscreenMode && (
-        <div className="w-full h-full flex flex-col">
-          <div className="flex-1 relative">
-            {sessionView}
-            <div className="absolute top-2 right-2 z-50">
-              <button
-                onClick={toggleFullscreen}
-                className="bg-purple-600 hover:bg-purple-500 text-white p-2 rounded font-semibold text-sm"
-                title="Exit fullscreen"
-              >
-                {fullscreenMode ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-              </button>
-            </div>
-          </div>
-        </div>
+          <div className="py-3 text-center text-purple-400 text-[10px]">Swar Yoga • Sadhana Live • Namaste 🙏</div>
+        </>
       )}
     </div>
   );
@@ -803,22 +1044,63 @@ interface HLSPlayerProps {
   url: string;
   videoRef: React.RefObject<HTMLVideoElement>;
   offsetSeconds: number;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 }
 
-function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
+function HLSPlayer({ url, videoRef, offsetSeconds, onToggleFullscreen, isFullscreen }: HLSPlayerProps) {
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const seekPerformed = useRef(false);
   const hlsRef = useRef<any>(null);
 
-  const unmuteAudio = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = false;
-      videoRef.current.volume = 1;
-      setIsMuted(false);
-      videoRef.current.play().catch(() => {});
-    }
+  const handlePlayOrUnmute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = false;
+    video.volume = 1;
+    video.play()
+      .then(() => {
+        setIsPaused(false);
+        setIsMuted(false);
+      })
+      .catch(() => {
+        // Fallback: play muted if unmuted playback is restricted
+        video.muted = true;
+        video.play()
+          .then(() => {
+            setIsPaused(false);
+            setIsMuted(true);
+          })
+          .catch((e) => {
+            console.error('[HLS] Play failed:', e);
+            setIsPaused(true);
+          });
+      });
   };
+
+  const offsetRef = useRef(offsetSeconds);
+  useEffect(() => {
+    offsetRef.current = offsetSeconds;
+  }, [offsetSeconds]);
+
+  // Sync to offsetSeconds without destroying the player
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || offsetSeconds <= 0) return;
+    if (!seekPerformed.current) {
+      if (video.readyState >= 1) {
+        video.currentTime = offsetSeconds;
+        seekPerformed.current = true;
+      }
+    } else {
+      // Catch up only if drift is over 15 seconds
+      if (Math.abs(video.currentTime - offsetSeconds) > 15) {
+        video.currentTime = offsetSeconds;
+      }
+    }
+  }, [offsetSeconds, videoRef]);
 
   useEffect(() => {
     if (!videoRef.current || !url) return;
@@ -829,25 +1111,19 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     const video = videoRef.current;
     seekPerformed.current = false;
 
-    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
-    const handleCanPlay = () => {
-      if (video.paused) {
-        video.play().catch(() => {
-          video.muted = true;
-          setIsMuted(true);
-          video.play().catch(() => {});
-        });
-      }
-    };
+    const onPlay = () => setIsPaused(false);
+    const onPause = () => setIsPaused(true);
+    const onVolumeChange = () => setIsMuted(video.muted || video.volume === 0);
 
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('volumechange', onVolumeChange);
+
+    // Initial attributes for maximum browser autoplay compatibility
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
 
-    video.addEventListener('ratechange', handleRateChange);
-    video.addEventListener('canplay', handleCanPlay);
-
-    // Destroy previous hls instance
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
     const setup = async () => {
@@ -871,14 +1147,22 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
           hlsRef.current = hls;
           hls.loadSource(url);
           hls.attachMedia(video);
+
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (offsetRef.current > 0 && !seekPerformed.current) {
+              video.currentTime = offsetRef.current;
+              seekPerformed.current = true;
+            }
             video.play().catch((err) => {
-              console.warn('[HLS] Autoplay with sound blocked, trying muted:', err);
+              console.warn('[HLS] Unmuted play blocked by browser, trying muted:', err);
               video.muted = true;
               setIsMuted(true);
-              video.play().catch((e) => console.error('[HLS] Muted play failed:', e));
+              video.play().catch(() => {
+                setIsPaused(true);
+              });
             });
           });
+
           hls.on(Hls.Events.ERROR, (_: any, data: any) => {
             if (data.fatal) {
               console.error('[HLS] Fatal error:', data);
@@ -891,23 +1175,28 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
                   break;
                 default:
                   hls.destroy();
-                  setError('Stream error — please refresh');
+                  setError('Stream temporarily interrupted — click to retry');
                   break;
               }
             }
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari native HLS
+          // Native Safari / iOS HLS
           video.src = url;
           video.load();
-          video.play().catch((err) => {
-            console.warn('[Safari HLS] Autoplay blocked, trying muted:', err);
+          if (offsetRef.current > 0 && !seekPerformed.current) {
+            video.currentTime = offsetRef.current;
+            seekPerformed.current = true;
+          }
+          video.play().catch(() => {
             video.muted = true;
             setIsMuted(true);
-            video.play().catch(() => {});
+            video.play().catch(() => {
+              setIsPaused(true);
+            });
           });
         } else {
-          setError('Video playback not supported on this browser');
+          setError('Video playback is not supported on this browser');
         }
       } catch (err) {
         console.error('[HLS] Setup error:', err);
@@ -918,29 +1207,12 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     setup();
 
     return () => {
-      video.removeEventListener('ratechange', handleRateChange);
-      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('volumechange', onVolumeChange);
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
   }, [url, videoRef]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !url || seekPerformed.current || offsetSeconds <= 0) return;
-    const handleLoadedMetadata = () => {
-      if (!seekPerformed.current) {
-        video.currentTime = offsetSeconds;
-        seekPerformed.current = true;
-      }
-    };
-    if (video.readyState >= 1) {
-      video.currentTime = offsetSeconds;
-      seekPerformed.current = true;
-    } else {
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-    }
-  }, [offsetSeconds, url, videoRef]);
 
   if (error) {
     return (
@@ -948,10 +1220,10 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
         <div>
           <p className="text-red-400 mb-2 font-medium">{error}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-xs"
+            onClick={() => { setError(null); seekPerformed.current = false; }}
+            className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-semibold shadow cursor-pointer"
           >
-            Refresh Page
+            Retry Playback
           </button>
         </div>
       </div>
@@ -959,37 +1231,59 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}
+      className="cursor-pointer group"
+      onClick={handlePlayOrUnmute}
+    >
       <video
         ref={videoRef}
         autoPlay
         playsInline
         crossOrigin="anonymous"
-        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none' } as React.CSSProperties}
+        className="sadhana-video"
+        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none' }}
       />
 
-      {isMuted && (
+      {/* Tap to Play Overlay when Autoplay was blocked */}
+      {isPaused && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-r from-pink-500 to-violet-600 flex items-center justify-center shadow-2xl mb-4 transform hover:scale-110 transition-transform animate-pulse">
+            <Play size={40} className="ml-1 fill-white text-white" />
+          </div>
+          <span className="text-lg sm:text-xl font-bold text-white drop-shadow">Tap to Start Sadhana 🔴</span>
+          <span className="text-xs sm:text-sm text-purple-200 mt-1">Audio & Video will play live</span>
+        </div>
+      )}
+
+      {/* Tap to Unmute Audio Banner if audio was muted for autoplay */}
+      {!isPaused && isMuted && (
         <button
-          onClick={unmuteAudio}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePlayOrUnmute();
+          }}
           className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-pink-600 to-violet-600 text-white px-5 py-2.5 rounded-full font-bold shadow-2xl flex items-center gap-2 animate-bounce cursor-pointer border border-white/30 text-xs sm:text-sm hover:opacity-95"
         >
           <Volume2 size={18} /> Tap to Unmute Audio 🔊
         </button>
       )}
 
-      {/* Transparent overlay blocks right-click / unwanted seeking while allowing tap-to-unmute */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex: 10,
-          backgroundColor: 'transparent',
-        }}
-        onClick={() => {
-          if (isMuted) unmuteAudio();
-        }}
-        onContextMenu={(e) => e.preventDefault()}
-      />
+      {/* Floating Full Screen Button */}
+      {onToggleFullscreen && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFullscreen();
+          }}
+          className="absolute bottom-3 right-3 z-30 bg-black/80 hover:bg-black/95 active:scale-95 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-white/20 shadow-2xl cursor-pointer transition-all"
+          title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+        </button>
+      )}
     </div>
   );
 }

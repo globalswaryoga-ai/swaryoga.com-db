@@ -135,21 +135,51 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     let streamingData: any = {};
-    if (video.videoUrl) {
-      streamingData = { directUrl: video.videoUrl };
+    if (video.videoUrl && typeof video.videoUrl === 'string' && video.videoUrl.trim()) {
+      const trimmedUrl = video.videoUrl.trim();
+      if (trimmedUrl.includes('.m3u8') || trimmedUrl.includes('/playlist.')) {
+        streamingData = {
+          hlsUrl: trimmedUrl,
+          directUrl: trimmedUrl,
+        };
+      } else if (trimmedUrl.includes('mediadelivery.net') || trimmedUrl.includes('/embed/')) {
+        streamingData = {
+          playerUrl: trimmedUrl,
+        };
+      } else {
+        streamingData = {
+          directUrl: trimmedUrl,
+        };
+      }
     } else if (video.bunnyVideoId) {
-      const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '';
+      const streamHost = process.env.BUNNY_STREAM_HOST || 'vz-d0769ece-079.b-cdn.net';
+      const streamCdnKey = process.env.BUNNY_STREAM_CDN_KEY || '588efc37-ac6a-4044-aeb9-a27bcd1bb3a8';
+      const expiry = Math.floor(Date.now() / 1000) + 86400; // 24 hours valid
+
+      // 1. Generate signed HLS pull URL: SHA256(cdnKey + path + expiry) in URL-safe base64
+      const hlsPath = `/${video.bunnyVideoId}/playlist.m3u8`;
+      const hlsHash = crypto.createHash('sha256').update(streamCdnKey + hlsPath + expiry).digest('base64')
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+      const signedHlsUrl = `https://${streamHost}${hlsPath}?token=${hlsHash}&expires=${expiry}`;
+
+      // 2. Generate signed Embed Player URL for iframe fallback
+      const libraryId =
+        (video.content as any)?.bunnyLibraryId ||
+        (video.content as any)?.en?.bunnyLibraryId ||
+        process.env.BUNNY_STREAM_LIBRARY_ID ||
+        process.env.BUNNY_LIBRARY_ID ||
+        '606386';
       let playerUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${video.bunnyVideoId}?preload=true&responsive=true`;
-      const streamCdnKey = process.env.BUNNY_STREAM_CDN_KEY;
       if (streamCdnKey) {
-        const expiry = Math.floor(Date.now() / 1000) + 3600;
-        const token = crypto
+        const embedToken = crypto
           .createHash('sha256')
           .update(streamCdnKey + video.bunnyVideoId + expiry)
           .digest('hex');
-        playerUrl += `&token=${token}&expires=${expiry}`;
+        playerUrl += `&token=${embedToken}&expires=${expiry}`;
       }
       streamingData = {
+        hlsUrl: signedHlsUrl,
+        directUrl: signedHlsUrl,
         playerUrl,
         bunnyVideoId: video.bunnyVideoId,
         bunnyLibraryId: libraryId,
@@ -220,13 +250,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized or missing student identification' }, { status: 401 });
-    }
-
     const video = await getVideoById(videoId);
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
+
+    if (!userId) {
+      if (video.isFree) {
+        const fp = body.deviceFingerprint || getDeviceFingerprint(request);
+        userId = fp ? `guest_${fp}` : 'guest_anonymous';
+      } else {
+        return NextResponse.json({ error: 'Unauthorized or missing student identification' }, { status: 401 });
+      }
     }
 
     const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -257,8 +292,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Log watch progress
     const effectiveWatchSeconds = Math.max(0, Math.round(Number(watchedSeconds) || 0));
-    const effectiveDuration = Math.max(1, Number(video.duration) || Number(totalSeconds) || 1);
-    const isActuallyCompleted = completed || (effectiveWatchSeconds >= effectiveDuration * 0.9);
+    const effectiveDuration = Math.max(
+      Number(totalSeconds) || 0,
+      Number(video.duration) || 0,
+      1
+    );
+    const isActuallyCompleted = effectiveDuration > 60
+      ? (effectiveWatchSeconds >= effectiveDuration * 0.95 || (completed && effectiveWatchSeconds >= effectiveDuration * 0.9))
+      : (completed || effectiveWatchSeconds >= effectiveDuration * 0.9);
 
     await logWatchProgress(String(userId), video.id, video.courseId, effectiveWatchSeconds, isActuallyCompleted);
 

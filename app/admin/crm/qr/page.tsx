@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical, CloudUpload, DollarSign, TrendingUp, Clock } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical, CloudUpload, DollarSign, TrendingUp, Clock, Menu } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -354,6 +354,7 @@ export default function QRWhatsAppPage() {
   const [qrData, setQrData] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(false);
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -406,6 +407,39 @@ export default function QRWhatsAppPage() {
   const [editColor, setEditColor] = useState('');
   const [mediaPreview, setMediaPreview] = useState<{ file: File; base64: string; type: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchingRemote, setSearchingRemote] = useState(false);
+
+  // ── Remote search: queries across all 6,000+ CRM leads when searching ──
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || q.length < 2) return;
+    const timer = setTimeout(async () => {
+      setSearchingRemote(true);
+      try {
+        const res = await fetch(`/api/admin/crm/whatsapp/qr/chats?q=${encodeURIComponent(q)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const remoteFound = Array.isArray(json?.chats) ? json.chats : [];
+          if (remoteFound.length > 0) {
+            setChats(prev => {
+              const existingIds = new Set(prev.map(c => c.id));
+              const toAdd = remoteFound.filter((c: any) => !existingIds.has(c.id));
+              if (toAdd.length === 0) return prev;
+              return [...prev, ...toAdd];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[QR] Remote leads search failed:', err);
+      } finally {
+        setSearchingRemote(false);
+      }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [searchQuery, token]);
+
   const [detailsPanel, setDetailsPanel] = useState(false);
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [loadingGroupInfo, setLoadingGroupInfo] = useState(false);
@@ -1174,14 +1208,11 @@ export default function QRWhatsAppPage() {
     } catch {}
   }, [bridgeCall]);
 
-  // ── Fetch chats (bridge + CRM leads merge) ──
   const fetchChats = useCallback(async () => {
     try {
-      // ── STEP 1: Fetch chats from the DB-merged endpoint so older chats persist across
-      // bridge restarts / PC off. The bridge's in-memory chat list is empty on a cold start,
-      // so older conversations only reappeared after a manual refresh. /qr/chats merges the
-      // persisted qr_whatsapp_chats with the live bridge list. Falls back to a direct bridge
-      // call if the merged endpoint is unavailable (keeps NO_BRIDGE detection intact).
+      setLoadingChats(true);
+      // ── STEP 1: Fetch chats from the DB-merged endpoint (/qr/chats)
+      // /qr/chats merges live bridge chats with Bunny DB history, contact names, and leads.
       let data: any = null;
       try {
         const res = await fetch('/api/admin/crm/whatsapp/qr/chats', {
@@ -1190,15 +1221,12 @@ export default function QRWhatsAppPage() {
         if (res.ok) {
           const json = await res.json();
           const mergedChats = Array.isArray(json?.chats) ? json.chats : Array.isArray(json?.data?.chats) ? json.data.chats : [];
-          // The qr-bridge proxy carries the full Bunny history; always merge it with live chats.
-          const history: any = await bridgeCall('/chats').catch(() => null);
-          const historyChats = Array.isArray(history?.chats) ? history.chats : Array.isArray(history) ? history : [];
-          data = { ...(history || {}), chats: [...mergedChats, ...historyChats] };
+          data = { ...(json || {}), chats: mergedChats };
         } else {
-          data = await bridgeCall('/chats');
+          data = await bridgeCall('/chats').catch(() => ({ chats: [] }));
         }
       } catch (bridgeErr: any) {
-        data = await bridgeCall('/chats');
+        data = await bridgeCall('/chats').catch(() => ({ chats: [] }));
       }
 
       // ── SESSION CHANGED: server may have filtered out stale old-session chats ──
@@ -1462,17 +1490,25 @@ export default function QRWhatsAppPage() {
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
       setError(e?.message || 'Failed to fetch chats');
+    } finally {
+      setLoadingChats(false);
     }
   }, [bridgeCall, fetchProfilePic, token]);
 
   fetchChatsRef.current = fetchChats;
 
-  // ── Auto-refresh chat list every 30s when connected (was 15s—too aggressive) ──
-  // Increased from 15s to 30s: reduces unnecessary API calls and improves responsiveness
+  // ── Auto-fetch immediately on inbox view or token readiness ──
+  useEffect(() => {
+    if (tab === 'inbox' && token) {
+      fetchChats();
+    }
+  }, [tab, token, fetchChats]);
+
+  // ── Auto-refresh chat list every 25s when connected ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (tab === 'inbox' && status?.connected && isPageVisible) {
-      chatPollRef.current = setInterval(fetchChats, 30000);
+      chatPollRef.current = setInterval(fetchChats, 25000);
     } else {
       if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     }
@@ -2812,12 +2848,13 @@ export default function QRWhatsAppPage() {
     switch (filter) {
       // "All" = only chats with a real conversation (1:1 OR group with messages),
       // not every group the account belongs to. Use the Groups tab to see all groups.
-      case 'all': return chatHasConversation(c);
+      case 'all': return true;
       case 'unread': return (c.unreadCount || 0) > 0;
-      case 'read': return (c.unreadCount || 0) === 0 && chatHasConversation(c);
+      case 'read': return (c.unreadCount || 0) === 0;
       case 'groups': return c.isGroup;
-      case 'inbound': return chatHasConversation(c) && chatDirection(c) === 'inbound';
-      case 'outbound': return chatHasConversation(c) && chatDirection(c) === 'outbound';
+      case 'leads': return Boolean((c as any).isLead || c.leadStatus);
+      case 'inbound': return chatDirection(c) === 'inbound';
+      case 'outbound': return chatDirection(c) === 'outbound';
       default: return true;
     }
   };
@@ -2915,109 +2952,9 @@ export default function QRWhatsAppPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 pl-16">
+    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden w-full h-full min-h-0">
       {/* Top Gradient Accent Line */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-      {/* ═══ Left Icon Rail — matches web.whatsapp.com's own vertical icon
-          strip (Chats/Calls/Status/Communities + Settings/profile at the
-          bottom). Fixed positioning keeps it clear of every fixed inset-0
-          modal in this page (unaffected by the root's padding-left). Wires
-          into the SAME state/handlers as the top toolbar — this is a
-          second entry point for the same actions, not new functionality;
-          removing the now-redundant top toolbar/tabs is a later cleanup
-          pass once this placement is confirmed to be what's wanted. */}
-      <div className="fixed left-0 top-0 bottom-0 w-16 bg-gray-50 border-r flex flex-col items-center py-3 gap-1 z-30">
-        <button
-          onClick={() => { setTab('inbox'); if (isConnected) fetchChats(); }}
-          className={`relative p-3 rounded-full transition ${tab === 'inbox' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Inbox"
-        >
-          <MessageSquare className="w-5 h-5" />
-          {chats.filter(c => c.unreadCount > 0).length > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">
-              {chats.filter(c => c.unreadCount > 0).length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('connection')}
-          className={`relative p-3 rounded-full transition ${tab === 'connection' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Connection (QR & Status)"
-        >
-          <QrCode className="w-5 h-5" />
-          {isConnected && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-500" />}
-        </button>
-        <button
-          onClick={() => setTab('templates')}
-          className={`p-3 rounded-full transition ${tab === 'templates' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Templates"
-        >
-          <FileText className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setTab('broadcast')}
-          className={`p-3 rounded-full transition ${tab === 'broadcast' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Broadcast"
-        >
-          <Send className="w-5 h-5" />
-        </button>
-        <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Stories / Status">
-          <Radio className="w-5 h-5" />
-        </button>
-        {isConnected && (
-          <>
-            <button onClick={() => setShowNewChat(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Chat">
-              <Plus className="w-5 h-5" />
-            </button>
-            <button onClick={() => setShowGroupCreate(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Group">
-              <Users className="w-5 h-5" />
-            </button>
-          </>
-        )}
-        <div className="w-8 h-px bg-gray-200 my-1" />
-        <button
-          onClick={() => setTab('history')}
-          className={`p-3 rounded-full transition ${tab === 'history' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Sent Messages"
-        >
-          <Calendar className="w-5 h-5" />
-        </button>
-        {isConnected && (
-          <button
-            onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }}
-            className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition"
-            title="Merge Groups"
-          >
-            <Merge className="w-5 h-5" />
-          </button>
-        )}
-        <a href="/admin/crm/qr/broadcast-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Broadcast Reports">
-          <BarChart3 className="w-5 h-5" />
-        </a>
-        {/* "Channel" has no CRM equivalent (WA's one-way broadcast channels
-            aren't a feature here) — skipped rather than mapped to something
-            meaningless. "Meta bulk message" -> the separate Meta WhatsApp
-            Business API broadcast tool, a different provider from QR. */}
-        <a href="/admin/crm/meta" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Meta WhatsApp Bulk Message">
-          <Megaphone className="w-5 h-5" />
-        </a>
-
-        <div className="flex-1" />
-
-        <a href="/admin/crm/qr/leads" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Leads">
-          <UserCircle className="w-5 h-5" />
-        </a>
-        <a href="/admin/crm/qr/funnel-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Funnel Report">
-          <Funnel className="w-5 h-5" />
-        </a>
-        <button
-          onClick={() => setTab('settings')}
-          className={`p-3 rounded-full transition ${tab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-          title="Settings"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-      </div>
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 shrink-0" />
 
       {/* ═══ Error Banner ═══ */}
       {error && (
@@ -3037,6 +2974,16 @@ export default function QRWhatsAppPage() {
         <div className="px-4 py-1.5 flex items-center justify-between">
           {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
+            {/* Back / Open Sidebar Button */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('crm-open-sidebar'))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-700 text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+              title="Open Main Sidebar"
+              aria-label="Open CRM Sidebar"
+            >
+              <Menu className="w-4 h-4 text-gray-700" />
+              <span className="hidden sm:inline font-semibold">Sidebar</span>
+            </button>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
                 <QrCode className="w-4.5 h-4.5 text-white" />
@@ -3225,10 +3172,10 @@ export default function QRWhatsAppPage() {
         </div>
       )}
       {!loading && tab === 'inbox' && isConnected && (
-        <div className="flex h-[calc(100vh-57px)]" style={{ background: 'radial-gradient(circle at top right, rgba(16,185,129,0.08), transparent 24%), radial-gradient(circle at bottom left, rgba(34,197,94,0.05), transparent 20%)' }}>
+        <div className="flex-1 flex overflow-hidden w-full h-full min-h-0" style={{ background: 'radial-gradient(circle at top right, rgba(16,185,129,0.08), transparent 24%), radial-gradient(circle at bottom left, rgba(34,197,94,0.05), transparent 20%)' }}>
           {/* Chat List — full width on mobile, resizable sidebar on lg+ */}
           <div
-            className={`bg-white/95 backdrop-blur-sm flex flex-col border-r border-gray-200 shadow-xl ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
+            className={`bg-white/95 backdrop-blur-sm flex flex-col border-r border-gray-200 shadow-xl h-full min-h-0 ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minWidth: 280, maxWidth: 600, flexShrink: 0 }}
           >
             <div className="px-4 py-1.5 bg-white border-b flex items-center justify-between">
@@ -3239,6 +3186,7 @@ export default function QRWhatsAppPage() {
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
                 { key: 'all' as ChatFilter, label: 'All', icon: null },
+                { key: 'leads' as ChatFilter, label: 'Leads', icon: <UserCircle className="w-2.5 h-2.5" /> },
                 { key: 'unread' as ChatFilter, label: 'Unread', icon: <Mail className="w-2.5 h-2.5" /> },
                 { key: 'read' as ChatFilter, label: 'Read', icon: <MailOpen className="w-2.5 h-2.5" /> },
                 { key: 'groups' as ChatFilter, label: 'Groups', icon: <Users className="w-2.5 h-2.5" /> },
@@ -3266,7 +3214,11 @@ export default function QRWhatsAppPage() {
             {/* Search bar */}
             <div className="px-2 py-1.5 border-b">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                {searchingRemote ? (
+                  <Loader2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-green-600 animate-spin" />
+                ) : (
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                )}
                 <input
                   type="text"
                   value={searchQuery}
@@ -3412,7 +3364,12 @@ export default function QRWhatsAppPage() {
 
             {/* Chat items */}
             <div className="flex-1 overflow-y-auto">
-              {filteredChats.length === 0 && (
+              {loadingChats && chats.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-12 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+                  <p className="text-xs text-gray-500 font-medium">Loading conversations...</p>
+                </div>
+              ) : filteredChats.length === 0 ? (
                 <div className="p-6">
                   <div className="mx-auto max-w-sm rounded-3xl border border-dashed border-gray-200 bg-white/90 p-6 text-center shadow-sm">
                     <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xl">
@@ -3428,7 +3385,7 @@ export default function QRWhatsAppPage() {
                     <p className="text-xs text-gray-500">Use search, filters, or refresh to discover conversations.</p>
                   </div>
                 </div>
-              )}
+              ) : null}
               {filteredChats.map(chat => {
                 // Base the avatar on the DISPLAYED title, not the raw chat.name —
                 // the bridge's owner-name fallback ("Swar Yoga") was producing
@@ -3493,6 +3450,9 @@ export default function QRWhatsAppPage() {
                           <div className="flex items-center gap-2">
                             {chat.isGroup && <Users className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />}
                             <span className="font-semibold text-sm text-slate-900 truncate">{chatTitle}</span>
+                            {(chat as any).isLead && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 font-semibold shrink-0">CRM Lead</span>
+                            )}
                           </div>
                           <div className="mt-1 text-[11px] text-slate-500 truncate max-w-[240px]">
                             {chat.lastMessage ? String(chat.lastMessage).trim() : 'No conversation yet'}

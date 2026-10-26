@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     await initCommunitySchema();
 
-    const { name, email, mobile, countryCode, country, communityId, communityName } = await request.json();
+    const { name, email, mobile, countryCode, country, language, communityId, communityName } = await request.json();
 
     // Validate inputs
     if (!name || !mobile || !communityId || !communityName) {
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       email: email ? email.trim().toLowerCase() : undefined,
       countryCode: countryCode || '+91',
       country: country || '',
+      language: language || undefined,
       status: 'active',
       role: 'member',
     });

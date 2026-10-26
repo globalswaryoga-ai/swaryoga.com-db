@@ -1,45 +1,28 @@
 module.exports = {
   apps: [
-    // Next.js Frontend (Production Build)
     {
-      name: 'swar-frontend',
+      name: 'swaryoga',
       script: 'npm',
-      args: 'start',
-      cwd: '/Users/mohankalburgi/swaryoga.com-db',
-      
-      // Auto-restart configuration
+      args: 'run start',
+      cwd: '/var/www/swaryoga',
       autorestart: true,
       watch: false,
-      max_memory_restart: '500M',
+      max_memory_restart: '3G',
+      node_args: '--max-old-space-size=4096',
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        USE_BUNNY_DATABASE_ONLY: 'true',
+        DISABLE_MONGODB: 'true'
       },
-      
-      // Error handling
-      error_file: './logs/frontend-error.log',
-      out_file: './logs/frontend-out.log',
+      error_file: '/root/.pm2/logs/swaryoga-error.log',
+      out_file: '/root/.pm2/logs/swaryoga-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      
-      // Instance management
       instances: 1,
       exec_mode: 'fork',
-      
-      // Restart policies
-      max_restarts: 10,
-      min_uptime: '10s'
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 2000
     }
-  ],
-  
-  // Cluster configuration
-  deploy: {
-    production: {
-      user: 'node',
-      host: 'localhost',
-      ref: 'origin/main',
-      repo: 'https://github.com/Turya-Kalburgi/swar-yoga-latest.git',
-      path: '/home/ubuntu/swar-yoga',
-      'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.js --env production'
-    }
-  }
+  ]
 };

@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionsCollection } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/crm/sadhana-sessions/[sessionId]/leave
  * Record participant logout and calculate duration
  * Body: { participantId }
  */
-
 export async function POST(
   request: NextRequest,
   { params }: { params: { sessionId: string } }
 ) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { participantId } = body;
 
     if (!participantId) {
@@ -23,23 +23,21 @@ export async function POST(
       );
     }
 
-    const sessionsCol = await getSessionsCollection();
+    const sessionId = params.sessionId;
+    const existing = await bunnyExecute({
+      sql: 'SELECT document_id, data_json FROM sadhana_sessions_sql WHERE document_id = ? LIMIT 1',
+      args: [sessionId],
+    }).catch(() => ({ rows: [] }));
 
-    // Find session
-    const session = await sessionsCol.findOne({
-      _id: new mongoose.Types.ObjectId(params.sessionId),
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Session not found' },
-        { status: 404 }
-      );
+    if (existing.rows.length === 0) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Find participant
-    const participant = session.participants.find(
-      (p: any) => p._id.toString() === participantId
+    const data = existing.rows[0].data_json ? JSON.parse(String(existing.rows[0].data_json)) : {};
+    const participants = Array.isArray(data.participants) ? data.participants : [];
+
+    const participant = participants.find(
+      (p: any) => String(p._id) === String(participantId)
     );
 
     if (!participant) {
@@ -56,56 +54,27 @@ export async function POST(
       );
     }
 
-    // Calculate duration in minutes
     const now = new Date();
-    const durationMs = now.getTime() - new Date(participant.joinedAt).getTime();
-    const durationMinutes = Math.round(durationMs / 60000);
+    const joinedAt = new Date(participant.joinedAt);
+    const durationMinutes = Math.max(1, Math.round((now.getTime() - joinedAt.getTime()) / (1000 * 60)));
 
-    // Update participant with logout time and duration
-    const result = await sessionsCol.findOneAndUpdate(
-      {
-        _id: new mongoose.Types.ObjectId(params.sessionId),
-        'participants._id': new mongoose.Types.ObjectId(participantId),
-      },
-      {
-        $set: {
-          'participants.$[p].leftAt': now,
-          'participants.$[p].durationMinutes': durationMinutes,
-        },
-      },
-      {
-        arrayFilters: [{ 'p._id': new mongoose.Types.ObjectId(participantId) }],
-        returnDocument: 'after',
-      }
-    );
+    participant.leftAt = now.toISOString();
+    participant.durationMinutes = durationMinutes;
+    data.participants = participants;
 
-    if (!result.value) {
-      return NextResponse.json(
-        { error: 'Failed to update participant' },
-        { status: 500 }
-      );
-    }
-
-    const updatedParticipant = result.value.participants.find(
-      (p: any) => p._id.toString() === participantId
-    );
+    await bunnyExecute({
+      sql: 'UPDATE sadhana_sessions_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(data), now.toISOString(), sessionId],
+    });
 
     return NextResponse.json({
       success: true,
       message: `${participant.name} left the session`,
-      participant: {
-        _id: updatedParticipant._id.toString(),
-        name: updatedParticipant.name,
-        joinedAt: updatedParticipant.joinedAt,
-        leftAt: updatedParticipant.leftAt,
-        durationMinutes: updatedParticipant.durationMinutes,
-      },
+      durationMinutes,
+      participant,
     });
   } catch (error: any) {
-    console.error('[Session Leave] Error:', error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    console.error('[Sadhana Leave] Error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to record leave' }, { status: 500 });
   }
 }

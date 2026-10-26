@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
     const templateId = String(body.templateId || '').trim();
     if (!templateId) return NextResponse.json({ error: 'templateId required' }, { status: 400 });
     const provider = String(body.provider || 'meta');
-    if (provider !== 'meta') return NextResponse.json({ error: 'Only Meta broadcasts are supported on this Bunny SQL route' }, { status: 400 });
+    if (!['meta', 'qr'].includes(provider)) {
+      return NextResponse.json({ error: 'Provider must be meta or qr' }, { status: 400 });
+    }
 
     const template = await getTemplateById(templateId);
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
@@ -53,7 +55,9 @@ export async function POST(request: NextRequest) {
     }
 
     const mode = String(body.mode || 'now');
-    if (template.status !== 'approved') return NextResponse.json({ error: 'Select a Meta-approved template before sending or scheduling.' }, { status: 400 });
+    if (provider === 'meta' && template.status !== 'approved') {
+      return NextResponse.json({ error: 'Select a Meta-approved template before sending or scheduling.' }, { status: 400 });
+    }
     if (!['now', 'schedule', 'delay'].includes(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
     let scheduledAt: Date | null = null;
     if (mode === 'schedule') {

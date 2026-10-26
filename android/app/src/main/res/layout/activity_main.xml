@@ -2,7 +2,8 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white">
+    android:background="@color/primary_dark"
+    android:fitsSystemWindows="true">
 
     <!-- Main WebView content -->
     <LinearLayout
@@ -26,7 +27,7 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Splash Screen -->
+    <!-- Splash Screen (Yogic Cream Background & Emerald Infinity Logo) -->
     <LinearLayout
         android:id="@+id/splashView"
         android:layout_width="match_parent"
@@ -36,34 +37,56 @@
         android:background="@color/splash_background"
         android:visibility="visible">
 
-        <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:src="@mipmap/ic_launcher_round"
-            android:contentDescription="@string/app_name" />
+        <!-- Single 3D White Square Cube for Logo -->
+        <FrameLayout
+            android:layout_width="108dp"
+            android:layout_height="108dp"
+            android:background="@drawable/splash_logo_card"
+            android:elevation="6dp"
+            android:clipToOutline="true">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:src="@drawable/splash_logo"
+                android:contentDescription="@string/app_name" />
+        </FrameLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
-            android:textColor="@color/white"
+            android:textColor="@color/splash_text_primary"
             android:textSize="28sp"
+            android:textStyle="bold"
             android:fontFamily="sans-serif-medium"
             android:layout_marginTop="20dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="From Breath To Soul"
+            android:textColor="@color/splash_tagline"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="@string/app_description"
-            android:textColor="#CCFFFFFF"
-            android:textSize="14sp"
-            android:layout_marginTop="8dp" />
+            android:textColor="@color/splash_text_secondary"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif"
+            android:layout_marginTop="4dp" />
 
         <ProgressBar
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:layout_marginTop="40dp"
-            android:indeterminateTint="@color/white" />
+            android:layout_marginTop="36dp"
+            android:indeterminateTint="@color/primary" />
     </LinearLayout>
 
     <!-- Error Screen -->

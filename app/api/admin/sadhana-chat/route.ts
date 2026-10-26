@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsDb } from '@/lib/sadhanaPrograms';
-import mongoose from 'mongoose';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,28 +10,25 @@ export async function GET(request: NextRequest) {
     const programSlug = searchParams.get('programSlug');
     const limit = parseInt(searchParams.get('limit') || '100');
 
-    const db = await getProgramsDb();
-    const chatCol = db.collection('sadhana_live_chat');
-
-    const query: any = {};
+    let sql = 'SELECT * FROM sadhana_live_chat_sql';
+    const args: any[] = [];
     if (programSlug) {
-      query.programSlug = programSlug;
+      sql += ' WHERE program_slug = ?';
+      args.push(programSlug);
     }
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    args.push(limit);
 
-    const messages = await chatCol
-      .find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .toArray();
+    const result = await bunnyExecute({ sql, args });
 
     return NextResponse.json({
       success: true,
-      messages: messages.map((m: any) => ({
-        id: m._id.toString(),
-        programSlug: m.programSlug,
-        name: m.name,
+      messages: (result.rows || []).map((m: any) => ({
+        id: String(m.id),
+        programSlug: m.program_slug,
+        name: m.sender,
         message: m.message,
-        createdAt: m.createdAt,
+        createdAt: m.created_at,
       })),
     });
   } catch (error) {
@@ -49,10 +44,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }
 
-    const db = await getProgramsDb();
-    const chatCol = db.collection('sadhana_live_chat');
-
-    await chatCol.deleteOne({ _id: new mongoose.Types.ObjectId(id) });
+    await bunnyExecute({
+      sql: 'DELETE FROM sadhana_live_chat_sql WHERE id = ?',
+      args: [String(id)],
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
