@@ -50,6 +50,22 @@ interface PageCard {
 }
 
 const communityPages: PageCard[] = [
+  // ── 0. Live Community Controls & Daily Check-in ──
+  {
+    id: 'live-community-manager',
+    label: 'Live Community Management & 8-10 AM Sadhana',
+    tagline: 'Active Languages, Daily Swar & Tithi Controls',
+    description: 'Control live community features: 8:00 to 10:00 AM Swar Check-in window, 3 working languages (Hindi, Marathi, English), verified Mohan Sir answer badges, and referral invites.',
+    href: '/community',
+    icon: Sparkles,
+    gradient: 'from-emerald-600 via-teal-600 to-cyan-600',
+    badge: 'Live Operations',
+    badgeColor: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
+    category: 'moderation-settings',
+    primaryActionLabel: 'Open Live Community',
+    features: ['8–10 AM Check-in Window', 'Hindi, Marathi & English Control', 'Verified Answer Badges', 'Family & Friends Referral'],
+  },
+
   // ── 0. Call & Zoom 1:1 Requests ──
   {
     id: 'community-call-requests',
