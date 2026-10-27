@@ -1907,109 +1907,93 @@ function CommunityPageContent() {
               </div>
             </div>
 
-            {/* 🌅 1. Daily Swar Tracker & Morning Practice Streak + 🧘 4. Daily Swar Niyama Guidance */}
-            <div className="mb-4 bg-gradient-to-r from-amber-50 via-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl p-3 sm:p-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-emerald-100/80">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🕉️</span>
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5 flex-wrap">
-                      <span>Daily Swar Check-in</span>
-                      <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                        🔥 {swarStreak} Days Sadhana Streak
-                      </span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                        isSwarWindowOpen 
-                          ? 'bg-green-100 text-green-800 border-green-300 animate-pulse' 
-                          : 'bg-amber-100 text-amber-800 border-amber-300'
-                      }`}>
-                        ⏰ 8:00 AM – 10:00 AM {isSwarWindowOpen ? '(Active Now)' : '(Closed Now)'}
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-emerald-800/80 font-medium">
-                      {isSwarWindowOpen
-                        ? 'Which nostril is active right now? (अभी कौन सा स्वर चल रहा है?)'
-                        : 'Daily morning check-in opens only between 8:00 AM to 10:00 AM (सुबह 8 से 10 बजे खुलेगा)'}
-                    </p>
+            {/* 🌅 Daily Swar Tracker & Streak - Visible ONLY between 8:00 AM and 10:00 AM, otherwise completely hidden */}
+            {isSwarWindowOpen && (
+              <div className="mb-4 bg-gradient-to-r from-amber-50 via-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl p-3 sm:p-4 shadow-sm animate-in fade-in duration-300">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-emerald-100/80">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🕉️</span>
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                        <span>Daily Swar Check-in</span>
+                        <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          🔥 {swarStreak} Days Sadhana Streak
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-emerald-800/80 font-medium">
+                        Which nostril is active right now? (अभी कौन सा स्वर चल रहा है?)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1-Tap Swar Checkin Buttons */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleSwarCheckIn('chandra')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer active:scale-95 ${
+                        activeSwar === 'chandra'
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                          : 'bg-white hover:bg-blue-50 text-blue-900 border border-blue-200'
+                      }`}
+                      title="Chandra Swar (Left Nostril)"
+                    >
+                      <span>🌙</span>
+                      <span>Ida (Left)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSwarCheckIn('surya')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer active:scale-95 ${
+                        activeSwar === 'surya'
+                          ? 'bg-amber-600 text-white ring-2 ring-amber-300'
+                          : 'bg-white hover:bg-amber-50 text-amber-900 border border-amber-200'
+                      }`}
+                      title="Surya Swar (Right Nostril)"
+                    >
+                      <span>☀️</span>
+                      <span>Pingala (Right)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSwarCheckIn('sushumna')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer active:scale-95 ${
+                        activeSwar === 'sushumna'
+                          ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                          : 'bg-white hover:bg-purple-50 text-purple-900 border border-purple-200'
+                      }`}
+                      title="Sushumna (Balanced)"
+                    >
+                      <span>🧘</span>
+                      <span>Both</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* 1-Tap Swar Checkin Buttons */}
-                <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleSwarCheckIn('chandra')}
-                    disabled={!isSwarWindowOpen}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
-                      !isSwarWindowOpen
-                        ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                {/* 🧘 Daily Swar Niyama Guidance Snippet */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-emerald-900 gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-emerald-950">✨ Today's Swar Niyama:</span>
+                    <span className="text-emerald-800">
+                      {activeSwar === 'surya'
+                        ? 'Active Surya Swar: Best for digestion, exercise, bold actions.'
                         : activeSwar === 'chandra'
-                        ? 'bg-blue-600 text-white ring-2 ring-blue-300 cursor-pointer active:scale-95'
-                        : 'bg-white hover:bg-blue-50 text-blue-900 border border-blue-200 cursor-pointer active:scale-95'
-                    }`}
-                    title={isSwarWindowOpen ? "Chandra Swar (Left Nostril)" : "Opens 8:00 AM to 10:00 AM"}
-                  >
-                    <span>🌙</span>
-                    <span>Ida (Left)</span>
-                  </button>
-
+                        ? 'Calming Chandra Swar: Best for water intake, peaceful study, planning.'
+                        : 'Sushumna Flow: Supreme time for deep meditation & chanting.'}
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => handleSwarCheckIn('surya')}
-                    disabled={!isSwarWindowOpen}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
-                      !isSwarWindowOpen
-                        ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
-                        : activeSwar === 'surya'
-                        ? 'bg-amber-600 text-white ring-2 ring-amber-300 cursor-pointer active:scale-95'
-                        : 'bg-white hover:bg-amber-50 text-amber-900 border border-amber-200 cursor-pointer active:scale-95'
-                    }`}
-                    title={isSwarWindowOpen ? "Surya Swar (Right Nostril)" : "Opens 8:00 AM to 10:00 AM"}
+                    onClick={() => setShowReferralModal(true)}
+                    className="self-end sm:self-auto text-[11px] font-bold text-teal-800 hover:text-teal-950 underline flex items-center gap-1 cursor-pointer"
                   >
-                    <span>☀️</span>
-                    <span>Pingala (Right)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSwarCheckIn('sushumna')}
-                    disabled={!isSwarWindowOpen}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
-                      !isSwarWindowOpen
-                        ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
-                        : activeSwar === 'sushumna'
-                        ? 'bg-purple-600 text-white ring-2 ring-purple-300 cursor-pointer active:scale-95'
-                        : 'bg-white hover:bg-purple-50 text-purple-900 border border-purple-200 cursor-pointer active:scale-95'
-                    }`}
-                    title={isSwarWindowOpen ? "Sushumna (Balanced)" : "Opens 8:00 AM to 10:00 AM"}
-                  >
-                    <span>🧘</span>
-                    <span>Both</span>
+                    <span>🎁 Invite Family & Friends</span>
                   </button>
                 </div>
               </div>
-
-              {/* 🧘 4. Daily Swar Niyama & Tithi Guidance Snippet */}
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-emerald-900 gap-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-emerald-950">✨ Today's Swar Niyama:</span>
-                  <span className="text-emerald-800">
-                    {activeSwar === 'surya'
-                      ? 'Active Surya Swar: Best for digestion, exercise, bold actions.'
-                      : activeSwar === 'chandra'
-                      ? 'Calming Chandra Swar: Best for water intake, peaceful study, planning.'
-                      : 'Sushumna Flow: Supreme time for deep meditation & chanting.'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowReferralModal(true)}
-                  className="self-end sm:self-auto text-[11px] font-bold text-teal-800 hover:text-teal-950 underline flex items-center gap-1 cursor-pointer"
-                >
-                  <span>🎁 Invite Family & Friends</span>
-                </button>
-              </div>
-            </div>
+            )}
 
             {/* 3. Below Workshop Name: Search posts */}
             <div className="mb-5 sm:mb-6 space-y-3">
