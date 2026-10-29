@@ -2,9 +2,9 @@ import { getAuthToken } from '@/hooks/useAuth';
 
 export function registrationFetch(input: RequestInfo | URL, init?: RequestInit) {
   const headers = new Headers(init?.headers);
-  const token = getAuthToken();
+  const token = getAuthToken() || (typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token')) : null);
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  return globalThis.fetch(input, { ...init, headers, cache: 'no-store' });
+  return globalThis.fetch(input, { credentials: 'include', ...init, headers, cache: 'no-store' });
 }
 
 export async function saveRegistrationState(state: Record<string, unknown>) {

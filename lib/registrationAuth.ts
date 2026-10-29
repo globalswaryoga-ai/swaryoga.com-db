@@ -13,8 +13,21 @@ export function registrationViewer(request: Request) {
     token = cookies.admin_token || cookies.adminToken || cookies.crm_token || cookies.token || cookies.auth_token || '';
   }
   const decoded = token ? verifyToken(token) : null;
-  if (!decoded?.isAdmin) return null;
-  return { userId: getViewerUserId(decoded), superAdmin: isSuperAdmin(decoded) };
+  if (!decoded) return null;
+  const superAdmin = isSuperAdmin(decoded, request);
+  const isAdmin = Boolean(
+    decoded.isAdmin === true ||
+    superAdmin ||
+    decoded.role === 'admin' ||
+    decoded.role === 'superadmin' ||
+    decoded.role === 'manager' ||
+    decoded.userId === 'admin' ||
+    decoded.userId === 'admincrm' ||
+    decoded.username === 'admin' ||
+    decoded.username === 'admincrm'
+  );
+  if (!isAdmin) return null;
+  return { userId: getViewerUserId(decoded), superAdmin };
 }
 
 export function registrationLeadOwned(lead: { createdByUserId?: string; assignedToUserId?: string }, viewer: NonNullable<ReturnType<typeof registrationViewer>>) {

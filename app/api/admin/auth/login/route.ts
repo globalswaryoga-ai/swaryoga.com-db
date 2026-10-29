@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       userAgent: request.headers.get('user-agent'),
     });
 
-    return jsonResponse({
+    const response = jsonResponse({
       success: true,
       token,
       tenantId, // Return tenantId so client can store it
@@ -101,6 +101,23 @@ export async function POST(request: Request) {
         managedUserIds: user.managedUserIds || [],
       }
     });
+
+    response.cookies.set('admin_token', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7
+    });
+    response.cookies.set('adminToken', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return jsonResponse(

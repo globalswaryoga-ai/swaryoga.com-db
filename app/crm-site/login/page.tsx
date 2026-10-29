@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogIn, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { isValidAdminToken, clearAuthToken } from '@/hooks/useAuth';
 
 export default function CrmLoginPage() {
   const router = useRouter();
@@ -12,11 +13,13 @@ export default function CrmLoginPage() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
 
-  // Check if already logged in - redirect to dashboard
+  // Check if already logged in - redirect to dashboard only if valid
   useEffect(() => {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-    if (token && token !== 'null' && token !== 'undefined') {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token');
+    if (token && isValidAdminToken(token)) {
       router.replace('/admin/crm');
+    } else if (token) {
+      clearAuthToken();
     }
   }, [router]);
 

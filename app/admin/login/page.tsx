@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, AlertCircle, CheckCircle } from 'lucide-react';
+import { isValidAdminToken, clearAuthToken } from '@/hooks/useAuth';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -10,14 +11,17 @@ export default function AdminLogin() {
   // Auto-login for swarsakshi9@gmail.com and auto-redirect if already logged in
   useEffect(() => {
     const checkAndAutoLogin = async () => {
-      // First check if already logged in
+      // First check if already logged in with a VALID admin token
       const token = typeof window !== 'undefined'
-        ? localStorage.getItem('adminToken') || localStorage.getItem('admin_token')
+        ? localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token')
         : null;
 
-      if (token) {
+      if (token && isValidAdminToken(token)) {
         router.replace('/admin/crm');
         return;
+      } else if (token) {
+        // Token is expired or invalid - clear it to prevent infinite redirect loops
+        clearAuthToken();
       }
 
       // Try auto-login with swarsakshi9@gmail.com
