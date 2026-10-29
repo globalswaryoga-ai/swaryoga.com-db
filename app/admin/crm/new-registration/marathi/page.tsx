@@ -27,7 +27,7 @@ import {
   UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getAuthToken, clearAuthToken } from '@/hooks/useAuth';
 
 
 const safeStringify = (obj: any) => {
@@ -980,7 +980,12 @@ export default function NewRegistrationPage() {
     try {
       const loadFromApi = async () => {
         try {
+          if (!getAuthToken()) return;
           const res = await fetch('/api/admin/crm/new-registration/state');
+          if (res.status === 401) {
+            clearAuthToken();
+            return;
+          }
           if (!res.ok) throw new Error('Registration settings could not be loaded. Automatic saving is paused.');
           if (res.ok) {
             const data = await res.json();
