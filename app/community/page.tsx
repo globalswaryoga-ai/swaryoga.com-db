@@ -307,6 +307,19 @@ function CommunityPageContent() {
     return () => window.removeEventListener('resize', checkDevice);
   }, [searchParams]);
 
+  // Read community and category from URL query parameters on initial mount
+  useEffect(() => {
+    const commParam = searchParams.get('community') || searchParams.get('c');
+    if (commParam) {
+      setSelectedCommunity(commParam);
+    }
+    const catParam = searchParams.get('category') || searchParams.get('cat');
+    if (catParam) {
+      setSelectedCategory(catParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 5 Symbolic Categories (Requested by User with exact symbols)
   // 1) Health: 🧘 Meditation symbol
   // 2) Wealth: 💰 Wealth symbol

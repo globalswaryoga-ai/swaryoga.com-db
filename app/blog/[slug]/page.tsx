@@ -3,9 +3,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import ShareButton from '@/components/ShareButton';
 import { ArrowLeft, Calendar, User, Clock, Tag } from 'lucide-react';
 
 interface BlogPost {
@@ -23,10 +24,26 @@ interface BlogPost {
 
 export default function BlogPostPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = (params?.slug as string) || '';
+  const urlLang = searchParams?.get('lang');
   const [language, setLanguage] = useState<'en' | 'hi' | 'mr'>('en');
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (urlLang && ['en', 'hi', 'mr'].includes(urlLang)) {
+      setLanguage(urlLang as 'en' | 'hi' | 'mr');
+    }
+  }, [urlLang]);
+
+  const handleLanguageChange = (newLang: 'en' | 'hi' | 'mr') => {
+    setLanguage(newLang);
+    if (typeof window !== 'undefined') {
+      const newUrl = newLang === 'en' ? `/blog/${slug}` : `/blog/${slug}?lang=${newLang}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+  };
 
   // Blog posts data with full content
   const blogPosts: BlogPost[] = useMemo(() => ([
@@ -382,9 +399,18 @@ Start with just one technique that resonates with your current health concern. P
               Back to Blog
             </Link>
             
-            <h1 className="text-3xl sm:text-4xl font-bold text-yoga-900 mb-4">
-              {post.title[language]}
-            </h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-3xl sm:text-4xl font-bold text-yoga-900 flex-1">
+                {post.title[language]}
+              </h1>
+              <ShareButton
+                title={post.title[language]}
+                description={post.excerpt[language]}
+                url={`https://swaryoga.com/blog/${slug}${language !== 'en' ? `?lang=${language}` : ''}`}
+                variant="icon"
+                size="lg"
+              />
+            </div>
 
             {/* Metadata */}
             <div className="flex flex-wrap gap-4 text-sm text-swar-primary mb-6">
@@ -411,7 +437,7 @@ Start with just one technique that resonates with your current health concern. P
             {/* Language Selector */}
             <div className="flex gap-2">
               <button
-                onClick={() => setLanguage('en')}
+                onClick={() => handleLanguageChange('en')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'en'
                     ? 'bg-swar-primary text-white'
@@ -421,7 +447,7 @@ Start with just one technique that resonates with your current health concern. P
                 English
               </button>
               <button
-                onClick={() => setLanguage('hi')}
+                onClick={() => handleLanguageChange('hi')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'hi'
                     ? 'bg-swar-primary text-white'
@@ -431,7 +457,7 @@ Start with just one technique that resonates with your current health concern. P
                 हिंदी
               </button>
               <button
-                onClick={() => setLanguage('mr')}
+                onClick={() => handleLanguageChange('mr')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'mr'
                     ? 'bg-swar-primary text-white'

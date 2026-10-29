@@ -1,33 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Users, Calendar, Video, Globe, Lock } from 'lucide-react';
+import ShareButton from '@/components/ShareButton';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
-// Language options with flags (same as main e-learning page)
-const languageOptions = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
-  { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
-  { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹' },
-  { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
-  { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
-  { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
-  { code: 'th', name: 'Thai', flag: '🇹🇭' },
-  { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
-];
+// Language options: Indian (Hindi, Marathi, Kannada) + All Foreign Languages (no Urdu)
+const languageOptions = ELEARNING_LANGUAGES;
 
 interface Video {
   _id: string;
@@ -64,6 +46,7 @@ interface Course {
 export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -92,16 +75,22 @@ export default function CourseDetailPage() {
   }, [langDropdownOpen]);
 
   useEffect(() => {
-    // Get token from localStorage
     const storedToken = localStorage.getItem('token') || '';
     setToken(storedToken);
     setIsLoggedIn(!!storedToken);
 
-    // Get preferred language from localStorage
-    const savedLang = localStorage.getItem('preferred_language');
-    if (savedLang && languageOptions.some(l => l.code === savedLang)) {
-      setLanguage(savedLang);
+    // URL query param takes priority (for shared links)
+    const urlLang = searchParams.get('lang');
+    if (urlLang && languageOptions.some(l => l.code === urlLang)) {
+      setLanguage(urlLang);
+      localStorage.setItem('preferred_language', urlLang);
+    } else {
+      const savedLang = localStorage.getItem('preferred_language');
+      if (savedLang && languageOptions.some(l => l.code === savedLang)) {
+        setLanguage(savedLang);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Get current language info
@@ -259,7 +248,16 @@ export default function CourseDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black mb-4">{course.title}</h1>
+            <div className="flex items-start gap-3 mb-4">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black flex-1">{course.title}</h1>
+              <ShareButton
+                title={course.title}
+                description={course.description || `Learn ${course.title} on Swar Yoga`}
+                url={`https://swaryoga.com/e-learning/${slug}?lang=${language}`}
+                variant="icon"
+                size="lg"
+              />
+            </div>
 
             <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
               course.level === 'beginner' ? 'bg-green-100 text-green-800' :

@@ -2,6 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import ShareButton from '@/components/ShareButton';
 import { Calendar, Clock, Users, Star, ArrowRight, CheckCircle, Globe, Languages, Wallet, Play } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -133,9 +134,19 @@ export default async function WorkshopDetailPage({ params }: { params: { slug: s
                   <span>{workshop.level}</span>
                 </div>
 
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
-                  {workshop.name}
-                </h1>
+                <div className="flex items-start gap-4 mb-4">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight flex-1">
+                    {workshop.name}
+                  </h1>
+                  <ShareButton
+                    title={`${workshop.name} - Swar Yoga Workshop`}
+                    description={workshop.description || `Register for ${workshop.name}`}
+                    url={`https://swaryoga.com/workshops/${params.slug}`}
+                    variant="icon"
+                    size="lg"
+                    className="text-white hover:text-green-300 hover:bg-white/10 shrink-0"
+                  />
+                </div>
 
                 <p className="text-base sm:text-lg text-gray-100 leading-relaxed mb-8 max-w-2xl">
                   {workshop.description}

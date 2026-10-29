@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Lock, BookOpen, Sparkles, CheckCircle2 } from 'lucide-react';
+import ShareButton from '@/components/ShareButton';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
 import CourseLeadUnlockModal from '@/components/CourseLeadUnlockModal';
 
@@ -139,7 +140,13 @@ export default function CourseVideosPage() {
           <ArrowLeft size={20} /> Back to Course
         </Link>
         <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Course Videos</h1>
-        <div className="w-6" /> {/* Spacer */}
+        <ShareButton
+          title={`${course.title} - All Videos`}
+          description={`Watch all videos for ${course.title} on Swar Yoga`}
+          url={`https://swaryoga.com/e-learning/${slug}/videos`}
+          variant="icon"
+          size="md"
+        />
       </div>
 
       {/* Main Content */}
@@ -236,9 +243,19 @@ export default function CourseVideosPage() {
 
                   {/* Video Info */}
                   <div className="p-4 bg-white">
-                    <h3 className="font-bold text-gray-900 text-sm sm:text-base mb-1 line-clamp-2">
-                      Video {index + 1}: {video.title}
-                    </h3>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="font-bold text-gray-900 text-sm sm:text-base line-clamp-2 flex-1">
+                        Video {index + 1}: {video.title}
+                      </h3>
+                      <ShareButton
+                        title={`${video.title} - ${course.title}`}
+                        description={`Watch "${video.title}" in ${course.title} on Swar Yoga`}
+                        url={`https://swaryoga.com/e-learning/${slug}/learn?video=${videoId}`}
+                        variant="icon"
+                        size="sm"
+                        className="text-gray-400 hover:text-green-600 hover:bg-green-50 flex-shrink-0"
+                      />
+                    </div>
                     {video.description && (
                       <p className="text-gray-600 text-xs line-clamp-2 mb-2">
                         {video.description}

@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import ShareButton from '@/components/ShareButton';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
 import CourseLeadUnlockModal from '@/components/CourseLeadUnlockModal';
-import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle, Music } from 'lucide-react';
+import { CheckSquare, Clock, Bell, ListTodo, CheckCircle2, RotateCcw, Sparkles, HelpCircle, Music, Maximize, Minimize, RotateCw } from 'lucide-react';
+import { toggleFullscreenAndRotate, setupFullscreenRotateListener, isCurrentlyFullscreen } from '@/lib/videoFullscreenRotate';
 
 // Global video control hiding - only for direct HTML5 videos, not iframes
 if (typeof document !== 'undefined') {
@@ -305,6 +307,19 @@ function CourseLearnContent({ params: propParams }: { params?: { slug?: string }
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreenVideo, setIsFullscreenVideo] = useState<boolean>(false);
+
+  useEffect(() => {
+    return setupFullscreenRotateListener((isFs) => {
+      setIsFullscreenVideo(isFs);
+    });
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    const target = videoContainerRef.current || videoRef.current || iframeRef.current;
+    toggleFullscreenAndRotate(target);
+  };
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState<number>(0);
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -2294,12 +2309,20 @@ function CourseLearnContent({ params: propParams }: { params?: { slug?: string }
             </div>
           </div>
 
-          {/* Quick Counter / Badge */}
+          {/* Quick Counter / Badge & Share Button */}
           {currentVideo && videos.length > 0 && (
             <div className="flex-shrink-0 flex items-center gap-2">
               <span className="text-[11px] font-mono font-medium text-gray-400 bg-gray-900/90 px-2 py-1 rounded-md border border-gray-700/80">
                 {videos.findIndex((v) => v._id === currentVideo._id) + 1} / {videos.length}
               </span>
+              <ShareButton
+                title={`${currentVideo.title} - ${course?.title || 'Swar Yoga'}`}
+                description={`Watch "${currentVideo.title}" on Swar Yoga`}
+                url={typeof window !== 'undefined' ? window.location.href : `https://swaryoga.com/e-learning/${slug}/learn?video=${currentVideo._id || currentVideo.id}`}
+                variant="icon"
+                size="sm"
+                className="text-gray-300 hover:text-green-400 hover:bg-gray-800"
+              />
             </div>
           )}
         </div>
@@ -3103,7 +3126,27 @@ function CourseLearnContent({ params: propParams }: { params?: { slug?: string }
           ) : currentVideo && videoStream ? (
             <>
               {/* Video */}
-              <div className="flex-1 flex items-center justify-center">
+              <div ref={videoContainerRef} className="flex-1 flex items-center justify-center relative group/video-player bg-black overflow-hidden">
+                {/* Floating Rotate & Full Screen Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleFullscreen}
+                  className="absolute top-3 right-3 z-30 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 active:scale-95 text-white backdrop-blur-md border border-white/20 text-xs font-semibold shadow-xl flex items-center gap-1.5 transition-all opacity-85 hover:opacity-100 cursor-pointer"
+                  title={isFullscreenVideo ? 'Exit Full Screen' : 'Rotate Full Screen (Landscape)'}
+                >
+                  {isFullscreenVideo ? (
+                    <>
+                      <Minimize className="w-3.5 h-3.5 text-orange-400" />
+                      <span>Exit</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      <Maximize className="w-3.5 h-3.5 text-white" />
+                      <span className="hidden xs:inline">Rotate Full Screen</span>
+                    </>
+                  )}
+                </button>
                 {videoLoading ? (
                   <div className="w-full h-full flex items-center justify-center bg-gray-900">
                     <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -3289,6 +3332,18 @@ function CourseLearnContent({ params: propParams }: { params?: { slug?: string }
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                     <span>Topics</span>
+                  </button>
+
+                  {/* Rotate / Full Screen Button */}
+                  <button
+                    type="button"
+                    onClick={handleToggleFullscreen}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                    title={isFullscreenVideo ? 'Exit Full Screen' : 'Rotate to Full Screen Landscape'}
+                  >
+                    <RotateCw className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <Maximize className="w-3.5 h-3.5" />
+                    <span>{isFullscreenVideo ? 'Exit' : 'Rotate'}</span>
                   </button>
 
                   {(() => {

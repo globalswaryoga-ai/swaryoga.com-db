@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import Footer from '@/components/Footer';
 import {
   BookOpen,
@@ -160,6 +161,34 @@ export default function BlogEBookPage() {
     }
   }, []);
 
+  // Sync state from URL parameters on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const chapId = urlParams.get('chapter');
+      const lang = urlParams.get('lang');
+      const pillar = urlParams.get('pillar') as EBookPillar | null;
+
+      if (lang && WORKSHOP_LANGUAGES.some(l => l.code === lang)) {
+        setSelectedLang(lang);
+        setReaderLang(lang);
+      }
+      if (pillar && EBOOK_PILLARS.some(p => p.id === pillar)) {
+        setActivePillar(pillar);
+      }
+      if (chapId) {
+        const found = EBOOK_CHAPTERS.find(c => c.id === chapId || String(c.chapterNumber) === chapId);
+        if (found) {
+          setActiveChapter(found);
+          if (lang) setReaderLang(lang);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
@@ -195,14 +224,24 @@ export default function BlogEBookPage() {
     });
   };
 
-  // Share Chapter Link
+  // Share Chapter Link (Android native bridge + Web Share API + Clipboard)
   const handleShareChapter = (chapter: EBookChapter) => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/blog?chapter=${chapter.id}` : '';
-    const title = getLocalized(chapter.title, selectedLang);
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com';
+    const url = `${origin}/blog?chapter=${chapter.id}&lang=${readerLang}`;
+    const title = getLocalized(chapter.title, readerLang);
+    const msg = `Read Swar Yoga: ${title}`;
+
+    if (typeof window !== 'undefined' && (window as any).SwarYoga?.share) {
+      try {
+        (window as any).SwarYoga.share(title, msg, url);
+        return;
+      } catch (e) {}
+    }
+
     if (typeof navigator !== 'undefined' && navigator.share) {
-      navigator.share({ title, text: `Read Swar Yoga: ${title}`, url }).catch(() => {});
+      navigator.share({ title, text: msg, url }).catch(() => {});
     } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(url);
+      navigator.clipboard.writeText(`${title}\n${url}`);
       showToast('Link copied to clipboard! 🔗');
     } else {
       showToast('Sharing link ready! 🔗');
@@ -334,10 +373,21 @@ export default function BlogEBookPage() {
     }
   };
 
-  // Open Chapter in Reader
+  // Open Chapter in Reader and sync to URL for deep linking
   const openChapter = (chap: EBookChapter) => {
     setActiveChapter(chap);
     setReaderLang(selectedLang);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `/blog?chapter=${chap.id}&lang=${selectedLang}`);
+    }
+  };
+
+  // Close Chapter Reader and restore base blog URL
+  const closeReader = () => {
+    setActiveChapter(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `/blog?pillar=${activePillar}&lang=${selectedLang}`);
+    }
   };
 
   // Open Chapter linked to a Topic
@@ -1063,7 +1113,7 @@ export default function BlogEBookPage() {
               {/* Left: Back Button */}
               <button
                 type="button"
-                onClick={() => setActiveChapter(null)}
+                onClick={closeReader}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer shrink-0"
                 title="Back to Chapters"
               >
@@ -1190,7 +1240,7 @@ export default function BlogEBookPage() {
                 {/* 2. Close Reader in Gray X */}
                 <button
                   type="button"
-                  onClick={() => setActiveChapter(null)}
+                  onClick={closeReader}
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 flex items-center justify-center text-gray-700 hover:text-black transition-all cursor-pointer shadow-xs active:scale-95"
                   title="Close Reader"
                   aria-label="Close Reader"
@@ -1413,7 +1463,7 @@ export default function BlogEBookPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setActiveChapter(null)}
+                  onClick={closeReader}
                   className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-md cursor-pointer ml-auto"
                 >
                   Finish Reading ✓

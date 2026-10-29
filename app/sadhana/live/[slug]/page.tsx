@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import ShareButton from '@/components/ShareButton';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play, Volume2, ArrowLeft, MessageSquare, X, Send, Users, Calendar, Sparkles, RotateCw } from 'lucide-react';
+import { applyLandscapeOrientation, restoreOrientation, setupFullscreenRotateListener } from '@/lib/videoFullscreenRotate';
 
 // Video styling
 if (typeof document !== 'undefined') {
@@ -199,6 +201,13 @@ export default function ProgramLivePage() {
     return () => document.removeEventListener('fullscreenchange', onFullScreenChange);
   }, []);
 
+  useEffect(() => {
+    return setupFullscreenRotateListener((isFs) => {
+      setFullscreenMode(isFs);
+      if (!isFs) setForceRotated(false);
+    });
+  }, []);
+
   const toggleRotateLandscape = async () => {
     try {
       if (typeof window !== 'undefined' && (window as any).SwarYoga?.toggleOrientation) {
@@ -228,16 +237,12 @@ export default function ProgramLivePage() {
         if (document.fullscreenElement) {
           await document.exitFullscreen().catch(() => {});
         }
-        if ((screen.orientation as any)?.unlock) {
-          (screen.orientation as any).unlock();
-        }
+        restoreOrientation();
         setFullscreenMode(false);
         setForceRotated(false);
       } else {
         await containerRef.current.requestFullscreen().catch(() => {});
-        if ((screen.orientation as any)?.lock) {
-          await (screen.orientation as any).lock('landscape').catch(() => {});
-        }
+        applyLandscapeOrientation();
         setFullscreenMode(true);
       }
     } catch (err) {
@@ -273,7 +278,23 @@ export default function ProgramLivePage() {
     if (data.playableVideoUrl) setPlayableUrl(data.playableVideoUrl);
     if (data.chat) setChat(data.chat || []);
     if (data.serverTime) setServerTime(new Date(data.serverTime));
+
+    // Cache locally for 0ms load and deployment resilience
+    try {
+      localStorage.setItem(`swar_sadhana_cached_state_${slug}`, JSON.stringify(data));
+    } catch {}
   };
+
+  // Immediate local hydration from cache on mount (resilient to offline / new deployments)
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(`swar_sadhana_cached_state_${slug}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        applyStateData(parsed);
+      }
+    } catch {}
+  }, [slug]);
 
   // Initial fetch on mount before joining (fetches program info, timings, and live status)
   useEffect(() => {
@@ -285,12 +306,16 @@ export default function ProgramLivePage() {
           if (mounted) setProgramNotFound(true);
           return;
         }
+        if (!res.ok) {
+          console.warn('Initial sadhana fetch HTTP status:', res.status, '(likely deploying, keeping cached state)');
+          return;
+        }
         const data = await res.json();
         if (data.success && mounted) {
           applyStateData(data);
         }
       } catch (err) {
-        console.warn('Initial sadhana state fetch error:', err);
+        console.warn('Initial sadhana state fetch error (using cached state):', err);
       }
     };
     fetchInitial();
@@ -325,11 +350,15 @@ export default function ProgramLivePage() {
           body: JSON.stringify({ sessionId: sidRef.current, preview: previewMode }),
         });
         if (res.status === 404) { setProgramNotFound(true); return; }
+        if (!res.ok) {
+          // Server deploying / PM2 reload — safely skip this cycle without interrupting user or video
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           applyStateData(data);
         }
-      } catch (err) { console.warn('Poll error:', err); }
+      } catch (err) { console.warn('Poll error (keeping active session):', err); }
     };
     poll();
     const t = setInterval(poll, 3000);
@@ -398,7 +427,7 @@ export default function ProgramLivePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 sm:p-8 max-w-md w-full border border-white/20 shadow-2xl">
-          <div className="flex items-center justify-start mb-4">
+          <div className="flex items-center justify-between mb-4">
             <button
               type="button"
               onClick={() => {
@@ -416,6 +445,14 @@ export default function ProgramLivePage() {
               <ArrowLeft className="w-4 h-4 text-white stroke-[2.5]" />
               <span>Back</span>
             </button>
+            <ShareButton
+              title={`${program?.name || 'Sadhana Live'} - Swar Yoga`}
+              description={`Join the live ${program?.name || 'Sadhana'} session on Swar Yoga!`}
+              url={`https://swaryoga.com/sadhana/live/${slug}`}
+              variant="icon"
+              size="md"
+              className="text-white hover:text-purple-300 hover:bg-white/10"
+            />
           </div>
           <div className="text-center mb-6">
             <div className="text-5xl mb-3">🧘</div>
@@ -1165,17 +1202,25 @@ function HLSPlayer({ url, videoRef, offsetSeconds, onToggleFullscreen, isFullscr
 
           hls.on(Hls.Events.ERROR, (_: any, data: any) => {
             if (data.fatal) {
-              console.error('[HLS] Fatal error:', data);
+              console.warn('[HLS] Recovering from error:', data.type);
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
+                  // Mobile network dropped or fluctuated — retry immediately
                   hls.startLoad();
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   hls.recoverMediaError();
                   break;
                 default:
-                  hls.destroy();
-                  setError('Stream temporarily interrupted — click to retry');
+                  // Auto-reconnect gently after 2s without breaking player or kicking user
+                  setTimeout(() => {
+                    try {
+                      if (hlsRef.current) {
+                        hlsRef.current.loadSource(url);
+                        hlsRef.current.startLoad();
+                      }
+                    } catch {}
+                  }, 2000);
                   break;
               }
             }

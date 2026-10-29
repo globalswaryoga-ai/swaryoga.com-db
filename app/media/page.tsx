@@ -325,6 +325,12 @@ export default function MediaPage() {
       if (searchParams.get('ref') === 'share') {
         setShowSharedAppPopup(true);
       }
+
+      // Read language from URL (e.g. ?lang=mr or ?language=mr)
+      const urlLang = searchParams.get('lang') || searchParams.get('language');
+      if (urlLang && WORKSHOP_LANGUAGES.some(l => l.code === urlLang)) {
+        setSelectedLang(urlLang);
+      }
     }
   }, []);
 

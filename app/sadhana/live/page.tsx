@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Maximize2, Minimize2, Volume2, Play, MessageSquare, X, Send, Users, Calendar, RotateCw } from 'lucide-react';
+import { applyLandscapeOrientation, restoreOrientation, setupFullscreenRotateListener } from '@/lib/videoFullscreenRotate';
 
 interface Participant {
   name: string;
@@ -166,14 +167,22 @@ function HLSVideoPlayer({
               if (data.fatal) {
                 switch (data.type) {
                   case HlsModule.ErrorTypes.NETWORK_ERROR:
+                    // Automatically retry loading when mobile 4G/5G connection fluctuates
                     hls.startLoad();
                     break;
                   case HlsModule.ErrorTypes.MEDIA_ERROR:
                     hls.recoverMediaError();
                     break;
                   default:
-                    hls.destroy();
-                    setError('Stream interrupted — tap to retry');
+                    // Auto-reconnect gently without destroying video player
+                    setTimeout(() => {
+                      try {
+                        if (hlsRef.current) {
+                          hlsRef.current.loadSource(url);
+                          hlsRef.current.startLoad();
+                        }
+                      } catch {}
+                    }, 2000);
                     break;
                 }
               }
@@ -469,6 +478,13 @@ export default function SadhanaLivePage() {
     };
   }, []);
 
+  useEffect(() => {
+    return setupFullscreenRotateListener((isFs) => {
+      setFullscreenMode(isFs);
+      if (!isFs) setForceRotated(false);
+    });
+  }, []);
+
   const toggleRotateLandscape = async () => {
     try {
       if (typeof window !== 'undefined' && (window as any).SwarYoga?.toggleOrientation) {
@@ -505,6 +521,7 @@ export default function SadhanaLivePage() {
         // Exit fullscreen
         setFullscreenMode(false);
         setForceRotated(false);
+        restoreOrientation();
         if (document.fullscreenElement) {
           await document.exitFullscreen().catch(() => {});
         } else if ((document as any).webkitExitFullscreen) {
@@ -513,6 +530,7 @@ export default function SadhanaLivePage() {
       } else {
         // Enter fullscreen
         setFullscreenMode(true);
+        applyLandscapeOrientation();
         const container = playerContainerRef.current || document.documentElement;
 
         if (container.requestFullscreen) {
@@ -559,6 +577,10 @@ export default function SadhanaLivePage() {
             preview: previewMode,
           }),
         });
+        if (!res.ok) {
+          // Server deploying / PM2 reloading — silently wait for next tick without breaking video
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           setParticipants(data.participants || []);
@@ -569,9 +591,14 @@ export default function SadhanaLivePage() {
           setPlayableVideoUrl(data.playableVideoUrl || null);
           setChat(data.chat || []);
           if (data.serverTime) setServerTime(new Date(data.serverTime));
+
+          // Save state to local cache for instant reload
+          try {
+            localStorage.setItem('swar_sadhana_live_cache', JSON.stringify(data));
+          } catch {}
         }
       } catch (err) {
-        console.warn('Poll error:', err);
+        console.warn('Poll error (maintaining session):', err);
       }
     };
 

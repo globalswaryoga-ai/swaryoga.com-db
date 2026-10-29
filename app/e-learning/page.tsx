@@ -1,34 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import ShareButton from '@/components/ShareButton';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
-// Language options with flags
-const languageOptions = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
-  { code: 'kn', name: 'Kannada', flag: '🇮🇳' },
-  { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
-  { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹' },
-  { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
-  { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
-  { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
-  { code: 'th', name: 'Thai', flag: '🇹🇭' },
-  { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
-];
+export const dynamic = 'force-dynamic';
+
+// Official E-learning language options: Indian (Hindi, Marathi, Kannada) + All Foreign Languages (no Urdu)
+const languageOptions = ELEARNING_LANGUAGES;
 
 // Multi-language translations (English is default, others show English until translated)
 const translations: Record<string, any> = {
@@ -196,7 +180,8 @@ interface LanguageFolder {
   order: number;
 }
 
-export default function CoursesPage() {
+function CoursesContent() {
+  const searchParams = useSearchParams();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -217,7 +202,7 @@ export default function CoursesPage() {
     ? { code: 'all', name: 'All Languages', flag: '🌍' }
     : languageOptions.find(l => l.code === language) || languageOptions[0];
 
-  // Fetch language folders on mount
+  // Fetch language folders on mount and auto-select if in URL
   useEffect(() => {
     const fetchFolders = async () => {
       try {
@@ -227,6 +212,17 @@ export default function CoursesPage() {
         if (data.success && Array.isArray(data.folders)) {
           const sortedFolders = data.folders.sort((a: LanguageFolder, b: LanguageFolder) => a.order - b.order);
           setLanguageFolders(sortedFolders);
+
+          // Check if folder or lang is in URL (e.g. ?folder=mr or ?lang=mr or ?folderId=...)
+          const targetFolderId = searchParams.get('folderId');
+          const targetCode = searchParams.get('folder') || searchParams.get('lang');
+          if (targetFolderId) {
+            const matched = sortedFolders.find((f: LanguageFolder) => (f._id === targetFolderId || f.id === targetFolderId));
+            if (matched) setSelectedFolder(matched);
+          } else if (targetCode && targetCode !== 'all') {
+            const matched = sortedFolders.find((f: LanguageFolder) => f.code.toLowerCase() === targetCode.toLowerCase());
+            if (matched) setSelectedFolder(matched);
+          }
         }
       } catch (err) {
         console.error('Error fetching language folders:', err);
@@ -235,6 +231,7 @@ export default function CoursesPage() {
       }
     };
     fetchFolders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close dropdown when clicking outside
@@ -250,13 +247,21 @@ export default function CoursesPage() {
 
   // Always default to 'all' on e-learning mount so users see all published language folders
   useEffect(() => {
-    // Only use saved preference if explicitly stored for elearning
+    // URL query param takes highest priority (for shared links)
+    const urlLang = searchParams.get('lang');
+    if (urlLang && (urlLang === 'all' || languageOptions.some(l => l.code === urlLang))) {
+      setLanguage(urlLang as Language);
+      localStorage.setItem('elearning_language', urlLang);
+      return;
+    }
+    // Fallback to saved preference
     const savedLang = localStorage.getItem('elearning_language');
     if (savedLang && (savedLang === 'all' || languageOptions.some(l => l.code === savedLang))) {
       setLanguage(savedLang as Language);
     } else {
       setLanguage('all');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCourses = useCallback(async () => {
@@ -299,6 +304,20 @@ export default function CoursesPage() {
     setSelectedFolder(null);
     setSearchQuery('');
     setSelectedLevel('all');
+    if (typeof window !== 'undefined') {
+      const newUrl = newLang === 'all' ? '/e-learning' : `/e-learning?lang=${newLang}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+  };
+
+  const handleSelectFolder = (folder: LanguageFolder | null) => {
+    setSelectedFolder(folder);
+    setSelectedLevel('all');
+    setSearchQuery('');
+    if (typeof window !== 'undefined') {
+      const newUrl = folder ? `/e-learning?folder=${folder.code}` : (language !== 'all' ? `/e-learning?lang=${language}` : '/e-learning');
+      window.history.replaceState(null, '', newUrl);
+    }
   };
 
   // Filter courses by language, search, and level
@@ -458,9 +477,21 @@ export default function CoursesPage() {
 
         <div className="relative max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight text-green-500">
-              {selectedFolder ? selectedFolder.name : t.heroTitle}
-            </h1>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-green-500">
+                {selectedFolder ? selectedFolder.name : t.heroTitle}
+              </h1>
+              {selectedFolder && (
+                <ShareButton
+                  title={`${selectedFolder.name} - Swar Yoga E-Learning`}
+                  description={`Learn Swar Yoga workshops in ${selectedFolder.name}!`}
+                  url={`https://swaryoga.com/e-learning?folder=${selectedFolder.code}`}
+                  variant="icon"
+                  size="md"
+                  className="text-green-400 hover:text-white hover:bg-gray-800"
+                />
+              )}
+            </div>
             <p className="text-base md:text-lg text-gray-400 mb-4 leading-relaxed">
               {selectedFolder ? `Browse all ${selectedFolder.name} workshops` : t.heroSubtitle}
             </p>
@@ -545,11 +576,7 @@ export default function CoursesPage() {
                       {filteredFolders.map((folder) => (
                     <button
                       key={folder._id}
-                      onClick={() => {
-                        setSelectedFolder(folder);
-                        setSelectedLevel('all');
-                        setSearchQuery('');
-                      }}
+                      onClick={() => handleSelectFolder(folder)}
                       className="group relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 h-full flex flex-col"
                     >
                       {/* Folder Thumbnail */}
@@ -682,11 +709,7 @@ export default function CoursesPage() {
               <p className="text-gray-600 dark:text-gray-400">We're preparing amazing workshops in {selectedFolder?.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">Stay tuned for updates!</p>
               <button
-                onClick={() => {
-                  setSelectedFolder(null);
-                  setSearchQuery('');
-                  setSelectedLevel('all');
-                }}
+                onClick={() => handleSelectFolder(null)}
                 className="mt-6 px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all"
               >
                 ← Back to All Languages
@@ -697,7 +720,7 @@ export default function CoursesPage() {
               {filteredCourses.map((course) => (
                 <Link
                   key={course._id}
-                  href={`/e-learning/${course.slug}`}
+                  href={`/e-learning/${course.slug}?lang=${selectedFolder?.code || (language !== 'all' ? language : (course.videoLanguage || 'en'))}`}
                   className="group"
                 >
                   <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
@@ -883,6 +906,20 @@ export default function CoursesPage() {
       )}
 
       <Footer />
+      <ShareButton
+        title="Swar Yoga E-Learning Courses"
+        description="Learn Swar Yoga at your own pace with professionally recorded courses in multiple languages!"
+        url={`https://swaryoga.com/e-learning${language !== 'all' ? `?lang=${language}` : ''}`}
+        variant="fab"
+      />
     </div>
+  );
+}
+
+export default function CoursesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading e-learning...</div>}>
+      <CoursesContent />
+    </Suspense>
   );
 }
