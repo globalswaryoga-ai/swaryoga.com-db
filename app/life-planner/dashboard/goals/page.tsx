@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Goal, Vision, ActionPlan } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -131,18 +132,33 @@ export default function GoalsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-0">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text mb-2">Goals</h1>
-          <p className="text-swar-text-secondary">Create and track your goals linked to visions</p>
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-12">
+      {/* Android Top App Bar */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/life-planner/dashboard"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>🎯</span>
+              <span>Goals &amp; Milestones</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Track priority goals linked to your life vision and action plans
+            </p>
+          </div>
         </div>
+
         <button
           onClick={handleAddGoal}
-          className="w-full sm:w-auto justify-center flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-4 w-4" />
           <span>Add Goal</span>
         </button>
       </div>
