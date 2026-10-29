@@ -269,15 +269,6 @@ export default function VisionPage() {
           </p>
         </div>
       </div>
-              <p className="mt-1 text-2xl font-black text-slate-900">{uniqueCategories.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-slate-600">Statuses</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{uniqueStatuses.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Filters */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5">
