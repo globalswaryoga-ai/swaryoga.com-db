@@ -552,30 +552,40 @@ export default function DailyViewPage() {
   return (
     <div className="space-y-4 sm:space-y-6 pb-6">
 
-      {/* Main Header with Date Navigation */}
-      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+      {/* Android Top App Bar with Date Navigator */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/life-planner/dashboard"
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
-            title="Back to Life Planner"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
           >
-            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-2xl font-bold text-swar-text">Daily Planner</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>🌅</span>
+              <span>Daily Page</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Today's Routine, Health Habits & Sadhana
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Date Navigator (Touch-friendly Android pills) */}
+        <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
           <button
             onClick={goPrevDay}
-            className="p-2 border border-swar-border rounded-lg hover:bg-gray-50 text-swar-text transition"
-            title="Previous day"
+            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-bold border border-slate-200/60"
+            title="Previous Day"
           >
             ‹
           </button>
           {!isToday && (
             <button
               onClick={() => setSelectedDate(today)}
-              className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200 transition"
+              className="px-2.5 py-1.5 text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl transition active:scale-95 border border-amber-300/80 shadow-2xs"
             >
               Today
             </button>
@@ -584,28 +594,28 @@ export default function DailyViewPage() {
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2.5 py-1.5 text-xs sm:text-sm font-semibold border border-slate-200 rounded-xl bg-slate-50/80 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
           />
           <button
             onClick={goNextDay}
-            className="p-2 border border-swar-border rounded-lg hover:bg-gray-50 text-swar-text transition"
-            title="Next day"
+            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-bold border border-slate-200/60"
+            title="Next Day"
           >
             ›
           </button>
         </div>
       </div>
 
-      {/* Top 3 Cards with Professional Headers */}
+      {/* Top 3 Cards with 3D Elevation & Theme Colors */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         
         {/* Card 1: Daily Workshop Planner */}
-        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-blue-50">
+        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-white shadow-[0_4px_16px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-amber-200/60 bg-gradient-to-r from-amber-100/90 to-amber-50/50">
             <span className="text-2xl">🏗️</span>
             <div>
-              <h2 className="text-sm font-bold text-swar-text">Daily Workshop</h2>
-              <p className="text-xs text-swar-text-secondary">{workshopTasks.length} tasks added</p>
+              <h2 className="text-sm font-bold text-slate-900">Daily Workshop</h2>
+              <p className="text-xs text-amber-800/80 font-medium">{workshopTasks.length} tasks added</p>
             </div>
           </div>
 
@@ -639,8 +649,8 @@ export default function DailyViewPage() {
                 />
                 <button
                   onClick={addWorkshopTask}
-                  className="w-full sm:w-auto bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm font-semibold flex items-center justify-center gap-2"
-                  title="Add"
+                  className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-4 py-2 rounded-xl transition-all active:scale-95 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs"
+                  title="Add Task"
                 >
                   <Plus size={16} />
                   Add
@@ -653,15 +663,15 @@ export default function DailyViewPage() {
 
               {/* Repeat frequency buttons */}
               <div className="mt-2 flex flex-wrap gap-2">
-                <span className="text-xs font-semibold text-swar-text-secondary">Repeat:</span>
+                <span className="text-xs font-semibold text-slate-500">Repeat:</span>
                 {['none', 'daily', 'weekly', 'monthly'].map(repeat => (
                   <button
                     key={repeat}
                     onClick={() => setNewTaskRepeat(repeat as TaskRepeat)}
-                    className={`px-2.5 py-1 text-xs font-medium rounded transition ${
+                    className={`px-2.5 py-1 text-xs font-bold rounded-xl transition ${
                       newTaskRepeat === repeat
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
                     {repeat === 'none' ? 'Once' : repeat.charAt(0).toUpperCase() + repeat.slice(1)}
@@ -675,7 +685,7 @@ export default function DailyViewPage() {
               {workshopCategories
                 .filter(cat => workshopTasks.filter(t => t.category === cat.id).length > 0)
                 .map(cat => (
-                  <span key={cat.id} className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium whitespace-nowrap">
+                  <span key={cat.id} className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-200/80 rounded-full text-xs font-bold whitespace-nowrap shadow-2xs">
                     {cat.label.split(' ')[0]} ({workshopTasks.filter(t => t.category === cat.id).length})
                   </span>
                 ))}
@@ -692,13 +702,13 @@ export default function DailyViewPage() {
                     ref={(el) => {
                       workshopCategoryRefs.current[cat.id] = el;
                     }}
-                    className="border-l-4 border-blue-400 pl-3"
+                    className="border-l-4 border-amber-400 pl-3"
                   >
-                    <h3 className="text-xs font-semibold text-swar-text mb-2">
+                    <h3 className="text-xs font-bold text-slate-800 mb-2">
                       {cat.label} ({catTasks.length})
                     </h3>
                     {catTasks.length === 0 ? (
-                      <p className="text-xs text-swar-text-secondary italic">No tasks added</p>
+                      <p className="text-xs text-slate-400 italic">No tasks added</p>
                     ) : (
                       <ul className="space-y-1.5">
                         {catTasks.map(task => (
@@ -707,14 +717,14 @@ export default function DailyViewPage() {
                               type="checkbox"
                               checked={task.completed || false}
                               onChange={() => toggleTaskCompletion(task.id)}
-                              className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                              className="w-4 h-4 text-amber-600 rounded cursor-pointer accent-amber-600"
                               title="Mark as complete"
                             />
                             <div className="flex-grow flex items-center gap-1.5">
                               <span
-                                className={`text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50 transition ${
+                                className={`text-xs sm:text-sm flex-grow text-slate-800 outline-none rounded px-1 -mx-1 focus:bg-amber-50 transition ${
                                   task.completed
-                                    ? 'line-through text-swar-text-secondary bg-gray-50'
+                                    ? 'line-through text-slate-400 bg-slate-50'
                                     : ''
                                 }`}
                                 contentEditable={!task.completed}
@@ -730,19 +740,19 @@ export default function DailyViewPage() {
                                 {task.text}
                               </span>
                               {task.repeat && task.repeat !== 'none' && (
-                                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded whitespace-nowrap font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg whitespace-nowrap font-bold">
                                   🔄 {task.repeat}
                                 </span>
                               )}
                               {task.completed && (
-                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded whitespace-nowrap font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded-lg whitespace-nowrap font-bold">
                                   ✅ Done
                                 </span>
                               )}
                             </div>
                             <button
                               onClick={() => deleteWorkshopTask(task.id)}
-                              className="p-1 hover:bg-red-50 rounded text-red-600 transition"
+                              className="p-1 hover:bg-red-50 rounded-lg text-red-600 transition"
                               title="Delete task"
                               aria-label="Delete task"
                             >
@@ -760,12 +770,12 @@ export default function DailyViewPage() {
         </div>
 
         {/* Card 2: My Routine */}
-        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-emerald-50">
+        <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white shadow-[0_4px_16px_rgba(5,150,105,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-emerald-200/60 bg-gradient-to-r from-emerald-100/90 to-emerald-50/50">
             <span className="text-2xl">🏃</span>
             <div>
-              <h2 className="text-sm font-bold text-swar-text">My Routine</h2>
-              <p className="text-xs text-swar-text-secondary">Health routines & checklist</p>
+              <h2 className="text-sm font-bold text-slate-900">My Routine</h2>
+              <p className="text-xs text-emerald-800/80 font-medium">Health routines & checklist</p>
             </div>
           </div>
 
@@ -851,12 +861,12 @@ export default function DailyViewPage() {
         </div>
 
         {/* Card 3: My Sadhana */}
-        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-purple-50">
+        <div className="rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/70 via-white to-white shadow-[0_4px_16px_rgba(234,88,12,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-orange-200/60 bg-gradient-to-r from-orange-100/90 to-orange-50/50">
             <span className="text-2xl">🧘</span>
             <div>
-              <h2 className="text-sm font-bold text-swar-text">My Sadhana</h2>
-              <p className="text-xs text-swar-text-secondary">Daily spiritual practices</p>
+              <h2 className="text-sm font-bold text-slate-900">My Sadhana</h2>
+              <p className="text-xs text-orange-800/80 font-medium">Daily spiritual practices</p>
             </div>
           </div>
 
