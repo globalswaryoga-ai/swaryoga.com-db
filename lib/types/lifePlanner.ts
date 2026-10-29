@@ -1,9 +1,30 @@
-// Vision Category Type
-export type VisionCategory = 'Life' | 'Health' | 'Wealth' | 'Success' | 'Respect' | 'Pleasure' | 'Prosperity' | 'Luxurious' | 'Good Habits' | 'Sadhana';
+// Vision Category Type (10 Life Pillars)
+export type VisionCategory =
+  | 'Life'
+  | 'Health'
+  | 'Wealth'
+  | 'Success'
+  | 'Respect'
+  | 'Pleasure'
+  | 'Prosperity'
+  | 'Luxury'
+  | 'Luxurious'
+  | 'Sadhana'
+  | 'Spiritual'
+  | 'Good Habits';
 
-// Export array of vision categories for UI
+// Export array of the 10 core vision categories for UI
 export const VISION_CATEGORIES: VisionCategory[] = [
-  'Life', 'Health', 'Wealth', 'Success', 'Respect', 'Pleasure', 'Prosperity', 'Luxurious', 'Good Habits', 'Sadhana'
+  'Life',
+  'Health',
+  'Wealth',
+  'Success',
+  'Respect',
+  'Pleasure',
+  'Prosperity',
+  'Luxury',
+  'Sadhana',
+  'Spiritual',
 ];
 
 export interface Vision {

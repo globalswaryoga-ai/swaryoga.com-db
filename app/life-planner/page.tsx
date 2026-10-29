@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
   Search, 
@@ -116,8 +117,24 @@ const BREATH_FREQUENCY_DATA: BreathAttributeItem[] = [
 ];
 
 export default function LifePlannerLandingPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTier, setFilterTier] = useState<'all' | 'high' | 'mid' | 'low'>('all');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('lifePlannerToken') ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('admin_token');
+
+    if (token) {
+      router.replace('/life-planner/dashboard');
+    } else {
+      router.replace('/signin?redirect=/life-planner/dashboard');
+    }
+  }, [router]);
 
   const filteredData = useMemo(() => {
     let list = BREATH_FREQUENCY_DATA;
@@ -164,6 +181,29 @@ export default function LifePlannerLandingPage() {
             <p className="text-sm sm:text-base text-white/90 max-w-3xl leading-relaxed">
               Understand the subtle frequencies of breath, your mind&apos;s positive attributes, and the mental root causes of ailments. Align with Shiva Swarodaya to transform your health, daily routine, and life decisions.
             </p>
+
+            {/* Primary Launchpad Direct Connect CTA */}
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-300 font-extrabold text-sm">🚀 Interactive L-Planner Launchpad</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
+                    Live System
+                  </span>
+                </div>
+                <p className="text-xs text-white/80 mt-0.5">
+                  Access Today&apos;s Routine, Live Sadhana Timers, Vision Board &amp; 18 Life Management Apps.
+                </p>
+              </div>
+
+              <Link
+                href="/life-planner/dashboard"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 font-black text-xs sm:text-sm transition shadow-lg shadow-amber-950/20 flex items-center justify-center gap-2 active:scale-95 whitespace-nowrap"
+              >
+                <span>Open Launchpad</span>
+                <ArrowRight className="w-4 h-4 stroke-[3]" />
+              </Link>
+            </div>
 
             {/* Quick Navigation Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
@@ -241,6 +281,64 @@ export default function LifePlannerLandingPage() {
             </div>
           </div>
         </div>
+
+        {/* 10 Core Life Pillars Navigation */}
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 mt-6">
+          <div className="rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+                  <span>🏛️ 10 Life Pillars &amp; Vision Areas</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                    L-Plan Architecture
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select any pillar to manage visions, action plans, goals, and daily tasks in the Launchpad.
+                </p>
+              </div>
+              <Link
+                href="/life-planner/dashboard"
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 self-start sm:self-auto"
+              >
+                <span>View in Launchpad</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-3">
+              {[
+                { name: 'Life', icon: '🌱', desc: 'Lifestyle & vitality', color: 'hover:border-emerald-300' },
+                { name: 'Health', icon: '💪', desc: 'Ayurveda & body', color: 'hover:border-teal-300' },
+                { name: 'Wealth', icon: '💰', desc: 'Finance & growth', color: 'hover:border-amber-300' },
+                { name: 'Success', icon: '🏆', desc: 'Career & milestones', color: 'hover:border-orange-300' },
+                { name: 'Respect', icon: '👑', desc: 'Reputation & leadership', color: 'hover:border-purple-300' },
+                { name: 'Pleasure', icon: '😊', desc: 'Joy, travel & family', color: 'hover:border-pink-300' },
+                { name: 'Prosperity', icon: '✨', desc: 'Abundance & legacy', color: 'hover:border-yellow-300' },
+                { name: 'Luxury', icon: '💎', desc: 'Aesthetic & comforts', color: 'hover:border-blue-300' },
+                { name: 'Sadhana', icon: '🧘', desc: 'Swar yoga & breath', color: 'hover:border-indigo-300' },
+                { name: 'Spiritual', icon: '🕉️', desc: 'Inner consciousness', color: 'hover:border-violet-300' },
+              ].map((pillar) => (
+                <Link
+                  key={pillar.name}
+                  href={`/life-planner/dashboard/vision?category=${pillar.name}`}
+                  className={`p-2.5 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white transition flex flex-col justify-between group ${pillar.color}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl">{pillar.icon}</span>
+                    <span className="text-[10px] text-slate-400 group-hover:text-emerald-700 font-bold">›</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-black text-slate-900 group-hover:text-emerald-700 transition">
+                      {pillar.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate">{pillar.desc}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* Search & Filter Controls */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 mt-6 space-y-4">

@@ -60,6 +60,7 @@ const buildWorkshopOverrides = () => {
 buildWorkshopOverrides();
 
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   // SWC minifier (default). The legacy Terser fallback (swcMinify:false) cannot
   // parse modern class syntax bundled by deps like @vercel/blob and fails the build.
@@ -91,6 +92,16 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: '/swar-calendar',
+        destination: '/calendar',
+        permanent: true,
+      },
+      {
+        source: '/swar-calender',
+        destination: '/calendar',
+        permanent: true,
+      },
       {
         source: '/workshop',
         destination: '/workshops',

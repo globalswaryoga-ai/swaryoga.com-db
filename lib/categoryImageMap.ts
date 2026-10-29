@@ -9,9 +9,12 @@ export const CATEGORY_IMAGE_MAP: Record<string, string> = {
   'respect': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_RESPECT || 'https://pin.it/NOlDja1DZ',
   'pleasure': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_PLEASURE || 'https://pin.it/6wRYgwPsk',
   'prosperity': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_PROSPERITY || 'https://pin.it/3zIFb255d',
+  'luxury': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_LUXURY || 'https://pin.it/2m9p29gQC',
   'luxuries': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_LUXURIES || 'https://pin.it/2m9p29gQC',
+  'sadhana': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_SADHANA || 'https://pin.it/3w4WSwGpj',
+  'self-sadhana': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_SELF_SADHANA || 'https://pin.it/3w4WSwGpj',
+  'spiritual': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_SPIRITUAL || 'https://pin.it/3w4WSwGpj',
   'good-habits': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_GOOD_HABITS || 'https://pin.it/3W4GCO6xt',
-  'self-sadhana': process.env.NEXT_PUBLIC_CATEGORY_IMAGE_SELF_SADHANA || 'https://pin.it/3w4WSwGpj'
 };
 
 /**
