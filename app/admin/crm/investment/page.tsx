@@ -219,7 +219,7 @@ export default function CRMInvestmentPage() {
 
       const response = await fetch(endpoint, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify(payload),
       });
 
@@ -338,6 +338,9 @@ export default function CRMInvestmentPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">💰 Investment Management</h1>
         <p className="text-gray-600">Manage investments, track dividends, and handle overdue amounts</p>
+        <a href="/admin/crm/investment/schemes" className="inline-block mt-3 text-sm font-semibold text-green-700 hover:underline">
+          ⚙️ Rules &amp; Old Investor Import →
+        </a>
       </div>
 
       {/* Success Message */}

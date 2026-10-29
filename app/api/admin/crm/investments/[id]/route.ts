@@ -1,107 +1,83 @@
 /**
- * API Route: Update/Delete Investment
- * PUT /api/admin/crm/investments/[id] - Update investment
+ * API Route: Update / Delete Investment (Admin CRM)
+ * Backed strictly by Bunny Database (Edge SQL).
+ * PUT    /api/admin/crm/investments/[id] - Update investment details
  * DELETE /api/admin/crm/investments/[id] - Delete investment
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getInvestment } from '@/lib/schemas/investmentSchemas';
 import { verifyToken } from '@/lib/auth';
+import {
+  updateInvestmentRecord,
+  deleteInvestmentRecord,
+  getInvestmentById,
+} from '@/lib/bunnyInvestmentRepository';
 
 export const dynamic = 'force-dynamic';
-
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verify authentication
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : (request.cookies.get('adminToken')?.value || request.cookies.get('token')?.value || request.cookies.get('crm_token')?.value);
+
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      );
-    }
-
-    // Check permissions - CS, CA, Admin can edit
-    if (!decoded.role || !['admin', 'CS', 'CA'].includes(decoded.role)) {
-      return NextResponse.json(
-        { error: 'You do not have permission to edit investments' },
-        { status: 403 }
-      );
-    }
-
-    await connectDB();
-
-    const Investment = getInvestment();
-    const body = await request.json();
-
+    const body = await request.json().catch(() => ({}));
     const {
-      entity,
       name,
+      investorName,
       phone,
+      email,
+      city,
       amount,
-      numberOfShares,
-      shareType,
-      sharePrice,
-      interestRate,
+      totalInvestmentAmount,
+      amountPaid,
       startDate,
       endDate,
-      paidDividend,
-      pendingDividend,
-      leadId,
+      interestRate,
+      annualDividendRatePct,
+      status,
+      paymentStatus,
+      kycStatus,
     } = body;
 
-    // Find and update investment
-    const investment = await Investment.findByIdAndUpdate(
-      params.id,
-      {
-        entity,
-        name,
-        phone,
-        amount,
-        numberOfShares,
-        shareType,
-        sharePrice,
-        interestRate,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        paidDividend: paidDividend || 0,
-        pendingDividend: pendingDividend || 0,
-        leadId,
-        updatedAt: new Date(),
-      },
-      { new: true, runValidators: true }
-    );
+    const updated = await updateInvestmentRecord(params.id, {
+      investorName: (investorName || name || '').trim() || undefined,
+      phone: (phone || '').trim() || undefined,
+      email: (email || '').trim() || undefined,
+      city: (city || '').trim() || undefined,
+      totalInvestmentAmount: (totalInvestmentAmount || amount) !== undefined ? Number(totalInvestmentAmount || amount) : undefined,
+      amountPaid: amountPaid !== undefined ? Number(amountPaid) : undefined,
+      startDate,
+      endDate,
+      annualDividendRatePct: (annualDividendRatePct || interestRate) !== undefined ? Number(annualDividendRatePct || interestRate) : undefined,
+      status,
+      paymentStatus,
+      kycStatus,
+    });
 
-    if (!investment) {
-      return NextResponse.json(
-        { error: 'Investment not found' },
-        { status: 404 }
-      );
+    if (!updated) {
+      return NextResponse.json({ error: 'Investment not found' }, { status: 404 });
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Investment updated successfully',
-        investment,
+        message: 'Investment updated successfully in Bunny Database',
+        investment: updated,
       },
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('Error updating investment:', error);
+    console.error('Error updating investment in Bunny:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to update investment' },
       { status: 500 }
@@ -114,53 +90,30 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verify authentication
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : (request.cookies.get('adminToken')?.value || request.cookies.get('token')?.value || request.cookies.get('crm_token')?.value);
+
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && decoded?.role !== 'admin' && decoded?.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden: Superadmin/Admin role required to delete investments' }, { status: 403 });
     }
 
-    const decoded = await verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      );
-    }
-
-    // Check permissions - Only Admin can delete
-    if (decoded.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'You do not have permission to delete investments' },
-        { status: 403 }
-      );
-    }
-
-    await connectDB();
-
-    const Investment = getInvestment();
-
-    const investment = await Investment.findByIdAndDelete(params.id);
-
-    if (!investment) {
-      return NextResponse.json(
-        { error: 'Investment not found' },
-        { status: 404 }
-      );
+    const deleted = await deleteInvestmentRecord(params.id);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Investment not found or already deleted' }, { status: 404 });
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Investment deleted successfully',
+        message: 'Investment deleted successfully from Bunny Database',
       },
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('Error deleting investment:', error);
+    console.error('Error deleting investment from Bunny:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to delete investment' },
       { status: 500 }

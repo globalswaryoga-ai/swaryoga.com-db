@@ -1,192 +1,122 @@
-/**
- * API Route: Create Investment
- * POST /api/investment/create
- * Creates a new investment record
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getInvestment } from '@/lib/schemas/investmentSchemas';
-import { INVESTMENT_STATUS, ENTITIES } from '@/lib/investment-constants';
+import {
+  addLegacyInvestmentRecord,
+  createInvestmentBooking,
+  BASE_UNIT_AMOUNT,
+} from '@/lib/bunnyInvestmentRepository';
 
+export const dynamic = 'force-dynamic';
+
+/**
+ * POST /api/investment/create
+ * Backed strictly by Bunny Database (Edge SQL).
+ * Handles both admin legacy entries and form creations.
+ */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
-    const body = await request.json();
-    console.log('[Investment API] Received body:', JSON.stringify(body, null, 2));
-    
+    const body = await request.json().catch(() => ({}));
     const {
-      userId,
-      entity,
-      shareType,
-      amount,
-      numberOfShares,
-      sharePrice,
-      startDate,
-      endDate,
       name,
+      investorName,
       phone,
-      interestRate,
-      dividendRate,
-      compound,
-      notes,
-      earlyRefundAllowed,
-      refundRule,
+      email,
+      city,
+      state,
+      address,
+      amount,
+      totalInvestmentAmount,
+      amountPaid,
+      startDate,
+      certificateNumber,
       isOldInvestment,
+      pastPaidCycles,
+      nomineeName,
+      nomineeRelationship,
+      nomineePhone,
+      bankName,
+      bankAccount,
+      bankAccountNumber,
+      ifsc,
+      bankIfsc,
+      pan,
+      panNumber,
+      aadhar,
+      aadhaarNumber,
     } = body;
 
-    // Validation
-    if (!entity || !amount || !startDate || !endDate) {
-      const missing: string[] = [];
-      if (!entity) missing.push('entity');
-      if (!amount) missing.push('amount');
-      if (!startDate) missing.push('startDate');
-      if (!endDate) missing.push('endDate');
-      
-      console.error('[Investment API] Missing fields:', missing);
+    const finalName = (investorName || name || '').trim();
+    const finalPhone = (phone || '').trim();
+    const parsedAmount = Number(totalInvestmentAmount || amount) || BASE_UNIT_AMOUNT;
+
+    if (!finalName || !finalPhone) {
       return NextResponse.json(
-        { error: `Missing required fields: ${missing.join(', ')}` },
+        { error: 'Investor Name and Phone number are required' },
         { status: 400 }
       );
     }
 
-    if (new Date(startDate) >= new Date(endDate)) {
+    // If marked as old/legacy investment or has a specific startDate / certificateNumber
+    if (isOldInvestment || startDate || certificateNumber) {
+      const legacyRecord = await addLegacyInvestmentRecord({
+        investorName: finalName,
+        phone: finalPhone,
+        email: email?.trim() || undefined,
+        city: city?.trim() || undefined,
+        totalInvestmentAmount: parsedAmount,
+        amountPaid: amountPaid !== undefined ? Number(amountPaid) : parsedAmount,
+        startDate: startDate || new Date().toISOString().split('T')[0],
+        certificateNumber: certificateNumber?.trim() || undefined,
+        pastDividendsPaidCycles: Array.isArray(pastPaidCycles) ? pastPaidCycles : [],
+        panNumber: panNumber || pan,
+        aadhaarNumber: aadhaarNumber || aadhar,
+        bankAccountHolder: finalName,
+        bankName,
+        bankAccountNumber: bankAccountNumber || bankAccount,
+        bankIfsc: bankIfsc || ifsc,
+        nomineeName,
+        nomineeRelationship,
+      });
+
       return NextResponse.json(
-        { error: 'End date must be after start date' },
-        { status: 400 }
+        {
+          success: true,
+          message: 'Investment record created in Bunny Database',
+          certificateNumber: legacyRecord.certificateNumber,
+          investmentId: legacyRecord.id,
+          investment: legacyRecord,
+        },
+        { status: 201 }
       );
     }
 
-    // Generate certificate number
-    const certificateNumber = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-    const Investment = getInvestment();
-
-    // Build investment data object dynamically to avoid undefined/null issues
-    const investmentData: any = {
-      entity,
-      amount,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: INVESTMENT_STATUS.SUBMITTED,
-      certificateNumber,
-      compound: compound || false,
-      isOldInvestment: isOldInvestment || false,
-      earlyRefundAllowed: earlyRefundAllowed !== undefined ? earlyRefundAllowed : true,
-      refundRule: refundRule || 'refund_at_maturity',
-    };
-
-    // Add optional fields only if provided
-    if (userId) investmentData.userId = userId;
-    if (name) investmentData.name = name;
-    if (phone) investmentData.phone = phone;
-    if (shareType && entity === ENTITIES.UPAMANYU) investmentData.shareType = shareType;
-    if (numberOfShares) investmentData.numberOfShares = numberOfShares;
-    if (sharePrice) investmentData.sharePrice = sharePrice;
-    if (interestRate) investmentData.interestRate = interestRate;
-    if (dividendRate) investmentData.dividendRate = dividendRate;
-    if (notes) investmentData.notes = notes;
-
-    // Create investment
-    console.log('[Investment API] Creating investment with data:', JSON.stringify(investmentData, null, 2));
-    
-    let investment: any;
-    try {
-      investment = await Investment.create(investmentData);
-      console.log('[Investment API] Investment created successfully:', investment._id);
-      
-      // Verify the investment was actually saved
-      const savedInvestment = await Investment.findById(investment._id);
-      if (!savedInvestment) {
-        console.error('[Investment API] ERROR: Investment created but not found in database!');
-        throw new Error('Investment created but verification failed - data may not have been saved');
-      }
-      console.log('[Investment API] Investment verified in database:', savedInvestment._id);
-    } catch (createError: any) {
-      console.error('[Investment API] Error creating investment:', createError.message);
-      throw createError;
-    }
-
-    // Populate user data if userId exists
-    if (userId) {
-      try {
-        await investment.populate('userId', 'name email phone address');
-      } catch (populateError) {
-        console.warn('[Investment API] Warning: Could not populate user data:', populateError);
-        // Don't throw - investment was still created successfully
-      }
-    }
-
-    const investmentObject = investment.toObject ? investment.toObject() : investment;
-    console.log('[Investment API] Returning response:', {
-      success: true,
-      certificateNumber: investmentObject.certificateNumber,
-      investmentId: investmentObject._id,
+    // Otherwise standard booking in Bunny
+    const booking = await createInvestmentBooking({
+      investorName: finalName,
+      phone: finalPhone,
+      email: email?.trim() || undefined,
+      city: city?.trim() || undefined,
+      state: state?.trim() || undefined,
+      postalAddress: address?.trim() || undefined,
+      totalInvestmentAmount: parsedAmount,
+      nomineeName,
+      nomineeRelationship,
+      nomineePhone,
     });
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Investment created successfully',
-        certificateNumber: investmentObject.certificateNumber,
-        investmentId: investmentObject._id,
-        investment: investmentObject,
+        message: 'Investment booking created in Bunny Database',
+        certificateNumber: booking.certificateNumber,
+        investmentId: booking.id,
+        investment: booking,
       },
       { status: 201 }
     );
   } catch (error: any) {
-    console.error('Investment creation error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      name: error.name,
-      stack: error.stack,
-      errors: error.errors,
-    });
-
-    if (error.code === 11000) {
-      return NextResponse.json(
-        { error: 'Duplicate certificate number' },
-        { status: 400 }
-      );
-    }
-
-    if (error.name === 'ValidationError') {
-      const validationErrors: any = {};
-      const errorArray: string[] = [];
-      Object.entries(error.errors || {}).forEach(([field, err]: any) => {
-        validationErrors[field] = err.message;
-        errorArray.push(`${field}: ${err.message}`);
-      });
-      console.error('Validation errors:', validationErrors);
-      return NextResponse.json(
-        { 
-          error: 'Validation failed', 
-          details: errorArray,
-          fieldErrors: validationErrors,
-          message: 'Please check all required fields are provided correctly'
-        },
-        { status: 400 }
-      );
-    }
-
-    // Log unexpected errors to help debug
-    if (error.name === 'CastError') {
-      return NextResponse.json(
-        { 
-          error: 'Invalid data format: ' + error.message,
-          details: ['Invalid data type in request']
-        },
-        { status: 400 }
-      );
-    }
-
+    console.error('Error creating investment in Bunny:', error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to create investment',
-        details: []
-      },
+      { error: error?.message || 'Failed to create investment' },
       { status: 500 }
     );
   }
