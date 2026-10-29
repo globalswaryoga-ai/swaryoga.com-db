@@ -263,28 +263,34 @@ export default function RemindersPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-6 pb-12">
+      {/* Android Top App Bar */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/life-planner/dashboard"
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
-            title="Back to Life Planner"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
           >
-            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Reminders</h1>
-            <p className="text-xs sm:text-sm text-swar-text-secondary mt-0.5">Set up reminders for important tasks and events</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>⏰</span>
+              <span>Reminders &amp; Alerts</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Set up Swar shift alarms, task notifications &amp; daily reminders
+            </p>
           </div>
         </div>
+
         <button
           onClick={openCreate}
-          className="w-full sm:w-auto justify-center flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
         >
-          <Plus className="h-5 w-5" />
-          Add Reminder
+          <Plus className="h-4 w-4" />
+          <span>Add Reminder</span>
         </button>
       </div>
 
