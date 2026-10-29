@@ -126,7 +126,7 @@ export default function LifePlannerDashboardHome() {
       if (stored && PLANNER_LANGUAGES.some((l) => l.code === stored)) {
         setSelectedLanguage(stored);
       }
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   const handleSaveLanguage = async () => {
@@ -141,7 +141,7 @@ export default function LifePlannerDashboardHome() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'preferred_language', data: selectedLanguage }),
-      }).catch(() => {});
+      }).catch(() => { });
       setLanguageSaved(true);
       setTimeout(() => setLanguageSaved(false), 3000);
     } catch (err) {
@@ -171,7 +171,6 @@ export default function LifePlannerDashboardHome() {
           emoji: '🌅',
           href: '/life-planner/dashboard/daily',
           bgGradient: 'from-amber-400 to-orange-500',
-          badge: 'Today',
         },
         {
           id: 'rutucharya',
@@ -410,8 +409,9 @@ export default function LifePlannerDashboardHome() {
     <div className="max-w-5xl mx-auto space-y-6 pb-16">
       <LifePlannerRestoreBackup />
 
-      {/* Top Header Bar with Universal Back Arrow */}
-      <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06),0_2px_4px_-1px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5 p-3.5 sm:p-5">
+      {/* Top Header Bar with Universal Back Arrow (Visible on overview, hidden inside folder to match exact mockup) */}
+      {!activeFolder && (
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06),0_2px_4px_-1px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5 p-3.5 sm:p-5">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
@@ -529,9 +529,8 @@ export default function LifePlannerDashboardHome() {
                           setIsLangDropdownOpen(false);
                           setLanguageSaved(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 transition hover:bg-emerald-50/80 ${
-                          isSelected ? 'bg-emerald-50/90 text-emerald-900 font-bold' : 'text-slate-700'
-                        }`}
+                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 transition hover:bg-emerald-50/80 ${isSelected ? 'bg-emerald-50/90 text-emerald-900 font-bold' : 'text-slate-700'
+                          }`}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
                           <span className="text-sm shrink-0">{lang.flag}</span>
@@ -555,11 +554,10 @@ export default function LifePlannerDashboardHome() {
             <button
               onClick={handleSaveLanguage}
               disabled={isSavingLang}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs active:scale-95 whitespace-nowrap min-w-[58px] ${
-                languageSaved
-                  ? 'bg-emerald-600 text-white shadow-emerald-600/20'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-              }`}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs active:scale-95 whitespace-nowrap min-w-[58px] ${languageSaved
+                ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                }`}
               title="Save Selected Language"
             >
               <span>{languageSaved ? '✓ Saved' : isSavingLang ? '...' : 'Save'}</span>
@@ -578,6 +576,7 @@ export default function LifePlannerDashboardHome() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ========================================================= */}
       {/* Search Results (When user types in search box) */}
@@ -604,35 +603,35 @@ export default function LifePlannerDashboardHome() {
         /* Inside A Folder View (Exact match to media_1793311716540_8c05ff1f.jpg) */
         /* ========================================================= */
         <div className="space-y-4 max-w-xl mx-auto">
-          {/* Top Folder Banner */}
+          {/* Top Folder Banner (Exact match to target mockup) */}
           <div
-            className={`p-4 sm:p-5 rounded-[22px] bg-gradient-to-r ${currentFolder.themeColor} text-white flex items-center justify-between gap-3 shadow-[0_8px_18px_rgba(0,0,0,0.12)]`}
+            className={`p-4 sm:p-5 rounded-[24px] bg-gradient-to-r ${currentFolder.themeColor} text-white flex items-center justify-between gap-3 shadow-[0_10px_25px_rgba(0,0,0,0.12)]`}
           >
             <div className="space-y-0.5 min-w-0 pr-2">
-              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 truncate tracking-normal">
-                <span>{currentFolder.emoji || '☀️'}</span>
+              <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5 tracking-tight">
+                <span className="text-2xl">{currentFolder.emoji || '☀️'}</span>
                 <span>{currentFolder.title}</span>
               </h2>
-              <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed mt-1">
                 {currentFolder.tagline}
               </p>
             </div>
             <button
               onClick={() => setActiveFolder(null)}
-              className="px-3.5 py-2 sm:py-2.5 rounded-xl bg-white/25 hover:bg-white/35 backdrop-blur-md border border-white/30 text-white flex flex-col items-center justify-center transition active:scale-95 shadow-sm shrink-0 min-w-[58px]"
+              className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white flex flex-col items-center justify-center transition active:scale-95 shadow-sm shrink-0 min-w-[64px]"
               title="Back to 4 Cards"
             >
-              <span className="text-sm font-bold leading-none">←</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider leading-none mt-1">Back</span>
+              <span className="text-base font-bold leading-none">←</span>
+              <span className="text-xs font-bold leading-tight mt-1">Back</span>
             </button>
           </div>
 
           {/* 4 Column Round App Grid Card */}
-          <div className={`rounded-[22px] p-4 sm:p-5 shadow-[0_4px_16px_rgba(15,23,42,0.04)] border ${currentFolder.cardLightBg} ${currentFolder.cardBorder}`}>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3 px-0.5">
+          <div className="rounded-[26px] p-5 sm:p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100/90">
+            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 px-0.5">
               4 COLUMN ROUND APP GRID (TAP TO LAUNCH)
             </p>
-            <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 text-center items-start">
+            <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 md:gap-6 text-center items-start">
               {currentFolder.apps.map((app) => (
                 <AppCircleCard key={app.id} app={app} />
               ))}
@@ -766,17 +765,17 @@ function AppCircleCard({ app, showFolderBadge }: { app: SubApp & { folderName?: 
       href={app.href}
       className="group flex flex-col items-center text-center focus:outline-none transition-all duration-200 min-w-0"
     >
-      <div className="relative mb-1">
-        {/* Outer 3D Pedestal Ring */}
-        <div className="p-[3px] rounded-full bg-gradient-to-b from-white via-slate-100 to-slate-300 shadow-[0_6px_14px_rgba(15,23,42,0.1),0_2px_4px_rgba(15,23,42,0.05),inset_0_1px_1px_rgba(255,255,255,1)] group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_22px_rgba(15,23,42,0.18)] active:translate-y-0.5 active:scale-95 transition-all duration-200">
+      <div className="relative mb-2">
+        {/* Outer 3D Pedestal Ring with soft shadow */}
+        <div className="p-[3px] rounded-full bg-gradient-to-b from-white via-slate-100 to-slate-200 shadow-[0_8px_18px_rgba(15,23,42,0.12),0_2px_4px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,1)] group-hover:-translate-y-1.5 group-hover:shadow-[0_14px_26px_rgba(15,23,42,0.18)] active:translate-y-0.5 active:scale-95 transition-all duration-200">
           {/* Inner 3D Glassy Orb */}
           <div
-            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr ${app.bgGradient} text-white relative overflow-hidden flex items-center justify-center text-2xl sm:text-3xl shadow-[inset_0_2px_4px_rgba(255,255,255,0.6),inset_0_-2px_4px_rgba(0,0,0,0.25)]`}
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr ${app.bgGradient} text-white relative overflow-hidden flex items-center justify-center text-2xl sm:text-3xl shadow-[inset_0_2px_5px_rgba(255,255,255,0.7),inset_0_-3px_5px_rgba(0,0,0,0.3)]`}
           >
-            {/* Top Specular 3D Reflection */}
-            <div className="absolute top-0 inset-x-2 h-[48%] bg-gradient-to-b from-white/50 to-transparent rounded-t-full pointer-events-none" />
+            {/* Top Specular 3D Crescent Reflection */}
+            <div className="absolute top-0 inset-x-2 h-[46%] bg-gradient-to-b from-white/60 to-transparent rounded-t-full pointer-events-none" />
             {app.emoji ? (
-              <span className="select-none drop-shadow-sm">{app.emoji}</span>
+              <span className="select-none drop-shadow-sm text-2xl sm:text-3xl leading-none">{app.emoji}</span>
             ) : (
               <IconComponent className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.2] drop-shadow-sm" />
             )}
@@ -789,8 +788,8 @@ function AppCircleCard({ app, showFolderBadge }: { app: SubApp & { folderName?: 
         )}
       </div>
 
-      <div className="w-full min-w-0 px-0.5 mt-1.5">
-        <p className="text-[11px] xs:text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition leading-tight tracking-tight whitespace-nowrap text-center">
+      <div className="w-full min-w-0 px-0.5">
+        <p className="text-[11px] xs:text-xs sm:text-sm font-bold text-slate-800 group-hover:text-emerald-700 transition leading-snug tracking-tight text-center break-words hyphens-auto">
           {app.name}
         </p>
       </div>
