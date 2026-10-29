@@ -53,6 +53,8 @@ interface MasterCard {
   tagline: string;
   themeColor: string;
   accentBg: string;
+  cardLightBg: string;
+  cardBorder: string;
   icon: React.ComponentType<{ className?: string }>;
   apps: SubApp[];
 }
@@ -157,6 +159,8 @@ export default function LifePlannerDashboardHome() {
       tagline: 'Daily routine checklist, rutucharya, health & calendar',
       themeColor: 'from-[#d97706] to-[#b45309]',
       accentBg: 'bg-amber-50 text-amber-800 border-amber-200',
+      cardLightBg: 'bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-white',
+      cardBorder: 'border-amber-200/80',
       icon: Sun,
       apps: [
         {
@@ -205,6 +209,8 @@ export default function LifePlannerDashboardHome() {
       tagline: 'Sadhana page routine, stopwatch, singing bowl timer, meditation & samyama',
       themeColor: 'from-[#ff7a18] to-[#d95300]',
       accentBg: 'bg-orange-50 text-orange-800 border-orange-200',
+      cardLightBg: 'bg-gradient-to-br from-orange-50/90 via-amber-50/40 to-white',
+      cardBorder: 'border-orange-200/80',
       icon: Flame,
       apps: [
         {
@@ -264,6 +270,8 @@ export default function LifePlannerDashboardHome() {
       tagline: 'Life blueprint, strategic action plan, goals, tasks, events & downloads',
       themeColor: 'from-[#0b3d2e] to-[#1b5e20]',
       accentBg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      cardLightBg: 'bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white',
+      cardBorder: 'border-emerald-200/80',
       icon: Target,
       apps: [
         {
@@ -330,6 +338,8 @@ export default function LifePlannerDashboardHome() {
       tagline: 'Quick to-do list, swar alarms, power words & diamond network',
       themeColor: 'from-[#1e40af] to-[#1e3a8a]',
       accentBg: 'bg-blue-50 text-blue-800 border-blue-200',
+      cardLightBg: 'bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-white',
+      cardBorder: 'border-blue-200/80',
       icon: ListTodo,
       apps: [
         {
@@ -618,8 +628,8 @@ export default function LifePlannerDashboardHome() {
           </div>
 
           {/* 4 Column Round App Grid Card */}
-          <div className="bg-white rounded-[26px] p-4 sm:p-6 shadow-[0_4px_16px_rgba(15,23,42,0.04)] border border-slate-100">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4 px-1">
+          <div className={`rounded-[26px] p-4 sm:p-6 shadow-[0_6px_20px_rgba(15,23,42,0.05)] border ${currentFolder.cardLightBg} ${currentFolder.cardBorder}`}>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-4 px-1">
               4 COLUMN ROUND APP GRID (TAP TO LAUNCH)
             </p>
             <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 text-center items-start">
@@ -659,7 +669,7 @@ export default function LifePlannerDashboardHome() {
                 <div
                   key={card.id}
                   onClick={() => setActiveFolder(card.id)}
-                  className="group cursor-pointer rounded-3xl border border-white/90 bg-white/90 backdrop-blur-md p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1.5 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:shadow-[0_20px_35px_-10px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-slate-900/5 active:scale-[0.98] flex flex-col justify-between space-y-4"
+                  className={`group cursor-pointer rounded-3xl border ${card.cardBorder} ${card.cardLightBg} backdrop-blur-md p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1.5 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:shadow-[0_20px_35px_-10px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,1)] active:scale-[0.98] flex flex-col justify-between space-y-4`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
