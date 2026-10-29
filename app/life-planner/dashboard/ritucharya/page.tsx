@@ -15,7 +15,8 @@ import {
   type RasaKey,
   type LangKey,
 } from '@/lib/ritucharya';
-import { ChevronDown, ChevronUp, Leaf, Sun, Droplets, Flame, Wind, Globe, Languages } from 'lucide-react';
+import { ChevronDown, ChevronUp, Leaf, Sun, Droplets, Flame, Wind, Globe, Languages, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 // ─── Timezone → country code mapping for auto-detection ────────────────────────
 
@@ -162,57 +163,78 @@ export default function RitucharyaPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* ──── COUNTRY / LANGUAGE SELECTORS ──── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-slate-500" />
-          <select
-            value={countryCode}
-            onChange={e => handleCountryChange(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+      {/* ──── ANDROID TOP APP BAR & LOCALE SELECTORS ──── */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/life-planner/dashboard"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
           >
-            {COUNTRIES.map(c => (
-              <option key={c.code} value={c.code}>
-                {c.nativeName} ({c.name})
-              </option>
-            ))}
-          </select>
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>🌿</span>
+              <span>Rutucharya Guide</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Ayurvedic Seasonal Wellness, Diet & Dosha Balance
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Languages className="h-4 w-4 text-slate-500" />
-          <select
-            value={lang}
-            onChange={e => setLang(e.target.value as LangKey)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-          >
-            {LANGUAGES.map(l => (
-              <option key={l.key} value={l.key}>
-                {l.nativeLabel} ({l.label})
-              </option>
-            ))}
-          </select>
+
+        {/* Country & Language Selectors (Android Material Pills) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1">
+            <Globe className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <select
+              value={countryCode}
+              onChange={e => handleCountryChange(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              {COUNTRIES.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.nativeName} ({c.name})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1">
+            <Languages className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <select
+              value={lang}
+              onChange={e => setLang(e.target.value as LangKey)}
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              {LANGUAGES.map(l => (
+                <option key={l.key} value={l.key}>
+                  {l.nativeLabel} ({l.label})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <span className="text-xs text-slate-400">{country.nativeName} · {country.hemisphere === 'north' ? '🌍 North' : country.hemisphere === 'south' ? '🌏 South' : '🌴 Tropical'}</span>
       </div>
 
-      {/* ──── TODAY'S RITU HEADER (auto-updates daily) ──── */}
-      <div className="rounded-2xl sm:rounded-3xl border border-slate-200 overflow-hidden bg-white">
+      {/* ──── TODAY'S RITU HEADER (3D Elevated Card) ──── */}
+      <div className="rounded-2xl border border-emerald-200/80 overflow-hidden bg-white shadow-[0_6px_20px_rgba(11,61,46,0.12)]">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-[#0b3d2e] via-[#2A5654] to-[#ff7a18] opacity-95" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(255,255,255,0.25),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.18),transparent_55%)]" />
 
-          <div className="relative p-5 sm:p-7">
+          <div className="relative p-4 sm:p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide text-white">
-                  <Leaf className="h-4 w-4" />
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide text-white border border-white/20">
+                  <Leaf className="h-3.5 w-3.5" />
                   {labels.ritucharya}
                 </div>
-                <h2 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-white">
+                <h2 className="mt-2 text-xl sm:text-2xl font-bold tracking-normal text-white">
                   {ritu.icon} {ritu.hindi} ({ritu.english})
                 </h2>
-                <p className="mt-1 text-sm text-white/75">{dateStr} — {country.nativeName}</p>
-                <p className="mt-2 text-sm sm:text-base text-white/85 leading-relaxed">
+                <p className="mt-1 text-xs sm:text-sm text-white/80 font-medium">{dateStr} — {country.nativeName}</p>
+                <p className="mt-2 text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
                   {kaal.hindi} — {kaal.description}
                 </p>
               </div>
@@ -268,8 +290,8 @@ export default function RitucharyaPage() {
       </div>
 
       {/* ──── WHAT TO EAT TODAY — detailed food items for current Ritu ──── */}
-      <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h3 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 mb-1">
+      <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-white p-4 sm:p-6 shadow-[0_4px_16px_rgba(5,150,105,0.06),0_1px_3px_rgba(0,0,0,0.02)]">
+        <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-1">
           🍽️ {labels.whatToEat} — {ritu.english} ({ritu.hindi})
         </h3>
         <p className="text-xs sm:text-sm text-swar-text-secondary mb-4">
