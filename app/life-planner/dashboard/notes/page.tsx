@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Trash2, Pin, PinOff, Eye } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Plus, Search, Filter, Trash2, Pin, PinOff, Eye } from 'lucide-react';
 import NoteEditor from '@/components/NoteEditor';
 
 interface Note {
@@ -197,25 +198,37 @@ export default function NotesPage() {
 
   return (
     <div className="bg-gradient-to-br from-swar-bg to-swar-primary/5 rounded-2xl border border-swar-border">
-      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">📓 My Journal</h1>
-              <p className="text-swar-text-secondary">Capture thoughts, reflections, memories, and ideas linked to your vision</p>
-            </div>
-            <button
-              onClick={() => {
-                setSelectedNote(null);
-                setShowEditor(true);
-              }}
-              className="bg-swar-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-swar-primary/90 transition"
+      <div className="container mx-auto max-w-6xl px-3 sm:px-4 py-4 sm:py-6">
+        {/* Android Material Top App Bar */}
+        <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-white/90 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06),0_2px_4px_-1px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5 p-3.5 sm:p-5 mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <Link
+              href="/life-planner/dashboard"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition active:scale-95 shadow-xs flex items-center justify-center shrink-0"
+              title="Back to Launchpad"
             >
-              <Plus size={20} />
-              New Journal
-            </button>
+              <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+            </Link>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-amber-200 shadow-2xs">
+                Reflections & Ideas
+              </span>
+              <h1 className="text-base sm:text-xl font-bold text-slate-800 tracking-normal mt-0.5 truncate">
+                📓 My Journal & Notes
+              </h1>
+            </div>
           </div>
+          <button
+            onClick={() => {
+              setSelectedNote(null);
+              setShowEditor(true);
+            }}
+            className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-[0_4px_12px_rgba(217,119,6,0.3)] active:scale-95 shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">New Journal</span>
+            <span className="xs:hidden">New</span>
+          </button>
         </div>
 
         {/* Search & Filters */}
