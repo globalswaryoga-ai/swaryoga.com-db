@@ -790,7 +790,7 @@ function AppCircleCard({ app, showFolderBadge }: { app: SubApp & { folderName?: 
       </div>
 
       <div className="w-full min-w-0 px-0.5 mt-1.5">
-        <p className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition leading-tight tracking-tight break-words">
+        <p className="text-[11px] xs:text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition leading-tight tracking-tight whitespace-nowrap text-center">
           {app.name}
         </p>
       </div>
