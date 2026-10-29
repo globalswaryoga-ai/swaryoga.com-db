@@ -1469,6 +1469,8 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     try {
+      const hasAuth = Boolean(token || (typeof window !== 'undefined' && (localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token'))));
+      if (!hasAuth) return;
       const targetBatchId = selectedWorkshop?.id ? String(selectedWorkshop.id) : ((workshops || []).find((w: any) => matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_'))?.id || '');
       if (targetBatchId) {
         fetch(`/api/admin/crm/new-registration/gates?batchId=${encodeURIComponent(String(targetBatchId))}`)
@@ -1479,7 +1481,7 @@ export default function NewRegistrationPage() {
           .catch(() => {});
       }
     } catch {}
-  }, [selectedWorkshop?.id, selectedDashboardLang, workshops]);
+  }, [selectedWorkshop?.id, selectedDashboardLang, workshops, token]);
 
   const totalApprovedCount = useMemo(() => {
     const fromDecisions = displayLeads.filter(l => {

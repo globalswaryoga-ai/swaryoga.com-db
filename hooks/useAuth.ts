@@ -108,7 +108,8 @@ export function useAuth(options?: { preventRedirect?: boolean }): string | null 
       !options?.preventRedirect &&
       !redirectedRef.current &&
       !pathname?.includes('/login') &&
-      !pathname?.includes('/signup')
+      !pathname?.includes('/signup') &&
+      (typeof window === 'undefined' || !window.location.pathname.includes('/login'))
     ) {
       redirectedRef.current = true;
       router.push(getLoginPath());

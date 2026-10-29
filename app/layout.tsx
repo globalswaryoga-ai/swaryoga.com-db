@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
+import SwarCalendarNightCard from '@/components/SwarCalendarNightCard';
 import AppInitializer from '@/components/AppInitializer';
 import AppUniversalBackButton from '@/components/AppUniversalBackButton';
 import VisitorTracker from '@/components/VisitorTracker';
@@ -230,6 +231,119 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Permanent Anti-Throttling & Navigation Guard: Completely prevents Chromium IPC flooding (crbug.com/1038223) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window === 'undefined' || !window.history) return;
+                var origPush = window.history.pushState ? window.history.pushState.bind(window.history) : null;
+                var origReplace = window.history.replaceState ? window.history.replaceState.bind(window.history) : null;
+
+                var historyCallTimes = [];
+                var MAX_CALLS = 30; // Safely below Chromium 100-per-10s IPC ceiling
+                var WINDOW_MS = 10000;
+                var lastPathAndSearch = null;
+
+                function normalizeTarget(url) {
+                  if (!url) return window.location.pathname + window.location.search;
+                  try {
+                    var parsed = new URL(url, window.location.origin);
+                    return parsed.pathname + parsed.search;
+                  } catch (e) {
+                    return String(url);
+                  }
+                }
+
+                function shouldBlockNavigation(url) {
+                  var target = normalizeTarget(url);
+                  var current = window.location.pathname + window.location.search;
+
+                  // 1. Deduplicate consecutive identical history states
+                  if (target === current || target === lastPathAndSearch) {
+                    return true;
+                  }
+
+                  // 2. Sliding window rate limiter to guarantee Chrome never throttles
+                  var now = Date.now();
+                  var cutoff = now - WINDOW_MS;
+                  historyCallTimes = historyCallTimes.filter(function(t) { return t > cutoff; });
+
+                  if (historyCallTimes.length >= MAX_CALLS) {
+                    return true;
+                  }
+
+                  historyCallTimes.push(now);
+                  lastPathAndSearch = target;
+                  return false;
+                }
+
+                if (origPush) {
+                  window.history.pushState = function(state, title, url) {
+                    if (shouldBlockNavigation(url)) return;
+                    return origPush(state, title, url);
+                  };
+                }
+
+                if (origReplace) {
+                  window.history.replaceState = function(state, title, url) {
+                    if (shouldBlockNavigation(url)) return;
+                    return origReplace(state, title, url);
+                  };
+                }
+              })();
+            `,
+          }}
+        />
+        {/* Automatic Stylesheet Failure Recovery: Prevents unstyled HTML cracking */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('error', function(e) {
+                if (e.target && e.target.tagName === 'LINK' && e.target.rel === 'stylesheet') {
+                  console.warn('[SwarRecovery] Stylesheet failed to load:', e.target.href);
+                  if (window.SwarYoga && window.SwarYoga.injectFallbackCss) {
+                    window.SwarYoga.injectFallbackCss();
+                  } else {
+                    var key = 'swar_css_recovery_' + (e.target.href || '').split('/').pop();
+                    if (!sessionStorage.getItem(key)) {
+                      sessionStorage.setItem(key, '1');
+                      window.location.reload();
+                    }
+                  }
+                }
+              }, true);
+            `,
+          }}
+        />
+
+        {/* Critical Fallback CSS: Guarantees page and app NEVER crack into unstyled HTML during deployments */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              :root {
+                --swar-primary: #166235;
+                --swar-primary-dark: #0f4324;
+                --swar-amber: #d97706;
+                --swar-text: #1e293b;
+                --swar-bg: #ffffff;
+              }
+              html, body {
+                margin: 0;
+                padding: 0;
+                background-color: #ffffff;
+                color: #1e293b;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                -webkit-font-smoothing: antialiased;
+              }
+              a { color: inherit; text-decoration: none; }
+              img, svg, video { max-width: 100%; height: auto; display: inline-block; }
+              nav, header { background-color: #ffffff; }
+              footer { background-color: #111827; color: #f9fafb; }
+              button { font-family: inherit; }
+            `,
+          }}
+        />
       </head>
       <body className="antialiased bg-white text-swar-text overflow-x-hidden">
         {/* Schema.org JSON-LD */}
@@ -245,6 +359,7 @@ export default function RootLayout({
             <VisitorTracker />
             {children}
             <WhatsAppWidget />
+            <SwarCalendarNightCard />
           </CartProvider>
         </RootErrorBoundary>
       </body>
