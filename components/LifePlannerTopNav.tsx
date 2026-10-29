@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogOut, CheckSquare, HeartPulse, BarChart3, User, ArrowLeft, Calendar, Gem, Leaf } from 'lucide-react';
+import { Menu, X, LogOut, CheckSquare, HeartPulse, BarChart3, User, ArrowLeft, Calendar, Gem, Leaf, Settings } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 import { clearSession } from '@/lib/sessionManager';
@@ -165,7 +165,7 @@ export default function LifePlannerTopNav({
   const logout = () => {
     // Life planner uses the same JWT as the rest of the app; clear both the planner keys and the main session.
     clearSession();
-    router.push('/life-planner/login');
+    router.push('/signin');
   };
 
   return (
@@ -218,14 +218,28 @@ export default function LifePlannerTopNav({
 
           <Link
             href="/life-planner/profile"
-            className={`inline-flex items-center gap-1 sm:gap-2 p-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 ${
+            className={`inline-flex items-center gap-1 sm:gap-2 p-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 ${
               pathname === '/life-planner/profile'
                 ? 'bg-swar-primary text-white shadow-md'
                 : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
             }`}
+            title="Profile"
           >
             <User className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="hidden sm:inline">Profile</span>
+          </Link>
+
+          <Link
+            href="/life-planner/dashboard/settings"
+            className={`inline-flex items-center gap-1 sm:gap-2 p-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 ${
+              pathname === '/life-planner/dashboard/settings'
+                ? 'bg-swar-primary text-white shadow-md'
+                : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
+            }`}
+            title="Settings"
+          >
+            <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">Settings</span>
           </Link>
 
           <button

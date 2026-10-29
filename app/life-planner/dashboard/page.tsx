@@ -423,11 +423,11 @@ export default function LifePlannerDashboardHome() {
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-xs truncate">
+                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-xs truncate">
                   {activeFolder ? `Folder: ${currentFolder?.title}` : 'Swar Yoga Life Planner'}
                 </span>
               </div>
-              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5 truncate">
+              <h1 className="text-base sm:text-xl font-bold text-slate-800 tracking-normal mt-0.5 truncate">
                 {activeFolder ? currentFolder?.title : 'L-Planner Launchpad'}
               </h1>
             </div>
@@ -585,7 +585,7 @@ export default function LifePlannerDashboardHome() {
       {searchQuery.trim() !== '' ? (
         <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 space-y-4 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
               Search Results ({filteredApps.length})
             </h2>
           </div>
@@ -606,30 +606,30 @@ export default function LifePlannerDashboardHome() {
         <div className="space-y-4 max-w-xl mx-auto">
           {/* Top Folder Banner */}
           <div
-            className={`p-4 sm:p-5 rounded-[26px] bg-gradient-to-r ${currentFolder.themeColor} text-white flex items-center justify-between gap-3 shadow-[0_10px_20px_rgba(0,0,0,0.14)]`}
+            className={`p-4 sm:p-5 rounded-[22px] bg-gradient-to-r ${currentFolder.themeColor} text-white flex items-center justify-between gap-3 shadow-[0_8px_18px_rgba(0,0,0,0.12)]`}
           >
             <div className="space-y-0.5 min-w-0 pr-2">
-              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 truncate tracking-tight">
+              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 truncate tracking-normal">
                 <span>{currentFolder.emoji || '☀️'}</span>
                 <span>{currentFolder.title}</span>
               </h2>
-              <p className="text-xs sm:text-sm text-white/90 font-medium leading-snug">
+              <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed">
                 {currentFolder.tagline}
               </p>
             </div>
             <button
               onClick={() => setActiveFolder(null)}
-              className="px-4 py-2 sm:py-2.5 rounded-2xl bg-white/25 hover:bg-white/35 backdrop-blur-md border border-white/30 text-white flex flex-col items-center justify-center transition active:scale-95 shadow-sm shrink-0 min-w-[62px]"
+              className="px-3.5 py-2 sm:py-2.5 rounded-xl bg-white/25 hover:bg-white/35 backdrop-blur-md border border-white/30 text-white flex flex-col items-center justify-center transition active:scale-95 shadow-sm shrink-0 min-w-[58px]"
               title="Back to 4 Cards"
             >
               <span className="text-sm font-bold leading-none">←</span>
-              <span className="text-[11px] font-black uppercase tracking-wider leading-none mt-1">Back</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider leading-none mt-1">Back</span>
             </button>
           </div>
 
           {/* 4 Column Round App Grid Card */}
-          <div className={`rounded-[26px] p-4 sm:p-6 shadow-[0_6px_20px_rgba(15,23,42,0.05)] border ${currentFolder.cardLightBg} ${currentFolder.cardBorder}`}>
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-4 px-1">
+          <div className={`rounded-[22px] p-4 sm:p-5 shadow-[0_4px_16px_rgba(15,23,42,0.04)] border ${currentFolder.cardLightBg} ${currentFolder.cardBorder}`}>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3 px-0.5">
               4 COLUMN ROUND APP GRID (TAP TO LAUNCH)
             </p>
             <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 text-center items-start">
@@ -646,7 +646,7 @@ export default function LifePlannerDashboardHome() {
         <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900">All Functions (18 Cards in 4 Columns)</h2>
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">All Functions (18 Cards in 4 Columns)</h2>
               <p className="text-xs text-slate-500">Tap any icon to open the module instantly</p>
             </div>
           </div>
@@ -684,10 +684,10 @@ export default function LifePlannerDashboardHome() {
                     </div>
 
                     <div>
-                      <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-emerald-700 transition">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-800 group-hover:text-emerald-700 transition">
                         {card.title}
                       </h3>
-                      <p className="text-xs text-slate-600 mt-1.5 line-clamp-2 leading-relaxed">{card.tagline}</p>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">{card.tagline}</p>
                     </div>
                   </div>
 
@@ -715,10 +715,10 @@ export default function LifePlannerDashboardHome() {
           </div>
 
           {/* Quick Launchpad: All 4 Master Cards Expanded Inline */}
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/80 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-[0_4px_16px_rgba(15,23,42,0.04)]">
             <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900">4 Column App Grid</h3>
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">4 Column App Grid</h3>
                 <p className="text-xs text-slate-500">Tap any round card to launch instantly</p>
               </div>
             </div>
@@ -728,7 +728,7 @@ export default function LifePlannerDashboardHome() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-base">{category.emoji}</span>
-                    <h4 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight uppercase">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight uppercase">
                       {category.title}
                     </h4>
                   </div>
