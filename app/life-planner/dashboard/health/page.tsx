@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Clock, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Clock, Plus, Edit2, Trash2, ArrowLeft } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type {
   DayPart,
@@ -883,46 +883,61 @@ export default function HealthPage() {
           </div>
         )}
 
-        {/* Header (Diamond-style) */}
-        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">💪 Health Planner</h1>
-            <p className="text-swar-text-secondary">Daily routine + food plan checklist. Track progress month-wise using the watch icon.</p>
+        {/* Android Top App Bar */}
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/life-planner/dashboard"
+              className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+              title="Back to Launchpad"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+                <span>❤️</span>
+                <span>Health & Vitals</span>
+              </h1>
+              <p className="text-[11px] text-slate-500 font-medium truncate">
+                Daily health routine, food plan & vitals tracker
+              </p>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <Link
               href="/life-planner/dashboard/health-month"
-              className="h-11 w-11 rounded-full border border-gray-200 bg-white shadow-sm hover:shadow-md transition flex items-center justify-center"
-              title="Monthly progress"
-              aria-label="Monthly progress"
+              className="h-9 w-9 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center text-slate-700 shadow-2xs"
+              title="Monthly Progress"
+              aria-label="Monthly Progress"
             >
-              <Clock className="h-5 w-5 text-swar-text" />
+              <Clock className="h-4 w-4" />
             </Link>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('daily')}
-              className={
-                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                (activeTab === 'daily'
-                  ? 'bg-swar-primary text-white border-swar-primary'
-                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-              }
-            >
-              Daily Plan
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('routines')}
-              className={
-                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                (activeTab === 'routines'
-                  ? 'bg-swar-primary text-white border-swar-primary'
-                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-              }
-            >
-              Routines
-            </button>
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setActiveTab('daily')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'daily'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Daily Plan
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('routines')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'routines'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Routines ({routines.length})
+              </button>
+            </div>
           </div>
         </div>
 
