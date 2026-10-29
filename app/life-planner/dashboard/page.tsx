@@ -40,6 +40,7 @@ interface SubApp {
   name: string;
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
+  emoji?: string;
   href: string;
   bgGradient: string;
   badge?: string;
@@ -48,6 +49,7 @@ interface SubApp {
 interface MasterCard {
   id: 'vision' | 'sadhana' | 'tools' | 'today';
   title: string;
+  emoji?: string;
   tagline: string;
   themeColor: string;
   accentBg: string;
@@ -151,7 +153,8 @@ export default function LifePlannerDashboardHome() {
     {
       id: 'today',
       title: "Today's Routine",
-      tagline: 'Daily focus, seasonal Ayurvedic diet, wellness & calendar',
+      emoji: '☀️',
+      tagline: 'Daily routine checklist, rutucharya, health & calendar',
       themeColor: 'from-[#d97706] to-[#b45309]',
       accentBg: 'bg-amber-50 text-amber-800 border-amber-200',
       icon: Sun,
@@ -161,8 +164,9 @@ export default function LifePlannerDashboardHome() {
           name: 'Daily Page',
           subtitle: 'Habits & routine',
           icon: Sun,
+          emoji: '🌅',
           href: '/life-planner/dashboard/daily',
-          bgGradient: 'from-amber-500 to-orange-600',
+          bgGradient: 'from-amber-400 to-orange-500',
           badge: 'Today',
         },
         {
@@ -170,14 +174,16 @@ export default function LifePlannerDashboardHome() {
           name: 'Rutucharya',
           subtitle: 'Ayurvedic season guide',
           icon: Leaf,
+          emoji: '🌿',
           href: '/life-planner/dashboard/ritucharya',
-          bgGradient: 'from-emerald-600 to-green-700',
+          bgGradient: 'from-emerald-500 to-green-600',
         },
         {
           id: 'health',
           name: 'Health',
           subtitle: 'Vitals & wellness',
           icon: HeartPulse,
+          emoji: '❤️',
           href: '/life-planner/dashboard/health',
           bgGradient: 'from-rose-500 to-red-600',
         },
@@ -186,15 +192,17 @@ export default function LifePlannerDashboardHome() {
           name: 'Calendar',
           subtitle: 'Tithi & Swar timings',
           icon: CalendarDays,
+          emoji: '📅',
           href: '/life-planner/dashboard/calendar',
-          bgGradient: 'from-sky-600 to-blue-700',
+          bgGradient: 'from-sky-500 to-blue-600',
         },
       ],
     },
     {
       id: 'sadhana',
       title: 'My Sadhana',
-      tagline: 'Yogic breath, meditation, timer & inner focus',
+      emoji: '🧘‍♂️',
+      tagline: 'Sadhana page routine, stopwatch, singing bowl timer, meditation & samyama',
       themeColor: 'from-[#ff7a18] to-[#d95300]',
       accentBg: 'bg-orange-50 text-orange-800 border-orange-200',
       icon: Flame,
@@ -204,8 +212,9 @@ export default function LifePlannerDashboardHome() {
           name: 'Sadhana Page',
           subtitle: 'Daily morning & evening practice',
           icon: Flame,
+          emoji: '🧘‍♂️',
           href: '/life-planner/dashboard/sadhana',
-          bgGradient: 'from-orange-600 to-amber-700',
+          bgGradient: 'from-orange-500 to-amber-600',
           badge: 'Daily',
         },
         {
@@ -213,6 +222,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Stopwatch',
           subtitle: 'Kumbhaka retention',
           icon: Flame,
+          emoji: '⏱️',
           href: '/life-planner/dashboard/sadhana?tab=stopwatch',
           bgGradient: 'from-red-500 to-orange-600',
           badge: 'Live',
@@ -222,6 +232,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Timer',
           subtitle: 'Singing bowl chimes',
           icon: Timer,
+          emoji: '🔔',
           href: '/life-planner/dashboard/sadhana?tab=timer',
           bgGradient: 'from-amber-500 to-yellow-600',
           badge: 'Sound',
@@ -231,6 +242,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Meditations',
           subtitle: 'Swar Dhyana audio',
           icon: Play,
+          emoji: '🎧',
           href: '/life-planner/dashboard/sadhana?tab=meditation',
           bgGradient: 'from-indigo-600 to-blue-700',
         },
@@ -239,6 +251,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Samyama',
           subtitle: 'Patanjali Tratak focus',
           icon: CircleDot,
+          emoji: '🎯',
           href: '/life-planner/dashboard/sadhana?tab=samyama',
           bgGradient: 'from-purple-600 to-violet-800',
         },
@@ -247,7 +260,8 @@ export default function LifePlannerDashboardHome() {
     {
       id: 'vision',
       title: 'My Vision',
-      tagline: 'Life mission, goals, milestones & long-term targets',
+      emoji: '🎯',
+      tagline: 'Life blueprint, strategic action plan, goals, tasks, events & downloads',
       themeColor: 'from-[#0b3d2e] to-[#1b5e20]',
       accentBg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
       icon: Target,
@@ -257,6 +271,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Vision',
           subtitle: 'Life blueprint',
           icon: Target,
+          emoji: '🎯',
           href: '/life-planner/dashboard/vision',
           bgGradient: 'from-emerald-600 to-teal-700',
         },
@@ -265,6 +280,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Action Plan',
           subtitle: 'Strategic roadmap',
           icon: Flag,
+          emoji: '🗺️',
           href: '/life-planner/dashboard/action-plan',
           bgGradient: 'from-teal-600 to-cyan-700',
         },
@@ -273,6 +289,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Goals',
           subtitle: 'Measurable targets',
           icon: Trophy,
+          emoji: '🏆',
           href: '/life-planner/dashboard/goals',
           bgGradient: 'from-amber-500 to-orange-600',
         },
@@ -281,6 +298,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Tasks',
           subtitle: 'Milestone tasks',
           icon: CheckSquare,
+          emoji: '📝',
           href: '/life-planner/dashboard/tasks',
           bgGradient: 'from-orange-500 to-rose-600',
         },
@@ -289,6 +307,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Events',
           subtitle: 'Key dates & camps',
           icon: Calendar,
+          emoji: '🎪',
           href: '/life-planner/dashboard/events',
           bgGradient: 'from-blue-600 to-indigo-700',
         },
@@ -297,6 +316,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Download Vision',
           subtitle: 'Printable PDF',
           icon: Download,
+          emoji: '📥',
           href: '/life-planner/dashboard/vision-download',
           bgGradient: 'from-purple-600 to-pink-700',
           badge: 'PDF',
@@ -306,7 +326,8 @@ export default function LifePlannerDashboardHome() {
     {
       id: 'tools',
       title: 'My Tools',
-      tagline: 'Fast daily todos, reminders, affirmations & contacts',
+      emoji: '🛠️',
+      tagline: 'Quick to-do list, swar alarms, power words & diamond network',
       themeColor: 'from-[#1e40af] to-[#1e3a8a]',
       accentBg: 'bg-blue-50 text-blue-800 border-blue-200',
       icon: ListTodo,
@@ -316,6 +337,7 @@ export default function LifePlannerDashboardHome() {
           name: 'To Do',
           subtitle: 'Swar-aligned tasks',
           icon: ListTodo,
+          emoji: '✅',
           href: '/life-planner/dashboard/todos',
           bgGradient: 'from-blue-600 to-indigo-700',
         },
@@ -324,6 +346,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Reminder',
           subtitle: 'Alarms & Swar alerts',
           icon: Bell,
+          emoji: '🔔',
           href: '/life-planner/dashboard/reminders',
           bgGradient: 'from-amber-600 to-orange-700',
         },
@@ -332,6 +355,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Words',
           subtitle: 'Power affirmations',
           icon: BookOpen,
+          emoji: '💬',
           href: '/life-planner/dashboard/words',
           bgGradient: 'from-emerald-600 to-teal-700',
         },
@@ -340,6 +364,7 @@ export default function LifePlannerDashboardHome() {
           name: 'Diamond People',
           subtitle: 'Mentors & inner circle',
           icon: Users,
+          emoji: '💎',
           href: '/life-planner/dashboard/diamond-people',
           bgGradient: 'from-rose-600 to-pink-700',
         },
@@ -376,52 +401,52 @@ export default function LifePlannerDashboardHome() {
       <LifePlannerRestoreBackup />
 
       {/* Top Header Bar with Universal Back Arrow */}
-      <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06),0_2px_4px_-1px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5 p-4 sm:p-5">
+      <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06),0_2px_4px_-1px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5 p-3.5 sm:p-5">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               onClick={handleBack}
-              className="p-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 transition active:scale-95 shadow-[0_2px_6px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] border border-slate-200/80 flex items-center justify-center"
+              className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 transition active:scale-95 shadow-[0_2px_6px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] border border-slate-200/80 flex items-center justify-center shrink-0"
               title="Back"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
             </button>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-xs truncate">
                   {activeFolder ? `Folder: ${currentFolder?.title}` : 'Swar Yoga Life Planner'}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5 truncate">
                 {activeFolder ? currentFolder?.title : 'L-Planner Launchpad'}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <div className="flex items-center gap-2 flex-wrap self-stretch sm:self-auto justify-between sm:justify-start">
             {/* Direct Link: L-Plan Diagnostic & Guide Page */}
             <Link
               href="/life-planner"
-              className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 bg-white hover:bg-slate-50 text-emerald-800 border border-emerald-200 shadow-xs hover:shadow active:scale-95"
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 bg-white hover:bg-slate-50 text-emerald-800 border border-emerald-200 shadow-xs hover:shadow active:scale-95"
               title="Open L-Plan Diagnostic Chart & Breath Frequencies"
             >
-              <BookOpen className="w-4 h-4 text-emerald-600" />
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
               <span>L-Plan Guide</span>
             </Link>
 
-            {/* Toggle between "Folders (4 Cards)" and "All (19 Apps)" */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60 shadow-inner">
+            {/* Toggle between "Folders (4 Cards)" and "All (18 Apps)" */}
+            <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60 shadow-inner">
               <button
                 onClick={() => {
                   setViewMode('folders');
                   setActiveFolder(null);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${viewMode === 'folders' && !activeFolder
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${viewMode === 'folders' && !activeFolder
                   ? 'bg-white text-slate-900 shadow-[0_2px_6px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,1)]'
                   : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
-                <Folder className="w-4 h-4 text-emerald-700" />
+                <Folder className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700" />
                 <span>4 Cards</span>
               </button>
               <button
@@ -429,12 +454,12 @@ export default function LifePlannerDashboardHome() {
                   setViewMode('all');
                   setActiveFolder(null);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${viewMode === 'all'
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${viewMode === 'all'
                   ? 'bg-white text-slate-900 shadow-[0_2px_6px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,1)]'
                   : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
-                <LayoutGrid className="w-4 h-4 text-orange-600" />
+                <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600" />
                 <span>All Apps (18)</span>
               </button>
             </div>
@@ -442,14 +467,14 @@ export default function LifePlannerDashboardHome() {
         </div>
 
         {/* Search Bar (Smartphone App Drawer Style) */}
-        <div className="mt-4 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="mt-3 sm:mt-4 relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Search any function (e.g. Vision, Timer, Stopwatch, To-Do, Health)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition shadow-inner"
+            className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition shadow-inner"
           />
           {searchQuery && (
             <button
@@ -461,27 +486,23 @@ export default function LifePlannerDashboardHome() {
           )}
         </div>
 
-        {/* Language Selector Dropdown (27 Languages - Scrollable Custom Menu, Strictly No Urdu) */}
-        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-1 max-w-lg">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
-              <span>🌐</span>
-              <span>Language:</span>
-            </span>
-            <div className="relative flex-1" ref={langDropdownRef}>
+        {/* Language Selector Bar (Compact, Mobile-Fit, Never Overflows) */}
+        <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2 w-full min-w-0">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <div className="relative flex-1 min-w-0" ref={langDropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsLangDropdownOpen((prev) => !prev)}
-                className="w-full bg-white border border-slate-200/90 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs flex items-center justify-between gap-2 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition cursor-pointer"
+                className="w-full min-w-0 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs flex items-center justify-between gap-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition cursor-pointer"
                 title="Select Language"
               >
-                <span className="truncate flex items-center gap-1.5">
-                  <span>{PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.flag}</span>
-                  <span>{PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.name}</span>
-                  <span className="text-[10px] text-slate-500 font-medium">({PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.nativeName})</span>
-                  {selectedLanguage === 'en' && <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 rounded font-semibold">— Default</span>}
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
+                <div className="truncate min-w-0 flex items-center gap-1.5 text-left">
+                  <span className="text-xs shrink-0">🌐</span>
+                  <span className="shrink-0">{PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.flag}</span>
+                  <span className="truncate font-bold text-slate-900">{PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.name}</span>
+                  <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">({PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.nativeName})</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Scrollable Language Dropdown (Max height 240px with smooth scroll) */}
@@ -502,43 +523,45 @@ export default function LifePlannerDashboardHome() {
                           isSelected ? 'bg-emerald-50/90 text-emerald-900 font-bold' : 'text-slate-700'
                         }`}
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="text-sm">{lang.flag}</span>
-                          <span className="font-semibold">{lang.name}</span>
-                          <span className="text-[11px] text-slate-500 font-normal">({lang.nativeName})</span>
+                        <div className="flex items-center gap-2 truncate min-w-0">
+                          <span className="text-sm shrink-0">{lang.flag}</span>
+                          <span className="font-semibold truncate">{lang.name}</span>
+                          <span className="text-[11px] text-slate-500 font-normal shrink-0">({lang.nativeName})</span>
                           {lang.code === 'en' && (
-                            <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-semibold">
+                            <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-semibold shrink-0">
                               Default
                             </span>
                           )}
                         </div>
-                        {isSelected && <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 font-bold" />}
+                        {isSelected && <Check className="w-4 h-4 text-emerald-600 shrink-0 font-bold" />}
                       </button>
                     );
                   })}
                 </div>
               )}
             </div>
+
+            {/* Save Button - shrink-0 ensures it NEVER pushes outside screen boundary */}
             <button
               onClick={handleSaveLanguage}
               disabled={isSavingLang}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap ${
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs active:scale-95 whitespace-nowrap min-w-[58px] ${
                 languageSaved
                   ? 'bg-emerald-600 text-white shadow-emerald-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
               }`}
               title="Save Selected Language"
             >
-              <span>{languageSaved ? '✓ Saved' : isSavingLang ? 'Saving...' : 'Save'}</span>
+              <span>{languageSaved ? '✓ Saved' : isSavingLang ? '...' : 'Save'}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
-            <span className="bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200/60">
-              Selected: <strong className="text-slate-800">{PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.name}</strong>
+          <div className="flex items-center justify-between xs:justify-end gap-1.5 text-[11px] font-semibold text-slate-500 shrink-0">
+            <span className="bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60 truncate">
+              {PLANNER_LANGUAGES.find((l) => l.code === selectedLanguage)?.name}
             </span>
             {languageSaved && (
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                 ✓ Saved
               </span>
             )}
@@ -550,7 +573,7 @@ export default function LifePlannerDashboardHome() {
       {/* Search Results (When user types in search box) */}
       {/* ========================================================= */}
       {searchQuery.trim() !== '' ? (
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-6 space-y-4 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 space-y-4 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">
               Search Results ({filteredApps.length})
@@ -559,7 +582,7 @@ export default function LifePlannerDashboardHome() {
           {filteredApps.length === 0 ? (
             <p className="text-sm text-slate-500 py-8 text-center">No functions found matching "{searchQuery}".</p>
           ) : (
-            <div className="grid grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 md:gap-6">
               {filteredApps.map((app) => (
                 <AppCircleCard key={app.id} app={app} />
               ))}
@@ -568,33 +591,38 @@ export default function LifePlannerDashboardHome() {
         </div>
       ) : activeFolder && currentFolder ? (
         /* ========================================================= */
-        /* Inside A Folder View (After tapping one of the 4 cards) */
+        /* Inside A Folder View (Exact match to media_1793311716540_8c05ff1f.jpg) */
         /* ========================================================= */
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-6 sm:p-8 space-y-6 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
-          {/* Folder Banner */}
+        <div className="space-y-4 max-w-xl mx-auto">
+          {/* Top Folder Banner */}
           <div
-            className={`p-6 rounded-2xl bg-gradient-to-r ${currentFolder.themeColor} text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-[0_10px_20px_rgba(0,0,0,0.15),inset_0_1px_1px_rgba(255,255,255,0.3)]`}
+            className={`p-4 sm:p-5 rounded-[26px] bg-gradient-to-r ${currentFolder.themeColor} text-white flex items-center justify-between gap-3 shadow-[0_10px_20px_rgba(0,0,0,0.14)]`}
           >
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-white/80">Folder Category</span>
-              <h2 className="text-2xl sm:text-3xl font-black">{currentFolder.title}</h2>
-              <p className="text-xs sm:text-sm text-white/85">{currentFolder.tagline}</p>
+            <div className="space-y-0.5 min-w-0 pr-2">
+              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 truncate tracking-tight">
+                <span>{currentFolder.emoji || '☀️'}</span>
+                <span>{currentFolder.title}</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-white/90 font-medium leading-snug">
+                {currentFolder.tagline}
+              </p>
             </div>
             <button
               onClick={() => setActiveFolder(null)}
-              className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm border border-white/30"
+              className="px-4 py-2 sm:py-2.5 rounded-2xl bg-white/25 hover:bg-white/35 backdrop-blur-md border border-white/30 text-white flex flex-col items-center justify-center transition active:scale-95 shadow-sm shrink-0 min-w-[62px]"
+              title="Back to 4 Cards"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to 4 Cards</span>
+              <span className="text-sm font-bold leading-none">←</span>
+              <span className="text-[11px] font-black uppercase tracking-wider leading-none mt-1">Back</span>
             </button>
           </div>
 
-          {/* Sub-Apps in 4-Column Round Cards */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              {currentFolder.apps.length} Apps inside {currentFolder.title}
+          {/* 4 Column Round App Grid Card */}
+          <div className="bg-white rounded-[26px] p-4 sm:p-6 shadow-[0_4px_16px_rgba(15,23,42,0.04)] border border-slate-100">
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-4 px-1">
+              4 COLUMN ROUND APP GRID (TAP TO LAUNCH)
             </p>
-            <div className="grid grid-cols-4 gap-4 sm:gap-6 py-2">
+            <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 text-center items-start">
               {currentFolder.apps.map((app) => (
                 <AppCircleCard key={app.id} app={app} />
               ))}
@@ -605,15 +633,15 @@ export default function LifePlannerDashboardHome() {
         /* ========================================================= */
         /* "All Apps" 4-Column Grid View (18 Cards) */
         /* ========================================================= */
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-6 sm:p-8 space-y-6 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h2 className="text-lg font-black text-slate-900">All Functions (18 Cards in 4 Columns)</h2>
+              <h2 className="text-base sm:text-lg font-black text-slate-900">All Functions (18 Cards in 4 Columns)</h2>
               <p className="text-xs text-slate-500">Tap any icon to open the module instantly</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 sm:gap-6 py-2">
+          <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 md:gap-6 py-1 sm:py-2">
             {allApps.map((app) => (
               <AppCircleCard key={app.id} app={app} showFolderBadge />
             ))}
@@ -624,21 +652,21 @@ export default function LifePlannerDashboardHome() {
         /* The 4 Master Cards View */
         /* ========================================================= */
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {masterCards.map((card, idx) => {
               const IconComp = card.icon;
               return (
                 <div
                   key={card.id}
                   onClick={() => setActiveFolder(card.id)}
-                  className="group cursor-pointer rounded-3xl border border-white/90 bg-white/90 backdrop-blur-md p-5 transition-all duration-300 hover:-translate-y-1.5 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:shadow-[0_20px_35px_-10px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-slate-900/5 active:scale-[0.98] flex flex-col justify-between space-y-4"
+                  className="group cursor-pointer rounded-3xl border border-white/90 bg-white/90 backdrop-blur-md p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1.5 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:shadow-[0_20px_35px_-10px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-slate-900/5 active:scale-[0.98] flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div
-                        className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${card.themeColor} text-white shadow-[0_6px_14px_rgba(0,0,0,0.15),inset_0_1px_2px_rgba(255,255,255,0.4)] flex items-center justify-center transition group-hover:scale-105`}
+                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr ${card.themeColor} text-white shadow-[0_6px_14px_rgba(0,0,0,0.15),inset_0_1px_2px_rgba(255,255,255,0.4)] flex items-center justify-center transition group-hover:scale-105`}
                       >
-                        <IconComp className="w-6 h-6 stroke-[2.2] drop-shadow-sm" />
+                        <IconComp className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2] drop-shadow-sm" />
                       </div>
                       <span className="text-slate-400 text-sm font-bold group-hover:translate-x-0.5 transition-transform">
                         ›
@@ -646,28 +674,25 @@ export default function LifePlannerDashboardHome() {
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 group-hover:text-emerald-700 transition">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-emerald-700 transition">
                         {card.title}
                       </h3>
-                      <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">{card.tagline}</p>
+                      <p className="text-xs text-slate-600 mt-1.5 line-clamp-2 leading-relaxed">{card.tagline}</p>
                     </div>
                   </div>
 
                   {/* Micro-preview of 4 round icons inside */}
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex items-center -space-x-1.5">
-                      {card.apps.slice(0, 4).map((a) => {
-                        const SubIcon = a.icon;
-                        return (
-                          <div
-                            key={a.id}
-                            className={`w-7 h-7 rounded-full bg-gradient-to-tr ${a.bgGradient} border-2 border-white shadow-[0_2px_5px_rgba(0,0,0,0.15)] flex items-center justify-center text-white`}
-                            title={a.name}
-                          >
-                            <SubIcon className="w-3.5 h-3.5" />
-                          </div>
-                        );
-                      })}
+                      {card.apps.slice(0, 4).map((a) => (
+                        <div
+                          key={a.id}
+                          className={`w-7 h-7 rounded-full bg-gradient-to-tr ${a.bgGradient} border-2 border-white shadow-[0_2px_5px_rgba(0,0,0,0.15)] flex items-center justify-center text-white text-xs`}
+                          title={a.name}
+                        >
+                          {a.emoji ? <span>{a.emoji}</span> : <a.icon className="w-3.5 h-3.5" />}
+                        </div>
+                      ))}
                     </div>
                     <span className="text-xs font-bold text-emerald-700 flex items-center gap-0.5 group-hover:translate-x-1 transition">
                       <span>Open</span>
@@ -680,7 +705,7 @@ export default function LifePlannerDashboardHome() {
           </div>
 
           {/* Quick Launchpad: All 4 Master Cards Expanded Inline */}
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-6 sm:p-8 space-y-8 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
+          <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-white/90 p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 shadow-[0_10px_25px_-5px_rgba(15,23,42,0.06),0_4px_6px_-2px_rgba(15,23,42,0.03),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-900/5">
             <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-base sm:text-lg font-black text-slate-900">4 Column App Grid</h3>
@@ -689,11 +714,11 @@ export default function LifePlannerDashboardHome() {
             </div>
 
             {masterCards.map((category) => (
-              <div key={category.id} className="space-y-3">
+              <div key={category.id} className="space-y-2.5 sm:space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${category.themeColor} shadow-sm`} />
-                    <h4 className="text-sm font-black text-slate-900 tracking-tight uppercase">
+                    <span className="text-base">{category.emoji}</span>
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight uppercase">
                       {category.title}
                     </h4>
                   </div>
@@ -706,7 +731,7 @@ export default function LifePlannerDashboardHome() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 sm:gap-6 py-1">
+                <div className="grid grid-cols-4 gap-2 xs:gap-3 sm:gap-4 md:gap-6 py-1">
                   {category.apps.map((app) => (
                     <AppCircleCard key={app.id} app={app} />
                   ))}
@@ -721,7 +746,7 @@ export default function LifePlannerDashboardHome() {
 }
 
 // ==========================================
-// Reusable Round App Icon Card (Smartphone Style with Light 3D Effect)
+// Reusable Round App Icon Card (Exact Match to Preview 3D Orbs)
 // ==========================================
 function AppCircleCard({ app, showFolderBadge }: { app: SubApp & { folderName?: string }; showFolderBadge?: boolean }) {
   const IconComponent = app.icon;
@@ -729,33 +754,34 @@ function AppCircleCard({ app, showFolderBadge }: { app: SubApp & { folderName?: 
   return (
     <Link
       href={app.href}
-      className="group flex flex-col items-center text-center focus:outline-none transition-all duration-200"
+      className="group flex flex-col items-center text-center focus:outline-none transition-all duration-200 min-w-0"
     >
-      <div className="relative">
+      <div className="relative mb-1">
         {/* Outer 3D Pedestal Ring */}
-        <div className="p-1 rounded-full bg-gradient-to-b from-white via-slate-100 to-slate-200 shadow-[0_6px_14px_rgba(15,23,42,0.08),0_2px_4px_rgba(15,23,42,0.04),inset_0_1px_1px_rgba(255,255,255,1)] group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_22px_rgba(15,23,42,0.16)] active:translate-y-0.5 active:scale-95 transition-all duration-200">
+        <div className="p-[3px] rounded-full bg-gradient-to-b from-white via-slate-100 to-slate-300 shadow-[0_6px_14px_rgba(15,23,42,0.1),0_2px_4px_rgba(15,23,42,0.05),inset_0_1px_1px_rgba(255,255,255,1)] group-hover:-translate-y-1.5 group-hover:shadow-[0_12px_22px_rgba(15,23,42,0.18)] active:translate-y-0.5 active:scale-95 transition-all duration-200">
           {/* Inner 3D Glassy Orb */}
           <div
-            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr ${app.bgGradient} text-white relative overflow-hidden flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.45),inset_0_-2px_4px_rgba(0,0,0,0.25)]`}
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr ${app.bgGradient} text-white relative overflow-hidden flex items-center justify-center text-2xl sm:text-3xl shadow-[inset_0_2px_4px_rgba(255,255,255,0.6),inset_0_-2px_4px_rgba(0,0,0,0.25)]`}
           >
             {/* Top Specular 3D Reflection */}
-            <div className="absolute top-0 inset-x-2 h-1/2 bg-gradient-to-b from-white/35 to-transparent rounded-t-full pointer-events-none" />
-            <IconComponent className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2.2] drop-shadow-sm" />
+            <div className="absolute top-0 inset-x-2 h-[48%] bg-gradient-to-b from-white/50 to-transparent rounded-t-full pointer-events-none" />
+            {app.emoji ? (
+              <span className="select-none drop-shadow-sm">{app.emoji}</span>
+            ) : (
+              <IconComponent className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.2] drop-shadow-sm" />
+            )}
           </div>
         </div>
         {app.badge && (
-          <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.15)] border border-white">
+          <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[8px] xs:text-[9px] px-1.5 py-0.2 rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.15)] border border-white">
             {app.badge}
           </span>
         )}
       </div>
 
-      <div className="mt-2.5 space-y-0.5 w-full">
-        <p className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition truncate max-w-full tracking-tight">
+      <div className="w-full min-w-0 px-0.5 mt-1.5">
+        <p className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition leading-tight tracking-tight break-words">
           {app.name}
-        </p>
-        <p className="text-[10px] font-medium text-slate-400 truncate max-w-full hidden sm:block">
-          {app.subtitle}
         </p>
       </div>
     </Link>
