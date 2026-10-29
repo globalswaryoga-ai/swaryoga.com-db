@@ -15,7 +15,9 @@ import {
   CheckSquare,
   ListTodo,
   BookOpen,
+  ArrowLeft,
 } from 'lucide-react';
+import Link from 'next/link';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { ActionPlan, Goal, Reminder, Task, Todo, Vision, Word } from '@/lib/types/lifePlanner';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
@@ -595,37 +597,55 @@ export default function EnhancedCalendar() {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-swar-primary-light to-blue-50 rounded-3xl p-4 sm:p-6 border border-swar-border">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-4xl font-bold text-swar-primary">Calendar Overview</h1>
-            <p className="text-xs sm:text-sm text-swar-text-secondary mt-1">View all visions, goals, tasks, reminders, and milestones</p>
+      {/* Android Top App Bar with Month Navigation */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/life-planner/dashboard"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>📅</span>
+              <span>Swar Calendar</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Visions, Goals, Tasks, Tithi & Milestones
+            </p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={openAddEvent}
-              className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-swar-accent px-3 py-2 text-white font-semibold hover:opacity-90 transition"
-              title="Add event"
-            >
-              <Plus className="h-4 w-4" />
-              Add
-            </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openAddEvent}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition active:scale-95"
+            title="Add Event"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Event</span>
+          </button>
+
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-0.5 border border-slate-200/60">
             <button
               onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-              className="p-2 rounded-lg hover:bg-white transition"
+              className="w-8 h-8 rounded-lg hover:bg-white text-slate-700 transition flex items-center justify-center font-bold"
+              title="Previous Month"
             >
-              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
+              ‹
             </button>
-            <span className="text-sm sm:text-lg font-semibold text-swar-text min-w-[120px] sm:min-w-[150px] text-center">
-              {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            <span className="text-xs sm:text-sm font-bold text-slate-800 min-w-[100px] sm:min-w-[130px] text-center px-1">
+              {currentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </span>
             <button
               onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-              className="p-2 rounded-lg hover:bg-white transition"
+              className="w-8 h-8 rounded-lg hover:bg-white text-slate-700 transition flex items-center justify-center font-bold"
+              title="Next Month"
             >
-              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
+              ›
             </button>
           </div>
         </div>
