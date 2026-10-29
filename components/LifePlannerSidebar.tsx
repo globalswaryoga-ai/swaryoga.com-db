@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Download,
   Flag,
+  Flame,
   Home,
   Leaf,
   LayoutDashboard,
@@ -71,6 +72,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     { href: isCrm ? '/admin/crm' : '/', label: 'Home', icon: Home },
     // Keep a dedicated link to open the Life Planner dashboard
     { href: '/life-planner/dashboard', label: 'Life Planner', icon: LayoutDashboard },
+    { href: '/life-planner/dashboard/sadhana', label: 'Sadhana Tools', icon: Flame },
 
     // Main Life Planner Hierarchy
     { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },

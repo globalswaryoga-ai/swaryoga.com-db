@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Check, Trash2, CheckCircle2, Circle, Pencil } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Check, Trash2, CheckCircle2, Circle, Pencil, ArrowLeft } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Goal, HealthRoutine, Task, Vision } from '@/lib/types/lifePlanner';
 
@@ -553,7 +554,16 @@ export default function DailyViewPage() {
 
       {/* Main Header with Date Navigation */}
       <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-swar-text">Daily Planner</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/life-planner/dashboard"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
+            title="Back to Life Planner"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </Link>
+          <h1 className="text-2xl font-bold text-swar-text">Daily Planner</h1>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={goPrevDay}

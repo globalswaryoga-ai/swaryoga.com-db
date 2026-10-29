@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit2, Check } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Trash2, Edit2, Check, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Todo, Task, Vision, ActionPlan, Goal, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -292,9 +293,18 @@ export default function TodosPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text mb-2">Todos</h1>
-          <p className="text-swar-text-secondary">Manage your daily tasks and todos</p>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/life-planner/dashboard"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
+            title="Back to Life Planner"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </Link>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-swar-text mb-1">Todos</h1>
+            <p className="text-xs sm:text-sm text-swar-text-secondary">Manage your daily tasks and todos</p>
+          </div>
         </div>
         <button
           onClick={handleAddTodo}

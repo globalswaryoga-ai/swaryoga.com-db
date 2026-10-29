@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -221,10 +222,19 @@ export default function VisionPage() {
       <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.10) 45%, rgba(236,72,153,0.10) 100%)' }}>
           <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Vision Project Report</p>
-              <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">My Vision Plans</h1>
-              <p className="mt-1 text-sm text-slate-600">Your long-term projects with milestones and timelines.</p>
+            <div className="flex items-center gap-3 min-w-0">
+              <Link
+                href="/life-planner/dashboard"
+                className="p-2 sm:p-2.5 rounded-xl bg-white/80 hover:bg-white text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
+                title="Back to Life Planner"
+              >
+                <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+              </Link>
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Vision Project Report</p>
+                <h1 className="mt-0.5 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">My Vision Plans</h1>
+                <p className="mt-0.5 text-xs sm:text-sm text-slate-600">Your long-term projects with milestones and timelines.</p>
+              </div>
             </div>
             <button
               onClick={handleAddVision}

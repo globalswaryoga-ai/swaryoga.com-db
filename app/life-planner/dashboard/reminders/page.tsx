@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { AlertCircle, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory, type Vision, type ActionPlan, type Task as DbTask } from '@/lib/types/lifePlanner';
@@ -265,9 +266,18 @@ export default function RemindersPage() {
     <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Reminders</h1>
-          <p className="text-swar-text-secondary mt-1">Set up reminders for important tasks and events</p>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/life-planner/dashboard"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
+            title="Back to Life Planner"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </Link>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Reminders</h1>
+            <p className="text-xs sm:text-sm text-swar-text-secondary mt-0.5">Set up reminders for important tasks and events</p>
+          </div>
         </div>
         <button
           onClick={openCreate}

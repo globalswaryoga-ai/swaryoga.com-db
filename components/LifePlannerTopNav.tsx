@@ -206,14 +206,14 @@ export default function LifePlannerTopNav({
             <ServerStatus />
           </div>
 
-          {/* Back Button */}
+          {/* Universal Back Button (Visible on mobile & desktop) */}
           <button
             onClick={() => router.back()}
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all duration-150 active:scale-95 shadow-xs border border-slate-200"
             title="Go Back"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <ArrowLeft className="h-4 w-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">Back</span>
           </button>
 
           <Link
