@@ -217,47 +217,58 @@ export default function VisionPage() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Report-style header */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.10) 45%, rgba(236,72,153,0.10) 100%)' }}>
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <Link
-                href="/life-planner/dashboard"
-                className="p-2 sm:p-2.5 rounded-xl bg-white/80 hover:bg-white text-slate-800 transition active:scale-95 shadow-xs border border-slate-200"
-                title="Back to Life Planner"
-              >
-                <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
-              </Link>
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Vision Project Report</p>
-                <h1 className="mt-0.5 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">My Vision Plans</h1>
-                <p className="mt-0.5 text-xs sm:text-sm text-slate-600">Your long-term projects with milestones and timelines.</p>
-              </div>
-            </div>
-            <button
-              onClick={handleAddVision}
-              className="inline-flex items-center gap-2 rounded-2xl bg-swar-primary px-5 py-2.5 text-white font-extrabold hover:bg-swar-primary-dark transition shadow-sm"
-            >
-              <Plus className="h-5 w-5" />
-              Add Vision
-            </button>
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-12">
+      {/* Android Top App Bar */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/life-planner/dashboard"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
+            title="Back to Launchpad"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
+              <span>🎯</span>
+              <span>My Vision Blueprint</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 font-medium truncate">
+              Life Mission, Long-term Projects, Goals &amp; Milestones
+            </p>
           </div>
         </div>
 
-        <div className="px-6 py-5">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-emerald-700">Total visions</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{visions.length}</p>
-            </div>
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-indigo-700">Shown</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{filteredVisions.length}</p>
-            </div>
-            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
-              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-orange-700">Vision Heads</p>
+        <button
+          onClick={handleAddVision}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add Vision</span>
+        </button>
+      </div>
+
+      {/* 3D Elevated Vision Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white p-3.5 sm:p-4 shadow-[0_2px_8px_rgba(5,150,105,0.04)]">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-800">Total Visions</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">{visions.length}</p>
+        </div>
+        <div className="rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/70 via-white to-white p-3.5 sm:p-4 shadow-[0_2px_8px_rgba(15,118,110,0.04)]">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-teal-800">Filtered</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">{filteredVisions.length}</p>
+        </div>
+        <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/70 via-white to-white p-3.5 sm:p-4 shadow-[0_2px_8px_rgba(99,102,241,0.04)]">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-indigo-800">Categories</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">{Array.from(new Set(visions.map(v => v.category))).length}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-white p-3.5 sm:p-4 shadow-[0_2px_8px_rgba(217,119,6,0.04)]">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-amber-800">Status</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">
+            {visions.filter(v => v.status === 'completed').length}/{visions.length}
+          </p>
+        </div>
+      </div>
               <p className="mt-1 text-2xl font-black text-slate-900">{uniqueCategories.length}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
