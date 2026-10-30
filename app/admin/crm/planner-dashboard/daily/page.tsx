@@ -68,6 +68,8 @@ const DEFAULT_SADHANA: DailySadhanaState = {
   },
 };
 
+type CardKey = 'workshop' | 'routine' | 'morning' | 'evening';
+
 export default function CrmDailyViewPage() {
   const getLocalDayKey = (d: Date) => {
     const yyyy = d.getFullYear();
@@ -101,28 +103,31 @@ export default function CrmDailyViewPage() {
     setSelectedDate(getLocalDayKey(d));
   };
 
-  // Card Expansion State
-  const [expandedCards, setExpandedCards] = useState<Record<'workshop' | 'routine' | 'sadhana', boolean>>({
-    workshop: true,
-    routine: true,
-    sadhana: true,
+  // 4 Distinct Cards: workshop, routine, morning sadhana, evening sadhana
+  // Initially false so all 4 fit on one mobile screen, expanding when clicked
+  const [expandedCards, setExpandedCards] = useState<Record<CardKey, boolean>>({
+    workshop: false,
+    routine: false,
+    morning: false,
+    evening: false,
   });
 
-  const toggleCard = (card: 'workshop' | 'routine' | 'sadhana') => {
+  const toggleCard = (card: CardKey) => {
     setExpandedCards((prev) => ({ ...prev, [card]: !prev[card] }));
   };
 
-  const allExpanded = expandedCards.workshop && expandedCards.routine && expandedCards.sadhana;
+  const allExpanded =
+    expandedCards.workshop && expandedCards.routine && expandedCards.morning && expandedCards.evening;
 
   const toggleAllCards = () => {
     if (allExpanded) {
-      setExpandedCards({ workshop: false, routine: false, sadhana: false });
+      setExpandedCards({ workshop: false, routine: false, morning: false, evening: false });
     } else {
-      setExpandedCards({ workshop: true, routine: true, sadhana: true });
+      setExpandedCards({ workshop: true, routine: true, morning: true, evening: true });
     }
   };
 
-  const ensureExpanded = (card: 'workshop' | 'routine' | 'sadhana') => {
+  const ensureExpanded = (card: CardKey) => {
     if (!expandedCards[card]) {
       setExpandedCards((prev) => ({ ...prev, [card]: true }));
     }
@@ -469,7 +474,7 @@ export default function CrmDailyViewPage() {
     }
   };
 
-  // Stats for cards
+  // Stats for the 4 cards
   const completedWorkshopCount = workshopTasks.filter((t) => t.completed).length;
   const completedRoutineCount = healthRoutines.filter((r) =>
     (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(selectedDate)
@@ -477,30 +482,28 @@ export default function CrmDailyViewPage() {
   const maxRoutineStreak = Math.max(...healthRoutines.map((r) => (r as any).streak || 0), 0);
   const morningCompletedCount = sadhanaState.morning.filter((p) => p.completed).length;
   const eveningCompletedCount = sadhanaState.evening.filter((p) => p.completed).length;
-  const totalSadhanaCount = sadhanaState.morning.length + sadhanaState.evening.length;
-  const totalSadhanaCompleted = morningCompletedCount + eveningCompletedCount;
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-12 max-w-7xl mx-auto">
-      {/* Android Top App Bar with Date Navigator & Card Controls */}
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3.5 sm:p-5 shadow-[0_4px_20px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] border border-amber-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5">
+    <div className="space-y-3 sm:space-y-5 pb-12 max-w-7xl mx-auto px-2 sm:px-4">
+      {/* Top App Bar with Date Navigator & Global Toggle */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.02)] border border-slate-200/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/admin/crm/planner-dashboard"
-            className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 active:scale-95 transition-all flex items-center justify-center text-amber-900 border border-amber-200/80 shadow-2xs shrink-0"
+            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center text-slate-700 border border-slate-200 shadow-2xs shrink-0"
             title="Back to CRM Planner"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight truncate flex items-center gap-2">
-              <span className="text-2xl drop-shadow-xs">🌅</span>
+            <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight truncate flex items-center gap-2">
+              <span className="text-xl">🌅</span>
               <span>CRM Daily Planner</span>
             </h1>
-            <p className="text-xs text-amber-800/80 font-semibold truncate flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1.5">
               <span>{formatDateDisplay(selectedDate)}</span>
               {isToday && (
-                <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider">
+                <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
                   Today
                 </span>
               )}
@@ -514,18 +517,18 @@ export default function CrmDailyViewPage() {
           <button
             type="button"
             onClick={toggleAllCards}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300/80 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 transition flex items-center gap-1.5 active:scale-95 shadow-2xs"
+            className="px-2.5 py-1 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition flex items-center gap-1 active:scale-95 shadow-2xs"
             title={allExpanded ? 'Collapse All Cards' : 'Expand All Cards'}
           >
-            <ChevronsUpDown size={14} className="text-amber-700" />
+            <ChevronsUpDown size={13} className="text-slate-500" />
             <span>{allExpanded ? 'Collapse All' : 'Expand All'}</span>
           </button>
 
           {/* Date Controls */}
-          <div className="flex items-center gap-1 bg-amber-50/60 p-1 rounded-2xl border border-amber-200/80">
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
             <button
               onClick={goPrevDay}
-              className="w-8 h-8 rounded-xl bg-white hover:bg-amber-100 active:scale-90 transition flex items-center justify-center text-amber-900 text-base font-black border border-amber-200/60 shadow-2xs"
+              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-black border border-slate-200/80 shadow-2xs"
               title="Previous Day"
             >
               ‹
@@ -533,7 +536,7 @@ export default function CrmDailyViewPage() {
             {!isToday && (
               <button
                 onClick={() => setSelectedDate(today)}
-                className="px-2.5 py-1.5 text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition active:scale-95 shadow-2xs"
+                className="px-2 py-1 text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition active:scale-95 shadow-2xs"
               >
                 Today
               </button>
@@ -542,11 +545,11 @@ export default function CrmDailyViewPage() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-2.5 py-1 text-xs sm:text-sm font-bold border border-amber-200/80 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+              className="px-2 py-0.5 text-xs font-bold border border-slate-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
             />
             <button
               onClick={goNextDay}
-              className="w-8 h-8 rounded-xl bg-white hover:bg-amber-100 active:scale-90 transition flex items-center justify-center text-amber-900 text-base font-black border border-amber-200/60 shadow-2xs"
+              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-black border border-slate-200/80 shadow-2xs"
               title="Next Day"
             >
               ›
@@ -555,94 +558,60 @@ export default function CrmDailyViewPage() {
         </div>
       </div>
 
-      {/* 3 Expandable Cards in One Unified Cohesive Glossy Amber Theme */}
-      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 items-start">
+      {/* 4 DISTINCT COLORFUL CARDS (Compact preview so all 4 fit on 1 mobile screen) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
         
         {/* ======================================================== */}
-        {/* CARD 1: DAILY WORKSHOP (EXPANDABLE)                      */}
+        {/* CARD 1: DAILY WORKSHOP (VIBRANT SKY / BLUE THEME)        */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_20px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(2,132,199,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
             expandedCards.workshop
-              ? 'border-amber-300/90 ring-1 ring-amber-300/40'
-              : 'border-amber-200/70 hover:border-amber-300 hover:shadow-md'
+              ? 'border-sky-400 ring-2 ring-sky-400/20 shadow-md'
+              : 'border-sky-200 hover:border-sky-300 hover:shadow-sm'
           }`}
         >
-          {/* Card Header (Click to Expand / Collapse) */}
+          {/* Card Header (Compact Preview) */}
           <button
             type="button"
             onClick={() => toggleCard('workshop')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left border-b border-amber-200/60 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent hover:from-amber-500/15 transition-all select-none group"
+            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-sky-100 bg-gradient-to-r from-sky-500/15 via-blue-500/8 to-transparent hover:from-sky-500/20 transition-all select-none group"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              {/* Glossy 3D Orb */}
-              <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(217,119,6,0.22),inset_0_2px_4px_rgba(255,255,255,0.7),inset_0_-2px_4px_rgba(0,0,0,0.08)] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 border border-amber-300/60 shrink-0">
-                <div className="absolute top-1 left-1.5 right-1.5 h-3.5 bg-gradient-to-b from-white/70 to-transparent rounded-t-xl pointer-events-none" />
-                <span className="text-xl relative z-10 drop-shadow-xs">🏗️</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* 3D Glossy Sky Blue Orb */}
+              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(2,132,199,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600 border border-sky-300/70 shrink-0">
+                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
+                <span className="text-base relative z-10 drop-shadow-xs">🏗️</span>
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-black text-slate-800 tracking-tight group-hover:text-amber-900 transition flex items-center gap-1.5">
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-sky-700 transition flex items-center gap-1">
                   <span>Daily Workshop</span>
                 </h2>
-                <p className="text-xs text-amber-800/80 font-bold truncate">
-                  {workshopTasks.length} tasks • {completedWorkshopCount} completed
+                <p className="text-[11px] text-sky-800 font-bold truncate">
+                  {workshopTasks.length} tasks • {completedWorkshopCount} done
                 </p>
               </div>
             </div>
 
             {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200/80">
-                {expandedCards.workshop ? 'Collapse' : 'Expand'}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-black text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full border border-sky-200">
+                {expandedCards.workshop ? 'Close' : 'Open'}
               </span>
-              <div className="w-7 h-7 rounded-full bg-amber-100/70 group-hover:bg-amber-200 flex items-center justify-center text-amber-900 transition-all">
-                {expandedCards.workshop ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div className="w-6 h-6 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center text-sky-800 transition-all">
+                {expandedCards.workshop ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </div>
             </div>
           </button>
 
-          {/* Collapsed Preview */}
-          {!expandedCards.workshop && (
-            <div
-              onClick={() => toggleCard('workshop')}
-              className="p-3.5 bg-gradient-to-b from-amber-50/30 to-white cursor-pointer hover:bg-amber-50/50 transition-colors"
-            >
-              {workshopTasks.length === 0 ? (
-                <p className="text-xs text-amber-800/70 font-medium italic">
-                  No tasks added yet. Tap here to expand and add work, study, or family tasks.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {workshopCategories
-                      .filter((cat) => workshopTasks.some((t) => t.category === cat.id))
-                      .map((cat) => (
-                        <span
-                          key={cat.id}
-                          className="px-2 py-0.5 bg-amber-100/80 text-amber-900 border border-amber-200 rounded-md text-[11px] font-bold"
-                        >
-                          {cat.label.split(' ')[0]} ({workshopTasks.filter((t) => t.category === cat.id).length})
-                        </span>
-                      ))}
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-semibold flex items-center gap-1 text-amber-800">
-                    <Sparkles size={12} className="text-amber-600" />
-                    Tap to expand full task manager & repeat settings ↓
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Expanded Content */}
           {expandedCards.workshop && (
-            <div className="p-3.5 sm:p-4 space-y-3.5">
-              {/* Add Task Form */}
-              <div className="space-y-2 bg-gradient-to-br from-amber-50/40 via-orange-50/20 to-white p-3 rounded-2xl border border-amber-200/70">
-                {/* Category Dropdown */}
+            <div className="p-3 sm:p-3.5 space-y-3 bg-gradient-to-b from-sky-50/20 to-white">
+              {/* Add Task Form (Sky Blue Theme) */}
+              <div className="space-y-2 bg-sky-50/50 p-2.5 rounded-xl border border-sky-200">
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-amber-900 mb-1">
-                    Select Life Category
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-sky-900 mb-1">
+                    Life Category
                   </label>
                   <select
                     value={selectedWorkshopCategory}
@@ -651,7 +620,7 @@ export default function CrmDailyViewPage() {
                       setSelectedWorkshopCategory(e.target.value as WorkshopCategory);
                     }}
                     onFocus={() => ensureExpanded('workshop')}
-                    className="w-full px-3 py-2 rounded-xl border border-amber-200/80 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-400 shadow-2xs"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-sky-200 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400"
                   >
                     {workshopCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
@@ -661,8 +630,7 @@ export default function CrmDailyViewPage() {
                   </select>
                 </div>
 
-                {/* Input & Add Button */}
-                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div className="space-y-1.5">
                   <input
                     type="text"
                     value={newWorkshopTask}
@@ -672,24 +640,24 @@ export default function CrmDailyViewPage() {
                     }}
                     onFocus={() => ensureExpanded('workshop')}
                     onKeyDown={(e) => e.key === 'Enter' && addWorkshopTask()}
-                    placeholder="Add your daily work or task..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-amber-200/80 bg-white text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-400 shadow-2xs"
+                    placeholder="Add daily task..."
+                    className="w-full px-3 py-2 rounded-lg border border-sky-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400"
                   />
                   <button
                     onClick={addWorkshopTask}
-                    className="w-full sm:w-auto bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-5 py-2.5 rounded-xl transition-all active:scale-95 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(217,119,6,0.28)] shrink-0"
+                    className="w-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white px-3 py-2 rounded-lg transition-all active:scale-95 text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_3px_10px_rgba(2,132,199,0.3)]"
                     title="Add Task"
                   >
-                    <Plus size={16} />
-                    <span>Add</span>
+                    <Plus size={15} />
+                    <span>Add Task</span>
                   </button>
                 </div>
 
                 {workshopError && <p className="text-xs text-red-600 font-semibold">{workshopError}</p>}
 
-                {/* Repeat Frequency Pills (Unified Amber Theme) */}
-                <div className="pt-1 flex items-center flex-wrap gap-1.5">
-                  <span className="text-[11px] font-bold text-amber-900 mr-1">Repeat:</span>
+                {/* Repeat Pills (Sky Blue) */}
+                <div className="pt-0.5 flex items-center flex-wrap gap-1">
+                  <span className="text-[10px] font-bold text-sky-900 mr-1">Repeat:</span>
                   {(['none', 'daily', 'weekly', 'monthly'] as TaskRepeat[]).map((repeat) => {
                     const active = newTaskRepeat === repeat;
                     return (
@@ -697,10 +665,10 @@ export default function CrmDailyViewPage() {
                         key={repeat}
                         type="button"
                         onClick={() => setNewTaskRepeat(repeat)}
-                        className={`px-2.5 py-1 text-xs font-black rounded-xl transition-all active:scale-95 ${
+                        className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all active:scale-95 ${
                           active
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                            : 'bg-amber-100/60 hover:bg-amber-100 text-amber-900 border border-amber-200/60'
+                            ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-xs'
+                            : 'bg-sky-100/70 hover:bg-sky-100 text-sky-900 border border-sky-200'
                         }`}
                       >
                         {repeat === 'none' ? 'Once' : repeat.charAt(0).toUpperCase() + repeat.slice(1)}
@@ -710,26 +678,10 @@ export default function CrmDailyViewPage() {
                 </div>
               </div>
 
-              {/* Category Summary Chips */}
-              {workshopTasks.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap">
-                  {workshopCategories
-                    .filter((cat) => workshopTasks.some((t) => t.category === cat.id))
-                    .map((cat) => (
-                      <span
-                        key={cat.id}
-                        className="px-2.5 py-0.5 bg-amber-100/90 text-amber-950 border border-amber-300/80 rounded-full text-xs font-black whitespace-nowrap shadow-2xs"
-                      >
-                        {cat.label.split(' ')[0]} ({workshopTasks.filter((t) => t.category === cat.id).length})
-                      </span>
-                    ))}
-                </div>
-              )}
-
-              {/* Category Sections & Task List */}
-              <div className="space-y-3 pt-1 max-h-[380px] overflow-y-auto pr-1">
+              {/* Task List */}
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                 {workshopTasks.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic text-center py-4">No tasks added yet for this date.</p>
+                  <p className="text-xs text-slate-400 italic text-center py-2">No tasks added yet.</p>
                 ) : (
                   workshopCategories.map((cat) => {
                     const catTasks = workshopTasks.filter((t) => t.category === cat.id);
@@ -740,34 +692,34 @@ export default function CrmDailyViewPage() {
                         ref={(el) => {
                           workshopCategoryRefs.current[cat.id] = el;
                         }}
-                        className="border-l-3 border-amber-500 pl-3 py-0.5"
+                        className="border-l-2 border-sky-500 pl-2.5 py-0.5"
                       >
-                        <h3 className="text-xs font-black text-amber-950 mb-1.5 flex items-center justify-between">
+                        <h3 className="text-[11px] font-black text-sky-950 mb-1 flex items-center justify-between">
                           <span>{cat.label}</span>
-                          <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md font-bold">
+                          <span className="text-[9px] bg-sky-100 text-sky-900 px-1 py-0.1 rounded font-bold">
                             {catTasks.length}
                           </span>
                         </h3>
-                        <ul className="space-y-1.5">
+                        <ul className="space-y-1">
                           {catTasks.map((task) => (
                             <li
                               key={task.id}
-                              className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border transition-all ${
                                 task.completed
-                                  ? 'bg-amber-50/40 border-amber-200/60 opacity-80'
-                                  : 'bg-white border-amber-200/80 hover:border-amber-300 shadow-2xs'
+                                  ? 'bg-sky-50/40 border-sky-200/60 opacity-80'
+                                  : 'bg-white border-sky-200/80 hover:border-sky-300 shadow-2xs'
                               }`}
                             >
                               <input
                                 type="checkbox"
                                 checked={task.completed || false}
                                 onChange={() => toggleTaskCompletion(task.id)}
-                                className="w-4 h-4 text-amber-600 rounded cursor-pointer accent-amber-600 shrink-0"
+                                className="w-4 h-4 text-sky-600 rounded cursor-pointer accent-sky-600 shrink-0"
                                 title="Mark as complete"
                               />
-                              <div className="flex-grow flex items-center gap-1.5 min-w-0">
+                              <div className="flex-grow flex items-center gap-1 min-w-0">
                                 <span
-                                  className={`text-xs sm:text-sm flex-grow text-slate-800 outline-none rounded px-1 -mx-1 focus:bg-amber-50 transition truncate ${
+                                  className={`text-xs flex-grow text-slate-800 outline-none rounded px-1 -mx-1 truncate ${
                                     task.completed ? 'line-through text-slate-400' : 'font-semibold'
                                   }`}
                                   contentEditable={!task.completed}
@@ -783,22 +735,17 @@ export default function CrmDailyViewPage() {
                                   {task.text}
                                 </span>
                                 {task.repeat && task.repeat !== 'none' && (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded-md whitespace-nowrap font-bold shrink-0">
+                                  <span className="text-[9px] px-1 py-0.2 bg-sky-100 text-sky-900 rounded font-bold shrink-0">
                                     🔄 {task.repeat}
-                                  </span>
-                                )}
-                                {task.completed && (
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-200/90 text-amber-950 rounded-md whitespace-nowrap font-black shrink-0">
-                                    ✓ Done
                                   </span>
                                 )}
                               </div>
                               <button
                                 onClick={() => deleteWorkshopTask(task.id)}
-                                className="p-1 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700 transition shrink-0"
+                                className="p-1 hover:bg-red-50 rounded text-red-500 hover:text-red-700 transition shrink-0"
                                 title="Delete task"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} />
                               </button>
                             </li>
                           ))}
@@ -813,134 +760,92 @@ export default function CrmDailyViewPage() {
         </div>
 
         {/* ======================================================== */}
-        {/* CARD 2: MY ROUTINE (EXPANDABLE)                          */}
+        {/* CARD 2: MY ROUTINE (LUSH EMERALD / GREEN THEME)          */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_20px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(5,150,105,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
             expandedCards.routine
-              ? 'border-amber-300/90 ring-1 ring-amber-300/40'
-              : 'border-amber-200/70 hover:border-amber-300 hover:shadow-md'
+              ? 'border-emerald-400 ring-2 ring-emerald-400/20 shadow-md'
+              : 'border-emerald-200 hover:border-emerald-300 hover:shadow-sm'
           }`}
         >
-          {/* Card Header (Click to Expand / Collapse) */}
+          {/* Card Header (Compact Preview) */}
           <button
             type="button"
             onClick={() => toggleCard('routine')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left border-b border-amber-200/60 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent hover:from-amber-500/15 transition-all select-none group"
+            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-emerald-100 bg-gradient-to-r from-emerald-500/15 via-teal-500/8 to-transparent hover:from-emerald-500/20 transition-all select-none group"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              {/* Glossy 3D Orb */}
-              <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(217,119,6,0.22),inset_0_2px_4px_rgba(255,255,255,0.7),inset_0_-2px_4px_rgba(0,0,0,0.08)] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 border border-amber-300/60 shrink-0">
-                <div className="absolute top-1 left-1.5 right-1.5 h-3.5 bg-gradient-to-b from-white/70 to-transparent rounded-t-xl pointer-events-none" />
-                <span className="text-xl relative z-10 drop-shadow-xs">🏃</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* 3D Glossy Emerald Orb */}
+              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(5,150,105,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 border border-emerald-300/70 shrink-0">
+                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
+                <span className="text-base relative z-10 drop-shadow-xs">🏃</span>
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-black text-slate-800 tracking-tight group-hover:text-amber-900 transition flex items-center gap-1.5">
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-emerald-700 transition flex items-center gap-1">
                   <span>My Routine</span>
                 </h2>
-                <p className="text-xs text-amber-800/80 font-bold truncate">
-                  {healthRoutines.length} routines • {completedRoutineCount} done • 🔥 {maxRoutineStreak} streak
+                <p className="text-[11px] text-emerald-800 font-bold truncate">
+                  {healthRoutines.length} habits • {completedRoutineCount} done • 🔥{maxRoutineStreak}
                 </p>
               </div>
             </div>
 
             {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200/80">
-                {expandedCards.routine ? 'Collapse' : 'Expand'}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                {expandedCards.routine ? 'Close' : 'Open'}
               </span>
-              <div className="w-7 h-7 rounded-full bg-amber-100/70 group-hover:bg-amber-200 flex items-center justify-center text-amber-900 transition-all">
-                {expandedCards.routine ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div className="w-6 h-6 rounded-full bg-emerald-100 group-hover:bg-emerald-200 flex items-center justify-center text-emerald-800 transition-all">
+                {expandedCards.routine ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </div>
             </div>
           </button>
 
-          {/* Collapsed Preview */}
-          {!expandedCards.routine && (
-            <div
-              onClick={() => toggleCard('routine')}
-              className="p-3.5 bg-gradient-to-b from-amber-50/30 to-white cursor-pointer hover:bg-amber-50/50 transition-colors space-y-2"
-            >
-              {healthRoutines.length === 0 ? (
-                <p className="text-xs text-amber-800/70 font-medium italic">
-                  No routines yet. Tap here to expand and add health routines.
-                </p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                    <span>
-                      Progress: {completedRoutineCount} of {healthRoutines.length} done
-                    </span>
-                    <span className="text-amber-700">
-                      {Math.round((completedRoutineCount / healthRoutines.length) * 100)}%
-                    </span>
-                  </div>
-                  {/* Visual Progress Bar */}
-                  <div className="w-full h-2 rounded-full bg-amber-100 overflow-hidden border border-amber-200/60">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.round((completedRoutineCount / healthRoutines.length) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-amber-800 font-semibold flex items-center gap-1">
-                    <Sparkles size={12} className="text-amber-600" />
-                    Tap to expand checklist & streak status ↓
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Expanded Content */}
           {expandedCards.routine && (
-            <div className="p-3.5 sm:p-4 space-y-3.5">
-              {/* Compact Unified Stats Bar */}
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/40 to-white border border-amber-200/80 text-xs font-bold text-slate-800">
-                <span className="flex items-center gap-1 text-slate-700">
-                  📋 {healthRoutines.length} routines
-                </span>
-                <span className="flex items-center gap-1 text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-lg border border-amber-300/60">
+            <div className="p-3 sm:p-3.5 space-y-3 bg-gradient-to-b from-emerald-50/20 to-white">
+              {/* Compact Stats Bar (Emerald Theme) */}
+              <div className="flex items-center justify-between gap-1 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-slate-800">
+                <span className="text-slate-700 text-[11px]">📋 {healthRoutines.length}</span>
+                <span className="text-emerald-900 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-300 text-[11px]">
                   ✅ {completedRoutineCount} done
                 </span>
-                <span className="flex items-center gap-1 text-orange-700">
-                  🔥 {maxRoutineStreak} streak
-                </span>
+                <span className="text-teal-700 text-[11px]">🔥 {maxRoutineStreak} streak</span>
               </div>
 
-              {/* Add Routine Header Link */}
-              <div className="flex items-center justify-between pt-0.5">
-                <p className="text-xs font-black uppercase tracking-wider text-amber-950">
+              {/* Add Routine Link */}
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-950">
                   Daily Habit Checklist
                 </p>
                 <Link
                   href="/admin/crm/planner-dashboard/health"
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition text-xs font-black shadow-xs active:scale-95"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg transition text-[11px] font-black shadow-xs active:scale-95"
                   title="Manage Health Habits"
                 >
-                  <Plus size={14} />
+                  <Plus size={13} />
                   <span>Add Habit</span>
                 </Link>
               </div>
 
               {healthError && <div className="text-xs text-red-600 font-bold">{healthError}</div>}
 
-              {/* Health Routines Checklist */}
+              {/* Checklist */}
               {healthLoading ? (
-                <p className="text-xs text-amber-800/70 italic py-3 text-center">Loading health routines...</p>
+                <p className="text-xs text-emerald-800/70 italic py-2 text-center">Loading routines...</p>
               ) : healthRoutines.length === 0 ? (
-                <div className="text-center py-5 px-3 bg-amber-50/40 rounded-2xl border border-dashed border-amber-200">
-                  <p className="text-xs text-amber-900 font-medium">No health routines configured yet.</p>
+                <div className="text-center py-4 px-2 bg-emerald-50/40 rounded-xl border border-dashed border-emerald-200">
+                  <p className="text-xs text-emerald-900 font-medium">No habits yet.</p>
                   <Link
                     href="/admin/crm/planner-dashboard/health"
-                    className="inline-block mt-2 text-xs font-bold text-amber-600 hover:text-amber-700 underline"
+                    className="inline-block mt-1 text-[11px] font-bold text-emerald-600 hover:underline"
                   >
-                    Add routines in Health page →
+                    Add habits in Health page →
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
                   {healthRoutines.map((r) => {
                     const completedToday = (
                       Array.isArray((r as any).completedDates) ? (r as any).completedDates : []
@@ -958,10 +863,10 @@ export default function CrmDailyViewPage() {
                       <div
                         key={r.id}
                         onClick={() => toggleHealthRoutineComplete(r.id)}
-                        className={`rounded-xl p-2.5 border transition-all cursor-pointer flex items-center gap-2.5 ${
+                        className={`rounded-xl p-2 border transition-all cursor-pointer flex items-center gap-2 ${
                           completedToday
-                            ? 'bg-amber-50/60 border-amber-200/90'
-                            : 'bg-white border-amber-200/80 hover:border-amber-300 shadow-2xs'
+                            ? 'bg-emerald-50/60 border-emerald-200'
+                            : 'bg-white border-emerald-200/80 hover:border-emerald-300 shadow-2xs'
                         }`}
                       >
                         <button
@@ -971,38 +876,33 @@ export default function CrmDailyViewPage() {
                             toggleHealthRoutineComplete(r.id);
                           }}
                           className={`flex-shrink-0 transition-transform active:scale-90 ${
-                            completedToday ? 'text-amber-600' : 'text-amber-300 hover:text-amber-500'
+                            completedToday ? 'text-emerald-600' : 'text-emerald-300 hover:text-emerald-500'
                           }`}
                           title={completedToday ? 'Mark as not done' : 'Mark as done'}
                         >
                           {completedToday ? (
-                            <CheckCircle2 className="h-5 w-5 fill-amber-500 text-white" />
+                            <CheckCircle2 className="h-4 w-4 fill-emerald-500 text-white" />
                           ) : (
-                            <Circle className="h-5 w-5" />
+                            <Circle className="h-4 w-4" />
                           )}
                         </button>
                         <div className="flex-1 min-w-0">
                           <p
-                            className={`text-xs sm:text-sm font-bold truncate ${
+                            className={`text-xs font-bold truncate ${
                               completedToday ? 'line-through text-slate-400' : 'text-slate-800'
                             }`}
                           >
                             {categoryEmoji[category] || '✨'} {r.title}
                           </p>
                           {(r as any).duration && (
-                            <p className="text-[11px] text-amber-800/80 font-medium flex items-center gap-1 mt-0.5">
-                              <Clock size={11} /> {(r as any).duration}
+                            <p className="text-[10px] text-emerald-800/80 font-medium flex items-center gap-1 mt-0.5">
+                              <Clock size={10} /> {(r as any).duration}
                             </p>
                           )}
                         </div>
                         {(r as any).repeat && (r as any).repeat !== 'once' && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded-md whitespace-nowrap font-bold shrink-0">
+                          <span className="text-[9px] px-1 py-0.2 bg-emerald-100 text-emerald-900 rounded font-bold shrink-0">
                             🔄 {((r as any).repeat || 'daily')}
-                          </span>
-                        )}
-                        {completedToday && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 text-amber-950 rounded-md whitespace-nowrap font-black shrink-0">
-                            ✓ Done
                           </span>
                         )}
                       </div>
@@ -1015,401 +915,395 @@ export default function CrmDailyViewPage() {
         </div>
 
         {/* ======================================================== */}
-        {/* CARD 3: MY SADHANA (EXPANDABLE)                          */}
+        {/* CARD 3: MORNING SADHANA (SUNRISE GOLD / ORANGE THEME)    */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_20px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
-            expandedCards.sadhana
-              ? 'border-amber-300/90 ring-1 ring-amber-300/40'
-              : 'border-amber-200/70 hover:border-amber-300 hover:shadow-md'
+          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+            expandedCards.morning
+              ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-md'
+              : 'border-amber-200 hover:border-amber-300 hover:shadow-sm'
           }`}
         >
-          {/* Card Header (Click to Expand / Collapse) */}
+          {/* Card Header (Compact Preview) */}
           <button
             type="button"
-            onClick={() => toggleCard('sadhana')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left border-b border-amber-200/60 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent hover:from-amber-500/15 transition-all select-none group"
+            onClick={() => toggleCard('morning')}
+            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-amber-100 bg-gradient-to-r from-amber-500/15 via-orange-500/8 to-transparent hover:from-amber-500/20 transition-all select-none group"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              {/* Glossy 3D Orb */}
-              <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(217,119,6,0.22),inset_0_2px_4px_rgba(255,255,255,0.7),inset_0_-2px_4px_rgba(0,0,0,0.08)] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 border border-amber-300/60 shrink-0">
-                <div className="absolute top-1 left-1.5 right-1.5 h-3.5 bg-gradient-to-b from-white/70 to-transparent rounded-t-xl pointer-events-none" />
-                <span className="text-xl relative z-10 drop-shadow-xs">🧘</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* 3D Glossy Sunrise Orb */}
+              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(217,119,6,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 border border-amber-300/70 shrink-0">
+                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
+                <span className="text-base relative z-10 drop-shadow-xs">☀️</span>
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-black text-slate-800 tracking-tight group-hover:text-amber-900 transition flex items-center gap-1.5">
-                  <span>My Sadhana</span>
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-amber-700 transition flex items-center gap-1">
+                  <span>Morning Sadhana</span>
                 </h2>
-                <p className="text-xs text-amber-800/80 font-bold truncate">
-                  {sadhanaState.morning.length} morning • {sadhanaState.evening.length} evening • {totalSadhanaCompleted} done
+                <p className="text-[11px] text-amber-800 font-bold truncate">
+                  {sadhanaState.morning.length} practices • {morningCompletedCount} done
                 </p>
               </div>
             </div>
 
             {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200/80">
-                {expandedCards.sadhana ? 'Collapse' : 'Expand'}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                {expandedCards.morning ? 'Close' : 'Open'}
               </span>
-              <div className="w-7 h-7 rounded-full bg-amber-100/70 group-hover:bg-amber-200 flex items-center justify-center text-amber-900 transition-all">
-                {expandedCards.sadhana ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div className="w-6 h-6 rounded-full bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center text-amber-800 transition-all">
+                {expandedCards.morning ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </div>
             </div>
           </button>
 
-          {/* Collapsed Preview */}
-          {!expandedCards.sadhana && (
-            <div
-              onClick={() => toggleCard('sadhana')}
-              className="p-3.5 bg-gradient-to-b from-amber-50/30 to-white cursor-pointer hover:bg-amber-50/50 transition-colors space-y-2"
-            >
-              {totalSadhanaCount === 0 ? (
-                <p className="text-xs text-amber-800/70 font-medium italic">
-                  No sadhana practices added. Tap here to expand and add morning/evening practices.
-                </p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                    <span>
-                      Sadhana: {totalSadhanaCompleted} of {totalSadhanaCount} completed
-                    </span>
-                    <span className="text-amber-700">
-                      {Math.round((totalSadhanaCompleted / totalSadhanaCount) * 100)}%
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-amber-100 overflow-hidden border border-amber-200/60">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.round((totalSadhanaCompleted / totalSadhanaCount) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-amber-800 font-semibold flex items-center gap-1">
-                    <Sparkles size={12} className="text-amber-600" />
-                    Tap to expand morning & evening sadhana ↓
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Expanded Content */}
-          {expandedCards.sadhana && (
-            <div className="p-3.5 sm:p-4 space-y-4 max-h-[500px] overflow-y-auto pr-1">
-              {/* ================= MORNING SADHANA ================= */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
-                    <span>☀️</span>
-                    <span>Morning Sadhana</span>
-                  </h3>
-                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                    {morningCompletedCount}/{sadhanaState.morning.length} done
-                  </span>
-                </div>
-
-                {/* Add Morning Practice Form (Unified Amber Theme - Replaced Purple!) */}
-                <div className="grid gap-2 sm:grid-cols-2 p-2.5 rounded-xl bg-amber-50/40 border border-amber-200/70">
-                  <input
-                    value={addMorningName}
-                    onChange={(e) => setAddMorningName(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
-                    placeholder="Practice title (e.g., Pranayama)"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 sm:col-span-2 shadow-2xs"
-                  />
+          {expandedCards.morning && (
+            <div className="p-3 sm:p-3.5 space-y-3 bg-gradient-to-b from-amber-50/20 to-white">
+              {/* Add Morning Practice Form (Sunrise Amber Theme) */}
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-amber-50/50 border border-amber-200">
+                <input
+                  value={addMorningName}
+                  onChange={(e) => setAddMorningName(e.target.value)}
+                  onFocus={() => ensureExpanded('morning')}
+                  placeholder="Practice (e.g., Pranayama)"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                />
+                <div className="grid grid-cols-2 gap-1.5">
                   <input
                     value={addMorningFrequency}
                     onChange={(e) => setAddMorningFrequency(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
+                    onFocus={() => ensureExpanded('morning')}
                     placeholder="e.g. 2 times"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 shadow-2xs"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                   />
                   <input
                     value={addMorningDuration}
                     onChange={(e) => setAddMorningDuration(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
-                    placeholder="e.g. 5 minutes"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 shadow-2xs"
+                    onFocus={() => ensureExpanded('morning')}
+                    placeholder="e.g. 5 min"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                   />
-                  <button
-                    type="button"
-                    onClick={() => addSadhanaPractice('morning')}
-                    className="w-full sm:col-span-2 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-4 py-2 rounded-xl transition-all active:scale-95 text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(217,119,6,0.25)]"
-                    title="Add Morning Practice"
-                  >
-                    <Plus size={15} />
-                    <span>Add Morning Practice</span>
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => addSadhanaPractice('morning')}
+                  className="w-full bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-3 py-2 rounded-lg transition-all active:scale-95 text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_3px_10px_rgba(217,119,6,0.3)]"
+                  title="Add Morning Practice"
+                >
+                  <Plus size={15} />
+                  <span>Add Morning Practice</span>
+                </button>
+              </div>
 
-                {/* Morning Practices List */}
+              {/* Practices List */}
+              <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
                 {sadhanaState.morning.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-1">No morning sadhana added yet.</p>
+                  <p className="text-xs text-slate-400 italic text-center py-2">No morning practices added yet.</p>
                 ) : (
-                  <div className="space-y-1.5">
-                    {sadhanaState.morning.map((p) => {
-                      const isEditing = editing?.section === 'morning' && editing?.id === p.id;
-                      return (
-                        <div
-                          key={p.id}
-                          className={`flex items-start gap-2.5 p-2 rounded-xl border transition-all ${
+                  sadhanaState.morning.map((p) => {
+                    const isEditing = editing?.section === 'morning' && editing?.id === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        className={`flex items-start gap-2 p-2 rounded-xl border transition-all ${
+                          p.completed
+                            ? 'bg-amber-50/50 border-amber-200/70'
+                            : 'bg-white border-amber-200/70 hover:border-amber-300 shadow-2xs'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSadhanaPractice('morning', p.id)}
+                          className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
                             p.completed
-                              ? 'bg-amber-50/50 border-amber-200/70'
-                              : 'bg-white border-amber-200/70 hover:border-amber-300 shadow-2xs'
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-600 text-white shadow-2xs'
+                              : 'border-amber-300 hover:border-amber-500 bg-white'
                           }`}
+                          title={p.completed ? 'Mark not done' : 'Mark done'}
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleSadhanaPractice('morning', p.id)}
-                            className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
-                              p.completed
-                                ? 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-600 text-white shadow-2xs'
-                                : 'border-amber-300 hover:border-amber-500 bg-white'
-                            }`}
-                            title={p.completed ? 'Mark not done' : 'Mark done'}
-                          >
-                            {p.completed && <Check size={12} className="text-white stroke-[3]" />}
-                          </button>
+                          {p.completed && <Check size={12} className="text-white stroke-[3]" />}
+                        </button>
 
-                          <div className="flex-grow min-w-0">
-                            {isEditing ? (
-                              <div className="grid gap-1.5 sm:grid-cols-[1fr_100px_100px]">
-                                <input
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
-                                />
+                        <div className="flex-grow min-w-0">
+                          {isEditing ? (
+                            <div className="space-y-1">
+                              <input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full px-2 py-1 rounded border border-amber-200 text-xs font-medium"
+                              />
+                              <div className="grid grid-cols-2 gap-1">
                                 <input
                                   value={editFrequency}
                                   onChange={(e) => setEditFrequency(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
+                                  className="w-full px-2 py-0.5 rounded border border-amber-200 text-xs"
                                 />
                                 <input
                                   value={editDuration}
                                   onChange={(e) => setEditDuration(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
+                                  className="w-full px-2 py-0.5 rounded border border-amber-200 text-xs"
                                 />
                               </div>
-                            ) : (
-                              <>
-                                <p
-                                  className={`text-xs sm:text-sm font-bold truncate ${
-                                    p.completed ? 'line-through text-slate-400' : 'text-slate-800'
-                                  }`}
-                                >
-                                  {p.name}
-                                </p>
-                                <p className="text-[11px] text-amber-800/80 font-medium mt-0.5">
-                                  {(p.frequency || '—')} • {(p.duration || '—')}
-                                </p>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-1 shrink-0">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={saveEditPractice}
-                                  className="p-1 rounded-lg hover:bg-amber-100 text-amber-800"
-                                  title="Save"
-                                >
-                                  <Check size={15} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEditPractice}
-                                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
-                                  title="Cancel"
-                                >
-                                  <span className="text-xs font-bold">✕</span>
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => startEditPractice('morning', p)}
-                                  className="p-1 rounded-lg hover:bg-amber-100 text-amber-800 transition"
-                                  title="Edit"
-                                >
-                                  <Pencil size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => deleteSadhanaPractice('morning', p.id)}
-                                  className="p-1 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p
+                                className={`text-xs font-bold truncate ${
+                                  p.completed ? 'line-through text-slate-400' : 'text-slate-800'
+                                }`}
+                              >
+                                {p.name}
+                              </p>
+                              <p className="text-[10px] text-amber-800 font-medium mt-0.2">
+                                {(p.frequency || '—')} • {(p.duration || '—')}
+                              </p>
+                            </>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={saveEditPractice}
+                                className="p-1 rounded hover:bg-amber-100 text-amber-800"
+                                title="Save"
+                              >
+                                <Check size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditPractice}
+                                className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                                title="Cancel"
+                              >
+                                <span className="text-xs font-bold">✕</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditPractice('morning', p)}
+                                className="p-1 rounded hover:bg-amber-100 text-amber-800 transition"
+                                title="Edit"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteSadhanaPractice('morning', p.id)}
+                                className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
+            </div>
+          )}
+        </div>
 
-              {/* ================= EVENING SADHANA ================= */}
-              <div className="space-y-2.5 pt-2 border-t border-amber-200/60">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
-                    <span>🌙</span>
-                    <span>Evening Sadhana</span>
-                  </h3>
-                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                    {eveningCompletedCount}/{sadhanaState.evening.length} done
-                  </span>
-                </div>
+        {/* ======================================================== */}
+        {/* CARD 4: EVENING SADHANA (ROYAL PURPLE / INDIGO THEME)    */}
+        {/* ======================================================== */}
+        <div
+          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(147,51,234,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+            expandedCards.evening
+              ? 'border-purple-400 ring-2 ring-purple-400/20 shadow-md'
+              : 'border-purple-200 hover:border-purple-300 hover:shadow-sm'
+          }`}
+        >
+          {/* Card Header (Compact Preview) */}
+          <button
+            type="button"
+            onClick={() => toggleCard('evening')}
+            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-purple-100 bg-gradient-to-r from-purple-500/15 via-indigo-500/8 to-transparent hover:from-purple-500/20 transition-all select-none group"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* 3D Glossy Twilight Purple Orb */}
+              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(147,51,234,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-purple-400 via-purple-600 to-indigo-700 border border-purple-300/70 shrink-0">
+                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
+                <span className="text-base relative z-10 drop-shadow-xs">🌙</span>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-purple-700 transition flex items-center gap-1">
+                  <span>Evening Sadhana</span>
+                </h2>
+                <p className="text-[11px] text-purple-800 font-bold truncate">
+                  {sadhanaState.evening.length} practices • {eveningCompletedCount} done
+                </p>
+              </div>
+            </div>
 
-                {/* Add Evening Practice Form (Unified Amber Theme - Replaced Purple!) */}
-                <div className="grid gap-2 sm:grid-cols-2 p-2.5 rounded-xl bg-amber-50/40 border border-amber-200/70">
-                  <input
-                    value={addEveningName}
-                    onChange={(e) => setAddEveningName(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
-                    placeholder="Practice title (e.g., Meditation)"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 sm:col-span-2 shadow-2xs"
-                  />
+            {/* Expand / Collapse Pill */}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-black text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                {expandedCards.evening ? 'Close' : 'Open'}
+              </span>
+              <div className="w-6 h-6 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center text-purple-800 transition-all">
+                {expandedCards.evening ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
+            </div>
+          </button>
+
+          {/* Expanded Content */}
+          {expandedCards.evening && (
+            <div className="p-3 sm:p-3.5 space-y-3 bg-gradient-to-b from-purple-50/20 to-white">
+              {/* Add Evening Practice Form (Twilight Purple Theme) */}
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-purple-50/50 border border-purple-200">
+                <input
+                  value={addEveningName}
+                  onChange={(e) => setAddEveningName(e.target.value)}
+                  onFocus={() => ensureExpanded('evening')}
+                  placeholder="Practice (e.g., Evening Meditation)"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                />
+                <div className="grid grid-cols-2 gap-1.5">
                   <input
                     value={addEveningFrequency}
                     onChange={(e) => setAddEveningFrequency(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
+                    onFocus={() => ensureExpanded('evening')}
                     placeholder="e.g. 1 time"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 shadow-2xs"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                   />
                   <input
                     value={addEveningDuration}
                     onChange={(e) => setAddEveningDuration(e.target.value)}
-                    onFocus={() => ensureExpanded('sadhana')}
-                    placeholder="e.g. 10 minutes"
-                    className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/40 shadow-2xs"
+                    onFocus={() => ensureExpanded('evening')}
+                    placeholder="e.g. 10 min"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 bg-white text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                   />
-                  <button
-                    type="button"
-                    onClick={() => addSadhanaPractice('evening')}
-                    className="w-full sm:col-span-2 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-4 py-2 rounded-xl transition-all active:scale-95 text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(217,119,6,0.25)]"
-                    title="Add Evening Practice"
-                  >
-                    <Plus size={15} />
-                    <span>Add Evening Practice</span>
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => addSadhanaPractice('evening')}
+                  className="w-full bg-gradient-to-r from-purple-500 via-purple-600 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-3 py-2 rounded-lg transition-all active:scale-95 text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_3px_10px_rgba(147,51,234,0.3)]"
+                  title="Add Evening Practice"
+                >
+                  <Plus size={15} />
+                  <span>Add Evening Practice</span>
+                </button>
+              </div>
 
-                {/* Evening Practices List */}
+              {/* Practices List */}
+              <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
                 {sadhanaState.evening.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-1">No evening sadhana added yet.</p>
+                  <p className="text-xs text-slate-400 italic text-center py-2">No evening practices added yet.</p>
                 ) : (
-                  <div className="space-y-1.5">
-                    {sadhanaState.evening.map((p) => {
-                      const isEditing = editing?.section === 'evening' && editing?.id === p.id;
-                      return (
-                        <div
-                          key={p.id}
-                          className={`flex items-start gap-2.5 p-2 rounded-xl border transition-all ${
+                  sadhanaState.evening.map((p) => {
+                    const isEditing = editing?.section === 'evening' && editing?.id === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        className={`flex items-start gap-2 p-2 rounded-xl border transition-all ${
+                          p.completed
+                            ? 'bg-purple-50/50 border-purple-200/70'
+                            : 'bg-white border-purple-200/70 hover:border-purple-300 shadow-2xs'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSadhanaPractice('evening', p.id)}
+                          className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
                             p.completed
-                              ? 'bg-amber-50/50 border-amber-200/70'
-                              : 'bg-white border-amber-200/70 hover:border-amber-300 shadow-2xs'
+                              ? 'bg-gradient-to-br from-purple-500 to-indigo-600 border-purple-600 text-white shadow-2xs'
+                              : 'border-purple-300 hover:border-purple-500 bg-white'
                           }`}
+                          title={p.completed ? 'Mark not done' : 'Mark done'}
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleSadhanaPractice('evening', p.id)}
-                            className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
-                              p.completed
-                                ? 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-600 text-white shadow-2xs'
-                                : 'border-amber-300 hover:border-amber-500 bg-white'
-                            }`}
-                            title={p.completed ? 'Mark not done' : 'Mark done'}
-                          >
-                            {p.completed && <Check size={12} className="text-white stroke-[3]" />}
-                          </button>
+                          {p.completed && <Check size={12} className="text-white stroke-[3]" />}
+                        </button>
 
-                          <div className="flex-grow min-w-0">
-                            {isEditing ? (
-                              <div className="grid gap-1.5 sm:grid-cols-[1fr_100px_100px]">
-                                <input
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
-                                />
+                        <div className="flex-grow min-w-0">
+                          {isEditing ? (
+                            <div className="space-y-1">
+                              <input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full px-2 py-1 rounded border border-purple-200 text-xs font-medium"
+                              />
+                              <div className="grid grid-cols-2 gap-1">
                                 <input
                                   value={editFrequency}
                                   onChange={(e) => setEditFrequency(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
+                                  className="w-full px-2 py-0.5 rounded border border-purple-200 text-xs"
                                 />
                                 <input
                                   value={editDuration}
                                   onChange={(e) => setEditDuration(e.target.value)}
-                                  className="w-full px-2.5 py-1 rounded-lg border border-amber-200 text-xs font-medium"
+                                  className="w-full px-2 py-0.5 rounded border border-purple-200 text-xs"
                                 />
                               </div>
-                            ) : (
-                              <>
-                                <p
-                                  className={`text-xs sm:text-sm font-bold truncate ${
-                                    p.completed ? 'line-through text-slate-400' : 'text-slate-800'
-                                  }`}
-                                >
-                                  {p.name}
-                                </p>
-                                <p className="text-[11px] text-amber-800/80 font-medium mt-0.5">
-                                  {(p.frequency || '—')} • {(p.duration || '—')}
-                                </p>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-1 shrink-0">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={saveEditPractice}
-                                  className="p-1 rounded-lg hover:bg-amber-100 text-amber-800"
-                                  title="Save"
-                                >
-                                  <Check size={15} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEditPractice}
-                                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
-                                  title="Cancel"
-                                >
-                                  <span className="text-xs font-bold">✕</span>
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => startEditPractice('evening', p)}
-                                  className="p-1 rounded-lg hover:bg-amber-100 text-amber-800 transition"
-                                  title="Edit"
-                                >
-                                  <Pencil size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => deleteSadhanaPractice('evening', p.id)}
-                                  className="p-1 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p
+                                className={`text-xs font-bold truncate ${
+                                  p.completed ? 'line-through text-slate-400' : 'text-slate-800'
+                                }`}
+                              >
+                                {p.name}
+                              </p>
+                              <p className="text-[10px] text-purple-800 font-medium mt-0.2">
+                                {(p.frequency || '—')} • {(p.duration || '—')}
+                              </p>
+                            </>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={saveEditPractice}
+                                className="p-1 rounded hover:bg-purple-100 text-purple-800"
+                                title="Save"
+                              >
+                                <Check size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditPractice}
+                                className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                                title="Cancel"
+                              >
+                                <span className="text-xs font-bold">✕</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditPractice('evening', p)}
+                                className="p-1 rounded hover:bg-purple-100 text-purple-800 transition"
+                                title="Edit"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteSadhanaPractice('evening', p.id)}
+                                className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
