@@ -362,23 +362,23 @@ export default function VisionPage() {
         </div>
 
         <p className="mt-3 text-sm text-slate-600">Showing {filteredVisions.length} of {visions.length} vision plans</p>
+      </div >
+
+    <div>
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Preview</h2>
+          <p className="text-sm text-slate-600">Open PDF to see the full A4 report.</p>
+        </div>
+        <p className="text-sm text-slate-600">
+          Showing {filteredVisions.slice(sliderIndex, sliderIndex + 3).length} of {filteredVisions.length}
+        </p>
       </div>
 
-      <div>
-        <div className="flex items-end justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Preview</h2>
-            <p className="text-sm text-slate-600">Open PDF to see the full A4 report.</p>
-          </div>
-          <p className="text-sm text-slate-600">
-            Showing {filteredVisions.slice(sliderIndex, sliderIndex + 3).length} of {filteredVisions.length}
-          </p>
-        </div>
-
-        <div className="relative">
-          <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
-            {filteredVisions.slice(sliderIndex, sliderIndex + 3).length > 0 ? (
-              filteredVisions.slice(sliderIndex, sliderIndex + 3).map((vision) => (
+      <div className="relative">
+        <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
+          {filteredVisions.slice(sliderIndex, sliderIndex + 3).length > 0 ? (
+            filteredVisions.slice(sliderIndex, sliderIndex + 3).map((vision) => (
               <div key={vision.id} className="flex-shrink-0 w-full sm:w-80 sm:min-w-[300px] sm:max-w-[300px] h-full snap-start">
                 {/* Card */}
                 <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 h-full flex flex-col">
@@ -476,7 +476,7 @@ export default function VisionPage() {
               </div>
             ))
           )}
-          </div>
+        </div>
 
         {/* Navigation Buttons */}
         {filteredVisions.length > 3 && (
@@ -496,11 +496,10 @@ export default function VisionPage() {
                 <button
                   key={pageIndex}
                   onClick={() => setSliderIndex(pageIndex * 3)}
-                  className={`w-10 h-10 rounded-lg font-semibold transition ${
-                    Math.floor(sliderIndex / 3) === pageIndex
+                  className={`w-10 h-10 rounded-lg font-semibold transition ${Math.floor(sliderIndex / 3) === pageIndex
                       ? 'bg-emerald-600 text-white shadow-lg'
                       : 'bg-swar-primary-light text-swar-text hover:bg-gray-300'
-                  }`}
+                    }`}
                 >
                   {pageIndex + 1}
                 </button>
@@ -517,50 +516,56 @@ export default function VisionPage() {
             </button>
           </div>
         )}
-        </div>
       </div>
-
-      {filteredVisions.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-swar-text-secondary mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-swar-text mb-2">No vision plans found</h3>
-          <p className="text-swar-text-secondary mb-4">Try adjusting your filters or create a new vision plan.</p>
-          <button
-            onClick={handleAddVision}
-            className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Vision Plan</span>
-          </button>
-        </div>
-      )}
-
-
-
-      {isModalOpen && (
-        <VisionModal
-          vision={editingVision}
-          onSave={handleSaveVision}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
-
-      {isActionPlanModalOpen && selectedVisionForActionPlan && (
-        <ActionPlanModal
-          isOpen={isActionPlanModalOpen}
-          onClose={() => {
-            setIsActionPlanModalOpen(false);
-            setSelectedVisionForActionPlan(null);
-          }}
-          onSave={handleSaveActionPlan}
-          visions={visions}
-          editingPlan={undefined}
-        />
-      )}
     </div>
+
+  {
+    filteredVisions.length === 0 && (
+      <div className="text-center py-12">
+        <div className="text-swar-text-secondary mb-4">
+          <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-swar-text mb-2">No vision plans found</h3>
+        <p className="text-swar-text-secondary mb-4">Try adjusting your filters or create a new vision plan.</p>
+        <button
+          onClick={handleAddVision}
+          className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add Vision Plan</span>
+        </button>
+      </div>
+    )
+  }
+
+
+
+  {
+    isModalOpen && (
+      <VisionModal
+        vision={editingVision}
+        onSave={handleSaveVision}
+        onClose={() => setIsModalOpen(false)}
+      />
+    )
+  }
+
+  {
+    isActionPlanModalOpen && selectedVisionForActionPlan && (
+      <ActionPlanModal
+        isOpen={isActionPlanModalOpen}
+        onClose={() => {
+          setIsActionPlanModalOpen(false);
+          setSelectedVisionForActionPlan(null);
+        }}
+        onSave={handleSaveActionPlan}
+        visions={visions}
+        editingPlan={undefined}
+      />
+    )
+  }
+    </div >
   );
 }
