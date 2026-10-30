@@ -704,22 +704,24 @@ export default function EnhancedCalendar({
   return (
     <div className="space-y-4 sm:space-y-6 pb-16 max-w-7xl mx-auto">
       {/* ======================================================== */}
-      {/* ☀️ Top Hero Header (EXACT MATCH to Today's Routine Card) */}
+      {/* 🌅 Top Hero Header (Orange to Green Glossy 3D)           */}
       {/* ======================================================== */}
-      <div className="p-4 sm:p-5 rounded-[26px] bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-[0_12px_28px_rgba(217,119,6,0.28)] relative overflow-hidden">
+      <div className="p-4 sm:p-5 rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-[0_12px_32px_rgba(5,150,105,0.25),0_4px_16px_rgba(234,88,12,0.2)] border border-white/20 relative overflow-hidden">
+        {/* Glossy top specular reflection */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 via-white/10 to-transparent pointer-events-none rounded-t-[26px]" />
         {/* Subtle decorative background shine */}
-        <div className="absolute top-0 right-1/4 w-72 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-1/4 w-72 h-32 bg-white/15 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-3.5 min-w-0">
           <GlossyOrb
             emoji="📅"
-            gradient="from-amber-400 via-orange-500 to-amber-600"
+            gradient="from-orange-400 via-amber-500 to-emerald-500"
             size="lg"
-            shadowColor="rgba(0,0,0,0.25)"
+            shadowColor="rgba(5,150,105,0.3)"
           />
 
           <div className="space-y-0.5 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 tracking-tight truncate">
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 tracking-tight truncate drop-shadow-xs">
               <span>Calendar Overview</span>
             </h1>
             <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed truncate">
@@ -753,7 +755,7 @@ export default function EnhancedCalendar({
 
             <button
               onClick={goToToday}
-              className="px-2.5 py-1 text-xs font-black text-white hover:text-amber-200 transition min-w-[110px] sm:min-w-[130px] text-center"
+              className="px-2.5 py-1 text-xs font-black text-white hover:text-emerald-200 transition min-w-[110px] sm:min-w-[130px] text-center"
               title="Jump to Current Month"
             >
               {currentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
@@ -782,7 +784,7 @@ export default function EnhancedCalendar({
           <button
             type="button"
             onClick={openAddForSelected}
-            className="px-4 py-2 rounded-2xl bg-white hover:bg-amber-50 active:scale-95 text-[#b45309] text-xs font-black transition-all shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center gap-1.5 shrink-0"
+            className="px-4 py-2 rounded-2xl bg-white hover:bg-emerald-50 active:scale-95 text-[#059669] text-xs font-black transition-all shadow-[0_4px_14px_rgba(0,0,0,0.18)] flex items-center gap-1.5 shrink-0 border border-emerald-100"
             title="Add Item / Event"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
@@ -1051,11 +1053,13 @@ export default function EnhancedCalendar({
         {/* ====================================================== */}
         <aside className="lg:col-span-3">
           <div className="sticky top-4 rounded-[26px] p-4 sm:p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100/90 space-y-4">
-            {/* Selected Date Header (Vibrant Golden-Amber) */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white shadow-[0_6px_18px_rgba(217,119,6,0.25)] flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-amber-200">Selected Date</p>
-                <h3 className="text-base sm:text-lg font-black text-white">
+            {/* Selected Date Header (Orange to Green Glossy 3D) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white shadow-[0_6px_20px_rgba(5,150,105,0.25)] border border-white/20 relative overflow-hidden flex items-center justify-between">
+              {/* Glossy top specular reflection */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent pointer-events-none rounded-t-2xl" />
+              <div className="relative z-10">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-100">Selected Date</p>
+                <h3 className="text-base sm:text-lg font-black text-white drop-shadow-xs">
                   {selectedDate
                     ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
                         weekday: 'short',
@@ -1066,7 +1070,7 @@ export default function EnhancedCalendar({
                     : 'Select a Date'}
                 </h3>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-xs">
+              <span className="relative z-10 px-2.5 py-1 rounded-full text-xs font-black bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-xs">
                 {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'}
               </span>
             </div>
@@ -1162,11 +1166,13 @@ export default function EnhancedCalendar({
       {isAddOpen ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white">
-              <div className="flex items-center gap-3">
+            <div className="px-6 py-4.5 border-b border-white/20 flex items-center justify-between bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white relative overflow-hidden">
+              {/* Glossy top specular reflection */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
+              <div className="relative z-10 flex items-center gap-3">
                 <GlossyOrb
                   emoji="📅"
-                  gradient="from-amber-400 via-orange-500 to-amber-600"
+                  gradient="from-orange-400 via-amber-500 to-emerald-500"
                   size="sm"
                 />
                 <div>
@@ -1177,7 +1183,7 @@ export default function EnhancedCalendar({
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md active:scale-90 transition flex items-center justify-center text-white font-bold"
+                className="relative z-10 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md active:scale-90 transition flex items-center justify-center text-white font-bold"
               >
                 ✕
               </button>
