@@ -66,101 +66,137 @@ export const CATEGORY_THEMES: Record<
     label: string;
     description: string;
     icon: CalendarItem['icon'];
+    emoji: string;
     gradient: string;
     shadowColor: string;
+    cardBg: string;
+    cardBorder: string;
     chipBg: string;
     chipText: string;
     chipBorder: string;
     barColor: string;
+    badgeBg: string;
   }
 > = {
   vision: {
     label: 'Vision',
     description: 'Visions & Dreams',
     icon: 'target',
-    gradient: 'from-violet-500 via-indigo-500 to-purple-600',
+    emoji: '🎯',
+    gradient: 'from-purple-500 via-violet-600 to-indigo-700',
     shadowColor: 'rgba(139, 92, 246, 0.35)',
-    chipBg: 'bg-violet-50',
-    chipText: 'text-violet-900',
-    chipBorder: 'border-violet-200/90',
-    barColor: 'from-violet-500 to-purple-600',
+    cardBg: 'bg-gradient-to-r from-purple-100/90 via-violet-50 to-indigo-50/60',
+    cardBorder: 'border-purple-300/90',
+    chipBg: 'bg-purple-200/90',
+    chipText: 'text-purple-950 font-black',
+    chipBorder: 'border-purple-300',
+    barColor: 'from-purple-500 via-violet-600 to-indigo-700',
+    badgeBg: 'bg-purple-600 text-white',
   },
   actionPlan: {
     label: 'Action Plan',
     description: 'Milestones & Steps',
     icon: 'flag',
-    gradient: 'from-sky-400 via-blue-500 to-cyan-600',
+    emoji: '🚩',
+    gradient: 'from-sky-500 via-blue-600 to-cyan-600',
     shadowColor: 'rgba(14, 165, 233, 0.35)',
-    chipBg: 'bg-sky-50',
-    chipText: 'text-sky-900',
-    chipBorder: 'border-sky-200/90',
-    barColor: 'from-sky-400 to-blue-600',
+    cardBg: 'bg-gradient-to-r from-sky-100/90 via-blue-50 to-cyan-50/60',
+    cardBorder: 'border-sky-300/90',
+    chipBg: 'bg-sky-200/90',
+    chipText: 'text-sky-950 font-black',
+    chipBorder: 'border-sky-300',
+    barColor: 'from-sky-500 via-blue-600 to-cyan-600',
+    badgeBg: 'bg-sky-600 text-white',
   },
   goal: {
     label: 'Goal',
     description: 'Target Goals',
     icon: 'trophy',
-    gradient: 'from-amber-400 via-orange-400 to-amber-500',
+    emoji: '🏆',
+    gradient: 'from-amber-400 via-orange-500 to-amber-600',
     shadowColor: 'rgba(245, 158, 11, 0.35)',
-    chipBg: 'bg-amber-50',
-    chipText: 'text-amber-900',
-    chipBorder: 'border-amber-200/90',
-    barColor: 'from-amber-400 to-orange-500',
+    cardBg: 'bg-gradient-to-r from-amber-100/90 via-orange-50 to-yellow-50/60',
+    cardBorder: 'border-amber-300/90',
+    chipBg: 'bg-amber-200/90',
+    chipText: 'text-amber-950 font-black',
+    chipBorder: 'border-amber-300',
+    barColor: 'from-amber-400 via-orange-500 to-amber-600',
+    badgeBg: 'bg-amber-600 text-white',
   },
   task: {
     label: 'Task',
     description: 'Tasks & Sprints',
     icon: 'check',
+    emoji: '🏁',
     gradient: 'from-emerald-400 via-teal-500 to-emerald-600',
     shadowColor: 'rgba(16, 185, 129, 0.35)',
-    chipBg: 'bg-emerald-50',
-    chipText: 'text-emerald-900',
-    chipBorder: 'border-emerald-200/90',
-    barColor: 'from-emerald-400 to-teal-600',
+    cardBg: 'bg-gradient-to-r from-emerald-100/90 via-teal-50 to-green-50/60',
+    cardBorder: 'border-emerald-300/90',
+    chipBg: 'bg-emerald-200/90',
+    chipText: 'text-emerald-950 font-black',
+    chipBorder: 'border-emerald-300',
+    barColor: 'from-emerald-400 via-teal-500 to-emerald-600',
+    badgeBg: 'bg-emerald-600 text-white',
   },
   todo: {
     label: 'Todo',
     description: 'Daily Checklist',
     icon: 'todo',
-    gradient: 'from-slate-500 via-slate-600 to-slate-700',
+    emoji: '📝',
+    gradient: 'from-slate-600 via-slate-700 to-slate-800',
     shadowColor: 'rgba(100, 116, 139, 0.35)',
-    chipBg: 'bg-slate-100',
-    chipText: 'text-slate-800',
+    cardBg: 'bg-gradient-to-r from-slate-100 via-slate-50 to-gray-100/60',
+    cardBorder: 'border-slate-300',
+    chipBg: 'bg-slate-200',
+    chipText: 'text-slate-900 font-black',
     chipBorder: 'border-slate-300',
-    barColor: 'from-slate-400 to-slate-600',
+    barColor: 'from-slate-500 to-slate-700',
+    badgeBg: 'bg-slate-700 text-white',
   },
   reminder: {
     label: 'Reminder',
     description: 'Alerts & Due Dates',
     icon: 'bell',
-    gradient: 'from-rose-500 via-pink-500 to-red-600',
+    emoji: '🔔',
+    gradient: 'from-rose-500 via-red-500 to-rose-600',
     shadowColor: 'rgba(244, 63, 94, 0.35)',
-    chipBg: 'bg-rose-50',
-    chipText: 'text-rose-900',
-    chipBorder: 'border-rose-200/90',
-    barColor: 'from-rose-500 to-red-600',
+    cardBg: 'bg-gradient-to-r from-rose-100/90 via-red-50 to-pink-50/60',
+    cardBorder: 'border-rose-300/90',
+    chipBg: 'bg-rose-200/90',
+    chipText: 'text-rose-950 font-black',
+    chipBorder: 'border-rose-300',
+    barColor: 'from-rose-500 via-red-500 to-rose-600',
+    badgeBg: 'bg-rose-600 text-white',
   },
   word: {
     label: 'Word',
     description: 'Affirmations & Mantras',
     icon: 'book',
-    gradient: 'from-fuchsia-500 via-purple-500 to-fuchsia-600',
+    emoji: '📖',
+    gradient: 'from-fuchsia-500 via-pink-600 to-purple-600',
     shadowColor: 'rgba(217, 70, 239, 0.35)',
-    chipBg: 'bg-fuchsia-50',
-    chipText: 'text-fuchsia-900',
-    chipBorder: 'border-fuchsia-200/90',
-    barColor: 'from-fuchsia-500 to-purple-600',
+    cardBg: 'bg-gradient-to-r from-fuchsia-100/90 via-pink-50 to-purple-50/60',
+    cardBorder: 'border-fuchsia-300/90',
+    chipBg: 'bg-fuchsia-200/90',
+    chipText: 'text-fuchsia-950 font-black',
+    chipBorder: 'border-fuchsia-300',
+    barColor: 'from-fuchsia-500 via-pink-600 to-purple-600',
+    badgeBg: 'bg-fuchsia-600 text-white',
   },
   event: {
     label: 'Event',
     description: 'Meetings & Events',
     icon: 'calendar',
-    gradient: 'from-blue-500 via-indigo-600 to-blue-700',
-    shadowColor: 'rgba(59, 130, 246, 0.35)',
-    chipBg: 'bg-blue-50',
-    chipText: 'text-blue-900',
-    chipBorder: 'border-blue-200/90',
-    barColor: 'from-blue-500 to-indigo-600',
+    emoji: '📅',
+    gradient: 'from-blue-600 via-indigo-600 to-cyan-700',
+    shadowColor: 'rgba(37, 99, 235, 0.35)',
+    cardBg: 'bg-gradient-to-r from-blue-100/90 via-indigo-50 to-sky-50/60',
+    cardBorder: 'border-blue-300/90',
+    chipBg: 'bg-blue-200/90',
+    chipText: 'text-blue-950 font-black',
+    chipBorder: 'border-blue-300',
+    barColor: 'from-blue-600 via-indigo-600 to-cyan-700',
+    badgeBg: 'bg-blue-600 text-white',
   },
 };
 
@@ -177,39 +213,56 @@ const ICONS: Record<CalendarItem['icon'], React.ComponentType<{ className?: stri
   cake: Cake,
 };
 
-function GlossyIconBadge({
-  icon: Icon,
+// 3D Pedestal Ring + Glassy Orb with Specular Crescent Reflection (Exact match to AppCircleCard)
+function GlossyOrb({
+  icon: IconComponent,
+  emoji,
   gradient,
-  shadowColor,
   size = 'md',
+  shadowColor = 'rgba(0,0,0,0.15)',
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
+  emoji?: string;
   gradient: string;
-  shadowColor: string;
   size?: 'sm' | 'md' | 'lg';
+  shadowColor?: string;
 }) {
-  const sizeClasses = {
-    sm: 'w-6 h-6 rounded-lg text-xs',
-    md: 'w-9 h-9 rounded-xl text-sm',
-    lg: 'w-11 h-11 rounded-2xl text-base',
+  const outerSizes = {
+    sm: 'p-[2px]',
+    md: 'p-[2.5px]',
+    lg: 'p-[3px]',
+  }[size];
+
+  const orbSizes = {
+    sm: 'w-7 h-7 text-xs',
+    md: 'w-10 h-10 text-base',
+    lg: 'w-13 h-13 text-xl',
   }[size];
 
   const iconSizes = {
     sm: 'w-3.5 h-3.5',
-    md: 'w-4 h-4',
-    lg: 'w-5 h-5',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6',
   }[size];
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center shrink-0 ${sizeClasses} bg-gradient-to-b ${gradient} text-white transition-transform duration-200 overflow-hidden`}
+      className={`rounded-full bg-gradient-to-b from-white via-slate-100 to-slate-200 shrink-0 ${outerSizes} transition-all duration-200`}
       style={{
-        boxShadow: `0 4px 10px ${shadowColor}, inset 0 1px 1px rgba(255, 255, 255, 0.65), inset 0 -1px 2px rgba(0, 0, 0, 0.2)`,
+        boxShadow: `0 6px 14px ${shadowColor}, 0 2px 4px rgba(15,23,42,0.06), inset 0 1px 1px rgba(255,255,255,1)`,
       }}
     >
-      {/* Specular 3D highlight reflection arc */}
-      <div className="absolute inset-x-1 top-0.5 h-[42%] rounded-t-lg bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
-      <Icon className={`${iconSizes} relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]`} />
+      <div
+        className={`${orbSizes} rounded-full bg-gradient-to-tr ${gradient} text-white relative overflow-hidden flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.7),inset_0_-3px_5px_rgba(0,0,0,0.3)]`}
+      >
+        {/* Top Specular 3D Crescent Reflection */}
+        <div className="absolute top-0 inset-x-1.5 h-[46%] bg-gradient-to-b from-white/70 to-transparent rounded-t-full pointer-events-none" />
+        {emoji ? (
+          <span className="select-none drop-shadow-sm leading-none">{emoji}</span>
+        ) : IconComponent ? (
+          <IconComponent className={`${iconSizes} stroke-[2.2] drop-shadow-sm relative z-10`} />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -330,7 +383,6 @@ export default function EnhancedCalendar({
       let reminders: Reminder[] = safeArray<Reminder>(mongoReminders);
       let words: Word[] = safeArray<Word>(mongoWords);
 
-      // LocalStorage fallbacks for legacy/offline data
       const fallbackParse = <T,>(key: string): T[] => {
         try {
           const raw = localStorage.getItem(key);
@@ -471,20 +523,17 @@ export default function EnhancedCalendar({
 
   const calendarDays: CalendarDay[] = [];
 
-  // Tail of previous month
   for (let i = firstDayOfMonth - 1; i >= 0; i--) {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     d.setDate(d.getDate() - (i + 1));
     calendarDays.push({ date: toISODate(d), isCurrentMonth: false });
   }
 
-  // Current month
   for (let i = 1; i <= daysInMonth; i++) {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
     calendarDays.push({ date: toISODate(d), isCurrentMonth: true });
   }
 
-  // Head of next month
   const remainingDays = totalCells - calendarDays.length;
   for (let i = 1; i <= remainingDays; i++) {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, i);
@@ -561,10 +610,10 @@ export default function EnhancedCalendar({
 
     const subtypeMeta =
       addForm.subtype === 'birthday'
-        ? { icon: 'cake' as const }
+        ? { icon: 'cake' as const, emoji: '🎂' }
         : addForm.subtype === 'meeting'
-        ? { icon: 'briefcase' as const }
-        : { icon: 'calendar' as const };
+        ? { icon: 'briefcase' as const, emoji: '💼' }
+        : { icon: 'calendar' as const, emoji: '📅' };
 
     const newItem: CalendarItem = {
       id: `evt-${Date.now()}`,
@@ -642,193 +691,127 @@ export default function EnhancedCalendar({
     setSelectedDate(todayIso);
   };
 
-  // Symbols list component
-  const SymbolsFilterContent = (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Active Layers</span>
-        <button
-          type="button"
-          onClick={toggleAllTypes}
-          className="text-xs font-bold text-sky-600 hover:text-sky-700 active:scale-95 transition"
-        >
-          {Object.values(showTypes).every(Boolean) ? 'Deselect All' : 'Select All'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-        {(Object.keys(CATEGORY_THEMES) as CalendarItemType[]).map((t) => {
-          const theme = CATEGORY_THEMES[t];
-          const Icon = ICONS[theme.icon];
-          const isChecked = showTypes[t];
-          const count = typeCounts[t];
-
-          return (
-            <label
-              key={t}
-              onClick={() => setShowTypes((prev) => ({ ...prev, [t]: !prev[t] }))}
-              className={`group flex items-center justify-between gap-2.5 rounded-2xl p-2.5 border transition-all duration-200 cursor-pointer select-none ${
-                isChecked
-                  ? 'bg-white border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,0.95)]'
-                  : 'bg-slate-50/70 border-slate-200/50 opacity-60 hover:opacity-90'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <GlossyIconBadge
-                  icon={Icon}
-                  gradient={theme.gradient}
-                  shadowColor={theme.shadowColor}
-                  size="sm"
-                />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-800 truncate">{theme.label}</span>
-                    <span className="text-[10px] font-bold text-slate-400">({count})</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 truncate hidden xl:block">{theme.description}</p>
-                </div>
-              </div>
-
-              {/* Custom 3D Checkbox indicator */}
-              <div
-                className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 ${
-                  isChecked
-                    ? 'bg-sky-600 border-sky-600 text-white shadow-xs'
-                    : 'border-slate-300 bg-white'
-                }`}
-              >
-                {isChecked && <CheckSquare className="w-3.5 h-3.5" />}
-              </div>
-            </label>
-          );
-        })}
-      </div>
-
-      <div className="mt-3 rounded-2xl bg-gradient-to-br from-sky-50/80 to-indigo-50/80 p-3 border border-sky-100/90 shadow-xs">
-        <div className="flex items-start gap-2">
-          <Sparkles className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed text-slate-600 font-medium">
-            <strong className="text-slate-800">Visual Cue:</strong> Goals, Tasks & Events appear as glossy colored milestone lines across dates. Visions & Mantras appear on their target date.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  const WEEKDAYS = [
+    { label: 'SUN', bg: 'bg-rose-500 text-white shadow-xs' },
+    { label: 'MON', bg: 'bg-sky-500 text-white shadow-xs' },
+    { label: 'TUE', bg: 'bg-amber-500 text-white shadow-xs' },
+    { label: 'WED', bg: 'bg-emerald-500 text-white shadow-xs' },
+    { label: 'THU', bg: 'bg-indigo-500 text-white shadow-xs' },
+    { label: 'FRI', bg: 'bg-purple-500 text-white shadow-xs' },
+    { label: 'SAT', bg: 'bg-rose-500 text-white shadow-xs' },
+  ];
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-12 max-w-7xl mx-auto">
-      {/* 3D Glossy Hero App Bar */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-sky-50/30 to-indigo-50/30 backdrop-blur-xl border border-slate-200/80 p-4 sm:p-5 shadow-[0_10px_25px_-5px_rgba(14,165,233,0.06),0_4px_6px_-2px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,0.95)]">
-        {/* Subtle decorative background glow */}
-        <div className="absolute -top-12 -right-12 w-48 h-48 bg-gradient-to-bl from-sky-200/30 to-indigo-200/10 rounded-full blur-2xl pointer-events-none" />
+    <div className="space-y-4 sm:space-y-6 pb-16 max-w-7xl mx-auto">
+      {/* ======================================================== */}
+      {/* ☀️ Top Hero Header (EXACT MATCH to Today's Routine Card) */}
+      {/* ======================================================== */}
+      <div className="p-4 sm:p-5 rounded-[26px] bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-[0_12px_28px_rgba(217,119,6,0.28)] relative overflow-hidden">
+        {/* Subtle decorative background shine */}
+        <div className="absolute top-0 right-1/4 w-72 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          {/* Left Title & Back button */}
-          <div className="flex items-center gap-3 min-w-0">
-            {backUrl && (
-              <Link
-                href={backUrl}
-                className="relative inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-white border border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.9)] hover:bg-slate-50 hover:shadow-md active:scale-95 transition-all text-slate-700 shrink-0"
-                title={backLabel}
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-            )}
+        <div className="relative z-10 flex items-center gap-3.5 min-w-0">
+          <GlossyOrb
+            emoji="📅"
+            gradient="from-amber-400 via-orange-500 to-amber-600"
+            size="lg"
+            shadowColor="rgba(0,0,0,0.25)"
+          />
 
-            <div className="flex items-center gap-3 min-w-0">
-              <GlossyIconBadge
-                icon={CalendarIcon}
-                gradient="from-sky-500 via-blue-600 to-indigo-600"
-                shadowColor="rgba(14, 165, 233, 0.4)"
-                size="lg"
-              />
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate flex items-center gap-2">
-                  <span>Calendar Overview</span>
-                </h1>
-                <p className="text-xs text-slate-500 font-medium truncate">
-                  View all visions, goals, tasks, reminders & milestones
-                </p>
-              </div>
-            </div>
+          <div className="space-y-0.5 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 tracking-tight truncate">
+              <span>Calendar Overview</span>
+            </h1>
+            <p className="text-xs sm:text-sm text-white/95 font-medium leading-relaxed truncate">
+              Daily routine, visions, goals, tasks, reminders & milestones
+            </p>
           </div>
+        </div>
 
-          {/* Right Navigation & Add Action */}
-          <div className="flex items-center flex-wrap gap-2 sm:gap-3 self-stretch md:self-auto justify-between md:justify-end">
-            {/* Month Navigation Pill */}
-            <div className="flex items-center gap-1 bg-white/95 rounded-2xl p-1 border border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,0.9)]">
-              <button
-                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-                className="w-8 h-8 rounded-xl hover:bg-slate-100 active:scale-95 text-slate-700 transition flex items-center justify-center font-bold"
-                title="Previous Month"
-              >
-                <ChevronLeft className="w-5 h-5 text-slate-700" />
-              </button>
+        {/* Right side controls: Back Button + Month Nav + Add Item */}
+        <div className="relative z-10 flex items-center flex-wrap gap-2 sm:gap-2.5 self-stretch md:self-auto justify-between md:justify-end">
+          {backUrl && (
+            <Link
+              href={backUrl}
+              className="px-3.5 py-2 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm"
+              title={backLabel}
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+              <span>Back</span>
+            </Link>
+          )}
 
-              <button
-                onClick={goToToday}
-                className="px-2.5 py-1 text-xs font-black text-slate-800 hover:text-sky-600 transition min-w-[120px] sm:min-w-[140px] text-center"
-                title="Jump to Current Month"
-              >
-                {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </button>
-
-              <button
-                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-                className="w-8 h-8 rounded-xl hover:bg-slate-100 active:scale-95 text-slate-700 transition flex items-center justify-center font-bold"
-                title="Next Month"
-              >
-                <ChevronRight className="w-5 h-5 text-slate-700" />
-              </button>
-            </div>
-
-            {/* Quick Today Jump */}
+          {/* Month Selector Pill */}
+          <div className="flex items-center gap-1 bg-white/20 backdrop-blur-md rounded-2xl p-1 border border-white/25 shadow-sm text-white">
             <button
-              type="button"
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+              className="w-8 h-8 rounded-xl hover:bg-white/20 active:scale-95 text-white transition flex items-center justify-center font-bold"
+              title="Previous Month"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+
+            <button
               onClick={goToToday}
-              className="px-3 py-2 rounded-2xl bg-white border border-slate-200/90 hover:bg-slate-50 active:scale-95 text-xs font-bold text-slate-700 shadow-xs transition"
-              title="Jump to Today"
+              className="px-2.5 py-1 text-xs font-black text-white hover:text-amber-200 transition min-w-[110px] sm:min-w-[130px] text-center"
+              title="Jump to Current Month"
             >
-              Today
+              {currentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
             </button>
 
-            {/* 3D Glossy Add Event Button */}
             <button
-              type="button"
-              onClick={openAddForSelected}
-              className="relative inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-b from-sky-500 via-sky-600 to-blue-600 hover:from-sky-400 hover:to-blue-500 active:scale-95 text-white text-xs font-extrabold transition-all duration-150 overflow-hidden"
-              style={{
-                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5), inset 0 -1px 2px rgba(0, 0, 0, 0.2)',
-              }}
-              title="Add Item / Event"
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+              className="w-8 h-8 rounded-xl hover:bg-white/20 active:scale-95 text-white transition flex items-center justify-center font-bold"
+              title="Next Month"
             >
-              <div className="absolute inset-x-1 top-0.5 h-[40%] rounded-t-xl bg-gradient-to-b from-white/60 to-transparent pointer-events-none" />
-              <Plus className="w-4 h-4 relative z-10" />
-              <span className="relative z-10">+ Add Item</span>
+              <ChevronRight className="w-5 h-5 text-white" />
             </button>
           </div>
+
+          {/* Jump to Today Button */}
+          <button
+            type="button"
+            onClick={goToToday}
+            className="px-3 py-2 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white active:scale-95 text-xs font-bold shadow-sm transition"
+            title="Jump to Today"
+          >
+            Today
+          </button>
+
+          {/* + Add Item Button */}
+          <button
+            type="button"
+            onClick={openAddForSelected}
+            className="px-4 py-2 rounded-2xl bg-white hover:bg-amber-50 active:scale-95 text-[#b45309] text-xs font-black transition-all shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center gap-1.5 shrink-0"
+            title="Add Item / Event"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Add Item</span>
+          </button>
         </div>
       </div>
 
-      {/* Mobile-Friendly Quick Filter Chips (Horizontal swipe on phones) */}
-      <div className="lg:hidden bg-white/95 backdrop-blur-md rounded-2xl p-2.5 border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700">
-            <Filter className="w-3.5 h-3.5 text-sky-600" />
-            <span>Category Filters</span>
-          </div>
+      {/* ======================================================== */}
+      {/* Mobile-Friendly Quick Filter Chips (Horizontal swipe)   */}
+      {/* ======================================================== */}
+      <div className="lg:hidden rounded-[24px] p-3.5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100">
+        <div className="flex items-center justify-between mb-2.5 px-0.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-amber-600" />
+            <span>Category Layers (Tap to Filter)</span>
+          </p>
           <button
             type="button"
             onClick={toggleAllTypes}
-            className="text-[11px] font-bold text-sky-600 active:scale-95"
+            className="text-[11px] font-bold text-amber-700 active:scale-95"
           >
             {Object.values(showTypes).every(Boolean) ? 'Deselect All' : 'Select All'}
           </button>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {(Object.keys(CATEGORY_THEMES) as CalendarItemType[]).map((t) => {
             const theme = CATEGORY_THEMES[t];
-            const Icon = ICONS[theme.icon];
             const isChecked = showTypes[t];
             const count = typeCounts[t];
 
@@ -837,62 +820,131 @@ export default function EnhancedCalendar({
                 key={t}
                 type="button"
                 onClick={() => setShowTypes((prev) => ({ ...prev, [t]: !prev[t] }))}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 active:scale-95 ${
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-bold transition-all shrink-0 active:scale-95 ${
                   isChecked
-                    ? `${theme.chipBg} ${theme.chipText} ${theme.chipBorder} shadow-xs`
+                    ? `${theme.cardBg} ${theme.cardBorder} shadow-sm`
                     : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
                 }`}
               >
-                <div
-                  className={`w-3.5 h-3.5 rounded-md flex items-center justify-center bg-gradient-to-b ${theme.gradient} text-white shadow-xs`}
-                >
-                  <Icon className="w-2.5 h-2.5" />
-                </div>
-                <span>{theme.label}</span>
-                <span className="text-[10px] opacity-75">({count})</span>
+                <GlossyOrb
+                  emoji={theme.emoji}
+                  gradient={theme.gradient}
+                  size="sm"
+                  shadowColor={theme.shadowColor}
+                />
+                <span className="font-black text-slate-800">{theme.label}</span>
+                <span className="text-[10px] font-extrabold opacity-75">({count})</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Main 3-Column Responsive Grid */}
+      {/* ======================================================== */}
+      {/* Main 3-Column Layout                                     */}
+      {/* ======================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column (Desktop Symbols & Legend) */}
+        {/* ====================================================== */}
+        {/* Left Column: Colorful Symbols & Layers Panel           */}
+        {/* ====================================================== */}
         <aside className="hidden lg:block lg:col-span-3">
-          <div className="sticky top-4 bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_8px_20px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] space-y-4">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-sky-600" />
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800">Symbols & Filters</h3>
+          <div className="sticky top-4 rounded-[26px] p-4 sm:p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100/90 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-amber-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Symbols & Layers</h3>
+              </div>
+              <button
+                type="button"
+                onClick={toggleAllTypes}
+                className="text-xs font-bold text-amber-700 hover:text-amber-800 active:scale-95 transition"
+              >
+                {Object.values(showTypes).every(Boolean) ? 'Deselect All' : 'Select All'}
+              </button>
             </div>
-            {SymbolsFilterContent}
+
+            <div className="space-y-2">
+              {(Object.keys(CATEGORY_THEMES) as CalendarItemType[]).map((t) => {
+                const theme = CATEGORY_THEMES[t];
+                const isChecked = showTypes[t];
+                const count = typeCounts[t];
+
+                return (
+                  <div
+                    key={t}
+                    onClick={() => setShowTypes((prev) => ({ ...prev, [t]: !prev[t] }))}
+                    className={`group flex items-center justify-between gap-2.5 rounded-2xl p-2.5 border transition-all duration-200 cursor-pointer select-none active:scale-[0.98] ${
+                      isChecked
+                        ? `${theme.cardBg} ${theme.cardBorder} shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:shadow-md`
+                        : 'bg-slate-50/70 border-slate-200/50 opacity-55 hover:opacity-90'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <GlossyOrb
+                        emoji={theme.emoji}
+                        gradient={theme.gradient}
+                        size="md"
+                        shadowColor={theme.shadowColor}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black text-slate-900 truncate">{theme.label}</span>
+                          <span className="text-[10px] font-bold text-slate-500">({count})</span>
+                        </div>
+                        <p className="text-[10px] text-slate-600 truncate">{theme.description}</p>
+                      </div>
+                    </div>
+
+                    {/* Glowing Checkbox Pill */}
+                    <div
+                      className={`w-6 h-6 rounded-xl border flex items-center justify-center transition-all shrink-0 ${
+                        isChecked
+                          ? `${theme.badgeBg} border-transparent shadow-xs`
+                          : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {isChecked && <CheckSquare className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/60 p-3.5 border border-amber-200/80 shadow-xs">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed text-slate-700 font-medium">
+                  <strong className="text-amber-900">Visual Cue:</strong> Goals, Tasks & Events render as colorful milestone bars across their schedule. Visions & Mantras appear on their target date.
+                </p>
+              </div>
+            </div>
           </div>
         </aside>
 
-        {/* Center Column: The 3D Tactile Month Calendar Grid */}
-        <main className="lg:col-span-6 bg-white/95 backdrop-blur-md rounded-3xl p-3 sm:p-5 border border-slate-200/80 shadow-[0_10px_25px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,0.95)]">
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+        {/* ====================================================== */}
+        {/* Center Column: Colorful 3D Calendar Grid               */}
+        {/* ====================================================== */}
+        <main className="lg:col-span-6 rounded-[26px] p-3 sm:p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100/90 space-y-3">
+          {/* Weekday Headers in Vibrant Pill Capsules */}
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            {WEEKDAYS.map((wd) => (
               <div
-                key={day}
-                className={`text-center py-2 text-[11px] sm:text-xs font-black uppercase tracking-wider rounded-xl ${
-                  idx === 0 || idx === 6
-                    ? 'text-rose-500 bg-rose-50/60'
-                    : 'text-slate-600 bg-slate-100/70'
-                }`}
+                key={wd.label}
+                className={`text-center py-2 text-[11px] sm:text-xs font-black tracking-wider rounded-xl ${wd.bg}`}
               >
-                {day}
+                {wd.label}
               </div>
             ))}
           </div>
 
-          {/* Calendar Days 7-Col Grid */}
+          {/* 7-Column Calendar Days Grid */}
           <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {calendarDays.map((day, idx) => {
               const dayItems = getItemsForDate(day.date);
               const isSelected = day.date === selectedDate;
               const isToday = day.date === todayIso;
+              const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
+              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
               const rangeBars = getRangeBarsForDate(day.date);
               const icons = getIconsForDate(day.date);
@@ -903,24 +955,28 @@ export default function EnhancedCalendar({
                   key={idx}
                   type="button"
                   onClick={() => setSelectedDate(day.date)}
-                  className={`group relative min-h-[66px] sm:min-h-[104px] p-1.5 sm:p-2.5 rounded-2xl transition-all duration-200 flex flex-col items-stretch justify-start overflow-hidden text-left ${
+                  className={`group relative min-h-[68px] sm:min-h-[104px] p-1.5 sm:p-2.5 rounded-2xl transition-all duration-200 flex flex-col items-stretch justify-start overflow-hidden text-left cursor-pointer ${
                     isSelected
-                      ? 'bg-gradient-to-b from-sky-50 via-white to-sky-50/50 border-2 border-sky-500 shadow-[0_8px_20px_rgba(14,165,233,0.22),inset_0_1px_1px_rgba(255,255,255,0.95)] ring-2 ring-sky-300/40 z-10 scale-[1.02]'
+                      ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white border-2 border-amber-300 shadow-[0_10px_25px_rgba(217,119,6,0.38)] ring-4 ring-amber-300/40 z-10 scale-[1.03]'
                       : isToday
-                      ? 'bg-gradient-to-b from-amber-50/70 via-white to-amber-50/40 border-2 border-amber-400 shadow-[0_4px_12px_rgba(245,158,11,0.15),inset_0_1px_1px_rgba(255,255,255,0.9)]'
+                      ? 'bg-gradient-to-br from-amber-100 via-orange-50 to-amber-50 border-2 border-amber-500 shadow-[0_4px_16px_rgba(245,158,11,0.25)]'
+                      : isWeekend && day.isCurrentMonth
+                      ? 'bg-gradient-to-b from-rose-50/40 to-white border border-rose-200/70 hover:border-rose-400 hover:shadow-md'
                       : day.isCurrentMonth
-                      ? 'bg-white/95 border border-slate-200/90 hover:border-sky-300 hover:shadow-md hover:-translate-y-0.5 shadow-[0_2px_6px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.85)]'
-                      : 'bg-slate-50/60 border border-slate-100/60 text-slate-300 opacity-60'
+                      ? 'bg-gradient-to-b from-white to-slate-50/40 border border-slate-200/90 hover:border-amber-400 hover:shadow-md shadow-[0_2px_5px_rgba(0,0,0,0.03)]'
+                      : 'bg-slate-100/50 border border-slate-100 text-slate-300 opacity-50'
                   }`}
                 >
-                  {/* Day Header */}
+                  {/* Day Number Header */}
                   <div className="flex items-center justify-between w-full">
                     <span
                       className={`inline-flex items-center justify-center text-xs sm:text-sm font-black transition-colors ${
                         isSelected
-                          ? 'w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-b from-sky-500 to-sky-600 text-white shadow-xs'
+                          ? 'w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white text-amber-900 shadow-md font-black'
                           : isToday
-                          ? 'w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-b from-amber-400 to-amber-500 text-white shadow-xs'
+                          ? 'w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-amber-500 text-white shadow-xs font-black'
+                          : isWeekend && day.isCurrentMonth
+                          ? 'text-rose-700'
                           : day.isCurrentMonth
                           ? 'text-slate-800'
                           : 'text-slate-400'
@@ -930,13 +986,19 @@ export default function EnhancedCalendar({
                     </span>
 
                     {isToday && !isSelected && (
-                      <span className="hidden sm:inline-block text-[9px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-100/90 px-1 py-0.5 rounded-md">
+                      <span className="hidden sm:inline-block text-[9px] font-black uppercase tracking-wider text-white bg-amber-600 px-1.5 py-0.5 rounded-full shadow-xs">
                         Today
                       </span>
                     )}
 
                     {hiddenCount > 0 && (
-                      <span className="text-[9px] sm:text-[10px] font-extrabold px-1 sm:px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/80">
+                      <span
+                        className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                          isSelected
+                            ? 'bg-white/30 text-white border border-white/40'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
                         +{hiddenCount}
                       </span>
                     )}
@@ -952,30 +1014,28 @@ export default function EnhancedCalendar({
                         <div
                           key={it.id}
                           title={it.title}
-                          className={`h-1.5 sm:h-2 w-full bg-gradient-to-r ${theme.barColor} shadow-[0_1px_2px_rgba(0,0,0,0.15),inset_0_1px_1px_rgba(255,255,255,0.6)] ${
-                            isStart ? 'rounded-l-full' : ''
-                          } ${isEnd ? 'rounded-r-full' : ''} ${isStart && isEnd ? 'rounded-full' : ''}`}
+                          className={`h-1.5 sm:h-2 w-full bg-gradient-to-r ${theme.barColor} shadow-[0_2px_4px_rgba(0,0,0,0.15),inset_0_1px_1px_rgba(255,255,255,0.7)] ${
+                            isSelected ? 'ring-1 ring-white/50' : ''
+                          } ${isStart ? 'rounded-l-full' : ''} ${isEnd ? 'rounded-r-full' : ''} ${
+                            isStart && isEnd ? 'rounded-full' : ''
+                          }`}
                         />
                       );
                     })}
                   </div>
 
-                  {/* Single-day Glossy 3D icon bubbles */}
+                  {/* Single-Day Glossy 3D Orbs */}
                   <div className="mt-1.5 flex flex-wrap gap-1 items-center">
                     {icons.map((it) => {
                       const theme = CATEGORY_THEMES[it.type] || CATEGORY_THEMES.event;
-                      const Icon = ICONS[it.icon] || CalendarIcon;
                       return (
-                        <div
-                          key={it.id}
-                          title={it.title}
-                          className={`relative inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-md sm:rounded-lg bg-gradient-to-b ${theme.gradient} text-white shadow-xs overflow-hidden`}
-                          style={{
-                            boxShadow: `0 2px 5px ${theme.shadowColor}, inset 0 1px 1px rgba(255,255,255,0.6)`,
-                          }}
-                        >
-                          <div className="absolute inset-x-0.5 top-0 h-[40%] rounded-t-md bg-gradient-to-b from-white/60 to-transparent pointer-events-none" />
-                          <Icon className="w-2.5 h-2.5 sm:w-3 sm:h-3 relative z-10" />
+                        <div key={it.id} title={it.title}>
+                          <GlossyOrb
+                            emoji={theme.emoji}
+                            gradient={theme.gradient}
+                            size="sm"
+                            shadowColor={theme.shadowColor}
+                          />
                         </div>
                       );
                     })}
@@ -986,14 +1046,16 @@ export default function EnhancedCalendar({
           </div>
         </main>
 
-        {/* Right Column: Selected Date Details (Sticky on desktop, fluid on mobile) */}
+        {/* ====================================================== */}
+        {/* Right Column: Colorful Selected Date Details           */}
+        {/* ====================================================== */}
         <aside className="lg:col-span-3">
-          <div className="sticky top-4 bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_8px_24px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,0.95)] flex flex-col gap-4">
-            {/* Selected Date Header */}
-            <div className="pb-3 border-b border-slate-200/80 flex items-center justify-between">
+          <div className="sticky top-4 rounded-[26px] p-4 sm:p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] bg-white border border-slate-100/90 space-y-4">
+            {/* Selected Date Header (Vibrant Golden-Amber) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white shadow-[0_6px_18px_rgba(217,119,6,0.25)] flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-wider text-sky-600">Selected Date</p>
-                <h3 className="text-base sm:text-lg font-black text-slate-900">
+                <p className="text-[10px] font-black uppercase tracking-wider text-amber-200">Selected Date</p>
+                <h3 className="text-base sm:text-lg font-black text-white">
                   {selectedDate
                     ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
                         weekday: 'short',
@@ -1004,44 +1066,44 @@ export default function EnhancedCalendar({
                     : 'Select a Date'}
                 </h3>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-sky-50 text-sky-700 border border-sky-200/90 shadow-xs">
+              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-xs">
                 {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'}
               </span>
             </div>
 
-            {/* List of items */}
+            {/* List of Scheduled Items */}
             <div className="space-y-2.5 max-h-[380px] sm:max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
               {selectedItems.length > 0 ? (
                 selectedItems.map((item) => {
                   const theme = CATEGORY_THEMES[item.type] || CATEGORY_THEMES.event;
-                  const Icon = ICONS[item.icon] || CalendarIcon;
 
                   return (
                     <div
                       key={item.id}
-                      className="group relative rounded-2xl p-3 bg-white border border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:shadow-md transition-all duration-200"
+                      className={`group relative rounded-2xl p-3 border transition-all duration-200 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-md ${theme.cardBg} ${theme.cardBorder}`}
                     >
                       <div className="flex items-start gap-2.5">
-                        <GlossyIconBadge
-                          icon={Icon}
+                        <GlossyOrb
+                          emoji={theme.emoji}
                           gradient={theme.gradient}
-                          shadowColor={theme.shadowColor}
                           size="md"
+                          shadowColor={theme.shadowColor}
                         />
                         <div className="flex-grow min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${theme.chipBg} ${theme.chipText} border ${theme.chipBorder}`}
+                              className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${theme.chipBg} ${theme.chipText} border ${theme.chipBorder}`}
                             >
                               {theme.label}
                             </span>
                             {item.subtype && (
-                              <span className="text-[10px] font-bold text-slate-500 capitalize">
+                              <span className="text-[10px] font-bold text-slate-600 capitalize">
                                 • {item.subtype}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate group-hover:text-sky-600 transition-colors">
+
+                          <p className="text-xs sm:text-sm font-black text-slate-900 mt-1 truncate">
                             {item.title}
                           </p>
 
@@ -1056,8 +1118,8 @@ export default function EnhancedCalendar({
                             </div>
                           )}
 
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-slate-500 font-medium">
-                            <Clock className="w-3 h-3 text-slate-400" />
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-slate-600 font-bold">
+                            <Clock className="w-3 h-3 text-slate-500" />
                             <span>
                               {item.endDate && item.endDate !== item.startDate
                                 ? `${item.startDate} → ${item.endDate}`
@@ -1070,54 +1132,52 @@ export default function EnhancedCalendar({
                   );
                 })
               ) : (
-                <div className="text-center py-8 px-4 rounded-2xl bg-slate-50/60 border border-dashed border-slate-200">
-                  <div className="w-10 h-10 mx-auto rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-400 mb-2">
-                    <CalendarIcon className="w-5 h-5" />
+                <div className="text-center py-8 px-4 rounded-2xl bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-amber-50/50 border border-dashed border-amber-200">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-white shadow-sm border border-amber-200 flex items-center justify-center text-2xl mb-2">
+                    ☀️
                   </div>
-                  <p className="text-xs font-bold text-slate-700">No items on this date</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Tap below to add an event, meeting, or birthday.</p>
+                  <p className="text-xs font-black text-slate-800">No items on this date</p>
+                  <p className="text-[11px] text-slate-500 mt-1">Tap below to add an event, meeting, or birthday.</p>
                 </div>
               )}
             </div>
 
-            {/* 3D Glossy Add Button */}
+            {/* + Add Item For This Date Button (Emerald Green - matching screenshot Save button) */}
             <button
               type="button"
               onClick={openAddForSelected}
-              className="w-full relative inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-gradient-to-b from-emerald-500 via-teal-600 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-white font-extrabold text-xs shadow-md transition-all duration-150 overflow-hidden"
-              style={{
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5), inset 0 -1px 2px rgba(0, 0, 0, 0.2)',
-              }}
+              className="w-full relative inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs shadow-[0_6px_18px_rgba(16,185,129,0.35)] transition-all duration-150 overflow-hidden"
             >
-              <div className="absolute inset-x-1 top-0.5 h-[40%] rounded-t-xl bg-gradient-to-b from-white/60 to-transparent pointer-events-none" />
-              <Plus className="w-4 h-4 relative z-10" />
-              <span className="relative z-10">Add item for this date</span>
+              <div className="absolute inset-x-2 top-0.5 h-[40%] rounded-t-xl bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+              <Plus className="w-4 h-4 stroke-[3] relative z-10" />
+              <span className="relative z-10 uppercase tracking-wider">Add Item for this date</span>
             </button>
           </div>
         </aside>
       </div>
 
-      {/* 3D Glossy Add Modal */}
+      {/* ======================================================== */}
+      {/* 3D Add Item Modal                                        */}
+      {/* ======================================================== */}
       {isAddOpen ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-gradient-to-r from-sky-50/50 via-white to-indigo-50/30">
-              <div className="flex items-center gap-2.5">
-                <GlossyIconBadge
-                  icon={CalendarIcon}
-                  gradient="from-sky-500 via-blue-600 to-indigo-600"
-                  shadowColor="rgba(14, 165, 233, 0.35)"
+          <div className="w-full max-w-lg rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-[#d97706] via-[#ea580c] to-[#b45309] text-white">
+              <div className="flex items-center gap-3">
+                <GlossyOrb
+                  emoji="📅"
+                  gradient="from-amber-400 via-orange-500 to-amber-600"
                   size="sm"
                 />
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Add Calendar Item</h3>
-                  <p className="text-[11px] text-slate-500">Meeting / Event / Birthday</p>
+                  <h3 className="text-base font-black text-white">Add Calendar Item</h3>
+                  <p className="text-[11px] text-white/90">Meeting / Event / Birthday</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-600 font-bold"
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md active:scale-90 transition flex items-center justify-center text-white font-bold"
               >
                 ✕
               </button>
@@ -1125,27 +1185,26 @@ export default function EnhancedCalendar({
 
             <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Type</label>
+                <label className="block text-xs font-black text-slate-800 mb-1.5">Type</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'meeting', label: 'Meeting', icon: Briefcase },
-                    { id: 'event', label: 'Event', icon: CalendarIcon },
-                    { id: 'birthday', label: 'Birthday', icon: Cake },
+                    { id: 'meeting', label: 'Meeting', emoji: '💼', icon: Briefcase },
+                    { id: 'event', label: 'Event', emoji: '📅', icon: CalendarIcon },
+                    { id: 'birthday', label: 'Birthday', emoji: '🎂', icon: Cake },
                   ].map((sub) => {
-                    const SubIcon = sub.icon;
                     const isCurrent = addForm.subtype === sub.id;
                     return (
                       <button
                         key={sub.id}
                         type="button"
                         onClick={() => setAddForm((p) => ({ ...p, subtype: sub.id as any }))}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-bold transition active:scale-95 ${
+                        className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl border text-xs font-bold transition active:scale-95 ${
                           isCurrent
-                            ? 'bg-sky-50 border-sky-500 text-sky-800 shadow-xs'
+                            ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-sm font-black'
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        <SubIcon className="w-3.5 h-3.5" />
+                        <span className="text-base">{sub.emoji}</span>
                         <span>{sub.label}</span>
                       </button>
                     );
@@ -1154,12 +1213,12 @@ export default function EnhancedCalendar({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Title</label>
+                <label className="block text-xs font-black text-slate-800 mb-1">Title</label>
                 <input
                   value={addForm.title}
                   onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
                   placeholder="Ex: Team Alignment Meeting / Annual Celebration"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
                 />
               </div>
 
@@ -1173,43 +1232,43 @@ export default function EnhancedCalendar({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Start Date</label>
+                  <label className="block text-xs font-black text-slate-800 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={addForm.startDate}
                     onChange={(e) => setAddForm((p) => ({ ...p, startDate: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">End Date (optional)</label>
+                  <label className="block text-xs font-black text-slate-800 mb-1">End Date (optional)</label>
                   <input
                     type="date"
                     value={addForm.endDate}
                     onChange={(e) => setAddForm((p) => ({ ...p, endDate: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
-                <p className="text-xs font-extrabold text-slate-800">Auto-Sync Capabilities</p>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                <p className="text-xs font-black text-amber-950">Auto-Sync Capabilities</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={addForm.addTodo}
                       onChange={(e) => setAddForm((p) => ({ ...p, addTodo: e.target.checked }))}
-                      className="h-4 w-4 rounded-md accent-sky-600"
+                      className="h-4 w-4 rounded-md accent-amber-600"
                     />
                     <span>Also create as Todo</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={addForm.addReminder}
                       onChange={(e) => setAddForm((p) => ({ ...p, addReminder: e.target.checked }))}
-                      className="h-4 w-4 rounded-md accent-sky-600"
+                      className="h-4 w-4 rounded-md accent-amber-600"
                     />
                     <span>Also create as Reminder</span>
                   </label>
@@ -1217,7 +1276,7 @@ export default function EnhancedCalendar({
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-200/80 bg-slate-50/70 flex items-center justify-end gap-3">
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
@@ -1228,7 +1287,7 @@ export default function EnhancedCalendar({
               <button
                 type="button"
                 onClick={saveCustomEvent}
-                className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-2 text-xs font-extrabold text-white shadow-xs hover:from-sky-400 hover:to-blue-500 active:scale-95 transition"
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 px-5 py-2 text-xs font-black text-white shadow-xs hover:from-emerald-500 hover:to-green-500 active:scale-95 transition"
               >
                 Save Item
               </button>

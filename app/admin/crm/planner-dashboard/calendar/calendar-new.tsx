@@ -7,7 +7,7 @@ export default function PlannerCalendar() {
   return (
     <EnhancedCalendar
       storageBackend={crmPlannerStorage as any}
-      backUrl=""
+      backUrl="/admin/crm/planner"
       backLabel="Back to CRM"
     />
   );
