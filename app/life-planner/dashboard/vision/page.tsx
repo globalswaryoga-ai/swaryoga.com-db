@@ -217,35 +217,42 @@ export default function VisionPage() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-12">
-      {/* Android Top App Bar */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/life-planner/dashboard"
-            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
-            title="Back to Launchpad"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
-              <span>🎯</span>
-              <span>My Vision Blueprint</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 font-medium truncate">
-              Life Mission, Long-term Projects, Goals &amp; Milestones
-            </p>
-          </div>
-        </div>
+    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      {/* Top Header Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-4 sm:p-6 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
 
-        <button
-          onClick={handleAddVision}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Vision</span>
-        </button>
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <Link
+              href="/life-planner/dashboard"
+              className="p-2.5 sm:p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition active:scale-95 shadow-sm border border-white/25 flex items-center justify-center shrink-0 cursor-pointer"
+              title="Back to Launchpad"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/30 shadow-xs truncate">
+                  My Vision • Blueprint
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 truncate drop-shadow-sm flex items-center gap-2">
+                <span>🎯</span>
+                <span>My Vision Blueprint</span>
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAddVision}
+            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white hover:bg-white/95 text-orange-700 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 transition active:scale-95 shadow-md shrink-0 cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            <span>+ Add Vision</span>
+          </button>
+        </div>
       </div>
 
       {/* 3D Elevated Vision Stats */}

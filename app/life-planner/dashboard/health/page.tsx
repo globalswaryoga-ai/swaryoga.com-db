@@ -883,60 +883,67 @@ export default function HealthPage() {
           </div>
         )}
 
-        {/* Android Top App Bar */}
-        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href="/life-planner/dashboard"
-              className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
-              title="Back to Launchpad"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
-                <span>❤️</span>
-                <span>Health & Vitals</span>
-              </h1>
-              <p className="text-[11px] text-slate-500 font-medium truncate">
-                Daily health routine, food plan & vitals tracker
-              </p>
+        {/* Top Header Bar with Glossy Orange-to-Green Header */}
+        <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-4 sm:p-6 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+          {/* Top Specular Gloss Highlight */}
+          <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <Link
+                href="/life-planner/dashboard"
+                className="p-2.5 sm:p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition active:scale-95 shadow-sm border border-white/25 flex items-center justify-center shrink-0 cursor-pointer"
+                title="Back to Launchpad"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+              </Link>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/30 shadow-xs truncate">
+                    Today's Routine • Health & Vitals
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 truncate drop-shadow-sm flex items-center gap-2">
+                  <span>❤️</span>
+                  <span>Health &amp; Vitals</span>
+                </h1>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/life-planner/dashboard/health-month"
-              className="h-9 w-9 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center text-slate-700 shadow-2xs"
-              title="Monthly Progress"
-              aria-label="Monthly Progress"
-            >
-              <Clock className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                href="/life-planner/dashboard/health-month"
+                className="h-10 w-10 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 transition flex items-center justify-center text-white shadow-sm"
+                title="Monthly Progress"
+                aria-label="Monthly Progress"
+              >
+                <Clock className="h-4 w-4" />
+              </Link>
 
-            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl border border-slate-200/60">
-              <button
-                type="button"
-                onClick={() => setActiveTab('daily')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  activeTab === 'daily'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Daily Plan
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('routines')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  activeTab === 'routines'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Routines ({routines.length})
-              </button>
+              <div className="flex items-center gap-1 p-1 bg-black/20 backdrop-blur-md rounded-2xl border border-white/20">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('daily')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === 'daily'
+                      ? 'bg-white text-slate-900 shadow-md'
+                      : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Daily Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('routines')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === 'routines'
+                      ? 'bg-white text-slate-900 shadow-md'
+                      : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Routines ({routines.length})
+                </button>
+              </div>
             </div>
           </div>
         </div>

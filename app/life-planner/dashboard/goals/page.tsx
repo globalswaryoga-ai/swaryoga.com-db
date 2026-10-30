@@ -131,59 +131,91 @@ export default function GoalsPage() {
 
   if (!mounted) return null;
 
-  return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-12">
-      {/* Android Top App Bar */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/life-planner/dashboard"
-            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
-            title="Back to Launchpad"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
-              <span>🎯</span>
-              <span>Goals &amp; Milestones</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 font-medium truncate">
-              Track priority goals linked to your life vision and action plans
-            </p>
-          </div>
-        </div>
+  const totalGoals = goals.length;
+  const completedGoals = goals.filter(g => g.completed || g.status === 'completed').length;
+  const inProgressGoals = goals.filter(g => !g.completed && g.status === 'in-progress').length;
+  const highPriorityGoals = goals.filter(g => !g.completed && g.priority === 'high').length;
 
-        <button
-          onClick={handleAddGoal}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Goal</span>
-        </button>
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      {/* Top Header Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-4 sm:p-6 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <Link
+              href="/life-planner/dashboard"
+              className="p-2.5 sm:p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition active:scale-95 shadow-sm border border-white/25 flex items-center justify-center shrink-0 cursor-pointer"
+              title="Back to Launchpad"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/30 shadow-xs truncate">
+                  My Vision • Targets
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 truncate drop-shadow-sm flex items-center gap-2">
+                <span>🎯</span>
+                <span>Goals &amp; Milestones</span>
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAddGoal}
+            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white hover:bg-white/95 text-orange-700 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 transition active:scale-95 shadow-md shrink-0 cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            <span>+ Add Goal</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 space-y-3 sm:space-y-0 sm:flex sm:gap-4 sm:items-end flex-wrap">
+      {/* KPI Stats Row (4 Rounded Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-amber-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Goals</span>
+          <p className="text-xl sm:text-2xl font-black text-slate-800 mt-0.5">{totalGoals}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-emerald-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600">Completed</span>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">{completedGoals}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-blue-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-blue-600">In Progress</span>
+          <p className="text-xl sm:text-2xl font-black text-blue-700 mt-0.5">{inProgressGoals}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-rose-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-600">High Priority</span>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-0.5">{highPriorityGoals}</p>
+        </div>
+      </div>
+
+      {/* Filters (Clean 3D Card Container) */}
+      <div className="bg-white/95 rounded-[22px] border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] p-4 sm:p-5 space-y-3 sm:space-y-0 sm:flex sm:gap-4 sm:items-end flex-wrap">
         {/* Search */}
         <div className="flex-1 min-w-xs">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Search</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Search Goals</label>
           <input
             type="text"
-            placeholder="Search goals..."
+            placeholder="Search goals by title or description..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           />
         </div>
 
         {/* Vision Filter */}
-        <div className="w-full sm:w-40">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Vision</label>
+        <div className="w-full sm:w-44">
+          <label className="block text-xs font-bold text-slate-600 mb-1">Vision</label>
           <select
             value={filterVision}
             onChange={(e) => setFilterVision(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Visions</option>
             {visions.map(v => (
@@ -194,11 +226,11 @@ export default function GoalsPage() {
 
         {/* Status Filter */}
         <div className="w-full sm:w-40">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Status</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Status</label>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Status</option>
             <option value="not-started">Not Started</option>
@@ -210,11 +242,11 @@ export default function GoalsPage() {
 
         {/* Priority Filter */}
         <div className="w-full sm:w-40">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Priority</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Priority</label>
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Priority</option>
             <option value="high">High</option>
@@ -252,101 +284,148 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {/* Goals Grid */}
+      {/* Goals Grid (Approved 3D Cards Pattern) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredGoals.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <p className="text-swar-text-secondary mb-4">No goals found</p>
+          <div className="col-span-full text-center py-12 bg-white/95 rounded-[24px] border border-slate-200/90 p-8 shadow-sm">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-400 mb-3">
+              🎯
+            </div>
+            <p className="text-sm font-bold text-slate-700 mb-1">No goals found</p>
+            <p className="text-xs text-slate-500 mb-4">Create your first goal or adjust the filters above.</p>
             <button
               onClick={handleAddGoal}
-              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#ea580c] to-[#059669] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm hover:opacity-90 active:scale-95 cursor-pointer"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               <span>Create your first goal</span>
             </button>
           </div>
         ) : (
-          filteredGoals.map(goal => (
-            <div
-              key={goal.id}
-              className="bg-white rounded-lg border-2 border-swar-border shadow-sm hover:shadow-md transition overflow-hidden"
-            >
-              {/* Image */}
-              {goal.imageUrl && (
-                <div className="h-32 bg-gray-100 overflow-hidden">
-                  <img
-                    src={goal.imageUrl}
-                    alt={goal.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=No+Image';
-                    }}
-                  />
-                </div>
-              )}
+          filteredGoals.map(goal => {
+            const isCompleted = goal.completed || goal.status === 'completed';
+            const priorityBorder = isCompleted
+              ? 'border-l-emerald-500 bg-emerald-50/20'
+              : goal.priority === 'high'
+              ? 'border-l-rose-500'
+              : goal.priority === 'medium'
+              ? 'border-l-amber-500'
+              : 'border-l-blue-500';
 
-              {/* Content */}
-              <div className="p-4 space-y-3">
-                <div>
-                  <h3 className="font-bold text-swar-text line-clamp-2">{goal.title}</h3>
-                  <p className="text-xs text-swar-text-secondary mt-1">{getVisionTitle(goal.visionId)}</p>
-                </div>
+            const titleColor = isCompleted
+              ? 'text-slate-400 line-through'
+              : goal.priority === 'high'
+              ? 'text-rose-700'
+              : goal.priority === 'medium'
+              ? 'text-amber-800'
+              : 'text-slate-900';
 
-                <p className="text-xs text-swar-text-secondary line-clamp-2">{goal.description}</p>
+            return (
+              <div
+                key={goal.id}
+                className={`group rounded-[22px] bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all overflow-hidden flex flex-col justify-between border-l-4 ${priorityBorder}`}
+              >
+                {/* Image if present */}
+                {goal.imageUrl && (
+                  <div className="h-32 bg-slate-100 overflow-hidden relative">
+                    <img
+                      src={goal.imageUrl}
+                      alt={goal.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=Goal+Image';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                  </div>
+                )}
 
-                {/* Status & Priority Badges */}
-                <div className="flex gap-2 flex-wrap">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${STATUS_COLORS[goal.status || 'not-started'].bg} ${STATUS_COLORS[goal.status || 'not-started'].text}`}>
-                    {goal.status || 'not-started'}
-                  </span>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    goal.priority === 'high' ? 'bg-red-100 text-red-700' :
-                    goal.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {goal.priority}
-                  </span>
-                  {goal.completed && (
-                    <span className="text-xs font-semibold px-2 py-1 rounded bg-swar-primary-light text-swar-primary">
-                      ✓ Done
-                    </span>
+                <div className="p-4 sm:p-5 pb-3 space-y-3 flex-1">
+                  {/* Top Row: 3D Squircle Icon + Tag Pill */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_6px_14px_rgba(217,119,6,0.22)] flex items-center justify-center text-white shrink-0 overflow-hidden">
+                      <div className="absolute top-0.5 inset-x-1 h-3.5 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl pointer-events-none" />
+                      <span className="text-xl sm:text-2xl select-none leading-none">🏆</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-lg font-bold text-[10px] sm:text-[11px] tracking-wider uppercase border ${
+                          goal.priority === 'high'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : goal.priority === 'medium'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}
+                      >
+                        {goal.priority || 'MEDIUM'}
+                      </span>
+                      {isCompleted && (
+                        <span className="px-2 py-0.5 rounded-lg font-bold text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ✓ DONE
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Title & Vision */}
+                  <div>
+                    <h3 className={`font-bold text-base sm:text-[17px] tracking-tight leading-snug ${titleColor} flex items-center gap-1.5`}>
+                      <span>{goal.title}</span>
+                      <span className="text-xs transition-transform duration-200 group-hover:translate-x-1">→</span>
+                    </h3>
+                    {goal.visionId && (
+                      <p className="text-[11px] text-slate-500 font-semibold mt-1 flex items-center gap-1">
+                        <span className="text-[10px] text-slate-400 uppercase">Vision:</span>
+                        <span className="text-slate-700 truncate">{getVisionTitle(goal.visionId)}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  {goal.description && (
+                    <p className="text-xs sm:text-[13px] text-slate-500 font-medium leading-relaxed line-clamp-2">
+                      {goal.description}
+                    </p>
                   )}
+
+                  {/* Meta Pills (Dates & Budget) */}
+                  <div className="flex items-center gap-2 flex-wrap pt-1 text-xs">
+                    {(goal.startDate || goal.targetDate) && (
+                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60 font-semibold text-slate-700 text-[11px]">
+                        <span>📅</span>
+                        <span>{goal.targetDate ? `Target: ${goal.targetDate}` : goal.startDate}</span>
+                      </span>
+                    )}
+                    {goal.budget && (
+                      <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200 font-bold text-[11px]">
+                        <span>₹</span>
+                        <span>{goal.budget.toLocaleString()}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Dates */}
-                {(goal.startDate || goal.targetDate) && (
-                  <div className="text-xs text-swar-text-secondary">
-                    {goal.startDate && <div>{goal.startDate} → {goal.targetDate || '...'}</div>}
-                  </div>
-                )}
-
-                {/* Budget */}
-                {goal.budget && (
-                  <div className="text-xs text-swar-primary font-semibold">
-                    ₹ {goal.budget.toLocaleString()}
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-2 border-t border-swar-border">
+                {/* Bottom Footer Actions */}
+                <div className="border-t border-slate-100 px-4 py-3 sm:px-5 flex items-center justify-between bg-slate-50/60 group-hover:bg-slate-100/80 transition">
                   <button
                     onClick={() => handleEditGoal(goal)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition text-xs font-medium"
+                    className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer"
                   >
-                    <Edit2 size={14} />
-                    Edit
+                    <Edit2 size={13} />
+                    <span>Edit goal</span>
                   </button>
                   <button
                     onClick={() => handleDeleteGoal(goal.id)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition text-xs font-medium"
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
                   >
-                    <Trash2 size={14} />
-                    Delete
+                    <Trash2 size={13} />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
