@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Task, Goal, Vision } from '@/lib/types/lifePlanner';
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
@@ -259,16 +260,35 @@ export default function TasksPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-swar-text mb-2">My Tasks</h1>
-          <p className="text-swar-text-secondary">Manage your daily tasks and action items</p>
+      {/* Top App Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-3.5 sm:p-5 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[24px] pointer-events-none" />
+
+        <div className="relative z-10 flex items-center gap-3 min-w-0">
+          <Link
+            href="/admin/crm/planner"
+            className="w-9 h-9 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white active:scale-95 transition-all flex items-center justify-center border border-white/30 shadow-sm shrink-0 cursor-pointer"
+            title="Back to Planner"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black text-white tracking-tight truncate flex items-center gap-2 drop-shadow-sm">
+              <span className="text-xl">📋</span>
+              <span>Tasks & Execution</span>
+            </h1>
+            <p className="text-[11px] text-amber-100 font-bold truncate mt-0.5">
+              Manage your daily tasks, scheduled actions and priorities
+            </p>
+          </div>
         </div>
+
         <button
           onClick={handleAddTask}
-          className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-6 py-3 rounded-lg hover:from-orange-600 hover:to-yellow-600 transition-all shadow-lg hover:shadow-xl"
+          className="relative z-10 px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 transition backdrop-blur-md border border-white/30 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm cursor-pointer"
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-4 w-4 stroke-[2.5]" />
           <span>Add Task</span>
         </button>
       </div>

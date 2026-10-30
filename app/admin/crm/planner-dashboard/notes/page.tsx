@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Trash2, Pin, PinOff, Eye } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Search, Filter, Trash2, Pin, PinOff, Eye, ArrowLeft } from 'lucide-react';
 import NoteEditor from '@/components/NoteEditor';
 
 interface Note {
@@ -204,24 +205,40 @@ export default function NotesPage() {
   return (
     <div className="bg-gradient-to-br from-swar-bg to-swar-primary/5 rounded-2xl border border-swar-border">
       <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">📓 My Journal</h1>
-              <p className="text-swar-text-secondary">Capture thoughts, reflections, memories, and ideas linked to your vision</p>
-            </div>
-            <button
-              onClick={() => {
-                setSelectedNote(null);
-                setShowEditor(true);
-              }}
-              className="bg-swar-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-swar-primary/90 transition"
+        {/* Top App Bar with Glossy Orange-to-Green Header */}
+        <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-3.5 sm:p-5 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          {/* Top Specular Gloss Highlight */}
+          <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[24px] pointer-events-none" />
+
+          <div className="relative z-10 flex items-center gap-3 min-w-0">
+            <Link
+              href="/admin/crm/planner"
+              className="w-9 h-9 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white active:scale-95 transition-all flex items-center justify-center border border-white/30 shadow-sm shrink-0 cursor-pointer"
+              title="Back to Planner"
             >
-              <Plus size={20} />
-              New Journal
-            </button>
+              <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-black text-white tracking-tight truncate flex items-center gap-2 drop-shadow-sm">
+                <span className="text-xl">📓</span>
+                <span>My Journal & Notes</span>
+              </h1>
+              <p className="text-[11px] text-amber-100 font-bold truncate mt-0.5">
+                Capture thoughts, reflections, memories, and ideas linked to your vision
+              </p>
+            </div>
           </div>
+
+          <button
+            onClick={() => {
+              setSelectedNote(null);
+              setShowEditor(true);
+            }}
+            className="relative z-10 px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 transition backdrop-blur-md border border-white/30 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" />
+            <span>New Journal</span>
+          </button>
         </div>
 
         {/* Search & Filters */}

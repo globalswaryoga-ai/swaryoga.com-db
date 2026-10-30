@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { AlertCircle, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
 import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory, type Vision, type ActionPlan, type Task as DbTask } from '@/lib/types/lifePlanner';
@@ -313,18 +314,36 @@ export default function RemindersPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Reminders</h1>
-          <p className="text-swar-text-secondary mt-1">Set up reminders for important tasks and events</p>
+      {/* Top App Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-3.5 sm:p-5 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[24px] pointer-events-none" />
+
+        <div className="relative z-10 flex items-center gap-3 min-w-0">
+          <Link
+            href="/admin/crm/planner"
+            className="w-9 h-9 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white active:scale-95 transition-all flex items-center justify-center border border-white/30 shadow-sm shrink-0 cursor-pointer"
+            title="Back to Planner"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black text-white tracking-tight truncate flex items-center gap-2 drop-shadow-sm">
+              <span className="text-xl">🔔</span>
+              <span>Reminders & Alerts</span>
+            </h1>
+            <p className="text-[11px] text-amber-100 font-bold truncate mt-0.5">
+              Set up reminders for important tasks, sadhana, routines and events
+            </p>
+          </div>
         </div>
+
         <button
           onClick={openCreate}
-          className="w-full sm:w-auto justify-center flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="relative z-10 px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 transition backdrop-blur-md border border-white/30 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm cursor-pointer"
         >
-          <Plus className="h-5 w-5" />
-          Add Reminder
+          <Plus className="h-4 w-4 stroke-[2.5]" />
+          <span>Add Reminder</span>
         </button>
       </div>
 
