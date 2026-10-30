@@ -252,7 +252,8 @@ export default function LifePlannerTopNav({
         </div>
       </div>
 
-      <div className="border-t border-swar-border px-1 sm:px-4 md:px-6 py-1.5 sm:py-2 overflow-x-auto scroll-smooth scrollbar-hide">
+      {/* Sub-tabs strip - hidden on mobile / app as requested */}
+      <div className="hidden md:block border-t border-swar-border px-1 sm:px-4 md:px-6 py-1.5 sm:py-2 overflow-x-auto scroll-smooth scrollbar-hide">
         <nav className="flex items-center gap-1 sm:gap-2 min-w-max">
           {topTabs.map((tab) => {
             const Icon = tab.icon;
@@ -261,14 +262,14 @@ export default function LifePlannerTopNav({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`shrink-0 flex flex-col sm:flex-row items-center justify-center gap-0.5 rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-[9px] sm:text-sm font-medium transition-all duration-200 text-center sm:text-left whitespace-nowrap active:scale-95 ${
+                className={`shrink-0 flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap active:scale-95 ${
                   active
                     ? 'bg-swar-primary text-white shadow-md'
                     : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light hover:scale-105'
                 }`}
               >
-                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
               </Link>
             );
           })}

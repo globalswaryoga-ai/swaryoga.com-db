@@ -61,7 +61,7 @@ class ErrorBoundary extends React.Component<
 type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'ritucharya' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
-const DashboardPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DashboardPage = dynamic(() => import('@/app/life-planner/dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const DailyPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionDownloadPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision-download/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });

@@ -103,8 +103,22 @@ export const PLANNER_LANGUAGES: PlannerLanguage[] = [
   { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳' },
 ];
 
-export default function LifePlannerDashboardHome() {
+interface LifePlannerDashboardHomeProps {
+  basePath?: string;
+}
+
+export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashboardHomeProps = {}) {
   const router = useRouter();
+
+  const resolveAppHref = (rawHref: string) => {
+    if (basePath) {
+      return rawHref.replace('/life-planner/dashboard', basePath);
+    }
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/crm')) {
+      return rawHref.replace('/life-planner/dashboard', '/admin/crm/planner-dashboard');
+    }
+    return rawHref;
+  };
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'folders' | 'all'>('folders');
   const [searchQuery, setSearchQuery] = useState('');
@@ -475,6 +489,8 @@ export default function LifePlannerDashboardHome() {
   const handleBack = () => {
     if (activeFolder) {
       setActiveFolder(null);
+    } else if (basePath || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/crm'))) {
+      router.push('/admin/crm');
     } else {
       router.back();
     }
@@ -677,7 +693,7 @@ export default function LifePlannerDashboardHome() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
               {filteredApps.map((app) => (
-                <PlannerModuleCard key={app.id} app={app} />
+                <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
               ))}
             </div>
           )}
@@ -719,7 +735,7 @@ export default function LifePlannerDashboardHome() {
           {/* 3D Squircle Cards Grid for this folder */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
             {currentFolder.apps.map((app) => (
-              <PlannerModuleCard key={app.id} app={app} />
+              <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
             ))}
           </div>
         </div>
@@ -740,7 +756,7 @@ export default function LifePlannerDashboardHome() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 py-1">
             {allApps.map((app) => (
-              <PlannerModuleCard key={app.id} app={app} />
+              <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
             ))}
           </div>
         </div>
@@ -833,7 +849,7 @@ export default function LifePlannerDashboardHome() {
                 {/* Approved 3D Squircle Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 pt-1">
                   {category.apps.map((app) => (
-                    <PlannerModuleCard key={app.id} app={app} />
+                    <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
                   ))}
                 </div>
               </div>
@@ -855,11 +871,18 @@ export default function LifePlannerDashboardHome() {
 // - Border divider line
 // - "Open module →" footer link
 // ==========================================
-function PlannerModuleCard({ app }: { app: SubApp & { folderName?: string } }) {
+function PlannerModuleCard({
+  app,
+  resolveHref,
+}: {
+  app: SubApp & { folderName?: string };
+  resolveHref?: (h: string) => string;
+}) {
   const IconComponent = app.icon;
   const tag = app.badge || app.tag || 'MODULE';
   const textClass = app.accentTextColor || 'text-slate-900';
   const sideBorder = app.sideBorderColor || 'border-l-emerald-500';
+  const targetHref = resolveHref ? resolveHref(app.href) : app.href;
 
   return (
     <div
@@ -887,7 +910,7 @@ function PlannerModuleCard({ app }: { app: SubApp & { folderName?: string } }) {
 
         {/* Title with hover arrow */}
         <Link
-          href={app.href}
+          href={targetHref}
           className={`font-bold text-base sm:text-[17px] tracking-tight ${textClass} group-hover:opacity-85 transition flex items-center gap-1.5`}
         >
           <span>{app.name}</span>
@@ -902,7 +925,7 @@ function PlannerModuleCard({ app }: { app: SubApp & { folderName?: string } }) {
 
       {/* Bottom Footer Link */}
       <Link
-        href={app.href}
+        href={targetHref}
         className="border-t border-slate-100 px-4 py-3 sm:px-5 flex items-center justify-between bg-slate-50/60 group-hover:bg-slate-100/80 transition"
       >
         <span className={`text-xs font-bold ${textClass}`}>Open module</span>
