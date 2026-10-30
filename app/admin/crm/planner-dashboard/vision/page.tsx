@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Vision } from '@/lib/types/lifePlanner';
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
@@ -263,25 +264,44 @@ export default function VisionPage() {
         </div>
       )}
 
-      {/* Report-style header */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.10) 45%, rgba(236,72,153,0.10) 100%)' }}>
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Vision Project Report</p>
-              <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">My Vision Plans</h1>
-              <p className="mt-1 text-sm text-slate-600">Your long-term projects with milestones and timelines.</p>
-            </div>
-            <button
-              onClick={handleAddVision}
-              className="inline-flex items-center gap-2 rounded-2xl bg-swar-primary px-5 py-2.5 text-white font-extrabold hover:bg-swar-primary-dark transition shadow-sm"
-            >
-              <Plus className="h-5 w-5" />
-              Add Vision
-            </button>
-          </div>
-        </div>
+      {/* Top Header Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-4 sm:p-6 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20 mb-6">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
 
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <Link
+              href="/admin/crm/planner-dashboard"
+              className="p-2.5 sm:p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition active:scale-95 shadow-sm border border-white/25 flex items-center justify-center shrink-0 cursor-pointer"
+              title="Back to CRM Planner"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/30 shadow-xs truncate">
+                  CRM Planner • Blueprint
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 truncate drop-shadow-sm flex items-center gap-2">
+                <span>🎯</span>
+                <span>My Vision Plans</span>
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAddVision}
+            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white hover:bg-white/95 text-orange-700 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 transition active:scale-95 shadow-md shrink-0 cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            <span>+ Add Vision</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-6 py-5">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

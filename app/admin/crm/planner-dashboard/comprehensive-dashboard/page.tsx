@@ -147,21 +147,23 @@ export default function ComprehensiveDashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header Banner */}
-        <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-emerald-50 border border-rose-200/60 rounded-3xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-rose-400/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Header Banner with Glossy Orange-to-Green Header */}
+        <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-6 sm:p-8 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+          {/* Top Specular Gloss Highlight */}
+          <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
-                  Life Planner Studio
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-amber-100 border border-white/30 backdrop-blur-xs">
+                  CRM Life Planner Studio
                 </span>
-                <span className="text-xs text-slate-500 font-medium">Ayurvedic Ritucharya & Goal Alignment</span>
+                <span className="text-xs text-white/90 font-medium">Ayurvedic Ritucharya &amp; Goal Alignment</span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-sm">
                 Life Planner Dashboard
               </h1>
-              <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+              <p className="text-sm text-white/95 font-medium mt-1 max-w-2xl leading-relaxed">
                 Track your personal Sadhana intentions, active habits, daily tasks, reminders, and long-term vision goals.
               </p>
             </div>

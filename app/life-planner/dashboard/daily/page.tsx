@@ -10,6 +10,7 @@ import {
   Circle,
   Pencil,
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -485,25 +486,28 @@ export default function DailyViewPage() {
 
   return (
     <div className="space-y-3 sm:space-y-5 pb-12 max-w-7xl mx-auto px-2 sm:px-4">
-      {/* Top App Bar with Date Navigator & Global Toggle */}
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.02)] border border-slate-200/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      {/* Top App Bar with Glossy Orange-to-Green Header */}
+      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-3.5 sm:p-5 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[24px] pointer-events-none" />
+
+        <div className="relative z-10 flex items-center gap-3 min-w-0">
           <Link
             href="/life-planner/dashboard"
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center text-slate-700 border border-slate-200 shadow-2xs shrink-0"
+            className="w-9 h-9 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white active:scale-95 transition-all flex items-center justify-center border border-white/30 shadow-sm shrink-0 cursor-pointer"
             title="Back to Launchpad"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight truncate flex items-center gap-2">
+            <h1 className="text-base sm:text-xl font-black text-white tracking-tight truncate flex items-center gap-2 drop-shadow-sm">
               <span className="text-xl">🌅</span>
               <span>Daily Planner</span>
             </h1>
-            <p className="text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1.5">
+            <p className="text-[11px] text-amber-100 font-bold truncate flex items-center gap-1.5 mt-0.5">
               <span>{formatDateDisplay(selectedDate)}</span>
               {isToday && (
-                <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
+                <span className="px-2 py-0.5 bg-white text-orange-700 rounded-full text-[9px] font-black uppercase tracking-wider shadow-xs">
                   Today
                 </span>
               )}
@@ -512,23 +516,23 @@ export default function DailyViewPage() {
         </div>
 
         {/* Date Navigator & Expand/Collapse Toggle */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between sm:justify-end">
+        <div className="relative z-10 flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between sm:justify-end">
           {/* Expand / Collapse All Pill */}
           <button
             type="button"
             onClick={toggleAllCards}
-            className="px-2.5 py-1 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition flex items-center gap-1 active:scale-95 shadow-2xs"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-white/30 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition flex items-center gap-1 active:scale-95 shadow-sm cursor-pointer"
             title={allExpanded ? 'Collapse All Cards' : 'Expand All Cards'}
           >
-            <ChevronsUpDown size={13} className="text-slate-500" />
+            <ChevronsUpDown size={13} className="text-white" />
             <span>{allExpanded ? 'Collapse All' : 'Expand All'}</span>
           </button>
 
           {/* Date Controls */}
-          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 bg-black/20 backdrop-blur-md p-1 rounded-xl border border-white/20">
             <button
               onClick={goPrevDay}
-              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-black border border-slate-200/80 shadow-2xs"
+              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 active:scale-90 transition flex items-center justify-center text-white text-sm font-black border border-white/30 shadow-xs cursor-pointer"
               title="Previous Day"
             >
               ‹
@@ -536,7 +540,7 @@ export default function DailyViewPage() {
             {!isToday && (
               <button
                 onClick={() => setSelectedDate(today)}
-                className="px-2 py-1 text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition active:scale-95 shadow-2xs"
+                className="px-2 py-1 text-[11px] font-bold bg-white text-orange-700 rounded-lg transition active:scale-95 shadow-xs cursor-pointer"
               >
                 Today
               </button>
@@ -545,11 +549,11 @@ export default function DailyViewPage() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-2 py-0.5 text-xs font-bold border border-slate-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              className="px-2 py-0.5 text-xs font-bold border border-white/30 rounded-lg bg-white/90 text-slate-800 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
             />
             <button
               onClick={goNextDay}
-              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:scale-90 transition flex items-center justify-center text-slate-700 text-sm font-black border border-slate-200/80 shadow-2xs"
+              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 active:scale-90 transition flex items-center justify-center text-white text-sm font-black border border-white/30 shadow-xs cursor-pointer"
               title="Next Day"
             >
               ›
@@ -565,42 +569,38 @@ export default function DailyViewPage() {
         {/* CARD 1: DAILY WORKSHOP (VIBRANT SKY / BLUE THEME)        */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(2,132,199,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-0.5 ${
             expandedCards.workshop
               ? 'border-sky-400 ring-2 ring-sky-400/20 shadow-md'
-              : 'border-sky-200 hover:border-sky-300 hover:shadow-sm'
+              : 'border-gray-200/80 hover:border-sky-300'
           }`}
         >
-          {/* Card Header (Compact Preview) */}
+          {/* Card Header (Image 5 exact pattern) */}
           <button
             type="button"
             onClick={() => toggleCard('workshop')}
-            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-sky-100 bg-gradient-to-r from-sky-500/15 via-blue-500/8 to-transparent hover:from-sky-500/20 transition-all select-none group"
+            className="w-full text-left p-4 sm:p-5 select-none group cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {/* 3D Glossy Sky Blue Orb */}
-              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(2,132,199,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600 border border-sky-300/70 shrink-0">
-                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
-                <span className="text-base relative z-10 drop-shadow-xs">🏗️</span>
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-400 via-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform duration-200">
+                <span className="text-xl">🏗️</span>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-sky-700 transition flex items-center gap-1">
-                  <span>Daily Workshop</span>
-                </h2>
-                <p className="text-[11px] text-sky-800 font-bold truncate">
-                  {workshopTasks.length} tasks • {completedWorkshopCount} done
-                </p>
-              </div>
+              <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-sky-700 bg-sky-50 border border-sky-200/60 px-2.5 py-0.5 rounded-md">
+                Daily Tasks
+              </span>
             </div>
 
-            {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-black text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full border border-sky-200">
-                {expandedCards.workshop ? 'Close' : 'Open'}
-              </span>
-              <div className="w-6 h-6 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center text-sky-800 transition-all">
-                {expandedCards.workshop ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </div>
+            <h3 className="text-base font-bold text-gray-900 group-hover:text-sky-600 transition-colors flex items-center gap-1.5">
+              <span>Daily Workshop</span>
+              <ArrowRight className="w-4 h-4 text-sky-600 transition-transform duration-200 group-hover:translate-x-1" />
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+              {workshopTasks.length} tasks • {completedWorkshopCount} done today
+            </p>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-sky-600 font-semibold">
+              <span>{expandedCards.workshop ? 'Collapse tasks' : 'Open tasks'}</span>
+              <span>{expandedCards.workshop ? '↑' : '→'}</span>
             </div>
           </button>
 
@@ -763,42 +763,38 @@ export default function DailyViewPage() {
         {/* CARD 2: MY ROUTINE (LUSH EMERALD / GREEN THEME)          */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(5,150,105,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-0.5 ${
             expandedCards.routine
               ? 'border-emerald-400 ring-2 ring-emerald-400/20 shadow-md'
-              : 'border-emerald-200 hover:border-emerald-300 hover:shadow-sm'
+              : 'border-gray-200/80 hover:border-emerald-300'
           }`}
         >
-          {/* Card Header (Compact Preview) */}
+          {/* Card Header (Image 5 exact pattern) */}
           <button
             type="button"
             onClick={() => toggleCard('routine')}
-            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-emerald-100 bg-gradient-to-r from-emerald-500/15 via-teal-500/8 to-transparent hover:from-emerald-500/20 transition-all select-none group"
+            className="w-full text-left p-4 sm:p-5 select-none group cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {/* 3D Glossy Emerald Orb */}
-              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(5,150,105,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 border border-emerald-300/70 shrink-0">
-                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
-                <span className="text-base relative z-10 drop-shadow-xs">🏃</span>
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-600 to-green-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-200">
+                <span className="text-xl">🏃</span>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-emerald-700 transition flex items-center gap-1">
-                  <span>My Routine</span>
-                </h2>
-                <p className="text-[11px] text-emerald-800 font-bold truncate">
-                  {healthRoutines.length} habits • {completedRoutineCount} done • 🔥{maxRoutineStreak}
-                </p>
-              </div>
+              <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-md">
+                Habits & Vitals
+              </span>
             </div>
 
-            {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                {expandedCards.routine ? 'Close' : 'Open'}
-              </span>
-              <div className="w-6 h-6 rounded-full bg-emerald-100 group-hover:bg-emerald-200 flex items-center justify-center text-emerald-800 transition-all">
-                {expandedCards.routine ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </div>
+            <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-1.5">
+              <span>My Routine</span>
+              <ArrowRight className="w-4 h-4 text-emerald-600 transition-transform duration-200 group-hover:translate-x-1" />
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+              {healthRoutines.length} habits • {completedRoutineCount} done • 🔥{maxRoutineStreak} streak
+            </p>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-emerald-600 font-semibold">
+              <span>{expandedCards.routine ? 'Collapse habits' : 'Open habits'}</span>
+              <span>{expandedCards.routine ? '↑' : '→'}</span>
             </div>
           </button>
 
@@ -918,42 +914,38 @@ export default function DailyViewPage() {
         {/* CARD 3: MORNING SADHANA (SUNRISE GOLD / ORANGE THEME)    */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(217,119,6,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-0.5 ${
             expandedCards.morning
               ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-md'
-              : 'border-amber-200 hover:border-amber-300 hover:shadow-sm'
+              : 'border-gray-200/80 hover:border-amber-300'
           }`}
         >
-          {/* Card Header (Compact Preview) */}
+          {/* Card Header (Image 5 exact pattern) */}
           <button
             type="button"
             onClick={() => toggleCard('morning')}
-            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-amber-100 bg-gradient-to-r from-amber-500/15 via-orange-500/8 to-transparent hover:from-amber-500/20 transition-all select-none group"
+            className="w-full text-left p-4 sm:p-5 select-none group cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {/* 3D Glossy Sunrise Orb */}
-              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(217,119,6,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 border border-amber-300/70 shrink-0">
-                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
-                <span className="text-base relative z-10 drop-shadow-xs">☀️</span>
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-400 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform duration-200">
+                <span className="text-xl">🌅</span>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-amber-700 transition flex items-center gap-1">
-                  <span>Morning Sadhana</span>
-                </h2>
-                <p className="text-[11px] text-amber-800 font-bold truncate">
-                  {sadhanaState.morning.length} practices • {morningCompletedCount} done
-                </p>
-              </div>
+              <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200/60 px-2.5 py-0.5 rounded-md">
+                Morning Sadhana
+              </span>
             </div>
 
-            {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
-                {expandedCards.morning ? 'Close' : 'Open'}
-              </span>
-              <div className="w-6 h-6 rounded-full bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center text-amber-800 transition-all">
-                {expandedCards.morning ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </div>
+            <h3 className="text-base font-bold text-gray-900 group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+              <span>Morning Sadhana</span>
+              <ArrowRight className="w-4 h-4 text-amber-600 transition-transform duration-200 group-hover:translate-x-1" />
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+              {sadhanaState.morning.length} practices • {morningCompletedCount} done today
+            </p>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-amber-600 font-semibold">
+              <span>{expandedCards.morning ? 'Collapse practices' : 'Open practices'}</span>
+              <span>{expandedCards.morning ? '↑' : '→'}</span>
             </div>
           </button>
 
@@ -1116,42 +1108,38 @@ export default function DailyViewPage() {
         {/* CARD 4: EVENING SADHANA (ROYAL PURPLE / INDIGO THEME)    */}
         {/* ======================================================== */}
         <div
-          className={`rounded-2xl border transition-all duration-300 bg-white shadow-[0_4px_16px_rgba(147,51,234,0.06),0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden ${
+          className={`rounded-2xl border transition-all duration-300 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-0.5 ${
             expandedCards.evening
               ? 'border-purple-400 ring-2 ring-purple-400/20 shadow-md'
-              : 'border-purple-200 hover:border-purple-300 hover:shadow-sm'
+              : 'border-gray-200/80 hover:border-purple-300'
           }`}
         >
-          {/* Card Header (Compact Preview) */}
+          {/* Card Header (Image 5 exact pattern) */}
           <button
             type="button"
             onClick={() => toggleCard('evening')}
-            className="w-full px-3.5 py-3 flex items-center justify-between text-left border-b border-purple-100 bg-gradient-to-r from-purple-500/15 via-indigo-500/8 to-transparent hover:from-purple-500/20 transition-all select-none group"
+            className="w-full text-left p-4 sm:p-5 select-none group cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {/* 3D Glossy Twilight Purple Orb */}
-              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_3px_10px_rgba(147,51,234,0.3),inset_0_2px_3px_rgba(255,255,255,0.7),inset_0_-2px_3px_rgba(0,0,0,0.1)] bg-gradient-to-br from-purple-400 via-purple-600 to-indigo-700 border border-purple-300/70 shrink-0">
-                <div className="absolute top-0.5 left-1 right-1 h-3 bg-gradient-to-b from-white/70 to-transparent rounded-t-lg pointer-events-none" />
-                <span className="text-base relative z-10 drop-shadow-xs">🌙</span>
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-500 via-violet-600 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform duration-200">
+                <span className="text-xl">🌙</span>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight group-hover:text-purple-700 transition flex items-center gap-1">
-                  <span>Evening Sadhana</span>
-                </h2>
-                <p className="text-[11px] text-purple-800 font-bold truncate">
-                  {sadhanaState.evening.length} practices • {eveningCompletedCount} done
-                </p>
-              </div>
+              <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-50 border border-purple-200/60 px-2.5 py-0.5 rounded-md">
+                Evening Sadhana
+              </span>
             </div>
 
-            {/* Expand / Collapse Pill */}
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-black text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                {expandedCards.evening ? 'Close' : 'Open'}
-              </span>
-              <div className="w-6 h-6 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center text-purple-800 transition-all">
-                {expandedCards.evening ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </div>
+            <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors flex items-center gap-1.5">
+              <span>Evening Sadhana</span>
+              <ArrowRight className="w-4 h-4 text-purple-600 transition-transform duration-200 group-hover:translate-x-1" />
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+              {sadhanaState.evening.length} practices • {eveningCompletedCount} done today
+            </p>
+
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-purple-600 font-semibold">
+              <span>{expandedCards.evening ? 'Collapse practices' : 'Open practices'}</span>
+              <span>{expandedCards.evening ? '↑' : '→'}</span>
             </div>
           </button>
 

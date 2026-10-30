@@ -128,28 +128,44 @@ export default function ComprehensiveDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: '#000000' }}>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2" style={{ color: '#00FF00' }}>Life Planner Dashboard</h1>
-          <p style={{ color: '#FFFFFF' }}>Track your progress across different time periods</p>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header Banner with Glossy Orange-to-Green Header */}
+        <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-6 sm:p-8 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+          {/* Top Specular Gloss Highlight */}
+          <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-amber-100 border border-white/30 backdrop-blur-xs">
+                  Life Planner Studio
+                </span>
+                <span className="text-xs text-white/90 font-medium">Ayurvedic Ritucharya &amp; Goal Alignment</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-sm">
+                Life Planner Dashboard
+              </h1>
+              <p className="text-sm text-white/95 font-medium mt-1 max-w-2xl leading-relaxed">
+                Track your progress across different time periods, sadhana intentions, and long-term vision goals.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Time Period Buttons */}
-        <div className="flex flex-wrap gap-3 mb-8">
+        <div className="flex flex-wrap items-center gap-2">
           {(['daily', 'weekly', 'monthly', 'yearly', 'vision'] as TimePeriod[]).map(period => (
             <button
               key={period}
               onClick={() => setTimePeriod(period)}
-              className="px-6 py-3 rounded-lg font-semibold transition-all capitalize"
-              style={{
-                backgroundColor: timePeriod === period ? '#FFFF00' : '#333333',
-                color: timePeriod === period ? '#000000' : '#FFFF00',
-                border: '2px solid #FFFF00',
-              }}
+              className={`px-4 py-2 rounded-xl font-bold text-xs capitalize transition-all cursor-pointer shadow-xs ${
+                timePeriod === period
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-950/20'
+                  : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+              }`}
             >
-              {period}
+              {period} View
             </button>
           ))}
         </div>

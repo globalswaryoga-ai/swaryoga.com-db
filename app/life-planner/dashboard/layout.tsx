@@ -92,13 +92,12 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
         }
       }
 
-      // If no token, redirect to login (token is required for Mongo-backed persistence).
-      // We do NOT require a user object here because the token is the real source of truth.
+      // If no token, redirect to signin (without sign-in no one can use the app).
       if (!effectiveToken) {
         setIsAuthenticated(false);
         setIsCheckingAuth(false);
-        // Use replace instead of push to avoid back button issues
-        router.replace('/life-planner/login');
+        // Redirect directly to unified signin
+        router.replace('/signin?redirect=/life-planner/dashboard');
         return;
       }
 
@@ -126,17 +125,17 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-[#f0f4f8]">
       {/* Main website header — hidden when accessed from CRM */}
       {!isCrmAccess && <Navigation />}
 
       {/* Life Planner UI sits below website header */}
-      <div className="flex flex-1 min-h-0 bg-white overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 bg-[#f0f4f8] overflow-hidden relative">
         <LifePlannerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className="flex-1 flex flex-col overflow-hidden min-h-0 w-full">
           <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
-          <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 bg-white">{children}</main>
+          <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 bg-gradient-to-b from-[#f4f7fa] via-[#eef2f7] to-[#e6ecf4]">{children}</main>
         </div>
       </div>
     </div>
