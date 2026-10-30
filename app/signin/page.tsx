@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
@@ -20,9 +20,45 @@ function SignInInner() {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+
+  // Restore remembered credentials on initial mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      const savedEmail = localStorage.getItem('swar_remember_email');
+      const savedPassword = localStorage.getItem('swar_remember_password');
+      const savedRemember = localStorage.getItem('swar_remember_me');
+
+      if (savedRemember === 'false') {
+        setRememberMe(false);
+      } else if (savedEmail) {
+        setRememberMe(true);
+        let decodedPassword = '';
+        if (savedPassword) {
+          try {
+            decodedPassword = decodeURIComponent(escape(atob(savedPassword)));
+          } catch {
+            try {
+              decodedPassword = decodeURIComponent(savedPassword);
+            } catch {
+              decodedPassword = savedPassword;
+            }
+          }
+        }
+        setFormData((prev) => ({
+          ...prev,
+          email: savedEmail,
+          password: decodedPassword || prev.password,
+        }));
+      }
+    } catch (err) {
+      console.warn('Could not read remembered credentials:', err);
+    }
+  }, []);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -73,7 +109,28 @@ function SignInInner() {
       const user = (payload as any)?.user;
       setSubmitStatus('success');
 
-      // Use session manager to store token with 2-day expiry
+      // Save or clear remembered credentials based on checkbox
+      try {
+        if (typeof window !== 'undefined') {
+          if (rememberMe) {
+            localStorage.setItem('swar_remember_me', 'true');
+            localStorage.setItem('swar_remember_email', formData.email.trim());
+            try {
+              localStorage.setItem('swar_remember_password', btoa(unescape(encodeURIComponent(formData.password))));
+            } catch {
+              localStorage.setItem('swar_remember_password', encodeURIComponent(formData.password));
+            }
+          } else {
+            localStorage.setItem('swar_remember_me', 'false');
+            localStorage.removeItem('swar_remember_email');
+            localStorage.removeItem('swar_remember_password');
+          }
+        }
+      } catch (e) {
+        console.warn('Could not save remembered credentials:', e);
+      }
+
+      // Use session manager to store token with 1-year expiry
       if (token && user) {
         setSession({
           token,
@@ -203,16 +260,18 @@ function SignInInner() {
                 {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
               </div>
 
-              {/* Remember Me & Forgot Password */}
+              {/* Remember Password & Forgot Password */}
               <div className="flex items-center justify-between">
-                <label className="flex items-center">
+                <label className="flex items-center cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer accent-green-600"
                   />
-                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                  <span className="ml-2 text-sm text-gray-700 font-medium">Remember password</span>
                 </label>
-                <Link href="/forgot-password" className="text-sm text-green-600 hover:text-green-700">
+                <Link href="/forgot-password" className="text-sm font-semibold text-green-600 hover:text-green-700">
                   Forgot password?
                 </Link>
               </div>

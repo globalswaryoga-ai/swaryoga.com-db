@@ -70,6 +70,38 @@ export default function AdminLogin() {
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(true);
+
+  // Restore remembered credentials on initial mount
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      const savedUser = localStorage.getItem('swar_admin_remember_user');
+      const savedPass = localStorage.getItem('swar_admin_remember_pass');
+      const savedRem = localStorage.getItem('swar_admin_remember_me');
+
+      if (savedRem === 'false') {
+        setRememberPassword(false);
+      } else if (savedUser) {
+        setRememberPassword(true);
+        let decodedPass = '';
+        if (savedPass) {
+          try {
+            decodedPass = decodeURIComponent(escape(atob(savedPass)));
+          } catch {
+            decodedPass = savedPass;
+          }
+        }
+        setFormData((prev) => ({
+          ...prev,
+          username: savedUser,
+          password: decodedPass || prev.password,
+        }));
+      }
+    } catch (err) {
+      console.warn('Could not read remembered admin credentials:', err);
+    }
+  }, []);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -112,6 +144,27 @@ export default function AdminLogin() {
 
       if (response.ok && data.token) {
         setSubmitStatus('success');
+
+        // Save or clear remembered credentials
+        try {
+          if (typeof window !== 'undefined') {
+            if (rememberPassword) {
+              localStorage.setItem('swar_admin_remember_me', 'true');
+              localStorage.setItem('swar_admin_remember_user', formData.username.trim());
+              try {
+                localStorage.setItem('swar_admin_remember_pass', btoa(unescape(encodeURIComponent(formData.password))));
+              } catch {
+                localStorage.setItem('swar_admin_remember_pass', encodeURIComponent(formData.password));
+              }
+            } else {
+              localStorage.setItem('swar_admin_remember_me', 'false');
+              localStorage.removeItem('swar_admin_remember_user');
+              localStorage.removeItem('swar_admin_remember_pass');
+            }
+          }
+        } catch (e) {
+          console.warn('Could not save remembered admin credentials:', e);
+        }
 
         // Store admin token in localStorage (support both key formats used across the repo)
         const resolvedUserId = data.user?.userId || formData.username;
@@ -239,6 +292,19 @@ export default function AdminLogin() {
                 </button>
               </div>
               {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+            </div>
+
+            {/* Remember Password */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberPassword}
+                  onChange={(e) => setRememberPassword(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                />
+                <span className="ml-2 text-sm text-gray-700 font-medium">Remember password</span>
+              </label>
             </div>
 
             {/* Submit Button */}
