@@ -1,7 +1,7 @@
 import { uploadToBunnyStorage } from '@/lib/bunny-storage';
 import { saveKnowledgeSource } from './knowledgeRepository';
 import { claimNextVideoIngestionJob, finishVideoIngestionJob } from './videoIngestionQueue';
-import { analyzeMediaBuffer, fetchBunnyMedia, fetchYouTubeMedia } from './mediaTranscription';
+import { analyzeBunnyMediaUrl, analyzeMediaBuffer, fetchYouTubeMedia } from './mediaTranscription';
 
 const CONTENT_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', mpga: 'audio/mpeg', mpeg: 'audio/mpeg',
@@ -12,25 +12,30 @@ export async function processNextMohanRagVideo(): Promise<{ processed: boolean; 
   const job = await claimNextVideoIngestionJob();
   if (!job) return { processed: false };
   try {
-    const media = job.provider === 'youtube'
-      ? await fetchYouTubeMedia(job.sourceUrl)
-      : await fetchBunnyMedia(job.sourceUrl);
-    const analysis = await analyzeMediaBuffer(media);
+    const bunnyExtension = new URL(job.sourceUrl).pathname.split('.').pop()?.toLowerCase() || 'mp4';
+    const media = job.provider === 'youtube' ? await fetchYouTubeMedia(job.sourceUrl) : null;
+    let bunnyTitle = new URL(job.sourceUrl).pathname.split('/').pop() || 'Bunny media';
+    try { bunnyTitle = decodeURIComponent(bunnyTitle); } catch { /* Preserve the URL-encoded fallback title. */ }
+    const title = job.title || (media?.title ?? bunnyTitle.replace(/\.[^.]+$/, ''));
+    const extension = media?.extension || bunnyExtension;
+    const analysis = media
+      ? await analyzeMediaBuffer({ ...media, language: job.language })
+      : await analyzeBunnyMediaUrl({ url: job.sourceUrl, title, extension, language: job.language });
     const originalFileUrl = job.provider === 'youtube'
-      ? await uploadToBunnyStorage(media.buffer, `${job.id}.mp4`, { contentType: 'video/mp4' })
+      ? await uploadToBunnyStorage(media!.buffer, `${job.id}.mp4`, { contentType: 'video/mp4' })
       : job.sourceUrl;
     const source = await saveKnowledgeSource({
       moduleId: job.moduleId,
-      title: job.title || analysis.title,
+      title: title || analysis.title,
       content: analysis.annotatedTimeline,
       topic: job.topic,
       language: job.language,
-      sourceType: job.provider === 'youtube' ? 'youtube' : media.extension,
+      sourceType: job.provider === 'youtube' ? 'youtube' : extension,
       sourceReference: job.sourceUrl,
-      originalFileName: `${analysis.title}.${media.extension}`.slice(0, 240),
+      originalFileName: `${analysis.title}.${extension}`.slice(0, 240),
       originalFileUrl,
-      originalMimeType: CONTENT_TYPES[media.extension] || 'application/octet-stream',
-      extractionType: analysis.emotionSuggestionsAdded ? 'timestamped_transcription_with_avatar_suggestions' : 'timestamped_transcription',
+      originalMimeType: CONTENT_TYPES[extension] || 'application/octet-stream',
+      extractionType: `${analysis.correctionApplied ? 'proofread_' : ''}${analysis.emotionSuggestionsAdded ? 'timestamped_transcription_with_avatar_suggestions' : 'timestamped_transcription'}`,
     }, job.createdBy);
     if (!source?.id) throw new Error('Bunny saved the media but did not return the knowledge source record.');
     await finishVideoIngestionJob(job.id, { status: 'completed', sourceId: source.id, originalFileUrl });

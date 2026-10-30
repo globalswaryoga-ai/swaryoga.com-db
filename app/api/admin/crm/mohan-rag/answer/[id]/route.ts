@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const clone = await getMohanRagAvatarConfig();
     if (!clone?.authorized || !clone.avatarId || !clone.voiceId) {
-      return NextResponse.json({ error: 'Configure your authorized HeyGen avatar and cloned voice in the AI Avatar — My Clone section first.' }, { status: 409 });
+      return NextResponse.json({ error: 'Configure your authorized clone avatar and voice in the AI Avatar — My Clone section first.' }, { status: 409 });
     }
     if (!['hi', 'mr', 'en'].includes(answer.language) || !clone.supportedLanguages.includes(answer.language)) {
       return NextResponse.json({ error: 'Run the answer preview in a language verified for the configured cloned voice.' }, { status: 400 });

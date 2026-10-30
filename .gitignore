@@ -14,6 +14,8 @@ out/
 !.agents/**
 !docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md
 !docs/REPO_GUIDE.md
+!docs/MOHAN_RAG_IMPLEMENTATION_TODO.md
+!docs/MOHAN_RAG_ARCHITECTURE_ASSESSMENT.md
 
 # Never commit bridge/VPS private keys (including files restored from history).
 deploy/wa-bridge/*.pem

@@ -40,6 +40,8 @@ import {
   Sun,
   Wand2,
   Heart,
+  Cpu,
+  ShieldCheck,
 } from 'lucide-react';
 import Avatar3DCanvas from './Avatar3DCanvas';
 import {
@@ -1854,7 +1856,7 @@ export default function AvatarEditStudio({
                             } else if (pm.key === 'running') {
                               setPosY(0);
                               setScale(90);
-                            } else if (pm.key === 'yoga_asana') {
+                            } else if ((pm.key as string) === 'yoga_asana') {
                               setPosY(2);
                               setScale(100);
                             } else {

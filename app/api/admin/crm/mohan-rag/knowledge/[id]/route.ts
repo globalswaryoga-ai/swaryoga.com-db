@@ -22,13 +22,14 @@ function requireMohanRagAdmin(request: NextRequest) {
   }
 }
 
-type RouteContext = { params: { id: string } };
+type RouteContext = { params: Promise<{ id: string }> | { id: string } };
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const admin = requireMohanRagAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
   try {
-    const source = await getKnowledgeSource(params.id);
+    const { id } = await context.params;
+    const source = await getKnowledgeSource(id);
     if (!source) return NextResponse.json({ error: 'Knowledge source not found' }, { status: 404 });
     return NextResponse.json({ success: true, source });
   } catch (error) {
@@ -37,26 +38,27 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   const admin = requireMohanRagAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
 
   try {
+    const { id } = await context.params;
     const body = await request.json();
     if (['approved', 'rejected'].includes(body?.status)) {
       const reviewerId = String((admin as any).userId || (admin as any).username || 'admin');
       if (body.status === 'approved') {
-        const candidate = await getKnowledgeSource(params.id);
+        const candidate = await getKnowledgeSource(id);
         if (candidate?.moduleId === 'research' && !candidate.sourceReference.trim()) {
           return NextResponse.json({ error: 'Add a source citation or URL before approving a research report' }, { status: 400 });
         }
       }
-      const source = await setKnowledgeSourceStatus(params.id, body.status as KnowledgeStatus, reviewerId);
+      const source = await setKnowledgeSourceStatus(id, body.status as KnowledgeStatus, reviewerId);
       if (!source) return NextResponse.json({ error: 'Knowledge source not found' }, { status: 404 });
       return NextResponse.json({ success: true, source });
     }
 
-    const existing = await getKnowledgeSource(params.id);
+    const existing = await getKnowledgeSource(id);
     if (!existing) return NextResponse.json({ error: 'Knowledge source not found' }, { status: 404 });
     const moduleId = String(body?.moduleId || existing.moduleId);
     const language = String(body?.language === undefined ? existing.language : body.language);
@@ -67,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (!['auto', 'en', 'hi', 'mr'].includes(language)) return NextResponse.json({ error: 'Language must be auto, English, Hindi, or Marathi' }, { status: 400 });
     if (!title || !content) return NextResponse.json({ error: 'Title and source text are required' }, { status: 400 });
     if (moduleId === 'research' && !sourceReference) return NextResponse.json({ error: 'A source citation or URL is required for research reports' }, { status: 400 });
-    if (title.length > 300 || content.length > 180_000) return NextResponse.json({ error: 'Title or source text exceeds the current text-editor limit (180,000 characters)' }, { status: 413 });
+    if (title.length > 300 || content.length > 500_000) return NextResponse.json({ error: 'Title or source text exceeds the current text-editor limit (500,000 characters)' }, { status: 413 });
     const source = await saveKnowledgeSource({
       id: existing.id,
       moduleId,
@@ -77,7 +79,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       language,
       sourceReference: sourceReference.slice(0, 1000),
       sourceType: existing.sourceType,
-    }, existing.createdBy);
+      originalFileName: existing.originalFileName,
+      originalFileUrl: existing.originalFileUrl,
+      originalMimeType: existing.originalMimeType,
+      extractionType: existing.extractionType,
+    }, existing.createdBy, existing);
     return NextResponse.json({ success: true, source });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update source';
@@ -85,14 +91,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const admin = requireMohanRagAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
   try {
-    const source = await getKnowledgeSource(params.id);
+    const { id } = await context.params;
+    const source = await getKnowledgeSource(id);
     if (!source) return NextResponse.json({ error: 'Knowledge source not found' }, { status: 404 });
-    await deleteKnowledgeSource(params.id);
-    return NextResponse.json({ success: true, deletedId: params.id });
+    await deleteKnowledgeSource(id);
+    return NextResponse.json({ success: true, deletedId: id });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete source';
     return NextResponse.json({ error: message }, { status: 503 });

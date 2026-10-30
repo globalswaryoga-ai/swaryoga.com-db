@@ -30,12 +30,40 @@ interface Module5Props {
   onSendToVideoStudio?: (timelineData: any) => void;
 }
 
-async function readJsonResponse(response: Response) {
-  const body = await response.text();
-  try { return JSON.parse(body); } catch {
-    const route = new URL(response.url).pathname;
-    throw new Error(`Media API returned a non-JSON page (HTTP ${response.status}, ${route}). Restart the Next.js dev server so it registers the new API route, then retry.`);
-  }
+function sendMediaForAnalysis(
+  form: FormData,
+  token: string | null | undefined,
+  onUploadProgress: (percent: number) => void,
+  onUploadComplete: () => void,
+) {
+  return new Promise<any>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/admin/e-learning/video-to-text-emotion');
+    xhr.timeout = 240_000;
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.upload.onload = onUploadComplete;
+    xhr.onload = () => {
+      let result: any;
+      try { result = JSON.parse(xhr.responseText); } catch {
+        const route = xhr.responseURL ? new URL(xhr.responseURL).pathname : '/api/admin/e-learning/video-to-text-emotion';
+        reject(new Error(`Media API returned a non-JSON page (HTTP ${xhr.status}, ${route}). Restart the Next.js dev server and retry.`));
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) reject(new Error(result.error || `Media analysis failed (HTTP ${xhr.status}).`));
+      else resolve(result);
+    };
+    xhr.onerror = () => reject(new Error('Network connection failed while analyzing the media.'));
+    xhr.ontimeout = () => {
+      const error = new Error('Transcription took longer than 4 minutes and was stopped. Try a shorter/compressed file; the transcript has not been saved.');
+      error.name = 'TimeoutError';
+      reject(error);
+    };
+    xhr.onabort = () => reject(new Error('Media analysis was cancelled.'));
+    xhr.send(form);
+  });
 }
 
 export default function Module5VideoToTextEmotion({
@@ -49,6 +77,7 @@ export default function Module5VideoToTextEmotion({
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState(initialVideoUrl || '');
+  const [sourceLanguage, setSourceLanguage] = useState('hi');
   const [videoTitle, setVideoTitle] = useState<string | null>(initialVideoTitle || null);
   const [savedAvatars, setSavedAvatars] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -58,6 +87,9 @@ export default function Module5VideoToTextEmotion({
   const [plainTranscript, setPlainTranscript] = useState('');
   const [annotatedTranscript, setAnnotatedTranscript] = useState('');
   const [analysisError, setAnalysisError] = useState('');
+  const [analysisWarning, setAnalysisWarning] = useState('');
+  const [analysisStage, setAnalysisStage] = useState<'uploading' | 'processing' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [activeMinuteTab, setActiveMinuteTab] = useState(0);
   const [includeEmotionsInText, setIncludeEmotionsInText] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -97,16 +129,21 @@ export default function Module5VideoToTextEmotion({
     if (!videoFile && !sourceUrl.trim()) return;
     setIsProcessing(true);
     setAnalysisError('');
-    setProgressText('Extracting audio and generating a timestamped transcript...');
+    setAnalysisWarning('');
+    setAnalysisStage(videoFile ? 'uploading' : 'processing');
+    setUploadProgress(0);
+    setProgressText(videoFile ? 'Uploading your media to the analysis server...' : 'Sending the URL to the analysis server...');
     try {
       const form = new FormData();
+      form.set('language', sourceLanguage);
       if (videoFile) form.set('file', videoFile);
       else form.set('url', sourceUrl.trim());
-      const response = await fetch('/api/admin/e-learning/video-to-text-emotion', {
-        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: form,
-      });
-      const result = await readJsonResponse(response);
-      if (!response.ok) throw new Error(result.error || 'Media transcription failed');
+      const result = await sendMediaForAnalysis(
+        form,
+        token,
+        percent => setUploadProgress(percent),
+        () => { setAnalysisStage('processing'); setProgressText('Upload complete. Extracting audio and requesting Whisper timestamps...'); },
+      );
       const grouped = new Map<number, MinuteSection['sentences']>();
       for (const [index, segment] of (result.segments || []).entries()) {
         const minute = Math.floor(Number(segment.start) / 60);
@@ -126,11 +163,17 @@ export default function Module5VideoToTextEmotion({
       setVideoTitle(result.title || videoFile?.name || sourceUrl);
       const languageNames: Record<string, string> = { hi: 'Hindi', en: 'English', mr: 'Marathi', kn: 'Kannada', ne: 'Nepali' };
       setDetectedLang(result.language ? `Detected language: ${languageNames[result.language] || result.language}` : 'Language detected by Whisper');
-      setProgressText(result.emotionSuggestionsAdded ? 'Timestamped transcript and AI avatar suggestions are ready.' : 'Timestamped transcript is ready; emotion suggestions were unavailable.');
+      setProgressText(result.correctionApplied
+        ? 'Hindi-aware transcript cleanup, timestamps, and avatar suggestions are ready.'
+        : 'Timestamped transcript is ready. Raw Whisper wording was kept because cleanup was unavailable.');
+      setAnalysisWarning([result.correctionWarning, result.cueWarning].filter(Boolean).join(' '));
       setActiveMinuteTab(0);
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'Media transcription failed.');
-    } finally { setIsProcessing(false); }
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      setAnalysisError(timedOut
+        ? 'Transcription took longer than 4 minutes and was stopped. Try a shorter/compressed file; the transcript has not been saved.'
+        : error instanceof Error ? error.message : 'Media transcription failed.');
+    } finally { setIsProcessing(false); setAnalysisStage(null); }
   };
 
   const getAllText = (withEmotions = includeEmotionsInText) => {
@@ -182,6 +225,7 @@ export default function Module5VideoToTextEmotion({
             <div className="flex items-center gap-2 text-slate-900"><Upload size={18} className="text-sky-700"/><h3 className="font-semibold">Upload a media file</h3></div>
             <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full rounded-xl border-2 border-dashed border-sky-200 bg-sky-50 px-4 py-6 text-sm font-semibold text-sky-900 hover:bg-sky-100">{videoFile ? `${videoFile.name} · ${(videoFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose MP4, WebM, MOV, MP3, M4A, or WAV'}</button>
             <p className="text-xs text-slate-500">Maximum upload: 150 MB. Longer audio is compressed before transcription.</p>
+            <label className="block text-xs font-semibold text-slate-700">Spoken language<select value={sourceLanguage} onChange={event => setSourceLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-900"><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option><option value="auto">Auto-detect</option></select></label>
             <label className="block text-xs font-semibold text-slate-700">Or analyze a YouTube or Bunny URL<input value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setVideoFile(null); setVideoUrl(null); setSections(null); }} className="mt-1.5 w-full rounded-lg border border-violet-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-900" placeholder="https://youtu.be/... or https://...b-cdn.net/lesson.mp4" /></label>
             {videoUrl && <video src={videoUrl} controls className="w-full rounded-xl border border-slate-200 bg-slate-950" />}
             {savedAvatars.length > 0 && (
@@ -190,15 +234,20 @@ export default function Module5VideoToTextEmotion({
               </div>
             )}
             {analysisError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{analysisError}</p>}
+            {analysisWarning && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">{analysisWarning}</p>}
             <button type="button" disabled={isProcessing || (!videoFile && !sourceUrl.trim())} onClick={handleRunAnalysis} className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{isProcessing ? 'Transcribing media…' : 'Generate real transcript & cues'}</button>
           </section>
 
           {isProcessing && (
-            <div className="p-4 bg-slate-900 border border-rose-500/30 rounded-2xl space-y-2">
-              <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5 animate-pulse">
-                <span>●</span> Real transcription running:
-              </span>
-              <p className="text-xs text-slate-700">{progressText}</p>
+            <div className="rounded-2xl border border-rose-200 bg-white p-4 shadow-sm space-y-2" role="status" aria-live="polite">
+              <div className="flex items-center justify-between gap-3"><span className="text-xs font-bold text-slate-800">{analysisStage === 'uploading' ? 'Uploading media' : 'Analyzing media'}</span>{analysisStage === 'uploading' && <span className="text-xs font-bold tabular-nums text-sky-800">{uploadProgress}%</span>}</div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={analysisStage === 'uploading' ? 'Media upload progress' : 'Media analysis running'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={analysisStage === 'uploading' ? uploadProgress : undefined} aria-valuetext={analysisStage === 'uploading' ? `${uploadProgress}% uploaded` : 'Server is transcribing and preparing cue suggestions'}>
+                {analysisStage === 'uploading'
+                  ? <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500 transition-[width] duration-200" style={{ width: `${uploadProgress}%` }} />
+                  : <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-violet-500 via-rose-500 to-amber-400" style={{ animation: 'ragProgressSlide 1.4s ease-in-out infinite' }} />}
+              </div>
+              <p className="text-xs leading-5 text-slate-600">{progressText}</p>
+              {analysisStage === 'processing' && <p className="text-[11px] text-slate-500">The bar shows activity, not a completion percentage. This stage has a 4-minute limit.</p>}
             </div>
           )}
         </div>

@@ -33,13 +33,24 @@ export async function annotateTranscriptForAvatar(transcript: string): Promise<s
   const annotatedChunks: string[] = [];
 
   for (const chunk of splitIntoChunks(transcript)) {
-    const annotated = await generateAIText({
-      systemPrompt: `You add optional avatar delivery metadata to a source transcript. Do not summarize, correct, translate, reorder, or rewrite any spoken words. Preserve every original word and punctuation exactly. Add tags only; use at most one emotion tag and one face tag before a sentence, and leave neutral sentences untagged. Emotion tag format: [supported_emotion:0-100]. Allowed emotion names: ${emotionTags}. Face suggestion tag format: [face:supported_expression]. Allowed face expressions: ${faceTags}. Choose only cues supported by the wording and keep intensities restrained. Face tags are avatar performance suggestions inferred from the transcript, not claims that a recorded face was visually observed. Return only the annotated transcript, without markdown or explanation.`,
-      message: `Add optional delivery cues to this exact transcript. Its spoken language must remain unchanged.\n\n${chunk}`,
-      maxOutputTokens: 8192,
-      temperature: 0.1,
-      providerOrder: ['OpenAI', 'Anthropic'],
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    let annotated: string;
+    try {
+      annotated = await generateAIText({
+        systemPrompt: `You add optional avatar delivery metadata to a source transcript. Do not summarize, correct, translate, reorder, or rewrite any spoken words. Preserve every original word and punctuation exactly. Add tags only; use at most one emotion tag and one face tag before a sentence, and leave neutral sentences untagged. Emotion tag format: [supported_emotion:0-100]. Allowed emotion names: ${emotionTags}. Face suggestion tag format: [face:supported_expression]. Allowed face expressions: ${faceTags}. Choose only cues supported by the wording and keep intensities restrained. Face tags are avatar performance suggestions inferred from the transcript, not claims that a recorded face was visually observed. Return only the annotated transcript, without markdown or explanation.`,
+        message: `Add optional delivery cues to this exact transcript. Its spoken language must remain unchanged.\n\n${chunk}`,
+        maxOutputTokens: 8192,
+        temperature: 0.1,
+        providerOrder: ['OpenAI', 'Anthropic'],
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error('Emotion cue generation timed out after 45 seconds; the plain transcript is still available.');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     const clean = annotated.replace(/^```(?:text)?\s*|\s*```$/g, '').trim();
     if (normalizeSpeech(clean) !== normalizeSpeech(chunk)) {
       throw new Error('Could not add avatar cues without changing the transcript. The untagged transcript was preserved.');

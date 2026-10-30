@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     try {
       const scripts: { language: string; text: string; approved: boolean }[] = [];
       for (const language of (job.targetLanguages || [])) {
-        const text = await condenseAndTranslate(job.correctedTranscript, job.sourceLanguage, language, job.topicTitle);
+        const text = await condenseAndTranslate(job.correctedTranscript || '', job.sourceLanguage, language, job.topicTitle);
         scripts.push({ language, text, approved: false });
       }
       job = (await updateAiVideoJob(id, {

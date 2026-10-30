@@ -6,7 +6,7 @@ import {
   Activity, AlertCircle, ArrowLeft, ArrowRight, BookOpen, Brain,
   ChevronRight, CircleHelp, FileSearch, FileText, FlaskConical, Globe2,
   HardDrive, Languages, LayoutDashboard, ListChecks, LockKeyhole, Mic2, Network,
-  Search, Settings2, ShieldCheck, Sparkles, Upload, UserRoundCog, Users, Video, FileAudio,
+  Search, Settings2, ShieldCheck, Sparkles, Upload, UserRoundCog, Users, Video, FileAudio, SpellCheck,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
@@ -19,6 +19,50 @@ type SectionId =
   | 'connection' | 'analytics' | 'settings';
 
 type NavItem = { id: SectionId; label: string; icon: ElementType };
+
+function formatPdfPageCoverage(stats: any): string {
+  if (!stats || !Number.isFinite(stats.totalPages) || !Number.isFinite(stats.extractedPages)) return '';
+  const total = stats.totalPages as number;
+  const extracted = stats.extractedPages as number;
+  const missing = Array.isArray(stats.pagesWithoutText) ? stats.pagesWithoutText.filter((page: unknown) => Number.isInteger(page)) as number[] : [];
+  if (!total) return ' PDF page count could not be determined.';
+  if (extracted === total) return ` Text extracted from all ${total} PDF pages.`;
+  const pageList = missing.slice(0, 12).join(', ');
+  const more = missing.length > 12 ? `, and ${missing.length - 12} more` : '';
+  return ` Text extracted from ${extracted} of ${total} PDF pages. Pages with no selectable text: ${pageList || 'unknown'}${more}. These may be scanned/image-only or blank pages and need OCR if they contain content.`;
+}
+
+async function requestProofreadText(content: string, language: string, token: string): Promise<string> {
+  const response = await fetch('/api/admin/crm/mohan-rag/proofread', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, language }),
+  });
+  const data = await readManagementApiJson(response);
+  if (!response.ok) throw new Error(data.error || 'Could not check spelling');
+  if (typeof data.correctedText !== 'string' || !data.correctedText.trim()) throw new Error('Spell check returned no text. Your source is unchanged.');
+  return data.correctedText;
+}
+
+async function correctAndSaveKnowledgeSource(sourceId: string, token: string): Promise<boolean> {
+  const getResponse = await fetch(`/api/admin/crm/mohan-rag/knowledge/${sourceId}`, { headers: { Authorization: `Bearer ${token}` } });
+  const current = await readManagementApiJson(getResponse);
+  if (!getResponse.ok) throw new Error(current.error || 'Could not open source for correction');
+  const correctedText = await requestProofreadText(current.source.content || '', current.source.language || 'auto', token);
+  if (correctedText.trim() === String(current.source.content || '').trim()) return false;
+  const saveResponse = await fetch(`/api/admin/crm/mohan-rag/knowledge/${sourceId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: correctedText }),
+  });
+  const saved = await readManagementApiJson(saveResponse);
+  if (!saveResponse.ok) throw new Error(saved.error || 'Could not save corrected source');
+  return true;
+}
+
+function SpellcheckReview({ text, language, onApply, onDiscard }: { text: string; language: string; onApply: () => void; onDiscard: () => void }) {
+  return <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="text-sm font-semibold text-violet-950">Proofread preview</h4><p className="mt-1 text-xs text-violet-800">Review the suggested spelling and spacing. Your source has not changed yet.</p></div><div className="flex gap-2"><button type="button" onClick={onDiscard} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Discard</button><button type="button" onClick={onApply} className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white">Use corrected text</button></div></div><pre lang={language === 'auto' ? undefined : language} className={`mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-100 bg-white p-3 text-sm leading-6 text-slate-800 ${devanagariFontClass(text, language)}`}>{text}</pre></div>;
+}
 
 const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
@@ -692,6 +736,8 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
   const [editingId, setEditingId] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [proofreading, setProofreading] = useState(false);
+  const [proofreadPreview, setProofreadPreview] = useState('');
   const [topic, setTopic] = useState('');
   const [sourceReference, setSourceReference] = useState('');
   const [language, setLanguage] = useState('auto');
@@ -704,6 +750,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
   const [ebookSourceLanguage, setEbookSourceLanguage] = useState('hi');
   const [ebookTargetLanguage, setEbookTargetLanguage] = useState('hi');
   const [ebookBusyId, setEbookBusyId] = useState('');
+  const [spellcheckBusyId, setSpellcheckBusyId] = useState('');
   const [ebookDraft, setEbookDraft] = useState<{ sourceId: string; title: string; language: string; content: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -726,16 +773,54 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
 
   useEffect(() => { loadSources(); }, [module.id, statusFilter, token]);
 
+  const proofreadContent = async () => {
+    if (!token || !content.trim()) return;
+    setProofreading(true); setError(''); setNotice(''); setProofreadPreview('');
+    try { setProofreadPreview(await requestProofreadText(content, language, token)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not check spelling'); }
+    finally { setProofreading(false); }
+  };
+
+  const correctSavedSource = async (source: KnowledgeSourceView) => {
+    if (!token) return;
+    setSpellcheckBusyId(source.id); setError(''); setNotice('');
+    try {
+      const changed = await correctAndSaveKnowledgeSource(source.id, token);
+      setNotice(changed ? 'Spelling and grammar corrections saved as a draft. Review the text, then approve it again for retrieval.' : 'The checker found no suggested changes.');
+      if (changed && previewId === source.id) { setPreviewId(''); setPreviewText(''); }
+      await loadSources();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not correct source text'); }
+    finally { setSpellcheckBusyId(''); }
+  };
+
   const importSourceFile = async (file?: File) => {
     if (!file || !token) return;
-    if (file.size > 150 * 1024 * 1024) { setImportError('Source files must be smaller than 150 MB.'); return; }
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const maxVideoUploadBytes = 5 * 1024 * 1024 * 1024;
+    if (file.size > maxVideoUploadBytes) { setImportError('MP4 and MP3 uploads must be 5 GB or smaller; PDF and Word files must be 150 MB or smaller.'); return; }
+    if (file.size > 150 * 1024 * 1024 && (!['mp4', 'mp3', 'm4a', 'webm', 'mov', 'wav'].includes(extension || '') || module.id === 'research')) {
+      setImportError('PDF, Word, and research report imports must be 150 MB or smaller. Media up to 5 GB can be streamed to Bunny and queued from a knowledge library.'); return;
+    }
     if (module.id === 'research' && !sourceReference.trim()) {
       setImportError('Enter the research source citation or URL before importing.');
       return;
     }
-    setImporting(true); setImportError(''); setImportMessage('');
+    setImporting(true); setImportError(''); setImportMessage(''); setProofreadPreview('');
     try {
-      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (file.size > 150 * 1024 * 1024) {
+        const params = new URLSearchParams({
+          module: module.id, topic, language, fileName: file.name,
+          title: title.trim() || file.name.replace(/\.[^.]+$/, ''),
+        });
+        setImportMessage('Streaming original media to Bunny; MP4 audio will be converted to MP3 in the overnight transcription job…');
+        const queuedResponse = await fetch(`/api/admin/crm/mohan-rag/ingestion/upload?${params}`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+        });
+        const queued = await readManagementApiJson(queuedResponse);
+        if (!queuedResponse.ok) throw new Error(queued.error || 'Could not upload and queue large media');
+        setImportMessage(`${queued.message} Check Ingestion & Jobs for progress; the completed transcript will appear as a review draft.`);
+        return;
+      }
       let audioFile: File | null = null;
       if (extension === 'mp4' || (extension === 'mp3' && file.size > 24 * 1024 * 1024)) {
         setImportMessage('Converting audio in your browser before transcription…');
@@ -751,7 +836,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
       form.append('sourceReference', sourceReference);
       setImportMessage('Extracting text, saving the original to Bunny Storage, and creating a review draft…');
       const response = await fetch('/api/admin/crm/mohan-rag/import', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
-      const data = await response.json();
+      const data = await readManagementApiJson(response);
       if (!response.ok) throw new Error(data.error || 'Could not import source');
       const imported = data.source as KnowledgeSourceView | null;
       if (!imported || typeof imported.id !== 'string' || !imported.id) {
@@ -760,7 +845,23 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
       }
       setEditingId(imported.id); setTitle(imported.title); setContent(imported.content || ''); setTopic(imported.topic || ''); setSourceReference(imported.sourceReference || ''); setLanguage(imported.language || 'auto');
       const cueNote = data.avatarCuesAdded ? ' Avatar emotion and face-expression suggestions were added for the clone; these are transcript-based suggestions, not measured facial observations.' : data.avatarCueWarning ? ` ${data.avatarCueWarning}` : '';
-      setImportMessage(`${data.extractedCharacters.toLocaleString()} characters extracted.${cueNote} Review the text below, then save corrections and approve it for retrieval.`);
+      const correctionNote = data.transcriptCorrectionApplied ? ' Transcript was proofread in the selected language without translation.' : data.transcriptCorrectionWarning ? ` ${data.transcriptCorrectionWarning}` : '';
+      const pdfCoverage = formatPdfPageCoverage(data.pdfPageStats);
+      let proofreadNote = '';
+      if ((extension === 'pdf' || extension === 'docx') && imported.content) {
+        setProofreading(true);
+        setImportMessage('Text imported. Checking all words, Hindi spelling, and PDF line breaks; the original stays unchanged until you apply the preview…');
+        try {
+          const suggestion = await requestProofreadText(imported.content, language, token);
+          if (suggestion.trim() !== imported.content.trim()) {
+            setProofreadPreview(suggestion);
+            proofreadNote = ' A full spelling correction preview is ready below the editor. Review it and choose whether to apply it.';
+          } else proofreadNote = ' The checker found no suggested spelling changes.';
+        } catch (cause) {
+          proofreadNote = ` Spell check could not finish: ${cause instanceof Error ? cause.message : 'unknown error'}. You can run Check spelling manually.`;
+        } finally { setProofreading(false); }
+      }
+      setImportMessage(`${data.extractedCharacters.toLocaleString()} characters extracted.${pdfCoverage}${correctionNote}${proofreadNote}${cueNote} Review the text below, then save corrections and approve it for retrieval.`);
       await loadSources();
     } catch (cause) {
       setImportError(cause instanceof Error ? cause.message : 'Could not import source');
@@ -776,7 +877,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
     if (!token) return;
     try {
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${source.id}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await response.json();
+      const data = await readManagementApiJson(response);
       if (!response.ok) throw new Error(data.error || 'Could not load extracted text');
       setPreviewId(source.id); setPreviewText(data.source.content || 'No extracted text is stored for this source.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load extracted text'); }
@@ -878,7 +979,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
         <DetailCard title="Approval rule" icon={FileText}>New and edited text sources are saved as drafts. Only an explicit admin approval makes a source eligible for this module’s grounded answer preview.</DetailCard>
       </div>
       <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Add or import a source</h3><p className="mt-1 text-xs text-slate-500">Add text, or extract text from PDF and DOCX. Transcribe speech from MP3 and MP4. All new content starts as a review draft.</p></div><StatusPill muted>Text + file sources</StatusPill></div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Add or import a source</h3><p className="mt-1 text-xs text-slate-500">PDF and Word files up to 150 MB are extracted here. MP4 and MP3 media up to 5 GB stream to Bunny; large videos are converted to MP3 in the overnight job, transcribed in segments with emotion and face cues, then added as a review draft.</p></div><StatusPill muted>Text + file sources</StatusPill></div>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/90 via-purple-50/50 to-indigo-50/90 p-5 shadow-xs">
           <div><h4 className="flex items-center gap-2 text-sm font-semibold text-violet-900"><FileAudio className="h-4 w-4" />Import a source file</h4><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">PDF and DOCX text is extracted. MP3 and MP4 speech is transcribed and tagged with suggested avatar emotions and face expressions. Those cues are inferred from transcript wording, not measured from video frames. Originals are stored in Bunny Storage; scanned PDFs need OCR first.</p></div>
           <input ref={fileInputRef} type="file" accept=".pdf,.docx,.mp3,.mp4,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,audio/mpeg,video/mp4" className="hidden" onChange={event => importSourceFile(event.target.files?.[0])} />
@@ -891,7 +992,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
           <label className="text-xs text-slate-700">Topic<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-yellow-400/50" placeholder="Topic or syllabus section" /></label>
           <label className="text-xs text-slate-700">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="auto">Auto / mixed</option><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label>
           <label className="text-xs text-slate-700">Source reference<input value={sourceReference} onChange={event => setSourceReference(event.target.value)} maxLength={1000} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Lesson URL, recording ID, book page, or citation" /></label>
-          <label className="text-xs text-slate-700 md:col-span-2">Approved teaching text<textarea lang={language === 'auto' ? undefined : language} value={content} onChange={event => setContent(event.target.value)} rows={8} maxLength={180_000} className={`mt-1.5 w-full resize-y rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 outline-none focus:border-yellow-400/50 ${devanagariFontClass(content, language)}`} placeholder="Paste or write the source material. Keep source-specific teachings together." /></label>
+        <div className="text-xs text-slate-700 md:col-span-2"><div className="mb-1.5 flex flex-wrap items-center justify-between gap-2"><label htmlFor="mohan-rag-source-content">Approved teaching text</label><button type="button" onClick={proofreadContent} disabled={proofreading || !content.trim()} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-900 disabled:opacity-50"><SpellCheck className="h-3.5 w-3.5" />{proofreading ? 'Checking all words…' : 'Check all words'}</button></div><textarea id="mohan-rag-source-content" lang={language === 'auto' ? undefined : language} spellCheck value={content} onChange={event => { setContent(event.target.value); setProofreadPreview(''); }} rows={8} maxLength={500_000} className={`w-full resize-y rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 outline-none focus:border-yellow-400/50 ${devanagariFontClass(content, language)}`} placeholder="Paste or write the source material. Keep source-specific teachings together." />{proofreadPreview && <SpellcheckReview text={proofreadPreview} language={language} onDiscard={() => setProofreadPreview('')} onApply={() => { setContent(proofreadPreview); setProofreadPreview(''); setNotice('Corrected text applied to the editor. Review it and save when ready.'); }} />}</div>
         </div>
         {(error || notice) && <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${error ? 'bg-red-500/10 text-red-700' : 'bg-emerald-500/10 text-emerald-700'}`}>{error || notice}</p>}
         <div className="mt-3 flex justify-end"><button type="button" disabled={saving || !title.trim() || !content.trim()} onClick={saveSource} className="rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-emerald-700/25 transition hover:from-emerald-700 hover:to-teal-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer">{saving ? 'Saving…' : editingId ? 'Save draft changes' : 'Save as draft'}</button></div>
@@ -903,9 +1004,9 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
         </div>
         {loading ? <p className="py-8 text-center text-sm text-slate-500">Loading sources…</p> : !sources.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No sources in this library yet.</p> : <div className="space-y-2">{sources.map(source => <article key={source.id} className="rounded-xl border border-emerald-200 bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{source.title}</h4><StatusPill muted>{source.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{source.topic || 'No topic'} · {source.language} · {source.chunkCount || 0} chunks · {source.extractionType || 'text'} · Updated {new Date(source.updatedAt).toLocaleString()}</p>{source.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {source.originalFileName}</p>}{source.status === 'approved' && <p className="mt-1 text-[11px] text-emerald-700">Approved by {source.reviewedBy || 'admin'}{source.reviewedAt ? ` · ${new Date(source.reviewedAt).toLocaleString()}` : ''}</p>}</div>
-            <div className="flex flex-wrap gap-2"><button onClick={() => togglePreview(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50">{previewId === source.id ? 'Hide text' : 'View extracted text'}</button>{source.status === 'approved' && <><button disabled={ebookBusyId === source.id} onClick={() => createEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50 disabled:opacity-50">{ebookBusyId === source.id ? 'Creating chapter…' : 'Create E-book chapter'}</button><button onClick={() => viewSavedEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{source.originalFileUrl && <a href={source.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open original</a>}<button onClick={() => sourceAction(source, 'edit')} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900">Edit</button>{source.status !== 'approved' && <button onClick={() => sourceAction(source, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800 hover:bg-emerald-900/30">Approve</button>}{source.status !== 'rejected' && <button onClick={() => sourceAction(source, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800 hover:bg-yellow-900/30">Reject</button>}<button onClick={() => sourceAction(source, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-950/40">Delete</button></div>
+            <div className="flex flex-wrap gap-2"><button onClick={() => togglePreview(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50">{previewId === source.id ? 'Hide text' : 'View extracted text'}</button><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedSource(source)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === source.id ? 'Correcting…' : 'Correct spelling & grammar'}</button>{source.status === 'approved' && <><button disabled={ebookBusyId === source.id} onClick={() => createEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50 disabled:opacity-50">{ebookBusyId === source.id ? 'Creating chapter…' : 'Create E-book chapter'}</button><button onClick={() => viewSavedEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{source.originalFileUrl && <a href={source.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open original</a>}<button onClick={() => sourceAction(source, 'edit')} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900">Edit</button>{source.status !== 'approved' && <button onClick={() => sourceAction(source, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800 hover:bg-emerald-900/30">Approve</button>}{source.status !== 'rejected' && <button onClick={() => sourceAction(source, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800 hover:bg-yellow-900/30">Reject</button>}<button onClick={() => sourceAction(source, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-950/40">Delete</button></div>
           </div>
-          {previewId === source.id && <pre lang={source.language === 'auto' ? undefined : source.language} className={`mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(previewText, source.language)}`}>{previewText}</pre>}
+          {previewId === source.id && <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-violet-950">Extracted source text</p><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedSource(source)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === source.id ? 'Correcting full source…' : 'Correct spelling & grammar'}</button></div><pre lang={source.language === 'auto' ? undefined : source.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(previewText, source.language)}`}>{previewText}</pre></div>}
         </article>)}</div>}
         {ebookDraft && <section className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-violet-900">E-book chapter draft · {ebookDraft.title}</h4><p className="mt-1 text-xs text-violet-800">{ebookDraft.language.toUpperCase()} · Generated from an approved library source. Review before publishing.</p></div><button onClick={downloadEbookDraft} className="rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-900 hover:bg-violet-100">Download Markdown</button></div><pre lang={ebookDraft.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(ebookDraft.content, ebookDraft.language)}`}>{ebookDraft.content}</pre></section>}
       </section>
@@ -937,6 +1038,8 @@ function ResearchDetails({ token }: { token: string | null }) {
   const [sourceReference, setSourceReference] = useState('');
   const [language, setLanguage] = useState('en');
   const [content, setContent] = useState('');
+  const [proofreading, setProofreading] = useState(false);
+  const [proofreadPreview, setProofreadPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -948,6 +1051,7 @@ function ResearchDetails({ token }: { token: string | null }) {
   const [ebookSourceLanguage, setEbookSourceLanguage] = useState('en');
   const [ebookTargetLanguage, setEbookTargetLanguage] = useState('en');
   const [ebookBusyId, setEbookBusyId] = useState('');
+  const [spellcheckBusyId, setSpellcheckBusyId] = useState('');
   const [ebookDraft, setEbookDraft] = useState<{ sourceId: string; title: string; language: string; content: string } | null>(null);
 
   const loadReports = async () => {
@@ -965,14 +1069,33 @@ function ResearchDetails({ token }: { token: string | null }) {
 
   useEffect(() => { loadReports(); }, [token]);
 
+  const proofreadContent = async () => {
+    if (!token || !content.trim()) return;
+    setProofreading(true); setError(''); setNotice(''); setProofreadPreview('');
+    try { setProofreadPreview(await requestProofreadText(content, language, token)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not check spelling'); }
+    finally { setProofreading(false); }
+  };
+
+  const correctSavedReport = async (report: ResearchReportSource) => {
+    if (!token) return;
+    setSpellcheckBusyId(report.id); setError(''); setNotice('');
+    try {
+      const changed = await correctAndSaveKnowledgeSource(report.id, token);
+      setNotice(changed ? 'Spelling and grammar corrections saved as a draft. Review the report, then approve it again.' : 'The checker found no suggested changes.');
+      await loadReports();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not correct report text'); }
+    finally { setSpellcheckBusyId(''); }
+  };
+
   const importResearchFile = async (file?: File) => {
     if (!file || !token) return;
-    if (file.size > 150 * 1024 * 1024) { setImportError('Source files must be smaller than 150 MB.'); return; }
+    if (file.size > 150 * 1024 * 1024) { setImportError('Research report imports must be smaller than 150 MB.'); return; }
     if (!sourceReference.trim()) {
       setImportError('Enter the research source citation or URL before importing.');
       return;
     }
-    setImporting(true); setImportError(''); setImportMessage('');
+    setImporting(true); setImportError(''); setImportMessage(''); setProofreadPreview('');
     try {
       const extension = file.name.split('.').pop()?.toLowerCase();
       let audioFile: File | null = null;
@@ -989,7 +1112,7 @@ function ResearchDetails({ token }: { token: string | null }) {
       form.append('language', language);
       form.append('sourceReference', sourceReference);
       const response = await fetch('/api/admin/crm/mohan-rag/import', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
-      const data = await response.json();
+      const data = await readManagementApiJson(response);
       if (!response.ok) throw new Error(data.error || 'Could not import research source');
       const imported = data.source as ResearchReportSource | null;
       if (!imported || typeof imported.id !== 'string' || !imported.id) {
@@ -998,7 +1121,23 @@ function ResearchDetails({ token }: { token: string | null }) {
       }
       setSelected(imported); setTitle(imported.title); setTopic(imported.topic || ''); setSourceReference(imported.sourceReference || ''); setLanguage(imported.language || 'en'); setContent(imported.content || '');
       const cueNote = data.avatarCuesAdded ? ' Avatar delivery and face-expression suggestions were added from transcript wording, not measured from video frames.' : data.avatarCueWarning ? ` ${data.avatarCueWarning}` : '';
-      setImportMessage(`${data.extractedCharacters.toLocaleString()} characters extracted.${cueNote} Verify the citation and review the text before approval.`);
+      const correctionNote = data.transcriptCorrectionApplied ? ' Transcript was proofread in the selected language without translation.' : data.transcriptCorrectionWarning ? ` ${data.transcriptCorrectionWarning}` : '';
+      const pdfCoverage = formatPdfPageCoverage(data.pdfPageStats);
+      let proofreadNote = '';
+      if ((extension === 'pdf' || extension === 'docx') && imported.content) {
+        setProofreading(true);
+        setImportMessage('Research text imported. Checking all words, Hindi spelling, and PDF line breaks; the original stays unchanged until you apply the preview…');
+        try {
+          const suggestion = await requestProofreadText(imported.content, language, token);
+          if (suggestion.trim() !== imported.content.trim()) {
+            setProofreadPreview(suggestion);
+            proofreadNote = ' A full spelling correction preview is ready below the editor. Review it and choose whether to apply it.';
+          } else proofreadNote = ' The checker found no suggested spelling changes.';
+        } catch (cause) {
+          proofreadNote = ` Spell check could not finish: ${cause instanceof Error ? cause.message : 'unknown error'}. You can run Check spelling manually.`;
+        } finally { setProofreading(false); }
+      }
+      setImportMessage(`${data.extractedCharacters.toLocaleString()} characters extracted.${pdfCoverage}${correctionNote}${proofreadNote}${cueNote} Verify the citation and review the text before approval.`);
       await loadReports();
     } catch (cause) {
       setImportError(cause instanceof Error ? cause.message : 'Could not import research source');
@@ -1081,10 +1220,10 @@ function ResearchDetails({ token }: { token: string | null }) {
     <NotConnected>Automatic web search and evidence grading are not connected. This page supports manually entered research drafts, source citations, and approval; drafts remain out of retrieval.</NotConnected>
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-violet-50 p-4"><div><h3 className="flex items-center gap-2 text-sm font-semibold text-violet-900"><FileAudio className="h-4 w-4" />Import research source</h3><p className="mt-1 text-xs text-slate-600">PDF, DOCX, MP3 or MP4. Audio transcripts receive suggested avatar emotion and face-expression tags, inferred from transcript wording rather than video-frame analysis. Add a citation; imports stay drafts.</p></div><input ref={fileInputRef} type="file" accept=".pdf,.docx,.mp3,.mp4" className="hidden" onChange={event => importResearchFile(event.target.files?.[0])} /><button type="button" disabled={importing} onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-violet-100 px-4 py-2.5 text-sm font-semibold text-violet-900 ring-1 ring-inset ring-violet-200/25 disabled:opacity-50">{importing ? 'Importing…' : 'Choose source file'}</button>{(importMessage || importError) && <p className={`w-full rounded-lg px-3 py-2 text-sm ${importError ? 'bg-red-500/10 text-red-700' : 'bg-violet-50 text-violet-900'}`}>{importError || importMessage}</p>}</section>
     <div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Research standards" icon={Globe2}>Record the source title, author, date, URL or DOI, research design, findings, limitations, and relevant references. Never create citations from memory.</DetailCard><DetailCard title="Keep evidence categories separate" icon={ShieldCheck}>Write established scientific findings, traditional Swar Yoga teachings, and possible connections or hypotheses in separate labeled sections. Do not present a traditional interpretation as scientifically proven.</DetailCard></div>
-    <section className="rounded-2xl border border-emerald-200 bg-white p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">{selected ? 'Edit research draft' : 'Add research draft'}</h3><p className="mt-1 text-xs text-slate-500">Editing an approved report returns it to draft review.</p></div>{selected && <button onClick={clearForm} className="text-xs text-slate-700 underline">Cancel edit</button>}</div><div className="grid gap-3 md:grid-cols-2"><label className="text-xs text-slate-700">Report title<input value={title} onChange={event => setTitle(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Research report title" /></label><label className="text-xs text-slate-700">Topic<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. PCOD" /></label><label className="text-xs text-slate-700">Source citation<input value={sourceReference} onChange={event => setSourceReference(event.target.value)} maxLength={1000} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Author · date · journal · DOI / URL" /></label><label className="text-xs text-slate-700">Report language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label><label className="text-xs text-slate-700 md:col-span-2">Research report<textarea lang={language} value={content} onChange={event => setContent(event.target.value)} rows={10} maxLength={180_000} className={`mt-1.5 w-full resize-y rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 ${devanagariFontClass(content, language)}`} placeholder={`Definition and scope:\nEstablished scientific findings:\nResearch design and evidence quality:\nTraditional Swar Yoga perspective:\nPossible connections or hypotheses:\nLimitations and precautions:\nConclusion and references:`} /></label></div>{(error || notice) && <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${error ? 'bg-red-500/10 text-red-700' : 'bg-emerald-500/10 text-emerald-700'}`}>{error || notice}</p>}<div className="mt-3 flex justify-end"><button onClick={saveReport} disabled={saving || !title.trim() || !topic.trim() || !content.trim()} className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40">{saving ? 'Saving…' : selected ? 'Save draft changes' : 'Save as draft'}</button></div></section>
+    <section className="rounded-2xl border border-emerald-200 bg-white p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">{selected ? 'Edit research draft' : 'Add research draft'}</h3><p className="mt-1 text-xs text-slate-500">Editing an approved report returns it to draft review.</p></div>{selected && <button onClick={clearForm} className="text-xs text-slate-700 underline">Cancel edit</button>}</div><div className="grid gap-3 md:grid-cols-2"><label className="text-xs text-slate-700">Report title<input value={title} onChange={event => setTitle(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Research report title" /></label><label className="text-xs text-slate-700">Topic<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. PCOD" /></label><label className="text-xs text-slate-700">Source citation<input value={sourceReference} onChange={event => setSourceReference(event.target.value)} maxLength={1000} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Author · date · journal · DOI / URL" /></label><label className="text-xs text-slate-700">Report language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label><div className="text-xs text-slate-700 md:col-span-2"><div className="mb-1.5 flex flex-wrap items-center justify-between gap-2"><label htmlFor="mohan-rag-research-content">Research report</label><button type="button" onClick={proofreadContent} disabled={proofreading || !content.trim()} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-900 disabled:opacity-50"><SpellCheck className="h-3.5 w-3.5" />{proofreading ? 'Checking all words…' : 'Check all words'}</button></div><textarea id="mohan-rag-research-content" lang={language} spellCheck value={content} onChange={event => { setContent(event.target.value); setProofreadPreview(''); }} rows={10} maxLength={500_000} className={`w-full resize-y rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 ${devanagariFontClass(content, language)}`} placeholder={`Definition and scope:\nEstablished scientific findings:\nResearch design and evidence quality:\nTraditional Swar Yoga perspective:\nPossible connections or hypotheses:\nLimitations and precautions:\nConclusion and references:`} />{proofreadPreview && <SpellcheckReview text={proofreadPreview} language={language} onDiscard={() => setProofreadPreview('')} onApply={() => { setContent(proofreadPreview); setProofreadPreview(''); setNotice('Corrected text applied to the editor. Review it and save when ready.'); }} />}</div></div>{(error || notice) && <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${error ? 'bg-red-500/10 text-red-700' : 'bg-emerald-500/10 text-emerald-700'}`}>{error || notice}</p>}<div className="mt-3 flex justify-end"><button onClick={saveReport} disabled={saving || !title.trim() || !topic.trim() || !content.trim()} className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40">{saving ? 'Saving…' : selected ? 'Save draft changes' : 'Save as draft'}</button></div></section>
     <section className="rounded-2xl border border-emerald-200 bg-white p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Research source library</h3><p className="mt-1 text-xs text-slate-500">Open extracted report text, review citations, and create E-book chapters from approved research.</p></div><div className="flex flex-wrap items-center gap-2"><select value={ebookSourceLanguage} onChange={event => setEbookSourceLanguage(event.target.value)} className="rounded-lg border border-emerald-200 bg-white px-2 py-2 text-xs text-slate-900"><option value="en">Source: English</option><option value="hi">Source: Hindi</option><option value="mr">Source: Marathi</option></select><select value={ebookTargetLanguage} onChange={event => setEbookTargetLanguage(event.target.value)} className="rounded-lg border border-emerald-200 bg-white px-2 py-2 text-xs text-slate-900"><option value="en">E-book: English</option><option value="hi">E-book: Hindi</option><option value="mr">E-book: Marathi</option></select><button onClick={loadReports} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs text-slate-700">Refresh</button></div></div>
-      {loading ? <p className="py-6 text-center text-sm text-slate-500">Loading reports…</p> : !reports.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No research reports yet.</p> : <div className="space-y-2">{reports.map(report => <article key={report.id} className="rounded-xl border border-emerald-200 bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{report.title}</h4><StatusPill muted>{report.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{report.topic} · {report.language} · {report.chunkCount || 0} chunks · {report.extractionType || 'text'}{report.sourceReference ? ` · ${report.sourceReference}` : ''}</p>{report.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {report.originalFileName} {report.originalFileUrl && <a href={report.originalFileUrl} target="_blank" rel="noreferrer" className="underline">Open file</a>}</p>}</div><div className="flex flex-wrap gap-2"><button onClick={() => openReport(report)} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open / edit text</button>{report.status === 'approved' && <><button disabled={ebookBusyId === report.id} onClick={() => createResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 disabled:opacity-50">{ebookBusyId === report.id ? 'Creating…' : 'Create E-book chapter'}</button><button onClick={() => viewResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{report.status !== 'approved' && <button onClick={() => reportAction(report, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800">Approve</button>}{report.status !== 'rejected' && <button onClick={() => reportAction(report, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800">Reject</button>}<button onClick={() => reportAction(report, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700">Delete</button></div></div></article>)}</div>}
+      {loading ? <p className="py-6 text-center text-sm text-slate-500">Loading reports…</p> : !reports.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No research reports yet.</p> : <div className="space-y-2">{reports.map(report => <article key={report.id} className="rounded-xl border border-emerald-200 bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{report.title}</h4><StatusPill muted>{report.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{report.topic} · {report.language} · {report.chunkCount || 0} chunks · {report.extractionType || 'text'}{report.sourceReference ? ` · ${report.sourceReference}` : ''}</p>{report.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {report.originalFileName} {report.originalFileUrl && <a href={report.originalFileUrl} target="_blank" rel="noreferrer" className="underline">Open file</a>}</p>}</div><div className="flex flex-wrap gap-2"><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedReport(report)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === report.id ? 'Correcting…' : 'Correct spelling & grammar'}</button><button onClick={() => openReport(report)} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open / edit text</button>{report.status === 'approved' && <><button disabled={ebookBusyId === report.id} onClick={() => createResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 disabled:opacity-50">{ebookBusyId === report.id ? 'Creating…' : 'Create E-book chapter'}</button><button onClick={() => viewResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{report.status !== 'approved' && <button onClick={() => reportAction(report, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800">Approve</button>}{report.status !== 'rejected' && <button onClick={() => reportAction(report, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800">Reject</button>}<button onClick={() => reportAction(report, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700">Delete</button></div></div></article>)}</div>}
       {ebookDraft && <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-violet-900">E-book chapter draft · {ebookDraft.title}</h4><p className="mt-1 text-xs text-violet-800">{ebookDraft.language.toUpperCase()} · Review before publishing.</p></div><button onClick={() => { const blob = new Blob([`# ${ebookDraft.title}\n\n${ebookDraft.content}\n`], { type: 'text/markdown;charset=utf-8' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${ebookDraft.title.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-${ebookDraft.language}.md`; anchor.click(); URL.revokeObjectURL(url); }} className="rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-900">Download Markdown</button></div><pre lang={ebookDraft.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(ebookDraft.content, ebookDraft.language)}`}>{ebookDraft.content}</pre></div>}
     </section>
   </div>;
@@ -1141,16 +1280,25 @@ function IngestionDetails({ token }: { token: string | null }) {
 
   const uploadMedia = async () => {
     if (!token || !uploadFile) return;
+    if (uploadFile.size > 5 * 1024 * 1024 * 1024) { setError('Media uploads must be 5 GB or smaller.'); return; }
     setSaving(true); setError(''); setNotice('');
     try {
-      const form = new FormData();
-      form.set('file', uploadFile);
-      form.set('moduleId', moduleId);
-      form.set('topic', topic);
-      form.set('language', language);
-      const response = await fetch('/api/admin/crm/mohan-rag/ingestion/upload', {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
-      });
+      let response: Response;
+      if (uploadFile.size > 150 * 1024 * 1024) {
+        const params = new URLSearchParams({ module: moduleId, topic, language, fileName: uploadFile.name, title: uploadFile.name.replace(/\.[^.]+$/, '') });
+        response = await fetch(`/api/admin/crm/mohan-rag/ingestion/upload?${params}`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': uploadFile.type || 'application/octet-stream' }, body: uploadFile,
+        });
+      } else {
+        const form = new FormData();
+        form.set('file', uploadFile);
+        form.set('moduleId', moduleId);
+        form.set('topic', topic);
+        form.set('language', language);
+        response = await fetch('/api/admin/crm/mohan-rag/ingestion/upload', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+        });
+      }
       const data = await readManagementApiJson(response);
       if (!response.ok) throw new Error(data.error || 'Could not upload media');
       setUploadFile(null);
@@ -1165,14 +1313,14 @@ function IngestionDetails({ token }: { token: string | null }) {
     <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Overnight media queue</p><h3 className="mt-1 text-lg font-semibold text-slate-900">Video to text, emotions & face cues</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Upload MP4/MP3 files or paste up to 500 YouTube and Bunny URLs. Existing Bunny videos are reused without re-uploading. Audio becomes a real minute-by-minute timestamped transcript with AI emotion and face-delivery suggestions for the avatar.</p></div><span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">10 PM–6 AM · Asia/Kolkata</span></div>
       <div className="mt-4 grid gap-3 md:grid-cols-3"><label className="text-xs font-medium text-slate-600">Knowledge library<select value={moduleId} onChange={event => setModuleId(event.target.value as MohanRagModule)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900">{modules.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><label className="text-xs font-medium text-slate-600">Topic (optional)<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. Swar Yoga basics" /></label><label className="text-xs font-medium text-slate-600">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="auto">Auto detect</option><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option></select></label></div>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div className="rounded-xl border border-sky-200 bg-white p-4"><div className="flex items-center gap-2"><Upload className="h-4 w-4 text-sky-700"/><h4 className="text-sm font-semibold text-slate-900">Upload from this device</h4></div><p className="mt-1 text-xs text-slate-600">MP4, WebM, MOV, MP3, M4A, or WAV · up to 150 MB. The upload is stored in Bunny and processed from there.</p><input type="file" accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/wav,.mp4,.webm,.mov,.mp3,.m4a,.wav" onChange={event => setUploadFile(event.target.files?.[0] || null)} className="mt-3 block w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-900 hover:file:bg-sky-200"/><div className="mt-3 flex items-center justify-between gap-2"><span className="min-w-0 truncate text-xs text-slate-500">{uploadFile ? `${uploadFile.name} · ${(uploadFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose a media file'}</span><button type="button" disabled={saving || !uploadFile} onClick={uploadMedia} className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? 'Uploading…' : 'Upload & queue'}</button></div></div>
+        <div className="rounded-xl border border-sky-200 bg-white p-4"><div className="flex items-center gap-2"><Upload className="h-4 w-4 text-sky-700"/><h4 className="text-sm font-semibold text-slate-900">Upload from this device</h4></div><p className="mt-1 text-xs text-slate-600">MP4, WebM, MOV, MP3, M4A, or WAV · up to 5 GB. Large files stream directly to Bunny; long audio is split into MP3 segments for transcription and word-level correction.</p><input type="file" accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/wav,.mp4,.webm,.mov,.mp3,.m4a,.wav" onChange={event => setUploadFile(event.target.files?.[0] || null)} className="mt-3 block w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-900 hover:file:bg-sky-200"/><div className="mt-3 flex items-center justify-between gap-2"><span className="min-w-0 truncate text-xs text-slate-500">{uploadFile ? `${uploadFile.name} · ${(uploadFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose a media file'}</span><button type="button" disabled={saving || !uploadFile} onClick={uploadMedia} className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? 'Uploading…' : 'Upload & queue'}</button></div></div>
         <div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex items-center gap-2"><Video className="h-4 w-4 text-violet-700"/><h4 className="text-sm font-semibold text-slate-900">Add video URLs</h4></div><p className="mt-1 text-xs text-slate-600">Paste up to 500 URLs. Bunny URLs are reused in place; YouTube media is downloaded to Bunny for processing.</p><textarea value={urls} onChange={event => setUrls(event.target.value)} rows={4} maxLength={1_100_000} className="mt-3 w-full resize-y rounded-xl border border-violet-200 bg-white px-3 py-3 font-mono text-xs leading-5 text-slate-900" placeholder={'https://www.youtube.com/watch?v=abcdefghijk\nhttps://your-zone.b-cdn.net/videos/lesson.mp4'} /><div className="mt-2 flex justify-end"><button type="button" disabled={saving || !urls.trim()} onClick={addUrls} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? 'Adding…' : 'Queue URLs'}</button></div></div>
       </div>
       {(notice || error) && <div className="mt-3 space-y-2">{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}{error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>}</div>}
       <p className="mt-3 text-xs leading-5 text-slate-500">Worker runs automatically during the overnight window. Server needs FFmpeg, yt-dlp for YouTube URLs, Bunny Storage/Database, and OpenAI transcription. Emotion and facial-expression tags are AI delivery suggestions from transcript wording; this does not visually analyze a face in the video.</p>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Recent video jobs</h3><p className="mt-1 text-xs text-slate-500">Completed items create draft sources in the selected library; approve them before RAG can retrieve them.</p></div><button type="button" onClick={loadJobs} disabled={loading} className="rounded-lg px-3 py-2 text-xs font-semibold">{loading ? 'Refreshing…' : 'Refresh queue'}</button></div>{jobs.length ? <div className="space-y-2">{jobs.map(job => <article key={job.id} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{job.provider}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusStyle[job.status] || statusStyle.queued}`}>{job.status}</span><span className="text-xs text-slate-500">{job.moduleId} · {job.topic || 'No topic'}</span></div><p className="mt-1 max-w-3xl break-all text-xs text-slate-700">{job.sourceUrl}</p>{job.errorMessage && <p className="mt-1 text-xs text-rose-700">{job.errorMessage}</p>}</div>{job.originalFileUrl && <a href={job.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-lg px-2.5 py-1.5 text-xs font-semibold">Open Bunny file</a>}</div></article>)}</div> : <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{loading ? 'Loading queue…' : 'No video URLs queued yet.'}</p>}</section>
-    <div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Bunny links" icon={HardDrive}>Direct Bunny CDN MP3/MP4 URLs are read from Bunny and are not copied or re-uploaded. Bunny Stream player links are converted to their Bunny CDN video URL.</DetailCard><DetailCard title="YouTube links" icon={Video}>Public videos are downloaded with yt-dlp. Private videos need an authorized cookies file configured as YOUTUBE_COOKIES_FILE on the server. Media is capped at 350 MB and audio is compressed before transcription.</DetailCard></div>
+    <div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Bunny links" icon={HardDrive}>Direct Bunny CDN MP3/MP4 URLs are read from Bunny and are not copied or re-uploaded. Bunny Stream player links are converted to their Bunny CDN video URL. Bunny media is streamed through FFmpeg and can be up to 5 GB.</DetailCard><DetailCard title="YouTube links" icon={Video}>Public videos are downloaded with yt-dlp. Private videos need an authorized cookies file configured as YOUTUBE_COOKIES_FILE on the server. YouTube downloads remain capped at 350 MB; audio is converted to compact MP3 before transcription.</DetailCard></div>
   </div>;
 }
 

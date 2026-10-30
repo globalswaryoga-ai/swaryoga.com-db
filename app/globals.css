@@ -1854,3 +1854,8 @@ input::-webkit-grammar-error {
 .animate-marquee {
   animation: marquee 20s linear infinite;
 }
+
+@keyframes ragProgressSlide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}

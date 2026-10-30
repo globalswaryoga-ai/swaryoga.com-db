@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
   if (status && !['draft', 'approved', 'rejected'].includes(status)) return NextResponse.json({ error: 'Invalid source status' }, { status: 400 });
 
   try {
-    const sources = await listKnowledgeSources(moduleId ? moduleId : undefined, status as KnowledgeStatus | undefined);
+    const validModule = moduleId && isMohanRagModule(moduleId) ? moduleId : undefined;
+    const sources = await listKnowledgeSources(validModule, status as KnowledgeStatus | undefined);
     return NextResponse.json({ success: true, sources });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to list Mohan RAG sources';
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (!title || !content) return NextResponse.json({ error: 'Title and source text are required' }, { status: 400 });
     if (moduleId === 'research' && !sourceReference) return NextResponse.json({ error: 'A source citation or URL is required for research reports' }, { status: 400 });
     if (!['auto', 'en', 'hi', 'mr'].includes(language)) return NextResponse.json({ error: 'Language must be auto, English, Hindi, or Marathi' }, { status: 400 });
-    if (title.length > 300 || content.length > 180_000) return NextResponse.json({ error: 'Title or source text exceeds the current text-editor limit (180,000 characters)' }, { status: 413 });
+    if (title.length > 300 || content.length > 500_000) return NextResponse.json({ error: 'Title or source text exceeds the current text-editor limit (500,000 characters)' }, { status: 413 });
 
     const userId = String((admin as any).userId || (admin as any).username || 'admin');
     const source = await saveKnowledgeSource({

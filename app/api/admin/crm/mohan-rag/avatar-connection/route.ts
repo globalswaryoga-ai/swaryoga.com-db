@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
   try {
     const config = await getMohanRagAvatarConfig();
-    const hasApiKey = Boolean(process.env.HEYGEN_API_KEY);
+    const hasApiKey = Boolean(process.env.REPLICATE_API_TOKEN);
     const connected = Boolean(config?.authorized && config.avatarId && config.voiceId && config.supportedLanguages.length && hasApiKey);
     return NextResponse.json({
       success: true,
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       status: connected ? 'ready' : 'setup_required',
       config,
       hasApiKey,
-      message: connected ? 'Clone provider settings are ready.' : 'Add the authorized HeyGen avatar ID and cloned voice ID, confirm authorization, and configure HEYGEN_API_KEY on the server.',
+      message: connected ? 'Clone is ready.' : 'Run avatar training from the studio after uploading vault videos, and confirm REPLICATE_API_TOKEN is set on the server.',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to read active clone';
@@ -44,8 +44,10 @@ export async function PUT(request: NextRequest) {
     const voiceId = String(body?.voiceId || '').trim();
     const avatarType = body?.avatarType === 'avatar' ? 'avatar' : 'talking_photo';
     const avatarLabel = String(body?.avatarLabel || 'Mohan Sir clone').trim().slice(0, 120);
-    const supportedLanguages = Array.isArray(body?.supportedLanguages) ? Array.from(new Set(body.supportedLanguages.map(String).filter((language: string) => ['hi', 'mr', 'en'].includes(language)))) : [];
-    if (!avatarId || !voiceId) return NextResponse.json({ error: 'HeyGen avatar ID and cloned voice ID are required.' }, { status: 400 });
+    const supportedLanguages = (Array.isArray(body?.supportedLanguages)
+      ? Array.from(new Set(body.supportedLanguages.map(String).filter((language: string) => ['hi', 'mr', 'en'].includes(language))))
+      : []) as string[];
+    if (!avatarId || !voiceId) return NextResponse.json({ error: 'Authorized avatar ID and cloned voice ID are required.' }, { status: 400 });
     if (avatarId.length > 200 || voiceId.length > 200) return NextResponse.json({ error: 'Avatar or voice ID is too long.' }, { status: 400 });
     if (!supportedLanguages.length) return NextResponse.json({ error: 'Select at least one language verified for this cloned voice.' }, { status: 400 });
     if (body?.authorized !== true) return NextResponse.json({ error: 'Confirm that these are your authorized avatar and voice assets.' }, { status: 400 });

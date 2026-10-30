@@ -32,6 +32,7 @@ export interface GenerateTextParams {
   // (20/day across every feature using this one key) made it unreliable as
   // a primary there. Unrecognized/omitted names fall back to default order.
   providerOrder?: string[];
+  signal?: AbortSignal;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -59,6 +60,7 @@ async function callGemini(params: GenerateTextParams, attempt = 1): Promise<stri
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: params.signal,
     body: JSON.stringify({
       ...(params.systemPrompt ? { system_instruction: { parts: [{ text: params.systemPrompt }] } } : {}),
       contents,
@@ -108,6 +110,7 @@ async function callAnthropic(params: GenerateTextParams): Promise<string> {
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     },
+    signal: params.signal,
     body: JSON.stringify({
       model,
       max_tokens: params.maxOutputTokens ?? 2000,
@@ -138,6 +141,7 @@ async function callOpenAI(params: GenerateTextParams): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    signal: params.signal,
     body: JSON.stringify({ model, messages, temperature: params.temperature ?? 0.3, max_tokens: params.maxOutputTokens ?? 2000 }),
   });
 

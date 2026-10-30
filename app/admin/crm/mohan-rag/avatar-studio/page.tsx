@@ -166,7 +166,7 @@ export interface SavedAvatarItem {
   isPrimary?: boolean;
 }
 
-export const DEFAULT_AVATAR_LIBRARY: SavedAvatarItem[] = [
+const DEFAULT_AVATAR_LIBRARY: SavedAvatarItem[] = [
   {
     id: 'avatar-guruji-vedic',
     name: 'Mohan Sir (Swar Yoga Guruji)',
@@ -2000,33 +2000,49 @@ export default function AvatarStudioPage() {
   const [trainingStepText, setTrainingStepText] = useState('');
   const [trainingCompleted, setTrainingCompleted] = useState(false);
 
-  const handleStartAvatarTraining = () => {
+  // Real training: starts a Replicate voice-clone job from the vault and polls it until it finishes.
+  const handleStartAvatarTraining = async () => {
     setIsTrainingAvatar(true);
     setTrainingCompleted(false);
-    setTrainingProgress(12);
-    setTrainingStepText('Ingesting uploaded reference videos & analyzing skeletal keypoints...');
+    setTrainingProgress(10);
+    setTrainingStepText('Submitting reference video to the voice-clone engine...');
 
-    setTimeout(() => {
-      setTrainingProgress(38);
-      setTrainingStepText('Extracting 68 Facial Mesh points & 32 Kinematic Joint anchors...');
-    }, 900);
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const startRes = await fetch('/api/admin/crm/mohan-rag/avatar-train', { method: 'POST', headers });
+      const started = await startRes.json();
+      if (!startRes.ok || !started?.predictionId) {
+        throw new Error(started?.error || 'Could not start avatar training.');
+      }
 
-    setTimeout(() => {
-      setTrainingProgress(68);
-      setTrainingStepText('Calibrating natural motion dynamics (Walking, Padmasana, Pranayama)...');
-    }, 1800);
+      setTrainingProgress(25);
+      setTrainingStepText('Cloning voice from your vault video (this can take a few minutes)...');
 
-    setTimeout(() => {
-      setTrainingProgress(88);
-      setTrainingStepText('Binding 53 dynamic wardrobe anchor points to master rig...');
-    }, 2700);
-
-    setTimeout(() => {
-      setTrainingProgress(100);
-      setTrainingStepText('Master Avatar Training Complete! Photorealistic 2D Digital Twin active.');
+      for (let attempt = 0; attempt < 120; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        const pollRes = await fetch(`/api/admin/crm/mohan-rag/avatar-train?predictionId=${encodeURIComponent(started.predictionId)}`, { headers });
+        const polled = await pollRes.json();
+        if (!pollRes.ok) throw new Error(polled?.error || 'Could not read training status.');
+        if (polled.status === 'failed' || polled.status === 'canceled') {
+          throw new Error(polled.error || 'Voice clone training failed.');
+        }
+        if (polled.status === 'succeeded') {
+          setTrainingProgress(100);
+          setTrainingStepText('Clone saved and ready.');
+          setTrainingCompleted(true);
+          setIsTrainingAvatar(false);
+          return;
+        }
+        setTrainingProgress(prev => Math.min(90, prev + 3));
+      }
+      throw new Error('Training is still running. Check again in a few minutes.');
+    } catch (err) {
       setIsTrainingAvatar(false);
-      setTrainingCompleted(true);
-    }, 3600);
+      setTrainingProgress(0);
+      setTrainingStepText('');
+      setLastSavedNotice(err instanceof Error ? err.message : 'Avatar training failed.');
+    }
   };
 
   // Auto-Spin Effect

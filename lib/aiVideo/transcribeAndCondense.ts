@@ -23,8 +23,11 @@
 
 const LANGUAGE_NAMES: Record<string, string> = {
   en: 'English',
+  english: 'English',
   hi: 'Hindi',
+  hindi: 'Hindi',
   mr: 'Marathi',
+  marathi: 'Marathi',
   kn: 'Kannada',
   ne: 'Nepali',
   zh: 'Mandarin Chinese',
@@ -54,7 +57,7 @@ export interface ExtractedAudio {
 // workshop recording at high bitrate — if that becomes a real problem,
 // split/compress the audio before calling this rather than reaching for a
 // different provider's API.
-async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
+async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?: string } = {}): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
 
@@ -68,6 +71,15 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   const form = new FormData();
   form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
   form.append('model', 'whisper-1');
+  const transcriptionPrompts: Record<string, string> = {
+    hi: 'यह स्वर योग और स्वरोदय पर हिंदी शिक्षण है। संस्कृत और योग शब्द सही देवनागरी में लिखें: स्वर, स्वरोदय, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर। मूल बोली गई हिंदी लिखें; अनुवाद या सारांश न करें।',
+    mr: 'हा स्वरयोग आणि स्वरोदय विषयावरील मराठी धडा आहे. संज्ञा योग्य देवनागरीत लिहा: स्वर, स्वरोदय, नाडी, इडा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर. बोललेले शब्द जसेच्या तसे लिहा; भाषांतर किंवा सारांश नको.',
+    en: 'This is a Swar Yoga lesson. Preserve these terms: Swar Yoga, Swarodaya, nadi, ida, pingala, sushumna, prana, nostril, Surya Swar, Chandra Swar. Transcribe the spoken words verbatim; do not translate or summarize.',
+  };
+  if (options.language && ['en', 'hi', 'mr'].includes(options.language)) {
+    form.append('language', options.language);
+    form.append('prompt', transcriptionPrompts[options.language]);
+  }
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
@@ -99,21 +111,21 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
 // 20-requests/day free-tier quota kept causing cross-feature outages, and
 // this pipeline now has a paid OpenAI key configured (OPENAI_API_KEY) that
 // doesn't need a free-tier crutch.
-async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192): Promise<string> {
+async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192, signal?: AbortSignal): Promise<string> {
   const { generateAIText } = await import('@/lib/ai/generateWithFallback');
-  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic'] });
+  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic'], signal });
 }
 
 // Stage 1: verbatim transcript, source language, no cleanup. OpenAI Whisper
 // only — no Gemini fallback. If Whisper fails, the error propagates as-is
 // rather than masking the real cause behind an unrelated provider's error.
-export async function transcribeAudio(audio: ExtractedAudio): Promise<string> {
+export async function transcribeAudio(audio: ExtractedAudio, options: { language?: string } = {}): Promise<string> {
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
-  return transcribeViaWhisper(audio);
+  return transcribeViaWhisper(audio, options);
 }
 
 /** Whisper transcript with real segment timestamps for media-library timelines. */
-export async function transcribeAudioWithTimestamps(audio: ExtractedAudio): Promise<{
+export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, options: { language?: string } = {}): Promise<{
   text: string;
   language?: string;
   segments: Array<{ start: number; end: number; text: string }>;
@@ -125,9 +137,25 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio): Prom
   form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
   form.append('model', 'whisper-1');
   form.append('response_format', 'verbose_json');
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form as any,
-  });
+  const supportedLanguages = new Set(['en', 'hi', 'mr']);
+  if (options.language && supportedLanguages.has(options.language)) form.append('language', options.language);
+  const prompts: Record<string, string> = {
+    hi: 'यह स्वर योग और स्वरोदय पर हिंदी शिक्षण है। संस्कृत और योग शब्दों को सही देवनागरी में लिखें: स्वर, स्वरोदय, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर। मूल बोली गई हिंदी लिखें; अनुवाद या सारांश न करें।',
+    mr: 'हा स्वरयोग आणि स्वरोदय विषयावरील मराठी धडा आहे. संस्कृत आणि योग संज्ञा योग्य देवनागरीत लिहा: स्वर, स्वरोदय, नाडी, इडा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर. बोललेले शब्द जसेच्या तसे लिहा; भाषांतर किंवा सारांश करू नका.',
+    en: 'This is a Swar Yoga lesson. Preserve these Sanskrit terms: Swar Yoga, Swarodaya, nadi, ida, pingala, sushumna, prana, nostril, Surya Swar, Chandra Swar. Transcribe the spoken words verbatim; do not translate or summarize.',
+  };
+  const prompt = options.language ? prompts[options.language] : undefined;
+  if (prompt) form.append('prompt', prompt);
+  let response: Response;
+  try {
+    response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form as any,
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Whisper transcription timed out after 2 minutes. Retry with a shorter or compressed file.');
+    throw error;
+  }
   const raw = await response.text();
   let data: any;
   try { data = JSON.parse(raw); } catch {
@@ -146,10 +174,10 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio): Prom
 // mistakes and strip filler words/exact repetition. Must never add content,
 // facts, or sentences that weren't actually said. This is the text the admin
 // reviews before anything downstream happens.
-export async function correctTranscript(rawTranscript: string, sourceLanguage: string): Promise<string> {
+export async function correctTranscript(rawTranscript: string, sourceLanguage: string, signal?: AbortSignal): Promise<string> {
   const languageName = LANGUAGE_NAMES[sourceLanguage] || sourceLanguage;
   const prompt = `Here is a raw, verbatim transcript of a spoken workshop session in ${languageName}. Correct only grammar, spelling, and obvious speech-to-text transcription errors, and remove filler words ("um", "you know") and exact repeated phrases. Do NOT translate. Do NOT add any new sentence, fact, or idea that is not already present in the transcript below — if something is unclear, leave it as close to the original wording as possible rather than inventing a replacement. Do NOT shorten or summarize; keep the same length and content, just cleaned up. Output only the corrected transcript, no commentary.\n\nTranscript:\n${rawTranscript}`;
-  return generateTextWithFallback(prompt);
+  return generateTextWithFallback(prompt, 8192, signal);
 }
 
 // Stage 3: per-language, condenses to ~30 min by CUTTING material (live Q&A,

@@ -16,7 +16,7 @@
  *    - BUNNY_API_KEY (for Stream API calls)
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 // ============================================
 // CONFIGURATION
@@ -201,6 +201,39 @@ export async function uploadToBunnyStorage(
   const publicUrl = getPublicFileUrl(contentKey);
   console.log(`✅ Uploaded to Bunny Storage: ${publicUrl}`);
   return publicUrl;
+}
+
+/** Stream a large upload directly into Bunny Storage without buffering it in Node memory. */
+export async function uploadStreamToBunnyStorage(
+  body: ReadableStream<Uint8Array>,
+  fileName: string,
+  options: S3UploadOptions & { contentLength: number } = { contentLength: 0 },
+): Promise<string> {
+  const { zoneName, apiKey } = ensureConfigured();
+  const storageHost = getStorageHost();
+  const rawExt = (fileName.split('.').pop() || '').toLowerCase();
+  const aliases: Record<string, string> = { jpeg: 'jpg', jfif: 'jpg', tiff: 'tif', htm: 'html', mpeg: 'mpg' };
+  const extension = aliases[rawExt] || rawExt;
+  const folder = getContentSubfolder(extension);
+  const storageKey = `uploads/content-cache/${folder}rag-stream-${randomUUID()}.${extension}`;
+  const uploadUrl = `https://${storageHost}/${zoneName}/${storageKey}`;
+  const contentType = options.contentType || getContentType(fileName);
+
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      AccessKey: apiKey,
+      'Content-Type': contentType,
+      'Content-Length': String(options.contentLength),
+    },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
+  if (!response.ok) {
+    const message = (await response.text()).slice(0, 500);
+    throw new Error(`Bunny Storage streaming upload failed (${response.status}): ${message}`);
+  }
+  return getPublicFileUrl(storageKey);
 }
 
 // Alias: drop-in for aws-s3 uploadToS3

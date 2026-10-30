@@ -253,6 +253,16 @@ export function middleware(request: NextRequest) {
       response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
     }
     applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
+
+    // CRITICAL: Prevent HTML pages from being cached on client browsers or Android WebView.
+    // Static assets (/_next/static/*) are cached forever (immutable), but HTML documents
+    // must always be fresh to point to the active CSS & JS bundle hashes after deployments.
+    if (!path.startsWith('/_next/') && !path.includes('.')) {
+      response.headers.set('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+    }
+
     return response;
   }
 

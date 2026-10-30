@@ -145,8 +145,14 @@ export async function listKnowledgeSources(moduleId?: MohanRagModule, status?: K
 
 export async function getKnowledgeSource(id: string) {
   await ensureMohanRagKnowledgeSchema();
-  const result = await bunnyExecute({ sql: 'SELECT * FROM mohan_rag_sources_sql WHERE id = ? LIMIT 1', args: [id] });
-  return result.rows[0] ? mapSource(result.rows[0]) : null;
+  // A just-committed Bunny write may not be visible on the first read yet.
+  // Retry briefly so the editor can open/save a source immediately after import.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const result = await bunnyExecute({ sql: 'SELECT * FROM mohan_rag_sources_sql WHERE id = ? LIMIT 1', args: [id] });
+    if (result.rows[0]) return mapSource(result.rows[0]);
+    if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
+  }
+  return null;
 }
 
 export async function saveKnowledgeSource(input: {
@@ -162,15 +168,15 @@ export async function saveKnowledgeSource(input: {
   originalFileUrl?: string;
   originalMimeType?: string;
   extractionType?: string;
-}, userId: string) {
+}, userId: string, knownPrevious?: KnowledgeSource) {
   await ensureMohanRagKnowledgeSchema();
   const id = input.id || crypto.randomUUID();
-  const previous = input.id ? await getKnowledgeSource(input.id) : null;
+  const previous = input.id ? knownPrevious || await getKnowledgeSource(input.id) : null;
   if (input.id && !previous) throw new Error('Knowledge source not found.');
   const timestamp = now();
   const chunks = chunkText(input.content, 1800, 220);
   if (!chunks.length) throw new Error('Source text is empty.');
-  if (chunks.length > 100) throw new Error('This text source is too large for the current synchronous editor. Split it into smaller sources or use the planned background ingestion flow.');
+  if (chunks.length > 300) throw new Error('This text source is too large for the current synchronous editor. Split it into smaller sources or use the background ingestion flow.');
   const status: KnowledgeStatus = previous ? 'draft' : 'draft';
   const statements = [
     {

@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Eye,
   Sliders,
+  Play,
 } from 'lucide-react';
 import { PPT_THEME_PRESETS, PptThemePreset } from '@/app/api/avatar/ppt-generate/route';
 

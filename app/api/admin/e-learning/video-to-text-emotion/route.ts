@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     const form = await request.formData();
     const file = form.get('file');
     const rawUrl = String(form.get('url') || '').trim();
+    const language = String(form.get('language') || 'hi');
+    if (!['auto', 'en', 'hi', 'mr'].includes(language)) return NextResponse.json({ error: 'Choose Auto, Hindi, Marathi, or English.' }, { status: 400 });
     let media: { buffer: Buffer; title: string; extension: string };
 
     if (file instanceof File) {
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
         : await fetchBunnyMedia(source.url);
     }
 
-    const analysis = await analyzeMediaBuffer(media);
+    const analysis = await analyzeMediaBuffer({ ...media, language });
     return NextResponse.json({ success: true, ...analysis, plainTranscript: analysis.timeline });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Video transcription and cue analysis failed.';
