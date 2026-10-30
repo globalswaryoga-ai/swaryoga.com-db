@@ -8,7 +8,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        poppins: ['Poppins', 'system-ui', 'sans-serif'],
+        poppins: ['Poppins', 'Noto Sans Devanagari', 'Mukta', 'system-ui', 'sans-serif'],
+        devanagari: ['Noto Sans Devanagari', 'Mukta', 'system-ui', 'sans-serif'],
       },
       colors: {
         // ===== SWAR YOGA DESIGN SYSTEM - LOCKED COLOR PALETTE =====

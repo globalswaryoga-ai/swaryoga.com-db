@@ -146,7 +146,8 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    const activeThresholdIso = new Date(now.getTime() - 15 * 1000).toISOString();
+    // 120s tolerance (2 minutes) so mobile network fluctuations / train tunnels don't drop participants
+    const activeThresholdIso = new Date(now.getTime() - 120 * 1000).toISOString();
 
     if (sessionId) {
       await bunnyExecute({

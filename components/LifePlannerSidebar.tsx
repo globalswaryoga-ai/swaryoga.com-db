@@ -72,9 +72,9 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     { href: isCrm ? '/admin/crm' : '/', label: 'Home', icon: Home },
     // Keep a dedicated link to open the Life Planner dashboard
     { href: '/life-planner/dashboard', label: 'Life Planner', icon: LayoutDashboard },
-    { href: '/life-planner/dashboard/sadhana', label: 'Sadhana Tools', icon: Flame },
+    { href: '/life-planner/dashboard/sadhana', label: 'My Sadhana', icon: Flame },
 
-    // Main Life Planner Hierarchy
+    // Main Life Planner Hierarchy (Matches Image 2 exactly)
     { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },
     { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
     { href: '/life-planner/dashboard/goals', label: 'Goals', icon: Target },
@@ -82,14 +82,11 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     { href: '/life-planner/dashboard/todos', label: 'Todos', icon: ListTodo },
     { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
     { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
-
-    // Actions
-    { href: '/life-planner/dashboard/vision-download', label: 'Download', icon: Download },
-
-    { href: '/life-planner/dashboard/notes', label: 'Journal', icon: NotebookPen },
     { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: Calculator },
+    { href: '/life-planner/dashboard/notes', label: 'Journal', icon: NotebookPen },
     { href: '/life-planner/dashboard/events', label: 'Events', icon: Calendar },
     { href: '/life-planner/dashboard/ritucharya', label: 'Ritucharya', icon: Leaf },
+    { href: '/life-planner/dashboard/vision-download', label: 'Download', icon: Download },
 
     // Unified profile + settings
     { href: '/life-planner/profile', label: 'Profile', icon: User },
@@ -100,7 +97,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
 
   const logout = () => {
     clearSession();
-    router.push('/life-planner/login');
+    router.push('/signin');
   };
 
   return (
@@ -114,7 +111,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-[9999] md:z-auto w-64 md:w-72 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
+        className={`fixed md:static inset-y-0 left-0 z-[9999] md:z-auto w-64 md:w-72 bg-[#046648] text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -141,8 +138,8 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-3 md:p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-200px)] scrollbar-thin">
+        {/* Navigation - Clean Yoga Forest Green (#046648) with White Squircle Active Pill */}
+        <nav className="p-3 md:p-4 space-y-1.5 overflow-y-auto max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-200px)] scrollbar-thin">
           {items.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -151,19 +148,18 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className={`flex cursor-pointer items-center space-x-3 px-4 py-3.5 md:py-3 rounded-xl transition-all group font-medium active:scale-[0.98] ${
+                className={`flex cursor-pointer items-center space-x-3.5 px-4 py-3 rounded-2xl transition-all group font-medium active:scale-[0.98] ${
                   active
-                    ? 'bg-white text-swar-primary shadow-lg'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white text-[#046648] font-bold shadow-md'
+                    : 'text-white/90 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <Icon
                   className={`h-5 w-5 transition-colors flex-shrink-0 ${
-                    active ? 'text-swar-primary' : 'text-white/70 group-hover:text-white'
+                    active ? 'text-[#046648]' : 'text-white'
                   }`}
                 />
-                <span className="truncate">{item.label}</span>
-                {active && <ChevronRight className="h-5 w-5 ml-auto text-swar-primary flex-shrink-0" />}
+                <span className="truncate text-[15px]">{item.label}</span>
               </Link>
             );
           })}

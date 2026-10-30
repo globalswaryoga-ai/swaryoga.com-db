@@ -219,6 +219,13 @@ export function DailySadhanaModal({ isOpen, onClose }: SadhanaModalProps) {
       }
     } catch {}
 
+    try {
+      const storedPrograms = localStorage.getItem('swar_sadhana_active_programs');
+      if (storedPrograms) {
+        setActivePrograms(JSON.parse(storedPrograms));
+      }
+    } catch {}
+
     // Resolve available programs and code from server
     setIsLoading(true);
     fetch(`/api/sadhana/resolve-code?code=${encodeURIComponent(savedCode)}`)
@@ -227,9 +234,15 @@ export function DailySadhanaModal({ isOpen, onClose }: SadhanaModalProps) {
         if (data.success) {
           if (Array.isArray(data.allActivePrograms)) {
             setActivePrograms(data.allActivePrograms);
+            try {
+              localStorage.setItem('swar_sadhana_active_programs', JSON.stringify(data.allActivePrograms));
+            } catch {}
           }
           if (data.program) {
             setSavedBatch(data.program);
+            try {
+              localStorage.setItem('swar_sadhana_program', JSON.stringify(data.program));
+            } catch {}
             if (!savedCode && data.program.passcode) {
               setSadhanaCode(data.program.passcode);
             }
@@ -259,6 +272,27 @@ export function DailySadhanaModal({ isOpen, onClose }: SadhanaModalProps) {
     // If code matches already loaded batch
     if (savedBatch && (!cleanCode || cleanCode.toUpperCase() === (savedBatch.passcode || '').toUpperCase() || cleanCode.toLowerCase() === savedBatch.slug.toLowerCase())) {
       navigateToProgram(savedBatch);
+      return;
+    }
+
+    // Offline / deployment fallback: check cached programs
+    const matchingInCached = activePrograms.find(
+      (p) =>
+        (p.passcode && p.passcode.toUpperCase() === cleanCode.toUpperCase()) ||
+        (p.slug && p.slug.toLowerCase() === cleanCode.toLowerCase())
+    );
+    if (matchingInCached) {
+      navigateToProgram(matchingInCached);
+      return;
+    }
+
+    // Direct slug fallback (e.g. HINDISWAR, ENGLISHSWAR)
+    if (cleanCode.toUpperCase() === 'HINDISWAR' || cleanCode.toUpperCase() === 'HINDI') {
+      navigateToProgram({ slug: 'hindi', name: 'Hindi Sadhana', passcode: 'HINDISWAR' });
+      return;
+    }
+    if (cleanCode.toUpperCase() === 'ENGLISHSWAR' || cleanCode.toUpperCase() === 'ENGLISH') {
+      navigateToProgram({ slug: 'english', name: 'English Sadhana', passcode: 'ENGLISHSWAR' });
       return;
     }
 

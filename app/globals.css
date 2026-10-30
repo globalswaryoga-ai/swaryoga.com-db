@@ -5,42 +5,114 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* ===== POPPINS FONT - GLOBAL DEFAULT ===== */
+/* ===== 27 WORLD & INDIC LANGUAGES BEST TYPOGRAPHY SYSTEM ===== */
+
+/* 1. Global Font Stack with Fallbacks */
 * {
-  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', 'Noto Sans Gujarati', 'Noto Sans Bengali', 'Noto Sans Kannada', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Malayalam', 'Noto Sans Gurmukhi', 'Noto Sans Arabic', 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* ===== DEVANAGARI / MARATHI PREMIUM FONT ===== */
-:lang(hi), :lang(mr),
-[lang="hi"], [lang="mr"],
-.devanagari, .hindi, .marathi, .marathi-font, .marathi-font *,
-.hindi-font, .hindi-font *,
-.devanagari-font, .devanagari-font * {
-  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', sans-serif !important;
+/* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) */
+:lang(hi), :lang(mr), :lang(sa), :lang(ne),
+[lang="hi"], [lang="mr"], [lang="sa"], [lang="ne"],
+[lang^="hi-"], [lang^="mr-"],
+.font-devanagari, .devanagari, .hindi, .marathi {
+  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', system-ui, sans-serif !important;
+}
+
+/* 3. Gujarati */
+:lang(gu), [lang="gu"], .font-gujarati {
+  font-family: 'Noto Sans Gujarati', 'Gujarati Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 4. Bengali & Assamese */
+:lang(bn), :lang(as), [lang="bn"], [lang="as"], .font-bengali {
+  font-family: 'Noto Sans Bengali', 'Bangla Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 5. Kannada */
+:lang(kn), [lang="kn"], .font-kannada {
+  font-family: 'Noto Sans Kannada', 'Kannada Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 6. Tamil */
+:lang(ta), [lang="ta"], .font-tamil {
+  font-family: 'Noto Sans Tamil', 'Tamil Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 7. Telugu */
+:lang(te), [lang="te"], .font-telugu {
+  font-family: 'Noto Sans Telugu', 'Telugu Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 8. Malayalam */
+:lang(ml), [lang="ml"], .font-malayalam {
+  font-family: 'Noto Sans Malayalam', 'Malayalam Sangam MN', system-ui, sans-serif !important;
+}
+
+/* 9. Punjabi (Gurmukhi) */
+:lang(pa), [lang="pa"], .font-punjabi {
+  font-family: 'Noto Sans Gurmukhi', 'Gurmukhi MN', system-ui, sans-serif !important;
+}
+
+/* 10. Arabic */
+:lang(ar), [lang="ar"], .font-arabic {
+  font-family: 'Noto Sans Arabic', 'Geeza Pro', system-ui, sans-serif !important;
+}
+
+/* 11. Japanese */
+:lang(ja), [lang="ja"], .font-japanese {
+  font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif !important;
+}
+
+/* 12. Chinese (Simplified) */
+:lang(zh), [lang="zh"], .font-chinese {
+  font-family: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif !important;
+}
+
+/* 13. Korean */
+:lang(ko), [lang="ko"], .font-korean {
+  font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', system-ui, sans-serif !important;
+}
+
+/* 14. Thai */
+:lang(th), [lang="th"], .font-thai {
+  font-family: 'Noto Sans Thai', 'Thonburi', system-ui, sans-serif !important;
+}
+
+/* 15. Latin & European Languages (English, Spanish, French, German, Russian, Portuguese, Italian, Indonesian) */
+:lang(en), :lang(es), :lang(fr), :lang(de), :lang(ru), :lang(pt), :lang(it), :lang(id),
+[lang="en"], [lang="es"], [lang="fr"], [lang="de"], [lang="ru"], [lang="pt"], [lang="it"], [lang="id"] {
+  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
 html {
   scroll-behavior: smooth;
-  max-width: 100vw;
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
-  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-weight: 400;
   color: #111111;
   background-color: #F9FAF9;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  max-width: 100vw;
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  position: relative;
 }
 
 /* ===== GLOBAL TYPOGRAPHY ===== */
 h1, h2, h3, h4, h5, h6 {
   color: #111111;
   font-weight: 600;
-  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ===== VIDEO PROTECTION - Prevent download/share ===== */

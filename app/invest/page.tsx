@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ENTITIES, ENTITY_NAMES, ENTITY_DESCRIPTIONS, BUTTON_STYLES } from '@/lib/investment-constants';
 import { InvestmentCard } from '@/components/investment/InvestmentCard';
 import { InvestmentButton } from '@/components/investment/InvestmentButton';
+import ShareButton from '@/components/ShareButton';
 
 export default function InvestPage() {
   return (
@@ -17,7 +18,16 @@ export default function InvestPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Investment Path</h1>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h1 className="text-4xl font-bold text-gray-900">Choose Your Investment Path</h1>
+            <ShareButton
+              title="Swar Yoga Investment Opportunity"
+              description="Invest with Swar Yoga — Flexible plans with guaranteed returns. Start from ₹10,000!"
+              url="https://swaryoga.com/invest"
+              variant="icon"
+              size="lg"
+            />
+          </div>
           <p className="text-xl text-gray-600">
             Select which opportunity aligns with your financial goals
           </p>

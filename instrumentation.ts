@@ -25,6 +25,31 @@ export async function register() {
     // Mutating the singleton makes every consumer (mongodb, mongoose, fetch, …)
     // offer only classic curves.
     tlsModule.DEFAULT_ECDH_CURVE = 'X25519:prime256v1:secp384r1';
+
+    // Drain the admin-approved RAG media queue during the overnight India window.
+    // Keep this in the persistent Node process (Contabo/PM2), not an edge/serverless timer.
+    const globalState = globalThis as typeof globalThis & { __mohanRagIngestionCron?: boolean; __mohanRagIngestionBusy?: boolean };
+    if (!globalState.__mohanRagIngestionCron) {
+      const cron = req('node-cron') as { schedule: (expression: string, callback: () => void, options: { timezone: string }) => unknown };
+      cron.schedule('* 22-23,0-5 * * *', () => {
+        if (globalState.__mohanRagIngestionBusy) return;
+        globalState.__mohanRagIngestionBusy = true;
+        try {
+          const worker = req('@/lib/mohanRag/videoIngestionWorker');
+          if (worker?.processNextMohanRagVideo) {
+            Promise.resolve(worker.processNextMohanRagVideo())
+              .catch((error: unknown) => console.error('[Mohan RAG ingestion] Night worker error:', error))
+              .finally(() => { globalState.__mohanRagIngestionBusy = false; });
+          } else {
+            globalState.__mohanRagIngestionBusy = false;
+          }
+        } catch (err) {
+          console.error('[Mohan RAG ingestion] Worker load error:', err);
+          globalState.__mohanRagIngestionBusy = false;
+        }
+      }, { timezone: 'Asia/Kolkata' });
+      globalState.__mohanRagIngestionCron = true;
+    }
   } catch {
     /* nothing to do */
   }

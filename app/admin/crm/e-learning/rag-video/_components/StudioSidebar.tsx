@@ -133,7 +133,7 @@ export default function StudioSidebar({
       id: 'video-to-text-emotion' as StudioSection,
       num: '5',
       label: 'Video to Text & Emotions',
-      subtitle: 'Minute-Wise, 18 Emotions & Gestures',
+      subtitle: 'Whisper timestamps & avatar cue suggestions',
       icon: Film,
       color: 'text-rose-400',
       activeBg: 'from-rose-600/30 to-pink-600/20 border-rose-500 ring-1 ring-rose-500/40',

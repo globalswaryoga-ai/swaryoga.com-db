@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2, RotateCcw } from 'lucide-react';
+import { Maximize, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
+import { toggleFullscreenAndRotate, setupFullscreenRotateListener } from '@/lib/videoFullscreenRotate';
 
 interface HLSVideoPlayerProps {
   src: string;
@@ -212,6 +213,10 @@ export default function HLSVideoPlayer({
     };
   }, [src, isLiveStream]); // ONLY depends on src and isLiveStream
 
+  useEffect(() => {
+    return setupFullscreenRotateListener();
+  }, []);
+
   // Show/hide controls overlay on mouse movement
   useEffect(() => {
     const handleMouseMove = () => {
@@ -290,6 +295,16 @@ export default function HLSVideoPlayer({
           <span className="text-xs font-bold text-white">LIVE</span>
         </div>
       )}
+
+      {/* Quick Rotate / Fullscreen Button */}
+      <button
+        type="button"
+        onClick={() => toggleFullscreenAndRotate(playerRef.current || videoRef.current)}
+        className="absolute top-3 right-3 z-20 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-sm transition-all active:scale-95 cursor-pointer shadow-md"
+        title="Rotate Full Screen"
+      >
+        <Maximize className="w-4 h-4" />
+      </button>
 
       {/* Loading Spinner */}
       {isLoading && (

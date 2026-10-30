@@ -1,6 +1,6 @@
 /**
- * Life Planner Storage - MongoDB Backend
- * Replaces localStorage with persistent MongoDB storage
+ * Life Planner Storage - Bunny Database Backend
+ * High-performance edge persistence via Bunny Edge SQL
  */
 
 import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan, DailyHealthPlan } from '@/lib/types/lifePlanner';
@@ -87,8 +87,11 @@ class LifePlannerMongoStorage {
 
   private handleUnauthorized(): void {
     if (typeof window === 'undefined') return;
-    // 401 means the token is invalid/expired. Clear the session fully so UI re-auths cleanly.
+    // 401 means the token is invalid/expired. Clear the session and redirect to sign in.
     clearSession();
+    if (!window.location.pathname.startsWith('/signin')) {
+      window.location.href = '/signin?redirect=/life-planner/dashboard';
+    }
   }
 
   async getVisions(): Promise<Vision[]> {

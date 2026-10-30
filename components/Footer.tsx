@@ -41,10 +41,7 @@ export default function Footer() {
     }
   }, []);
 
-  if (isAndroidApp) {
-    return null;
-  }
-
+  // Allow Footer to show on Android App with bottom safe spacing for mobile bottom bar
   const currentYear = new Date().getFullYear();
 
   const quickLinks = [
@@ -93,7 +90,7 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+    <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden pb-20 md:pb-0">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{

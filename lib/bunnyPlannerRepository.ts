@@ -1,4 +1,4 @@
-import { bunnyExecute, bunnyBatch } from '@/lib/bunnyDatabase';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 let initialized = false;
 
@@ -25,20 +25,21 @@ async function ensureTable() {
 export interface BunnyPlannerRecord {
   ownerId: string;
   ownerType: string;
-  crmVisions?: any[];
-  crmActionPlans?: any[];
-  crmGoals?: any[];
-  crmTasks?: any[];
-  crmTodos?: any[];
-  crmWords?: any[];
-  crmReminders?: any[];
-  crmHealthRoutines?: any[];
-  crmDailyHealthPlans?: any[];
-  crmDiamondPeople?: any[];
-  crmProgress?: any[];
-  crmEvents?: any[];
-  crmAccounting?: any;
-  crmExpenseBudgets?: any[];
+  visions?: any[];
+  actionPlans?: any[];
+  goals?: any[];
+  tasks?: any[];
+  todos?: any[];
+  words?: any[];
+  reminders?: any[];
+  healthRoutines?: any[];
+  dailyHealthPlans?: any[];
+  diamondPeople?: any[];
+  progress?: any[];
+  events?: any[];
+  accounting?: any;
+  dailyTasks?: Record<string, any>;
+  [key: string]: any;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -47,7 +48,7 @@ export async function getBunnyPlannerData(ownerId: string): Promise<BunnyPlanner
   await ensureTable();
   const normalizedOwner = ownerId.trim().toLowerCase();
   const result = await bunnyExecute({
-    sql: 'SELECT owner_id, owner_type, data_json, created_at, updated_at FROM crm_planner_data_sql WHERE owner_id = ? LIMIT 1',
+    sql: 'SELECT owner_id, owner_type, data_json, created_at, updated_at FROM crm_planner_data_sql WHERE lower(owner_id) = ? LIMIT 1',
     args: [normalizedOwner],
   });
 
@@ -85,7 +86,7 @@ export async function saveBunnyPlannerField(
     createdAt: timestamp,
   };
 
-  const updatedData = {
+  const updatedData: Record<string, any> = {
     ...currentData,
     [fieldName]: dataToSave,
     updatedAt: timestamp,
@@ -111,4 +112,32 @@ export async function saveBunnyPlannerField(
   });
 
   return updatedData;
+}
+
+export async function getBunnyDailyTasks(ownerId: string, date: string): Promise<any> {
+  const planner = await getBunnyPlannerData(ownerId);
+  const dailyTasksMap = planner?.dailyTasks || (planner as any)?.lifePlannerDailyTasks || {};
+  return dailyTasksMap[date] || {
+    workshopTasks: [],
+    sadhana: null,
+    date,
+  };
+}
+
+export async function saveBunnyDailyTasks(
+  ownerId: string,
+  date: string,
+  tasksData: { workshopTasks?: any[]; sadhana?: any }
+): Promise<any> {
+  const planner = await getBunnyPlannerData(ownerId);
+  const dailyTasksMap = planner?.dailyTasks || (planner as any)?.lifePlannerDailyTasks || {};
+  dailyTasksMap[date] = {
+    ...(dailyTasksMap[date] || {}),
+    ...tasksData,
+    date,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveBunnyPlannerField(ownerId, 'user', 'dailyTasks', dailyTasksMap);
+  return dailyTasksMap[date];
 }

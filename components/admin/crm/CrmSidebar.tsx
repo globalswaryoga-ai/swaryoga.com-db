@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, X, ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
+import { fetchMyModulesDeduped } from '@/lib/crm-site/tenantModulesClient';
+
+// Module-level in-memory cache to prevent re-fetching plan & modules on every single route navigation / re-render
+let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
 import { MODULE_CATALOG, expandGroups, PLAN_DEFAULT_GROUPS } from '@/lib/tenant/moduleCatalog';
 import { usePlan } from './hooks/usePlan';
@@ -42,6 +46,7 @@ const MAIN_DOMAIN_SECTION_KEYS = [
   'settings',            // 15. Settings
   'kp-astro',            // 16. KP Astro
   'elearning',           // 17. E-Learning (Strictly untouched!)
+  'mohan-rag',           // 18. Mohan Rag (AI Avatar Studio & Content Hub)
 ];
 
 // Tenant CRM (crm.swaryoga.com) shows ONLY these module sections, in this order.
@@ -86,9 +91,6 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const isSuper = typeof window !== 'undefined' ? checkIsSuperAdmin() : false;
   const activeKey = findSectionForPath(pathname)?.key;
   usePlan(); // keep provider alive for other components
-
-// In-memory cache to prevent re-fetching plan & modules on every single route navigation
-let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
 
   // Tenant module keys. null = still loading, Set = loaded (may be empty).
   const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(() => cachedTenantModuleResult?.keys ?? null);
@@ -158,10 +160,8 @@ let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
       }
 
       try {
-        const r = await fetch('/api/crm-site/my-modules', { headers: { Authorization: `Bearer ${token}` } });
-        if (r.ok) {
-          const j = await r.json();
-          const d = j?.data || {};
+        const d = await fetchMyModulesDeduped(token);
+        if (d) {
           if (d.trial) setTrial(d.trial);
           const tenantKeys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
           const planKeys = await keysFromPlan(d.plan || await tierFromSetupStatus());
@@ -355,7 +355,11 @@ let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
         </div>
 
         {/* Module list */}
-        <nav className="flex-1 overflow-y-auto py-2.5 px-2 space-y-1">
+        <div
+          role="navigation"
+          className="flex-1 overflow-y-auto py-2.5 px-2 space-y-1 bg-[#0b0f19]"
+          style={{ backgroundColor: '#0b0f19', color: '#ffffff' }}
+        >
           {modules.map((s) => {
             const Icon = s.icon;
             const active = activeKey === s.key;
@@ -384,7 +388,7 @@ let cachedTenantModuleResult: { keys: Set<string>; trial: any } | null = null;
               </Link>
             );
           })}
-        </nav>
+        </div>
 
         {/* Trial / subscription status (non-super-admin only) */}
         {!isSuper && (

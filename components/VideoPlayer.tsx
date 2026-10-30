@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Maximize, Minimize } from 'lucide-react';
+import { toggleFullscreenAndRotate, setupFullscreenRotateListener } from '@/lib/videoFullscreenRotate';
 
 type PlayerMode = 'hls' | 'mp4' | 'bunny-embed' | 'youtube';
 
@@ -83,20 +84,17 @@ export default function VideoPlayer({
     }
   }, [videoUrl, mode]);
 
-  // Fullscreen toggle
+  // Fullscreen toggle with automatic landscape rotation
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
+    toggleFullscreenAndRotate(containerRef.current);
   };
 
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
+    const cleanup = setupFullscreenRotateListener((isFs) => {
+      setIsFullscreen(isFs);
+    });
+    return cleanup;
   }, []);
 
   // Community watch-time tracking: per-session + yearly quota enforcement.

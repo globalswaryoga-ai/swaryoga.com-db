@@ -14,34 +14,14 @@ import {
   RefreshCw,
   Presentation,
 } from 'lucide-react';
+import { ELEARNING_LANGUAGES, ELEARNING_INDIAN_LANGUAGES, ELEARNING_FOREIGN_LANGUAGES } from '@/lib/elearningLanguages';
 
-const SUPPORTED_LANGS = [
-  { code: 'hi', name: 'Hindi (हिंदी)', flag: '🇮🇳', region: 'indian' },
-  { code: 'mr', name: 'Marathi (मराठी)', flag: '🚩', region: 'indian' },
-  { code: 'en', name: 'English', flag: '🇬🇧', region: 'global' },
-  { code: 'kn', name: 'Kannada (ಕನ್ನಡ)', flag: '🇮🇳', region: 'south_indian' },
-  { code: 'gu', name: 'Gujarati (ગુજરાતી)', flag: '🇮🇳', region: 'indian' },
-  { code: 'ta', name: 'Tamil (தமிழ்)', flag: '🇮🇳', region: 'south_indian' },
-  { code: 'te', name: 'Telugu (తెలుగు)', flag: '🇮🇳', region: 'south_indian' },
-  { code: 'ml', name: 'Malayalam (മലയാളം)', flag: '🇮🇳', region: 'south_indian' },
-  { code: 'bn', name: 'Bengali (বাংলা)', flag: '🇮🇳', region: 'indian' },
-  { code: 'pa', name: 'Punjabi (ਪੰਜਾਬੀ)', flag: '🇮🇳', region: 'indian' },
-  { code: 'sa', name: 'Sanskrit (संस्कृतम्)', flag: '🕉️', region: 'indian' },
-  { code: 'or', name: 'Odia (ଓଡ଼ିଆ)', flag: '🇮🇳', region: 'indian' },
-  { code: 'ne', name: 'Nepali (नेपाली)', flag: '🇳🇵', region: 'indian' },
-  { code: 'zh', name: 'Mandarin (中文)', flag: '🇨🇳', region: 'global' },
-  { code: 'es', name: 'Spanish (Español)', flag: '🇪🇸', region: 'global' },
-  { code: 'fr', name: 'French (Français)', flag: '🇫🇷', region: 'global' },
-  { code: 'ar', name: 'Arabic (العربية)', flag: '🇸🇦', region: 'global' },
-  { code: 'de', name: 'German (Deutsch)', flag: '🇩🇪', region: 'global' },
-  { code: 'pt', name: 'Portuguese (Português)', flag: '🇧🇷', region: 'global' },
-  { code: 'ja', name: 'Japanese (日本語)', flag: '🇯🇵', region: 'global' },
-  { code: 'ko', name: 'Korean (한국어)', flag: '🇰🇷', region: 'global' },
-  { code: 'ru', name: 'Russian (Русский)', flag: '🇷🇺', region: 'global' },
-  { code: 'it', name: 'Italian (Italiano)', flag: '🇮🇹', region: 'global' },
-  { code: 'tr', name: 'Turkish (Türkçe)', flag: '🇹🇷', region: 'global' },
-  { code: 'id', name: 'Indonesian (Bahasa)', flag: '🇮🇩', region: 'global' },
-];
+const SUPPORTED_LANGS = ELEARNING_LANGUAGES.map((l) => ({
+  code: l.code,
+  name: `${l.name} (${l.nativeName})`,
+  flag: l.flag,
+  region: l.region === 'indian' ? 'indian' : 'global',
+}));
 
 interface Module7Props {
   token?: string | null;
@@ -317,33 +297,20 @@ export default function Module7MultilingualText({
               onClick={() => setTargetLangs(SUPPORTED_LANGS.map((l) => l.code).filter((c) => c !== sourceLang))}
               className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer font-medium"
             >
-              All 20 Languages
+              All {SUPPORTED_LANGS.length} Languages
             </button>
             <button
               type="button"
               onClick={() =>
                 setTargetLangs(
-                  SUPPORTED_LANGS.filter((l) => l.region === 'indian' || l.region === 'south_indian')
+                  SUPPORTED_LANGS.filter((l) => l.region === 'indian')
                     .map((l) => l.code)
                     .filter((c) => c !== sourceLang)
                 )
               }
               className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer font-medium"
             >
-              Indian Languages (12)
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setTargetLangs(
-                  SUPPORTED_LANGS.filter((l) => l.region === 'south_indian')
-                    .map((l) => l.code)
-                    .filter((c) => c !== sourceLang)
-                )
-              }
-              className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer font-medium"
-            >
-              South Indian (Kn, Ta, Te, Ml)
+              Indian (Hindi, Marathi, Kannada)
             </button>
             <button
               type="button"
@@ -356,7 +323,7 @@ export default function Module7MultilingualText({
               }
               className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer font-medium"
             >
-              Global Languages (8)
+              All Foreign Dubbing ({SUPPORTED_LANGS.filter((l) => l.region === 'global').length})
             </button>
             <button
               type="button"

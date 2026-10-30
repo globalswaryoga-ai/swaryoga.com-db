@@ -106,13 +106,6 @@ const LANGUAGE_CONFIG: Record<string, {
     script: 'Assamese',
     grammarNotes: 'SOV order. Use আপুনি for respectful. Eastern Indo-Aryan language.',
   },
-  ur: {
-    name: 'Urdu',
-    nativeName: 'اردو',
-    direction: 'rtl',
-    script: 'Nastaliq',
-    grammarNotes: 'SOV order like Hindi but RTL script. Use آپ for respectful. Prefer Persian/Arabic-origin words over Sanskrit.',
-  },
   ar: {
     name: 'Arabic',
     nativeName: 'العربية',
@@ -267,6 +260,125 @@ const LANGUAGE_CONFIG: Record<string, {
     script: 'Latin',
     grammarNotes: 'SVO order. Noun class system (18 classes). Bantu language.',
   },
+  el: {
+    name: 'Greek',
+    nativeName: 'Ελληνικά',
+    direction: 'ltr',
+    script: 'Greek',
+    grammarNotes: 'Flexible SVO order. Formal plural form used for politeness.',
+  },
+  fil: {
+    name: 'Filipino',
+    nativeName: 'Wikang Filipino',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'VSO order. Austronesian alignment with focus markers. Po/opo for politeness.',
+  },
+  da: {
+    name: 'Danish',
+    nativeName: 'Dansk',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'V2 word order like Germanic languages.',
+  },
+  fi: {
+    name: 'Finnish',
+    nativeName: 'Suomi',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'Uralic language with 15 grammatical cases. Agglutinative structure.',
+  },
+  no: {
+    name: 'Norwegian',
+    nativeName: 'Norsk',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'V2 word order. Scandinavian North Germanic language.',
+  },
+  ro: {
+    name: 'Romanian',
+    nativeName: 'Română',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'Eastern Romance language with suffixed definite articles.',
+  },
+  cs: {
+    name: 'Czech',
+    nativeName: 'Čeština',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'West Slavic language. 7 grammatical cases. Vy for formal.',
+  },
+  hu: {
+    name: 'Hungarian',
+    nativeName: 'Magyar',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'Finno-Ugric agglutinative language with vowel harmony.',
+  },
+  sk: {
+    name: 'Slovak',
+    nativeName: 'Slovenčina',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'West Slavic language closely related to Czech.',
+  },
+  bg: {
+    name: 'Bulgarian',
+    nativeName: 'Български',
+    direction: 'ltr',
+    script: 'Cyrillic',
+    grammarNotes: 'South Slavic language without noun cases but with definite articles.',
+  },
+  hr: {
+    name: 'Croatian',
+    nativeName: 'Hrvatski',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'South Slavic language. 7 cases. Vi for respectful.',
+  },
+  sr: {
+    name: 'Serbian',
+    nativeName: 'Српски',
+    direction: 'ltr',
+    script: 'Cyrillic',
+    grammarNotes: 'South Slavic language using Cyrillic and Latin script.',
+  },
+  my: {
+    name: 'Burmese',
+    nativeName: 'မြန်မာဘာသာ',
+    direction: 'ltr',
+    script: 'Myanmar',
+    grammarNotes: 'SOV word order. Tonal Sino-Tibetan language.',
+  },
+  km: {
+    name: 'Khmer',
+    nativeName: 'ភាសាខ្មែរ',
+    direction: 'ltr',
+    script: 'Khmer',
+    grammarNotes: 'SVO word order. Austroasiatic language without grammatical inflection.',
+  },
+  si: {
+    name: 'Sinhala',
+    nativeName: 'සිංහල',
+    direction: 'ltr',
+    script: 'Sinhala',
+    grammarNotes: 'SOV word order. Indo-Aryan language with diglossia.',
+  },
+  lt: {
+    name: 'Lithuanian',
+    nativeName: 'Lietuvių',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'Baltic Indo-European language with archaic inflectional features.',
+  },
+  sl: {
+    name: 'Slovenian',
+    nativeName: 'Slovenščina',
+    direction: 'ltr',
+    script: 'Latin',
+    grammarNotes: 'South Slavic language featuring dual grammatical number.',
+  },
 };
 
 // Translation style options
@@ -389,7 +501,7 @@ ${context ? `Context: ${context}\n\n` : ''}Source Text (${sourceConfig.nativeNam
 ${sourceText}
 """
 
-Provide ONLY the ${targetConfig.name} translation, nothing else. Do not include explanations, notes, or the original text.${includeTransliteration && ['hi', 'mr', 'ne', 'bn', 'ta', 'te', 'gu', 'pa', 'kn', 'ml', 'or', 'as', 'ur', 'ar', 'zh', 'ja', 'ko', 'th', 'fa', 'he'].includes(targetLang) ? `\n\nAfter the translation, on a new line starting with "TRANSLITERATION:", provide the romanized transliteration.` : ''}`;
+Provide ONLY the ${targetConfig.name} translation, nothing else. Do not include explanations, notes, or the original text.${includeTransliteration && ['hi', 'mr', 'ne', 'bn', 'ta', 'te', 'gu', 'pa', 'kn', 'ml', 'or', 'as', 'ar', 'zh', 'ja', 'ko', 'th', 'fa', 'he', 'my', 'km', 'si'].includes(targetLang) ? `\n\nAfter the translation, on a new line starting with "TRANSLITERATION:", provide the romanized transliteration.` : ''}`;
 
       try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {

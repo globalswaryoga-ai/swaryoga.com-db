@@ -1,38 +1,35 @@
 /**
- * Daily Tasks & Sadhana API
+ * Daily Tasks & Sadhana API - Bunny Database Backend
  * Handles persistent storage of workshop tasks and sadhana for specific days
- * GET: Fetch tasks/sadhana for a date
- * POST: Save tasks/sadhana for a date
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Types } from 'mongoose';
+import { getBunnyDailyTasks, saveBunnyDailyTasks } from '@/lib/bunnyPlannerRepository';
 
 export const dynamic = 'force-dynamic';
 
-const TENANT_HEADER = 'x-tenant-id';
+function getAuthedOwnerId(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+  const payload = verifyToken(token);
+  if (!payload) return null;
 
-function getTenantId(request: NextRequest): string | null {
-  return request.headers.get(TENANT_HEADER);
+  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
+  const userId = payload.userId || (payload as any)._id || (payload as any).id;
+  const username = (payload as any).username ? String((payload as any).username).trim().toLowerCase() : '';
+
+  return email || (userId ? String(userId) : '') || username || null;
 }
-
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const tenantId = getTenantId(request);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.userId && !decoded?.email) {
+    const ownerId = getAuthedOwnerId(request);
+    if (!ownerId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const userId = decoded.userId;
-    const email = decoded.email;
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date'); // YYYY-MM-DD format
@@ -45,72 +42,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // User documents do NOT have a tenantId field — never include it in the query.
-    const query = (userId && Types.ObjectId.isValid(userId))
-      ? { _id: userId }
-      : email
-        ? { email: email.trim().toLowerCase() }
-        : null;
-
-    if (!query) {
-      return NextResponse.json(
-        { error: 'Invalid user context' },
-        { status: 400 }
-      );
-    }
-
-    const user = await User.findOne(query).lean();
-    // Return empty data for new users — they simply haven't saved tasks yet
-    if (!user) {
-      return NextResponse.json({ success: true, data: { workshopTasks: [], sadhana: null, date } });
-    }
-
-    // Return stored daily tasks
-    const dailyTasksData = (user as any).lifePlannerDailyTasks || {};
-    const tasksForDate = dailyTasksData[date] || {
-      workshopTasks: [],
-      sadhana: null,
-      date,
-    };
+    const tasksForDate = await getBunnyDailyTasks(ownerId, date);
 
     if (type === 'workshopTasks') {
       return NextResponse.json(
         { success: true, data: tasksForDate.workshopTasks || [] },
         { status: 200 }
       );
-    } else if (type === 'sadhana') {
+    }
+
+    if (type === 'sadhana') {
       return NextResponse.json(
         { success: true, data: tasksForDate.sadhana || null },
         { status: 200 }
       );
-    } else {
-      return NextResponse.json(
-        { success: true, data: tasksForDate },
-        { status: 200 }
-      );
     }
-  } catch (error) {
-    console.error('Error fetching daily tasks:', error);
+
     return NextResponse.json(
-      { error: 'Failed to fetch daily tasks' },
-      { status: 500 }
+      {
+        success: true,
+        data: tasksForDate,
+      },
+      { status: 200 }
     );
+  } catch (error) {
+    console.error('[BunnyDailyTasks GET error]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const tenantId = getTenantId(request);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.userId && !decoded?.email) {
+    const ownerId = getAuthedOwnerId(request);
+    if (!ownerId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const userId = decoded.userId;
-    const email = decoded.email;
 
     const body = await request.json();
     const { date, workshopTasks, sadhana } = body;
@@ -122,60 +88,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // User documents do NOT have a tenantId field — never include it in the query.
-    const query = (userId && Types.ObjectId.isValid(userId))
-      ? { _id: userId }
-      : email
-        ? { email: email.trim().toLowerCase() }
-        : null;
-
-    if (!query) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await User.findOneAndUpdate(
-      query,
-      {
-        $set: {
-          [`lifePlannerDailyTasks.${date}`]: {
-            date,
-            workshopTasks: workshopTasks || [],
-            sadhana: sadhana || null,
-            updatedAt: new Date().toISOString(),
-          },
-        },
-      },
-      { new: true, runValidators: false }
-    );
-
-    if (!user) {
-      return NextResponse.json({ error: 'Failed to save daily tasks' }, { status: 500 });
-    }
-
-    console.log(`[POST] ✅ Saved daily tasks on ${date}:`, {
-      hasUserId: !!(userId && Types.ObjectId.isValid(userId)),
-      hasEmail: !!email,
-      workshopTasksCount: (workshopTasks || []).length,
-      hasSadhana: !!sadhana,
+    const saved = await saveBunnyDailyTasks(ownerId, date, {
+      ...(workshopTasks !== undefined ? { workshopTasks } : {}),
+      ...(sadhana !== undefined ? { sadhana } : {}),
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: {
-          date,
-          workshopTasks: workshopTasks || [],
-          sadhana: sadhana || null,
-        },
-        message: 'Daily tasks saved successfully',
+        message: 'Tasks saved to Bunny Database successfully',
+        data: saved,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error saving daily tasks:', error);
-    return NextResponse.json(
-      { error: 'Failed to save daily tasks' },
-      { status: 500 }
-    );
+    console.error('[BunnyDailyTasks POST error]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

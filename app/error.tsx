@@ -15,6 +15,21 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Auto-recover from chunk load errors caused by new deployments
+    if (
+      error.message?.includes('Loading chunk') ||
+      error.message?.includes('ChunkLoadError') ||
+      error.message?.includes('Failed to fetch dynamically imported module')
+    ) {
+      const lastReload = sessionStorage.getItem('swar_chunk_reload');
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem('swar_chunk_reload', String(now));
+        window.location.reload();
+        return;
+      }
+    }
+
     console.error('[PageError]', error.message, error.stack);
     // Fire-and-forget error report
     try {

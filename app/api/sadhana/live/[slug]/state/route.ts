@@ -159,7 +159,8 @@ async function handleStateRequest(request: NextRequest, params: { slug: string }
 
     await initSadhanaBunnySchema();
     const now = new Date();
-    const activeThreshold = new Date(now.getTime() - 15 * 1000);
+    // 120s tolerance (2 minutes) so fluctuating mobile / train networks do not drop participants
+    const activeThreshold = new Date(now.getTime() - 120 * 1000);
     const nowIso = now.toISOString();
     const thresholdIso = activeThreshold.toISOString();
 

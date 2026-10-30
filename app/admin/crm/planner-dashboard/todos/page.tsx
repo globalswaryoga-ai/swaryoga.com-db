@@ -390,7 +390,7 @@ export default function TodosPage() {
         </div>
         <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-amber-500">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-600">In Progress</span>
-          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-0.5">{todos.filter(t => !t.completed && (t.status === 'in-progress' || !t.status)).length}</p>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-0.5">{todos.filter(t => !t.completed).length}</p>
         </div>
         <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-rose-500">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-600">High Priority</span>

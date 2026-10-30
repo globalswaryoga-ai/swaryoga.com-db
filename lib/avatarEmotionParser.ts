@@ -23,6 +23,7 @@ export interface EmotionSentenceSegment {
   voiceStyle: string;
   gesture?: string;
   facialBlendshapes?: Record<string, number>;
+  facialExpression?: string;
 }
 
 export interface ParsedScriptResult {
@@ -271,6 +272,18 @@ export const EMOTION_LIBRARY: Record<
   },
 };
 
+export const FACIAL_EXPRESSION_LIBRARY: Record<string, { blendshapes: Record<string, number> }> = {
+  neutral: { blendshapes: {} },
+  gentle_smile: { blendshapes: { mouthSmileLeft: 0.45, mouthSmileRight: 0.45, cheekSquint: 0.2 } },
+  warm_smile: { blendshapes: { mouthSmileLeft: 0.65, mouthSmileRight: 0.65, cheekSquint: 0.35 } },
+  serene: { blendshapes: { eyesRelaxed: 0.65, mouthSmileLeft: 0.2 } },
+  focused_brow: { blendshapes: { browDownLeft: 0.45, browDownRight: 0.45, eyesRelaxed: 0.15 } },
+  inquiring: { blendshapes: { browInnerUp: 0.55, eyeWideLeft: 0.25, headTilt: 0.2 } },
+  compassionate: { blendshapes: { browInnerUp: 0.35, mouthSmileLeft: 0.35, eyesRelaxed: 0.25 } },
+  joyful: { blendshapes: { mouthSmileLeft: 0.75, mouthSmileRight: 0.75, cheekSquint: 0.45 } },
+  concerned: { blendshapes: { browInnerUp: 0.35, browDownLeft: 0.2, eyesRelaxed: 0.15 } },
+};
+
 /**
  * Parses script containing [tags] and punctuation into structured emotion events
  */
@@ -324,6 +337,9 @@ export function parseAvatarScript(scriptText: string): ParsedScriptResult {
       const rawTag = match[1].toLowerCase();
       const rawVal = match[2];
 
+      // Face expressions are parsed separately below; they are not emotions.
+      if (rawTag === 'face') continue;
+
       if (rawTag === 'pause') {
         const parsedSec = rawVal ? parseFloat(rawVal.replace('s', '')) : 1.0;
         pauseAfterSeconds = isNaN(parsedSec) ? 1.0 : parsedSec;
@@ -345,8 +361,13 @@ export function parseAvatarScript(scriptText: string): ParsedScriptResult {
       detectedEmotionsSet.add(rawTag);
     }
 
+    const faceMatch = trimmedChunk.match(/\[face:([a-z_]+)\]/i);
+    const facialExpression = faceMatch && FACIAL_EXPRESSION_LIBRARY[faceMatch[1].toLowerCase()]
+      ? faceMatch[1].toLowerCase()
+      : undefined;
+
     // Clean text: strip out [bracket commands]
-    const cleanText = trimmedChunk.replace(/\[[a-zA-Z0-9_]+(?::[0-9.]+[a-z%]?)?\]/g, '').replace(/\s+/g, ' ').trim();
+    const cleanText = trimmedChunk.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-zA-Z0-9_]+(?::[0-9.]+[a-z%]?)?\]/g, '').replace(/\s+/g, ' ').trim();
 
     if (!cleanText) continue;
 
@@ -371,7 +392,8 @@ export function parseAvatarScript(scriptText: string): ParsedScriptResult {
       pauseAfterSeconds,
       voiceStyle: emotionConfig?.defaultVoiceStyle || 'conversational',
       gesture: emotionConfig?.defaultGesture,
-      facialBlendshapes: emotionConfig?.blendshapes,
+      facialBlendshapes: facialExpression ? FACIAL_EXPRESSION_LIBRARY[facialExpression].blendshapes : emotionConfig?.blendshapes,
+      facialExpression,
     });
   }
 

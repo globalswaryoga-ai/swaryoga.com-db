@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
 const LANG_NAMES: Record<string, string> = {
-  hi: 'Hindi', en: 'English', mr: 'Marathi', ne: 'Nepali',
-  zh: 'Mandarin Chinese', es: 'Spanish', fr: 'French', ar: 'Arabic',
-  de: 'German', pt: 'Portuguese', ja: 'Japanese', ko: 'Korean',
-  ru: 'Russian', it: 'Italian', tr: 'Turkish', nl: 'Dutch',
-  sv: 'Swedish', th: 'Thai', id: 'Indonesian', multi: 'English',
+  ...Object.fromEntries(ELEARNING_LANGUAGES.map((l) => [l.code, l.name])),
+  multi: 'English',
 };
 
 /**

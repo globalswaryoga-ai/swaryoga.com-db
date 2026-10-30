@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { checkIsSuperAdmin, getToken } from '@/lib/client-auth';
+import { fetchMyModulesDeduped } from '@/lib/crm-site/tenantModulesClient';
 
 /**
  * Full-screen paywall shown when a tenant's free trial has ended and the
@@ -15,15 +17,28 @@ export default function TrialPaywall() {
   const [locked, setLocked] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined'
-      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
-      : null;
+    // Super-admin (owner) is never subjected to trial locks
+    if (checkIsSuperAdmin()) {
+      setLocked(false);
+      return;
+    }
+
+    const token = getToken();
     if (!token) return;
-    fetch('/api/crm-site/my-modules', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setLocked(!!j?.data?.trial?.isLocked))
+
+    let isMounted = true;
+    fetchMyModulesDeduped(token)
+      .then((data) => {
+        if (isMounted) {
+          setLocked(!!data?.trial?.isLocked);
+        }
+      })
       .catch(() => {});
-  }, [pathname]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Let payment-related pages through so the tenant can actually pay.
   const allow = /\/(subscription|checkout|billing)/.test(pathname);

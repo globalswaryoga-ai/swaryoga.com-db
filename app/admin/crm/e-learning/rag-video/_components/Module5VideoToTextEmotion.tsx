@@ -6,14 +6,7 @@ import {
   Sparkles,
   Clock,
   Upload,
-  Play,
-  Pause,
-  CheckCircle2,
-  Sliders,
-  Smile,
-  ArrowRight,
   FileText,
-  Download,
   Copy,
 } from 'lucide-react';
 
@@ -25,12 +18,6 @@ interface MinuteSection {
     start: string;
     end: string;
     text: string;
-    primaryEmotion: string;
-    emotionIntensity: number;
-    voiceStyle: string;
-    gesture: string;
-    facialExpression: string;
-    pauseAfter: number;
   }>;
 }
 
@@ -43,6 +30,14 @@ interface Module5Props {
   onSendToVideoStudio?: (timelineData: any) => void;
 }
 
+async function readJsonResponse(response: Response) {
+  const body = await response.text();
+  try { return JSON.parse(body); } catch {
+    const route = new URL(response.url).pathname;
+    throw new Error(`Media API returned a non-JSON page (HTTP ${response.status}, ${route}). Restart the Next.js dev server so it registers the new API route, then retry.`);
+  }
+}
+
 export default function Module5VideoToTextEmotion({
   token,
   initialVideoUrl,
@@ -52,14 +47,17 @@ export default function Module5VideoToTextEmotion({
   onSendToVideoStudio,
 }: Module5Props) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(initialVideoUrl || null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState(initialVideoUrl || '');
   const [videoTitle, setVideoTitle] = useState<string | null>(initialVideoTitle || null);
   const [savedAvatars, setSavedAvatars] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progressText, setProgressText] = useState('');
-  const [sourceLang, setSourceLang] = useState('hi');
-  const [detectedLang, setDetectedLang] = useState('Hindi (हिंदी)');
+  const [detectedLang, setDetectedLang] = useState('Detected after transcription');
   const [sections, setSections] = useState<MinuteSection[] | null>(null);
+  const [plainTranscript, setPlainTranscript] = useState('');
+  const [annotatedTranscript, setAnnotatedTranscript] = useState('');
+  const [analysisError, setAnalysisError] = useState('');
   const [activeMinuteTab, setActiveMinuteTab] = useState(0);
   const [includeEmotionsInText, setIncludeEmotionsInText] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -68,7 +66,7 @@ export default function Module5VideoToTextEmotion({
 
   useEffect(() => {
     if (initialVideoUrl) {
-      setVideoUrl(initialVideoUrl);
+      setSourceUrl(initialVideoUrl);
       if (initialVideoTitle) setVideoTitle(initialVideoTitle);
     }
   }, [initialVideoUrl, initialVideoTitle]);
@@ -88,157 +86,55 @@ export default function Module5VideoToTextEmotion({
       setVideoFile(file);
       setVideoUrl(URL.createObjectURL(file));
       setVideoTitle(file.name);
+      setSourceUrl('');
       setSections(null);
+      setPlainTranscript('');
+      setAnnotatedTranscript('');
     }
   };
 
-  const handleRunAnalysis = () => {
-    if (!videoFile && !videoUrl) {
-      alert('Please select or upload a video first.');
-      return;
-    }
+  const handleRunAnalysis = async () => {
+    if (!videoFile && !sourceUrl.trim()) return;
     setIsProcessing(true);
-    setProgressText('Extracting audio prosody and Whisper multi-speaker transcription...');
-
-    setTimeout(() => {
-      setProgressText('Segmenting speech into minute-wise boundaries with sentence timestamps...');
-    }, 1500);
-
-    setTimeout(() => {
-      setProgressText('Analyzing MediaPipe 3D face mesh (18 facial emotions, eyebrow & eye gaze)...');
-    }, 3000);
-
-    setTimeout(() => {
-      setProgressText('Extracting hand gestures (namaste, open palms, pointing) and pause durations...');
-    }, 4500);
-
-    setTimeout(() => {
-      setIsProcessing(false);
-      setDetectedLang('Hindi (हिंदी) - 98.6% Confidence');
-
-      // Sample minute-wise sections based on typical Mohan Sir Swar Yoga lesson
-      const mockSections: MinuteSection[] = [
-        {
-          minuteRange: '00:00 - 01:00',
-          sectionTitle: 'Minute 1: Introduction & Welcome Friends',
-          sentences: [
-            {
-              id: 's_1',
-              start: '00:00',
-              end: '00:15',
-              text: 'नमस्कार मित्रों! स्वर योग की इस पावन प्रभात कक्षा में आप सभी का हार्दिक स्वागत है।',
-              primaryEmotion: 'friendly_smile',
-              emotionIntensity: 85,
-              voiceStyle: 'warm_storytelling',
-              gesture: 'namaste',
-              facialExpression: 'smile,eyeContact',
-              pauseAfter: 1.5,
-            },
-            {
-              id: 's_2',
-              start: '00:15',
-              end: '00:38',
-              text: 'क्या आपने कभी विचार किया है कि आपकी कौन सी नासिका इस समय सक्रिय रूप से चल रही है?',
-              primaryEmotion: 'curious',
-              emotionIntensity: 90,
-              voiceStyle: 'questioning',
-              gesture: 'head_tilt',
-              facialExpression: 'browInnerUp,eyeWide',
-              pauseAfter: 2.0,
-            },
-            {
-              id: 's_3',
-              start: '00:38',
-              end: '00:58',
-              text: 'हमारी दाईं नासिका सूर्य स्वर है और बाईं नासिका चंद्र स्वर है, जो हमारे पूरे शरीर को संचालित करती हैं।',
-              primaryEmotion: 'teaching',
-              emotionIntensity: 85,
-              voiceStyle: 'authoritative',
-              gesture: 'open_palms',
-              facialExpression: 'focused,smile',
-              pauseAfter: 1.2,
-            },
-          ],
-        },
-        {
-          minuteRange: '01:00 - 02:00',
-          sectionTitle: 'Minute 2: Core Shiva Swarodaya Rules',
-          sentences: [
-            {
-              id: 's_4',
-              start: '01:00',
-              end: '01:25',
-              text: 'शिव स्वरोदय में स्पष्ट रूप से लिखा है कि सूर्य स्वर के दौरान किया गया भोजन अमृत के समान पचता है।',
-              primaryEmotion: 'serious',
-              emotionIntensity: 92,
-              voiceStyle: 'reverent',
-              gesture: 'pointing_finger',
-              facialExpression: 'browDown,eyeSquint',
-              pauseAfter: 1.5,
-            },
-            {
-              id: 's_5',
-              start: '01:25',
-              end: '01:50',
-              text: 'यदि चंद्र स्वर में भारी भोजन किया जाए, तो वह शरीर में कफ और सुस्ती उत्पन्न करता है।',
-              primaryEmotion: 'caution',
-              emotionIntensity: 88,
-              voiceStyle: 'serious',
-              gesture: 'hand_down',
-              facialExpression: 'browDown',
-              pauseAfter: 1.8,
-            },
-          ],
-        },
-        {
-          minuteRange: '02:00 - 03:00',
-          sectionTitle: 'Minute 3: Daily Practice & Actionable Steps',
-          sentences: [
-            {
-              id: 's_6',
-              start: '02:00',
-              end: '02:30',
-              text: 'इसलिए आज से ही अपनी सांसों का निरीक्षण करें और अपने दिनचर्या को इसके अनुरूप ढालें।',
-              primaryEmotion: 'inspirational',
-              emotionIntensity: 90,
-              voiceStyle: 'motivational',
-              gesture: 'open_palms',
-              facialExpression: 'eyeWide,mouthSmile',
-              pauseAfter: 1.5,
-            },
-            {
-              id: 's_7',
-              start: '02:30',
-              end: '02:55',
-              text: 'नियमित अभ्यास से आप अपने स्वास्थ्य और मानसिक शांति में क्रांतिकारी बदलाव देखेंगे! हरि ॐ।',
-              primaryEmotion: 'big_smile',
-              emotionIntensity: 95,
-              voiceStyle: 'blessing',
-              gesture: 'namaste',
-              facialExpression: 'blissful',
-              pauseAfter: 2.0,
-            },
-          ],
-        },
-      ];
-      setSections(mockSections);
-    }, 5500);
+    setAnalysisError('');
+    setProgressText('Extracting audio and generating a timestamped transcript...');
+    try {
+      const form = new FormData();
+      if (videoFile) form.set('file', videoFile);
+      else form.set('url', sourceUrl.trim());
+      const response = await fetch('/api/admin/e-learning/video-to-text-emotion', {
+        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: form,
+      });
+      const result = await readJsonResponse(response);
+      if (!response.ok) throw new Error(result.error || 'Media transcription failed');
+      const grouped = new Map<number, MinuteSection['sentences']>();
+      for (const [index, segment] of (result.segments || []).entries()) {
+        const minute = Math.floor(Number(segment.start) / 60);
+        const rows = grouped.get(minute) || [];
+        const stamp = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+        rows.push({ id: `segment-${index}`, start: stamp(Number(segment.start)), end: stamp(Number(segment.end)), text: String(segment.text || '') });
+        grouped.set(minute, rows);
+      }
+      const minuteSections = [...grouped.entries()].sort(([a], [b]) => a - b).map(([minute, sentences]) => ({
+        minuteRange: `${String(minute).padStart(2, '0')}:00 - ${String(minute + 1).padStart(2, '0')}:00`,
+        sectionTitle: `Minute ${minute + 1}`,
+        sentences,
+      }));
+      setSections(minuteSections);
+      setPlainTranscript(String(result.plainTranscript || ''));
+      setAnnotatedTranscript(String(result.annotatedTimeline || result.plainTranscript || ''));
+      setVideoTitle(result.title || videoFile?.name || sourceUrl);
+      const languageNames: Record<string, string> = { hi: 'Hindi', en: 'English', mr: 'Marathi', kn: 'Kannada', ne: 'Nepali' };
+      setDetectedLang(result.language ? `Detected language: ${languageNames[result.language] || result.language}` : 'Language detected by Whisper');
+      setProgressText(result.emotionSuggestionsAdded ? 'Timestamped transcript and AI avatar suggestions are ready.' : 'Timestamped transcript is ready; emotion suggestions were unavailable.');
+      setActiveMinuteTab(0);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : 'Media transcription failed.');
+    } finally { setIsProcessing(false); }
   };
 
   const getAllText = (withEmotions = includeEmotionsInText) => {
-    if (!sections) return '';
-    return sections
-      .flatMap((s) => s.sentences)
-      .map((s) => {
-        if (!withEmotions) return s.text;
-        const tags: string[] = [];
-        if (s.primaryEmotion) tags.push(`[${s.primaryEmotion}:${s.emotionIntensity || 85}]`);
-        if (s.gesture && s.gesture !== 'none') tags.push(`[${s.gesture}]`);
-        const prefix = tags.length ? tags.join(' ') + ' ' : '';
-        const suffix = s.pauseAfter && s.pauseAfter > 0 ? ` [pause:${s.pauseAfter}s]` : '';
-        return `${prefix}${s.text}${suffix}`;
-      })
-      .join('\n');
+    return withEmotions ? annotatedTranscript : plainTranscript;
   };
 
   const handleCopyText = (withEmotions: boolean) => {
@@ -251,22 +147,22 @@ export default function Module5VideoToTextEmotion({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white border border-rose-200 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-600 flex items-center justify-center text-white font-black shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-violet-600 flex items-center justify-center text-white font-black shadow-lg">
             <Video size={24} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                Module 5: Video to Text & Emotion Extraction
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                Module 5: Video to Text & Emotion Suggestions
               </h2>
-              <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
-                Minute-Wise Timelines • 18 Emotions • Gestures
+              <span className="text-[10px] bg-violet-50 text-violet-800 border border-violet-200 px-2 py-0.5 rounded-full font-bold">
+                Whisper timestamps • Emotion & face suggestions
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Upload 2 to 30 min videos. AI extracts speech, detects facial expressions, pauses, and gestures organized by minute.
+            <p className="text-xs text-slate-600 mt-0.5">
+              Upload a media file or paste a YouTube/Bunny URL. Expression cues are AI suggestions inferred from transcript wording, not visual face detection.
             </p>
           </div>
         </div>
@@ -279,101 +175,30 @@ export default function Module5VideoToTextEmotion({
             type="file"
             ref={fileInputRef}
             onChange={handleVideoSelect}
-            accept="video/mp4,video/webm,video/quicktime"
+            accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/wav,.mp4,.webm,.mov,.mp3,.m4a,.wav"
             className="hidden"
           />
-
-          {!videoUrl ? (
-            <>
-              <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-rose-500/40 hover:border-rose-400 rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-3 bg-slate-950/70 hover:bg-slate-950 transition-all cursor-pointer group"
-            >
-              <div className="w-14 h-14 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
-                <Upload size={28} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white group-hover:text-rose-300">
-                  Select Video (2 to 30 Minutes)
-                </p>
-                <p className="text-xs text-slate-400 mt-1">MP4, MOV, or WebM format</p>
-              </div>
-            </div>
-
+          <section className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 text-slate-900"><Upload size={18} className="text-sky-700"/><h3 className="font-semibold">Upload a media file</h3></div>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full rounded-xl border-2 border-dashed border-sky-200 bg-sky-50 px-4 py-6 text-sm font-semibold text-sky-900 hover:bg-sky-100">{videoFile ? `${videoFile.name} · ${(videoFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose MP4, WebM, MOV, MP3, M4A, or WAV'}</button>
+            <p className="text-xs text-slate-500">Maximum upload: 150 MB. Longer audio is compressed before transcription.</p>
+            <label className="block text-xs font-semibold text-slate-700">Or analyze a YouTube or Bunny URL<input value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setVideoFile(null); setVideoUrl(null); setSections(null); }} className="mt-1.5 w-full rounded-lg border border-violet-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-900" placeholder="https://youtu.be/... or https://...b-cdn.net/lesson.mp4" /></label>
+            {videoUrl && <video src={videoUrl} controls className="w-full rounded-xl border border-slate-200 bg-slate-950" />}
             {savedAvatars.length > 0 && (
-              <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Video size={13} className="text-rose-400" />
-                  <span>Or Pick From Stored Video Avatars:</span>
-                </span>
-                <div className="space-y-1.5">
-                  {savedAvatars.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => {
-                        setVideoUrl(a.originalVideoUrl);
-                        setVideoTitle(a.name);
-                        setSections(null);
-                      }}
-                      className="w-full text-left p-2 rounded-xl bg-slate-950 hover:bg-rose-950/30 border border-slate-800 hover:border-rose-500/40 text-xs text-slate-300 hover:text-white flex items-center justify-between transition-colors cursor-pointer"
-                    >
-                      <span className="font-bold truncate max-w-[220px]">{a.name}</span>
-                      <span className="text-[10px] text-rose-400 font-mono">Load Video ➔</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="space-y-2"><span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5"><Video size={13} className="text-rose-500"/>Stored video sources</span>
+                <div className="space-y-1.5">{savedAvatars.map((avatar) => <button key={avatar.id} type="button" onClick={() => { setSourceUrl(avatar.originalVideoUrl); setVideoFile(null); setVideoUrl(null); setVideoTitle(avatar.name); setSections(null); }} className="w-full rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-slate-800 hover:border-rose-300">{avatar.name} · Use source</button>)}</div>
               </div>
             )}
-            </>
-          ) : (
-            <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
-                <span className="font-bold text-white truncate">
-                  {videoFile ? videoFile.name : 'Selected Video Stream'}
-                </span>
-                <button
-                  onClick={() => {
-                    setVideoFile(null);
-                    setVideoUrl(null);
-                    setSections(null);
-                  }}
-                  className="text-rose-400 hover:text-rose-300 font-bold"
-                >
-                  ✕ Remove
-                </button>
-              </div>
-
-              <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-slate-800">
-                <video src={videoUrl} controls className="w-full h-full object-contain" />
-              </div>
-
-              <button
-                disabled={isProcessing}
-                onClick={handleRunAnalysis}
-                className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Analyzing Prosody & Gestures...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={16} />
-                    <span>Run AI Emotion & Speech Extraction</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+            {analysisError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{analysisError}</p>}
+            <button type="button" disabled={isProcessing || (!videoFile && !sourceUrl.trim())} onClick={handleRunAnalysis} className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{isProcessing ? 'Transcribing media…' : 'Generate real transcript & cues'}</button>
+          </section>
 
           {isProcessing && (
             <div className="p-4 bg-slate-900 border border-rose-500/30 rounded-2xl space-y-2">
-              <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5 animate-pulse">
-                <span>●</span> AI Multi-Modal Engine Running:
+              <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5 animate-pulse">
+                <span>●</span> Real transcription running:
               </span>
-              <p className="text-xs text-slate-300">{progressText}</p>
+              <p className="text-xs text-slate-700">{progressText}</p>
             </div>
           )}
         </div>
@@ -381,15 +206,16 @@ export default function Module5VideoToTextEmotion({
         {/* Right: Results / Minute-Wise Sections */}
         <div className="md:col-span-7 space-y-4">
           {sections ? (
+            <>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <Clock size={16} className="text-rose-400" />
-                    <span>Minute-Wise Emotion Timeline</span>
+                    <span>Minute-Wise Transcript Timeline</span>
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-emerald-400 font-semibold">{detectedLang}</span>
+                    <span className="text-[11px] text-emerald-700 font-semibold">{detectedLang}</span>
                     <span className="text-slate-600">•</span>
                     <label className="text-[11px] text-rose-300 font-medium flex items-center gap-1.5 cursor-pointer bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-800/40">
                       <input
@@ -398,7 +224,7 @@ export default function Module5VideoToTextEmotion({
                         onChange={(e) => setIncludeEmotionsInText(e.target.checked)}
                         className="rounded accent-rose-500 cursor-pointer"
                       />
-                      <span>Include Emotion Symbols (`[smile]`, `[namaste]`)</span>
+                      <span>Show transcript {includeEmotionsInText ? 'with' : 'without'} emotion and face tags</span>
                     </label>
                   </div>
                 </div>
@@ -459,42 +285,32 @@ export default function Module5VideoToTextEmotion({
                 {sections[activeMinuteTab]?.sentences.map((sentence) => (
                   <div
                     key={sentence.id}
-                    className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-xs"
+                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs"
                   >
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-mono text-slate-400 font-bold bg-slate-900 px-2 py-0.5 rounded">
+                      <span className="font-mono text-slate-600 font-bold bg-white px-2 py-0.5 rounded">
                         {sentence.start} - {sentence.end}
                       </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold capitalize">
-                          {sentence.primaryEmotion.replace('_', ' ')} ({sentence.emotionIntensity}%)
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-semibold">
-                          {sentence.voiceStyle}
-                        </span>
-                        <span className="text-slate-500">+{sentence.pauseAfter}s pause</span>
-                      </div>
                     </div>
 
-                    <p className="text-slate-200 text-xs sm:text-sm leading-relaxed font-sans">
+                    <p className="text-slate-800 text-xs sm:text-sm leading-relaxed font-sans">
                       {sentence.text}
                     </p>
-
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1 border-t border-slate-900">
-                      <span>Gesture: <strong className="text-emerald-400">{sentence.gesture}</strong></span>
-                      <span>•</span>
-                      <span>Facial: <strong className="text-amber-400">{sentence.facialExpression}</strong></span>
-                    </div>
                   </div>
                 ))}
               </div>
             </div>
+            <section className="rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">{includeEmotionsInText ? 'Transcript with avatar suggestions' : 'Plain timestamped transcript'}</h3><p className="mt-1 text-xs text-slate-600">Emotion and face tags are suggestions inferred from words. They are not observed facial movements.</p></div><span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800">{videoTitle || 'Analyzed media'}</span></div>
+              <pre className="mt-4 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-100 bg-slate-50 p-4 font-sans text-sm leading-7 text-slate-800">{getAllText()}</pre>
+            </section>
+            </>
           ) : (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
-              <Clock size={40} className="mx-auto text-slate-600" />
-              <h4 className="text-sm font-bold text-slate-300">No Video Analyzed Yet</h4>
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3">
+              <Clock size={40} className="mx-auto text-slate-400" />
+              <h4 className="text-sm font-bold text-slate-800">No media analyzed yet</h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Upload your recorded lecture video on the left and click &quot;Run AI Emotion & Speech Extraction&quot; to generate minute-by-minute transcripts.
+                Choose a local media file or paste a YouTube/Bunny URL. Real speech transcription and timestamps appear here after processing.
               </p>
             </div>
           )}

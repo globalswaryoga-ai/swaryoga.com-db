@@ -103,22 +103,8 @@ export const PLANNER_LANGUAGES: PlannerLanguage[] = [
   { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳' },
 ];
 
-interface LifePlannerDashboardHomeProps {
-  basePath?: string;
-}
-
-export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashboardHomeProps = {}) {
+export default function LifePlannerDashboardHome() {
   const router = useRouter();
-
-  const resolveAppHref = (rawHref: string) => {
-    if (basePath) {
-      return rawHref.replace('/life-planner/dashboard', basePath);
-    }
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/crm')) {
-      return rawHref.replace('/life-planner/dashboard', '/admin/crm/planner-dashboard');
-    }
-    return rawHref;
-  };
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'folders' | 'all'>('folders');
   const [searchQuery, setSearchQuery] = useState('');
@@ -489,8 +475,6 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
   const handleBack = () => {
     if (activeFolder) {
       setActiveFolder(null);
-    } else if (basePath || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/crm'))) {
-      router.push('/admin/crm');
     } else {
       router.back();
     }
@@ -693,7 +677,7 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
               {filteredApps.map((app) => (
-                <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
+                <PlannerModuleCard key={app.id} app={app} />
               ))}
             </div>
           )}
@@ -735,7 +719,7 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
           {/* 3D Squircle Cards Grid for this folder */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
             {currentFolder.apps.map((app) => (
-              <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
+              <PlannerModuleCard key={app.id} app={app} />
             ))}
           </div>
         </div>
@@ -756,7 +740,7 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 py-1">
             {allApps.map((app) => (
-              <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
+              <PlannerModuleCard key={app.id} app={app} />
             ))}
           </div>
         </div>
@@ -773,32 +757,32 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
                 <div
                   key={card.id}
                   onClick={() => setActiveFolder(card.id)}
-                  className={`group cursor-pointer rounded-[22px] border ${card.cardBorder} ${card.cardLightBg} backdrop-blur-md p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1.5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)] active:scale-[0.98] flex flex-col justify-between space-y-4 border-l-4 ${card.sideBorderColor}`}
+                  className={`group cursor-pointer rounded-3xl border ${card.cardBorder} bg-white backdrop-blur-md p-5 sm:p-6 transition-all duration-300 hover:-translate-y-1 shadow-[0_4px_20px_rgba(15,23,42,0.04)] hover:shadow-[0_14px_32px_rgba(15,23,42,0.08)] active:scale-[0.98] flex flex-col justify-between space-y-4`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div
-                        className={`relative w-12 h-12 rounded-2xl bg-gradient-to-tr ${card.themeColor} text-white shadow-[0_6px_14px_rgba(0,0,0,0.15)] flex items-center justify-center transition group-hover:scale-105 overflow-hidden`}
+                        className={`relative w-14 h-14 rounded-2xl bg-gradient-to-tr ${card.themeColor} text-white shadow-[0_6px_14px_rgba(0,0,0,0.15)] flex items-center justify-center transition group-hover:scale-105 overflow-hidden`}
                       >
                         <div className="absolute top-0.5 inset-x-1 h-3.5 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl pointer-events-none" />
                         <IconComp className="w-6 h-6 stroke-[2.2] drop-shadow-sm text-white" />
                       </div>
-                      <span className="px-2 py-0.5 rounded-lg bg-white/80 border border-slate-200/60 text-slate-500 font-bold text-[10px] tracking-wider uppercase">
+                      <span className="px-3 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-bold text-[11px] tracking-wider uppercase">
                         {card.apps.length} APPS
                       </span>
                     </div>
 
                     <div>
-                      <h3 className={`text-base font-bold ${card.accentTextColor} group-hover:opacity-80 transition flex items-center gap-1`}>
+                      <h3 className={`text-lg font-bold ${card.accentTextColor} group-hover:opacity-80 transition flex items-center gap-1.5`}>
                         <span>{card.title}</span>
-                        <span className="text-xs transition-transform group-hover:translate-x-1">→</span>
+                        <span className="text-sm transition-transform group-hover:translate-x-1">→</span>
                       </h3>
-                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">{card.tagline}</p>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{card.tagline}</p>
                     </div>
                   </div>
 
                   {/* Micro-preview of squircle icons inside */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex items-center -space-x-1.5">
                       {card.apps.slice(0, 4).map((a) => (
                         <div
@@ -810,7 +794,7 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
                         </div>
                       ))}
                     </div>
-                    <span className={`text-xs font-bold ${card.accentTextColor} flex items-center gap-0.5 group-hover:translate-x-1 transition`}>
+                    <span className={`text-sm font-semibold ${card.accentTextColor} flex items-center gap-1 group-hover:translate-x-1 transition`}>
                       <span>Explore</span>
                       <ChevronRight className="w-4 h-4" />
                     </span>
@@ -849,7 +833,7 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
                 {/* Approved 3D Squircle Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 pt-1">
                   {category.apps.map((app) => (
-                    <PlannerModuleCard key={app.id} app={app} resolveHref={resolveAppHref} />
+                    <PlannerModuleCard key={app.id} app={app} />
                   ))}
                 </div>
               </div>
@@ -863,73 +847,65 @@ export default function LifePlannerDashboardHome({ basePath }: LifePlannerDashbo
 
 // ==========================================
 // Approved 3D Squircle Module Card
-// Matches media_1793350244998_5140c00c.png:
+// Matches media_1793350244998_5140c00c.png & Image 1:
 // - 3D Squircle Icon with top specular shine
 // - Right-aligned uppercase Tag Pill
-// - Bold Contrast Color Title with hover arrow
+// - Bold Contrast Color Title with arrow
 // - 2-line Description
 // - Border divider line
 // - "Open module →" footer link
 // ==========================================
-function PlannerModuleCard({
-  app,
-  resolveHref,
-}: {
-  app: SubApp & { folderName?: string };
-  resolveHref?: (h: string) => string;
-}) {
+function PlannerModuleCard({ app }: { app: SubApp & { folderName?: string } }) {
   const IconComponent = app.icon;
   const tag = app.badge || app.tag || 'MODULE';
   const textClass = app.accentTextColor || 'text-slate-900';
-  const sideBorder = app.sideBorderColor || 'border-l-emerald-500';
-  const targetHref = resolveHref ? resolveHref(app.href) : app.href;
 
   return (
     <div
-      className={`group rounded-[22px] bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 overflow-hidden flex flex-col justify-between border-l-4 ${sideBorder}`}
+      className="group rounded-3xl bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 overflow-hidden flex flex-col justify-between p-5 sm:p-6"
     >
-      <div className="p-4 sm:p-5 pb-3">
+      <div>
         {/* Top Row: 3D Squircle Icon + Tag Pill */}
-        <div className="flex items-center justify-between gap-3 mb-3.5">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <div
-            className={`relative w-12 h-12 rounded-2xl bg-gradient-to-br ${app.bgGradient} shadow-[0_6px_16px_rgba(0,0,0,0.14)] flex items-center justify-center text-white shrink-0 overflow-hidden`}
+            className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br ${app.bgGradient} shadow-[0_6px_16px_rgba(0,0,0,0.14)] flex items-center justify-center text-white shrink-0 overflow-hidden group-hover:scale-105 transition-transform`}
           >
             {/* Top Specular Shine */}
             <div className="absolute top-0.5 inset-x-1 h-3.5 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl pointer-events-none" />
             {app.emoji ? (
               <span className="text-2xl select-none drop-shadow-sm leading-none">{app.emoji}</span>
             ) : (
-              <IconComponent className="w-5 h-5 text-white stroke-[2.2] drop-shadow-sm" />
+              <IconComponent className="w-6 h-6 text-white stroke-[2.2] drop-shadow-sm" />
             )}
           </div>
 
-          <span className="px-2.5 py-1 rounded-lg bg-slate-100/90 border border-slate-200/60 text-slate-500 font-bold text-[10px] sm:text-[11px] tracking-wider uppercase">
+          <span className="px-3 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-bold text-[11px] tracking-wider uppercase">
             {tag}
           </span>
         </div>
 
-        {/* Title with hover arrow */}
+        {/* Title with arrow */}
         <Link
-          href={targetHref}
-          className={`font-bold text-base sm:text-[17px] tracking-tight ${textClass} group-hover:opacity-85 transition flex items-center gap-1.5`}
+          href={app.href}
+          className={`font-bold text-lg tracking-tight ${textClass} group-hover:opacity-85 transition flex items-center gap-1.5`}
         >
           <span>{app.name}</span>
-          <span className="text-sm transition-transform duration-200 group-hover:translate-x-1">→</span>
+          <span className="text-base transition-transform duration-200 group-hover:translate-x-1">→</span>
         </Link>
 
         {/* Subtitle / Description */}
-        <p className="text-xs sm:text-[13px] text-slate-500 font-medium leading-relaxed mt-1 line-clamp-2">
+        <p className="text-sm text-slate-500 font-normal leading-relaxed mt-2 line-clamp-2">
           {app.subtitle}
         </p>
       </div>
 
       {/* Bottom Footer Link */}
       <Link
-        href={targetHref}
-        className="border-t border-slate-100 px-4 py-3 sm:px-5 flex items-center justify-between bg-slate-50/60 group-hover:bg-slate-100/80 transition"
+        href={app.href}
+        className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between transition group-hover:opacity-90"
       >
-        <span className={`text-xs font-bold ${textClass}`}>Open module</span>
-        <span className={`text-xs font-bold ${textClass} transition-transform duration-200 group-hover:translate-x-1`}>
+        <span className={`text-sm font-semibold ${textClass}`}>Open module</span>
+        <span className={`text-sm font-semibold ${textClass} transition-transform duration-200 group-hover:translate-x-1`}>
           →
         </span>
       </Link>

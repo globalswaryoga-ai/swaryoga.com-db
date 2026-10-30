@@ -1,222 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Types } from 'mongoose';
+import { getBunnyPlannerData, saveBunnyPlannerField } from '@/lib/bunnyPlannerRepository';
 
 export const dynamic = 'force-dynamic';
 
-const TENANT_HEADER = 'x-tenant-id';
-
-function getAuthedIdentity(request: NextRequest): { userId?: string; email?: string } | null {
+function getAuthedOwnerId(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme !== 'Bearer' || !token) return null;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
   const payload = verifyToken(token);
   if (!payload) return null;
-  return {
-    userId: payload.userId,
-    email: payload.email,
-  };
-}
 
-function getTenantId(request: NextRequest): string | null {
-  return request.headers.get(TENANT_HEADER);
+  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
+  const userId = payload.userId || (payload as any)._id || (payload as any).id;
+  const username = (payload as any).username ? String((payload as any).username).trim().toLowerCase() : '';
+
+  return email || (userId ? String(userId) : '') || username || null;
 }
 
 const EMPTY_LIFE_DATA = {
   data: [],
-  visions: [], goals: [], tasks: [], todos: [], words: [],
-  reminders: [], healthRoutines: [], diamondPeople: [], progress: [],
+  visions: [],
+  actionPlans: [],
+  goals: [],
+  tasks: [],
+  todos: [],
+  words: [],
+  reminders: [],
+  healthRoutines: [],
+  dailyHealthPlans: [],
+  diamondPeople: [],
+  progress: [],
+  accounting: { accounts: [], transactions: [], investments: [], budget: null },
 };
 
-// GET Life Planner data for a user
+// GET Life Planner data from Bunny Database
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const ownerId = getAuthedOwnerId(request);
+    if (!ownerId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = verifyToken(authHeader.slice(7));
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const tenantId = getTenantId(request);
     const searchParams = request.nextUrl.searchParams;
     const dataType = searchParams.get('type');
 
-    // Accept all token types: userId, email, username (admin), isAdmin flag
-    const userId = payload.userId || payload._id || payload.id;
-    const email = payload.email;
-    const isAdmin = payload.isAdmin;
-    const adminUsername = payload.username;
+    const planner = await getBunnyPlannerData(ownerId);
 
-    if (!userId && !email && !adminUsername) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Build OR query covering all possible identifiers
-    const orConditions: any[] = [];
-    if (userId && Types.ObjectId.isValid(String(userId))) {
-      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
-    }
-    if (email) {
-      orConditions.push(tenantId
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : { email: email.trim().toLowerCase() });
-    }
-    if (isAdmin && adminUsername) {
-      orConditions.push({ adminUsername });
-      const adminEmail = (process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`).toLowerCase();
-      orConditions.push({ email: adminEmail });
-    }
-
-    if (orConditions.length === 0) {
-      return NextResponse.json({ error: 'Invalid user context' }, { status: 400 });
-    }
-
-    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
-    const user = await User.findOne(query);
-
-    if (!user) {
-      // Return empty data gracefully instead of 404
-      console.warn('[Life Planner GET] User not found, returning empty data');
-      if (dataType) return NextResponse.json({ data: [] });
+    if (!planner) {
+      if (dataType) {
+        if (dataType === 'accounting') {
+          return NextResponse.json({ data: { accounts: [], transactions: [], investments: [], budget: null } });
+        }
+        return NextResponse.json({ data: [] });
+      }
       return NextResponse.json(EMPTY_LIFE_DATA);
     }
 
-    // Return specific data type or all data
     if (dataType) {
       const fieldName = `lifePlanner${dataType.charAt(0).toUpperCase()}${dataType.slice(1)}`;
-      let result = user[fieldName as keyof typeof user];
+      const crmFieldName = `crm${dataType.charAt(0).toUpperCase()}${dataType.slice(1)}`;
+      let result = planner[dataType] ?? planner[fieldName] ?? planner[crmFieldName];
 
-      // Handle accounting data specially (object instead of array)
       if (dataType === 'accounting') {
         result = result || { accounts: [], transactions: [], investments: [], budget: null };
       } else {
         result = result || [];
       }
 
-      return NextResponse.json({
-        data: result,
-      });
+      return NextResponse.json({ data: result });
     }
 
-    // Return all Life Planner data
     return NextResponse.json({
-      visions: user.lifePlannerVisions || [],
-      actionPlans: user.lifePlannerActionPlans || [],
-      goals: user.lifePlannerGoals || [],
-      tasks: user.lifePlannerTasks || [],
-      todos: user.lifePlannerTodos || [],
-      words: user.lifePlannerWords || [],
-      reminders: user.lifePlannerReminders || [],
-      healthRoutines: user.lifePlannerHealthRoutines || [],
-      dailyHealthPlans: user.lifePlannerDailyHealthPlans || [],
-      diamondPeople: user.lifePlannerDiamondPeople || [],
-      progress: user.lifePlannerProgress || [],
+      visions: planner.visions || (planner as any).lifePlannerVisions || planner.crmVisions || [],
+      actionPlans: planner.actionPlans || (planner as any).lifePlannerActionPlans || planner.crmActionPlans || [],
+      goals: planner.goals || (planner as any).lifePlannerGoals || planner.crmGoals || [],
+      tasks: planner.tasks || (planner as any).lifePlannerTasks || planner.crmTasks || [],
+      todos: planner.todos || (planner as any).lifePlannerTodos || planner.crmTodos || [],
+      words: planner.words || (planner as any).lifePlannerWords || planner.crmWords || [],
+      reminders: planner.reminders || (planner as any).lifePlannerReminders || planner.crmReminders || [],
+      healthRoutines: planner.healthRoutines || (planner as any).lifePlannerHealthRoutines || planner.crmHealthRoutines || [],
+      dailyHealthPlans: planner.dailyHealthPlans || (planner as any).lifePlannerDailyHealthPlans || planner.crmDailyHealthPlans || [],
+      diamondPeople: planner.diamondPeople || (planner as any).lifePlannerDiamondPeople || planner.crmDiamondPeople || [],
+      progress: planner.progress || (planner as any).lifePlannerProgress || planner.crmProgress || [],
+      accounting: planner.accounting || (planner as any).lifePlannerAccounting || planner.crmAccounting || { accounts: [], transactions: [], investments: [], budget: null },
     });
   } catch (error) {
-    console.error('Life Planner data fetch error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[BunnyLifePlanner GET error]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// PUT - Update Life Planner data for a user
+// PUT - Update Life Planner data in Bunny Database
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-
-    const body = await request.json();
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const ownerId = getAuthedOwnerId(request);
+    if (!ownerId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = verifyToken(authHeader.slice(7));
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
+    const body = await request.json();
     const { type, data } = body;
-    const tenantId = getTenantId(request);
 
     if (!type) {
       return NextResponse.json({ error: 'Type is required' }, { status: 400 });
     }
 
     const fieldName = `lifePlanner${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+    const crmFieldName = `crm${type.charAt(0).toUpperCase()}${type.slice(1)}`;
 
-    const userId = payload.userId || payload._id || payload.id;
-    const email = payload.email;
-    const isAdmin = payload.isAdmin;
-    const adminUsername = payload.username;
-
-    if (!userId && !email && !adminUsername) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const orConditions: any[] = [];
-    if (userId && Types.ObjectId.isValid(String(userId))) {
-      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
-    }
-    if (email) {
-      orConditions.push(tenantId
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : { email: email.trim().toLowerCase() });
-    }
-    if (isAdmin && adminUsername) {
-      orConditions.push({ adminUsername });
-      const adminEmail = (process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`).toLowerCase();
-      orConditions.push({ email: adminEmail });
-    }
-
-    if (orConditions.length === 0) {
-      return NextResponse.json({ error: 'Invalid user context' }, { status: 400 });
-    }
-
-    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
-
-    let user;
-    if (isAdmin && adminUsername) {
-      // Upsert for admin users
-      const adminEmail = (process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`).toLowerCase();
-      user = await User.findOneAndUpdate(
-        { $or: [{ adminUsername }, { email: adminEmail }] },
-        {
-          $set: { [fieldName]: data, updatedAt: new Date() },
-          $setOnInsert: { email: adminEmail, adminUsername, name: adminUsername, createdAt: new Date() },
-        },
-        { new: true, upsert: true }
-      );
-    } else {
-      const userEmail = email || `user-${Date.now()}@swaryoga.com`;
-      user = await User.findOneAndUpdate(
-        query,
-        {
-          $set: { [fieldName]: data, updatedAt: new Date() },
-          $setOnInsert: { email: userEmail, name: 'User', createdAt: new Date() }
-        },
-        { new: true, upsert: true }
-      );
-    }
+    // Save both the simple key and the legacy prefixed keys in Bunny Database
+    await saveBunnyPlannerField(ownerId, 'user', type, data);
+    await saveBunnyPlannerField(ownerId, 'user', fieldName, data);
+    await saveBunnyPlannerField(ownerId, 'user', crmFieldName, data);
 
     return NextResponse.json({
-      message: 'Data saved successfully',
-      data: (user as any)[fieldName],
+      message: 'Data saved successfully to Bunny Database',
+      data,
     });
   } catch (error) {
-    console.error('Life Planner data update error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[BunnyLifePlanner PUT error]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

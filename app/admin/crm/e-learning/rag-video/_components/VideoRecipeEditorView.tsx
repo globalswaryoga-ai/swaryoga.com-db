@@ -27,19 +27,13 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { RecipeScene, MultiLangScene, VideoRecipeProject } from '@/lib/bunnyVideoRecipeRepository';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
-const ALL_LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi (हिंदी)', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi (मराठी)', flag: '🇮🇳' },
-  { code: 'kn', name: 'Kannada (ಕನ್ನಡ)', flag: '🇮🇳' },
-  { code: 'ne', name: 'Nepali (नेपाली)', flag: '🇳🇵' },
-  { code: 'zh', name: 'Mandarin (中文)', flag: '🇨🇳' },
-  { code: 'es', name: 'Spanish (Español)', flag: '🇪🇸' },
-  { code: 'fr', name: 'French (Français)', flag: '🇫🇷' },
-  { code: 'ar', name: 'Arabic (العربية)', flag: '🇸🇦' },
-  { code: 'de', name: 'German (Deutsch)', flag: '🇩🇪' },
-];
+const ALL_LANGUAGES = ELEARNING_LANGUAGES.map((l) => ({
+  code: l.code,
+  name: `${l.name} (${l.nativeName})`,
+  flag: l.flag,
+}));
 
 const DEFAULT_PRESET_SCENES: RecipeScene[] = [
   {

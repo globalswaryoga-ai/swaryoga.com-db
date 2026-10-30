@@ -6,6 +6,8 @@
  * It replaces the entire <html> tag when an error occurs.
  */
 
+import { useEffect } from 'react';
+
 export default function GlobalError({
   error,
   reset,
@@ -13,6 +15,23 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    // Auto-recover from chunk load errors caused by new deployments
+    if (
+      error.message?.includes('Loading chunk') ||
+      error.message?.includes('ChunkLoadError') ||
+      error.message?.includes('Failed to fetch dynamically imported module')
+    ) {
+      const lastReload = sessionStorage.getItem('swar_chunk_reload');
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem('swar_chunk_reload', String(now));
+        window.location.reload();
+        return;
+      }
+    }
+  }, [error]);
+
   // Report error to console (and Sentry if available)
   if (typeof window !== 'undefined') {
     console.error('[GlobalError]', error.message, error.stack);

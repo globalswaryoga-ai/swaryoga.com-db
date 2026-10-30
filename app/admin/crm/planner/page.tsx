@@ -61,7 +61,7 @@ class ErrorBoundary extends React.Component<
 type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'ritucharya' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
-const DashboardPage = dynamic(() => import('@/app/life-planner/dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DashboardPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const DailyPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionDownloadPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision-download/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -189,12 +189,12 @@ function PlannerPageContent() {
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed md:relative h-full z-40 md:z-auto bg-gradient-to-b from-emerald-700 to-emerald-800 text-white transition-all duration-300 overflow-hidden flex-shrink-0 ${
+      {/* Sidebar - Yoga Forest Green (#046648) with Image 2 Active Card Pattern */}
+      <aside className={`fixed md:relative h-full z-40 md:z-auto bg-[#046648] text-white transition-all duration-300 overflow-hidden flex-shrink-0 ${
         sidebarOpen ? 'w-64' : 'w-0'
       }`}>
-        <div className="h-full flex flex-col p-3 md:p-4 space-y-2 md:space-y-3 overflow-y-auto">
-          <h3 className="text-base md:text-lg font-bold text-emerald-100 mb-2 md:mb-4">Planner</h3>
+        <div className="h-full flex flex-col p-3 md:p-4 space-y-1.5 overflow-y-auto">
+          <h3 className="text-base md:text-lg font-bold text-white mb-2 md:mb-3 px-2">Planner</h3>
           {sidebarItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSidebar === item.id;
@@ -202,14 +202,14 @@ function PlannerPageContent() {
               <button
                 key={item.id}
                 onClick={() => setActiveSidebar(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left font-medium ${
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all text-left font-medium cursor-pointer ${
                   isActive
-                    ? 'bg-white text-emerald-700 shadow-lg'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white text-[#046648] font-bold shadow-md'
+                    : 'text-white/90 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={20} />
-                <span className="truncate">{item.label}</span>
+                <Icon size={20} className={isActive ? 'text-[#046648]' : 'text-white'} />
+                <span className="truncate text-[15px]">{item.label}</span>
               </button>
             );
           })}

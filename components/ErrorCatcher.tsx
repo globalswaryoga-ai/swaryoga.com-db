@@ -44,8 +44,32 @@ function reportError(level: 'error' | 'critical', source: string, message: strin
 
 export default function ErrorCatcher() {
   useEffect(() => {
+    const handleDeploymentChunkRecovery = (msg: string) => {
+      if (
+        msg.includes('ChunkLoadError') ||
+        msg.includes('Loading chunk') ||
+        msg.includes('Failed to fetch dynamically imported module')
+      ) {
+        if (typeof window !== 'undefined') {
+          const lastReload = sessionStorage.getItem('swar_chunk_recovery_reload');
+          const now = Date.now();
+          // Rate-limit recovery to at most once every 30 seconds
+          if (!lastReload || now - Number(lastReload) > 30000) {
+            sessionStorage.setItem('swar_chunk_recovery_reload', String(now));
+            console.log('[Deployment Auto-Recovery] Detected updated deployment chunk. Performing clean refresh...');
+            window.location.reload();
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
     // Catch uncaught errors
     const handleError = (event: ErrorEvent) => {
+      const msg = event.message || '';
+      if (handleDeploymentChunkRecovery(msg)) return;
+
       // Skip errors from browser extensions or third-party scripts
       if (event.filename && !event.filename.includes(window.location.origin)) return;
       reportError('error', 'window.onerror', event.message, event.error?.stack);
@@ -55,6 +79,8 @@ export default function ErrorCatcher() {
     const handleRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
       const message = reason instanceof Error ? reason.message : String(reason || 'Unknown promise rejection');
+      if (handleDeploymentChunkRecovery(message)) return;
+
       const stack = reason instanceof Error ? reason.stack : undefined;
       reportError('error', 'unhandledrejection', message, stack);
     };

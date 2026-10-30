@@ -232,24 +232,24 @@ function StatCard({
   badge: string;
 }) {
   return (
-    <div className="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between">
+    <div className="group bg-white rounded-3xl border border-slate-200/90 hover:border-emerald-300 hover:shadow-[0_12px_32px_rgba(16,185,129,0.12)] hover:-translate-y-1 transition-all duration-200 p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
       <div>
         <div className="flex items-center justify-between mb-4">
           <div
-            className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center text-white shadow-md shadow-slate-200 group-hover:scale-105 transition-transform`}
+            className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${gradient} flex items-center justify-center text-white shadow-md shadow-slate-200 group-hover:scale-105 transition-transform`}
           >
-            <Icon className="w-6 h-6" />
+            <Icon className="w-6 h-6 stroke-[2]" />
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">
             {badge}
           </span>
         </div>
         <p className="text-3xl font-black text-slate-900 tracking-tight">{count}</p>
-        <p className="text-xs text-slate-500 mt-1 font-semibold">{label}</p>
+        <p className="text-sm text-slate-500 mt-2 font-semibold">{label}</p>
       </div>
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-sm text-emerald-700 font-semibold group-hover:text-emerald-800 transition-colors">
         <span>Active records</span>
-        <ArrowRight className="w-3.5 h-3.5" />
+        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
       </div>
     </div>
   );

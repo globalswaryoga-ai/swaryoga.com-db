@@ -112,6 +112,36 @@ export async function transcribeAudio(audio: ExtractedAudio): Promise<string> {
   return transcribeViaWhisper(audio);
 }
 
+/** Whisper transcript with real segment timestamps for media-library timelines. */
+export async function transcribeAudioWithTimestamps(audio: ExtractedAudio): Promise<{
+  text: string;
+  language?: string;
+  segments: Array<{ start: number; end: number; text: string }>;
+}> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+  if (audio.buffer.length > 24 * 1024 * 1024) throw new Error('Audio exceeds the 24 MB Whisper limit after compression.');
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
+  form.append('model', 'whisper-1');
+  form.append('response_format', 'verbose_json');
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form as any,
+  });
+  const raw = await response.text();
+  let data: any;
+  try { data = JSON.parse(raw); } catch {
+    throw new Error(`Whisper timestamp transcription failed (${response.status}): ${raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)}`);
+  }
+  if (!response.ok) throw new Error(`Whisper timestamp transcription failed: ${data?.error?.message || response.statusText}`);
+  const segments = Array.isArray(data?.segments) ? data.segments
+    .filter((segment: any) => Number.isFinite(Number(segment.start)) && Number.isFinite(Number(segment.end)) && typeof segment.text === 'string')
+    .map((segment: any) => ({ start: Number(segment.start), end: Number(segment.end), text: segment.text.trim() }))
+    .filter((segment: { text: string }) => segment.text) : [];
+  if (!segments.length) throw new Error('Whisper returned no timestamped speech segments.');
+  return { text: String(data.text || segments.map((segment: { text: string }) => segment.text).join(' ')), language: typeof data.language === 'string' ? data.language : undefined, segments };
+}
+
 // Stage 2: faithful correction only — fix grammar/spelling/transcription
 // mistakes and strip filler words/exact repetition. Must never add content,
 // facts, or sentences that weren't actually said. This is the text the admin

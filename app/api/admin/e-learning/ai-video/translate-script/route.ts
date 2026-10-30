@@ -2,32 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English',
-  hi: 'Hindi',
-  mr: 'Marathi',
-  kn: 'Kannada',
-  ne: 'Nepali',
-  zh: 'Mandarin Chinese',
-  es: 'Spanish',
-  fr: 'French',
-  ar: 'Arabic',
-  de: 'German',
-  pt: 'Portuguese',
-  ja: 'Japanese',
-  ko: 'Korean',
-  ru: 'Russian',
-  it: 'Italian',
-  tr: 'Turkish',
-  nl: 'Dutch',
-  sv: 'Swedish',
-  th: 'Thai',
-  id: 'Indonesian',
-};
+const LANGUAGE_NAMES: Record<string, string> = Object.fromEntries(
+  ELEARNING_LANGUAGES.map((l) => [l.code, l.name])
+);
 
 export async function POST(request: NextRequest) {
   try {

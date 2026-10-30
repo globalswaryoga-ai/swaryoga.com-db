@@ -36,6 +36,7 @@ import {
   Cpu,
   Zap,
   BookOpen,
+  Brain,
   PhoneCall,
   ClipboardList,
   HeadphonesIcon,
@@ -158,6 +159,7 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [],
     prefixes: [
       '/admin/crm/social-hub',
+      '/admin/crm/media',
       '/admin/social-media',
       '/admin/social-media-setup',
       '/admin/crm/instagram',
@@ -547,6 +549,20 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Bulk Actions', href: '/admin/crm/e-learning/bulk-actions', icon: Sliders },
     ],
     prefixes: ['/admin/crm/e-learning'],
+  },
+
+  // Mohan Rag — AI Avatar Studio & Multi-Content Hub
+  {
+    key: 'mohan-rag',
+    title: 'Mohan Rag',
+    icon: Sparkles,
+    items: [
+      { label: 'Mohan Rag Hub', href: '/admin/crm/mohan-rag', icon: Sparkles },
+      { label: 'RAG Management', href: '/admin/crm/mohan-rag/management', icon: Brain },
+      { label: 'Avatar Studio', href: '/admin/crm/mohan-rag/avatar-studio', icon: UserCheck },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/mohan-rag'],
   },
 
   // Calls — ai_calling bundle

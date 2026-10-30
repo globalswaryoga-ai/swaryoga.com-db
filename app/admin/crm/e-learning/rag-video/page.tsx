@@ -31,25 +31,9 @@ import AvatarEditStudio from './_components/AvatarEditStudio';
 import InhouseStudioView from './_components/inhouseEngine/InhouseStudioView';
 import SwarYoga3DAnimationStudio from './_components/engine3d/SwarYoga3DAnimationStudio';
 import CustomAnimationStudio from './_components/CustomAnimationStudio';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
-
-const LANGUAGE_OPTIONS = [
-  { code: 'hi', name: 'Hindi' },
-  { code: 'en', name: 'English' },
-  { code: 'mr', name: 'Marathi' },
-  { code: 'ne', name: 'Nepali' },
-  { code: 'zh', name: 'Mandarin' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'de', name: 'German' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'it', name: 'Italian' },
-  { code: 'tr', name: 'Turkish' },
-];
+const LANGUAGE_OPTIONS = ELEARNING_LANGUAGES.map((l) => ({ code: l.code, name: l.name }));
 
 interface AiVideoScript {
   language: string;

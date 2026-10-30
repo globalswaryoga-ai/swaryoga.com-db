@@ -1,31 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
 import { parseAvatarScript } from '@/lib/avatarEmotionParser';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
 export const dynamic = 'force-dynamic';
 
-const LANG_MAP: Record<string, string> = {
-  hi: 'Hindi (हिंदी)',
-  mr: 'Marathi (मराठी)',
-  en: 'English',
-  kn: 'Kannada (ಕನ್ನಡ)',
-  gu: 'Gujarati (ગુજરાતી)',
-  ta: 'Tamil (தமிழ்)',
-  te: 'Telugu (తెలుగు)',
-  ml: 'Malayalam (മലയാളം)',
-  bn: 'Bengali (বাংলা)',
-  pa: 'Punjabi (ਪੰਜਾਬੀ)',
-  or: 'Odia (ଓଡ଼ିଆ)',
-  sa: 'Sanskrit (संस्कृतम्)',
-  es: 'Spanish (Español)',
-  fr: 'French (Français)',
-  de: 'German (Deutsch)',
-  ja: 'Japanese (日本語)',
-  ar: 'Arabic (العربية)',
-  ru: 'Russian (Русский)',
-  pt: 'Portuguese (Português)',
-  id: 'Indonesian (Bahasa Indonesia)',
-};
+const LANG_MAP: Record<string, string> = Object.fromEntries(
+  ELEARNING_LANGUAGES.map((l) => [l.code, `${l.name} (${l.nativeName})`])
+);
 
 export async function POST(request: NextRequest) {
   try {

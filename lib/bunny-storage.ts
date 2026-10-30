@@ -16,7 +16,7 @@
  *    - BUNNY_API_KEY (for Stream API calls)
  */
 
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 // ============================================
 // CONFIGURATION
@@ -670,7 +670,7 @@ export async function uploadToBunnyStream(
           'AccessKey': apiKey,
           'Content-Type': 'application/octet-stream',
         },
-        body: fileBuffer,
+        body: new Uint8Array(fileBuffer),
       }
     );
 

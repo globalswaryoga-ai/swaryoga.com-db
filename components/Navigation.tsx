@@ -51,16 +51,42 @@ export default function Navigation() {
   const [isUpdatingApp, setIsUpdatingApp] = useState(false);
   const [updateStatusText, setUpdateStatusText] = useState('');
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+  const [lastUpdateLabel, setLastUpdateLabel] = useState('Checked today');
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('swar_auto_update_enabled');
-      if (stored !== null) {
-        setAutoUpdateEnabled(stored === 'true');
-      } else {
+      const isEnabled = stored !== null ? stored === 'true' : true;
+      if (stored === null) {
         localStorage.setItem('swar_auto_update_enabled', 'true');
-        setAutoUpdateEnabled(true);
+      }
+      setAutoUpdateEnabled(isEnabled);
+
+      // Check last update timestamp
+      const lastTs = Number(localStorage.getItem('swar_last_auto_update_ts') || '0');
+      const now = Date.now();
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+      if (lastTs > 0) {
+        const diffHours = Math.floor((now - lastTs) / (1000 * 60 * 60));
+        if (diffHours < 1) {
+          setLastUpdateLabel('Just now');
+        } else if (diffHours < 24) {
+          setLastUpdateLabel(`${diffHours}h ago`);
+        } else {
+          setLastUpdateLabel('Over 24h ago');
+        }
+      } else {
+        localStorage.setItem('swar_last_auto_update_ts', String(now));
+        setLastUpdateLabel('Just now');
+      }
+
+      // 24-Hour Automatic Update Check
+      if (isEnabled && (!lastTs || (now - lastTs) >= TWENTY_FOUR_HOURS)) {
+        console.log('[Auto-Update] 24 hours elapsed since last update. Running automated update sync...');
+        handleAppAutoUpdate(false);
       }
     }
   }, []);
@@ -74,10 +100,12 @@ export default function Navigation() {
     }
   };
 
-  const handleAppAutoUpdate = async () => {
+  const handleAppAutoUpdate = async (isManual: boolean = true) => {
     if (isUpdatingApp) return;
-    setIsUpdatingApp(true);
-    setUpdateStatusText('Checking latest updates...');
+    if (isManual) {
+      setIsUpdatingApp(true);
+      setUpdateStatusText('Checking latest updates...');
+    }
 
     try {
       // 1. Clear caches
@@ -99,26 +127,37 @@ export default function Navigation() {
         } catch {}
       }
 
-      setUpdateStatusText('Applying new updates...');
+      // Record latest update timestamp
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('swar_last_auto_update_ts', String(Date.now()));
+        setLastUpdateLabel('Just now');
+      }
 
-      // 3. Clear session storage flags
-      try {
-        sessionStorage.clear();
-      } catch {}
+      if (isManual) {
+        setUpdateStatusText('Applying new updates...');
+        // 3. Clear session storage flags
+        try {
+          sessionStorage.clear();
+        } catch {}
 
-      setTimeout(() => {
-        setUpdateStatusText('Update applied! Reloading...');
-        // 4. Force hard reload with timestamp to bust all WebView caches
-        if (typeof window !== 'undefined') {
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('v', String(Date.now()));
-          window.location.href = currentUrl.toString();
-        }
-      }, 700);
+        setTimeout(() => {
+          setUpdateStatusText('Update applied! Reloading...');
+          // 4. Force hard reload with timestamp to bust all WebView caches
+          if (typeof window !== 'undefined') {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('v', String(Date.now()));
+            window.location.href = currentUrl.toString();
+          }
+        }, 700);
+      }
     } catch (err) {
       console.warn('Auto-update error:', err);
-      if (typeof window !== 'undefined') {
+      if (isManual && typeof window !== 'undefined') {
         window.location.reload();
+      }
+    } finally {
+      if (!isManual) {
+        setIsUpdatingApp(false);
       }
     }
   };
@@ -165,12 +204,28 @@ export default function Navigation() {
     { name: 'Zoom Join', href: '#zoom-join', isZoom: true },
   ];
 
-  // Handle scroll effect
+  // Handle scroll effect with hysteresis & rAF (completely eliminates vibration/jitter)
   useEffect(() => {
+    let ticking = false;
+    let lastState = false;
+
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const y = window.scrollY;
+          // Hysteresis buffer: activate shadow at >40px, deactivate only below 10px
+          const nextState = lastState ? y > 10 : y > 40;
+          if (nextState !== lastState) {
+            lastState = nextState;
+            setIsScrolled(nextState);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -262,34 +317,28 @@ export default function Navigation() {
     <>
       {/* Top Sticky Header Wrapper (Keeps green notification band always on top when scrolling) */}
       <div className="sticky top-0 z-40 w-full select-none">
-        {/* Top Green Band (App Header for ANDROID APP ONLY - stays green always and compacts on scroll) */}
+        {/* Top Green Band (App Header for ANDROID APP ONLY - stable height, no layout thrashing) */}
         {isAndroidApp && (
           <div 
             data-app-header="true" 
-            className={`bg-[#166235] text-white w-full border-b border-emerald-800/40 overflow-hidden shadow-xs transition-all duration-200 ${
-              isScrolled ? 'py-1 shadow-sm' : 'py-2'
-            }`}
+            className="bg-[#166235] text-white w-full border-b border-emerald-800/40 overflow-hidden shadow-xs py-2"
             style={{
-              paddingTop: isScrolled 
-                ? 'max(env(safe-area-inset-top, 0px), 4px)' 
-                : 'max(env(safe-area-inset-top, 0px), 8px)',
-              paddingBottom: isScrolled ? '4px' : '8px'
+              paddingTop: 'max(env(safe-area-inset-top, 0px), 6px)',
+              paddingBottom: '6px'
             }}
           >
-            <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 flex items-center justify-between">
+            <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-4 flex items-center justify-between gap-2">
               {/* Logo and Swar Yoga in bold white text (ALWAYS on the left in one place) */}
-              <Link href="/" className="flex items-center space-x-2 group hover:opacity-95 transition-opacity min-w-0">
-                <div className={`relative flex items-center justify-center flex-shrink-0 rounded-full overflow-hidden shadow-sm transition-all duration-200 ${
-                  isScrolled ? 'w-6 h-6' : 'w-8 h-8'
-                }`}>
+              <Link href="/" className="flex items-center space-x-2 group hover:opacity-95 transition-opacity min-w-0 flex-1 pr-1">
+                <div className="relative flex items-center justify-center flex-shrink-0 rounded-full overflow-hidden shadow-sm w-7 h-7">
                   <picture>
                     <source srcSet="/images/logo-infinity.webp" type="image/webp" />
                     <img 
                       src="/images/logo-infinity.png"
                       alt="Swar Yoga Logo"
                       className="w-full h-full object-contain"
-                      width={isScrolled ? 24 : 32}
-                      height={isScrolled ? 24 : 32}
+                      width={28}
+                      height={28}
                       loading="eager"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = '/logo.png';
@@ -300,9 +349,7 @@ export default function Navigation() {
                 
                 <div className="flex flex-col tracking-tight truncate">
                   <span 
-                    className={`font-bold leading-none text-white truncate transition-all duration-200 ${
-                      isScrolled ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'
-                    }`}
+                    className="font-bold leading-none text-white truncate text-lg sm:text-xl"
                     style={{
                       fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "-0.01em",
@@ -312,9 +359,7 @@ export default function Navigation() {
                     Swar Yoga
                   </span>
                   <span 
-                    className={`font-semibold leading-tight text-[#FFA726] truncate transition-all duration-200 ${
-                      isScrolled ? 'text-[8px] mt-0' : 'text-[9.5px] mt-0.5'
-                    }`}
+                    className="font-semibold leading-tight text-[#FFA726] truncate text-[9px] mt-0.5"
                     style={{
                       fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "0.02em",
@@ -326,7 +371,7 @@ export default function Navigation() {
                 </div>
               </Link>
 
-              {/* Right Side of Green Strip: Cart in upper green area + Back button */}
+              {/* Right Side of Green Strip: Cart + Menu + Back button */}
               <div className="flex items-center space-x-2 shrink-0">
                 {/* Cart in upper green area as requested */}
                 <Link
@@ -343,6 +388,21 @@ export default function Navigation() {
                   )}
                 </Link>
 
+                {/* Menu Button in Green Top Bar for easy navigation */}
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="flex items-center justify-center p-2 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-white shadow-xs cursor-pointer"
+                  aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+                  title="Menu"
+                >
+                  {isMenuOpen ? (
+                    <X className="w-5 h-5 text-white stroke-[2.5]" />
+                  ) : (
+                    <Menu className="w-5 h-5 text-white stroke-[2.5]" />
+                  )}
+                </button>
+
                 {/* Back Button for all subpages on the RIGHT side */}
                 {pathname !== '/' && (
                   <button
@@ -356,12 +416,10 @@ export default function Navigation() {
                         }
                       }
                     }}
-                    className={`flex items-center space-x-1.5 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-white font-bold shadow-xs flex-shrink-0 ${
-                      isScrolled ? 'py-1 px-2.5 text-[11px]' : 'py-1.5 px-3 text-xs'
-                    }`}
+                    className="flex items-center space-x-1.5 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-white font-bold shadow-xs flex-shrink-0 py-1.5 px-3 text-xs"
                     aria-label="Back to Previous Page"
                   >
-                    <ArrowLeft className={`${isScrolled ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-white stroke-[2.5]`} />
+                    <ArrowLeft className="w-4 h-4 text-white stroke-[2.5]" />
                     <span>Back</span>
                   </button>
                 )}
@@ -372,17 +430,13 @@ export default function Navigation() {
 
         {/* Main White Header Strip */}
         <header 
-          className={`w-full transition-all duration-300 bg-white ${
-            isScrolled 
-              ? 'shadow-md border-b border-gray-100' 
-              : 'shadow-sm border-b border-gray-100'
-          }`}
+          className="w-full bg-white shadow-xs border-b border-gray-100"
           style={{ backgroundColor: '#ffffff' }}
         >
           <div className="w-full max-w-7xl mx-auto px-2 sm:px-6 py-1 sm:py-2">
-            {/* If Android App: 5 SQUARE Buttons with Icon & Below Text (Zoom, Sadhana, Media/YouTube, Pay, Menu) */}
+            {/* If Android App: 6 SQUARE Buttons with Icon & Below Text (Zoom, Sadhana, Media/YouTube, Pay, Cart, Menu) */}
             {isAndroidApp ? (
-              pathname !== '/media' && !isScrolled ? (
+              pathname !== '/media' ? (
                 <div className="grid grid-cols-6 gap-1 sm:gap-1.5 items-center justify-items-center w-full max-w-md mx-auto py-1">
                   {/* 1. Zoom */}
                   <button
@@ -456,28 +510,23 @@ export default function Navigation() {
                     </span>
                   </Link>
 
-                  {/* 6. 3 Line (Menu Bar in GREEN as requested) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className={`w-full aspect-square max-w-[62px] flex flex-col items-center justify-center p-1 rounded-2xl border shadow-xs active:scale-95 transition-all group ${
-                      isMenuOpen 
-                        ? 'bg-emerald-700 border-emerald-700 text-white' 
-                        : 'bg-white border-gray-200/90 hover:border-emerald-400 hover:bg-emerald-50/50 text-[#166235]'
+                  {/* 6. L-Plan (Calendar Icon) */}
+                  <Link
+                    href="/life-planner"
+                    className={`relative w-full aspect-square max-w-[62px] flex flex-col items-center justify-center p-1 rounded-2xl bg-white border border-gray-200/90 hover:border-emerald-400 hover:bg-emerald-50/50 shadow-xs active:scale-95 transition-all group ${
+                      pathname?.startsWith('/life-planner') ? 'border-2 border-emerald-600 ring-2 ring-emerald-500/20' : ''
                     }`}
-                    aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+                    title="Life Planner"
                   >
-                    {isMenuOpen ? (
-                      <X className="w-5 h-5 text-white flex-shrink-0" />
-                    ) : (
-                      <Menu className="w-5 h-5 text-[#166235] stroke-[2.5] group-hover:scale-110 transition-transform flex-shrink-0" />
-                    )}
+                    <Calendar className={`w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0 ${
+                      pathname?.startsWith('/life-planner') ? 'text-emerald-700' : 'text-emerald-600'
+                    }`} />
                     <span className={`text-[10px] sm:text-[11px] font-medium mt-1 tracking-tight leading-none truncate ${
-                      isMenuOpen ? 'text-white' : 'text-[#166235] font-semibold'
+                      pathname?.startsWith('/life-planner') ? 'text-emerald-700 font-bold' : 'text-gray-700 group-hover:text-emerald-900'
                     }`}>
-                      Menu
+                      L-Plan
                     </span>
-                  </button>
+                  </Link>
                 </div>
             ) : null
           ) : (
@@ -916,86 +965,56 @@ export default function Navigation() {
                 );
               })}
 
-              {/* Last: Meta WhatsApp Card (Connected to /admin/crm/meta with Login Page) */}
+              {/* Office Use Button -> Opens Login Page (/admin/login) */}
               <Link
-                href="/admin/crm/meta"
+                href="/admin/login"
                 onClick={closeMenu}
                 className="col-span-2 flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-[#166235] to-teal-700 text-white shadow-md active:scale-[0.98] transition-all group mt-1"
               >
                 <div className="flex items-center space-x-3 min-w-0">
                   <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0 backdrop-blur-sm shadow-inner">
-                    <MessageCircle className="w-5 h-5 text-white" />
+                    <Building2 className="w-5 h-5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sm tracking-tight">Meta WhatsApp</span>
-                      <span className="text-[9px] font-semibold bg-white/20 text-emerald-100 px-1.5 py-0.5 rounded-full">Official</span>
-                    </div>
-                    <span className="text-[11px] text-emerald-100/90 truncate block mt-0.5">Meta CRM & Chat Inbox</span>
+                    <span className="font-bold text-base tracking-tight block">Office Use</span>
+                    <span className="text-[11px] text-emerald-100/90 truncate block mt-0.5">Staff &amp; Admin Portal</span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-emerald-500/80 border border-emerald-300/40 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-105 transition-transform">
-                  <MessageCircle className="w-5 h-5 text-white" />
+                <div className="flex-shrink-0 ml-2">
+                  <span className="px-3.5 py-1.5 rounded-xl bg-emerald-300 hover:bg-emerald-200 text-emerald-950 font-extrabold text-xs shadow-sm flex items-center gap-1.5 transition-all group-hover:scale-105">
+                    <span>Office Use</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </span>
                 </div>
               </Link>
 
-              {/* Auto-Update / Sync Latest Development Card with Check Mark */}
-              <div
-                className="col-span-2 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 text-white shadow-md transition-all mt-2 border border-white/20 select-none"
+              {/* Short "Update Now" Button in Menu */}
+              <button
+                type="button"
+                onClick={() => setIsUpdateModalOpen(true)}
+                className="col-span-2 flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-pink-50 hover:from-purple-100 hover:to-indigo-100 border border-purple-200/80 text-gray-800 shadow-xs active:scale-[0.99] transition-all group mt-1 cursor-pointer text-left"
               >
-                <div
-                  onClick={handleAppAutoUpdate}
-                  className="flex items-center justify-between cursor-pointer group"
-                  title="Tap to update to latest version"
-                >
-                  <div className="flex items-center space-x-3 min-w-0">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0 backdrop-blur-sm shadow-inner">
-                      <RefreshCw className={`w-5 h-5 text-white ${isUpdatingApp ? 'animate-spin' : ''}`} />
-                    </div>
-                    <div className="text-left min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-sm tracking-tight">
-                          {isUpdatingApp ? 'Updating App...' : 'Update App'}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs transition-colors ${autoUpdateEnabled ? 'bg-emerald-500 text-white border border-emerald-300/40' : 'bg-white/20 text-purple-200'}`}>
-                          <Check className="w-3 h-3 stroke-[3]" />
-                          <span>{autoUpdateEnabled ? 'Auto-Update ON' : 'Auto-Update OFF'}</span>
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-purple-100/90 truncate block mt-0.5">
-                        {updateStatusText || 'Tap to get latest developments & fixes'}
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center flex-shrink-0 text-white shadow-xs">
+                    <RefreshCw className="w-4 h-4 text-white group-hover:rotate-180 transition-transform duration-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm text-gray-900 tracking-tight">Update Now</span>
+                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ✓ 24h Auto
                       </span>
                     </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-105 active:scale-95 transition-transform ml-2">
-                    <RefreshCw className={`w-4 h-4 text-white ${isUpdatingApp ? 'animate-spin' : ''}`} />
-                  </div>
-                </div>
-
-                {/* Interactive Checkmark Row for Auto-Update */}
-                <div
-                  onClick={toggleAutoUpdate}
-                  className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-white/15 cursor-pointer active:opacity-80 transition-opacity"
-                >
-                  <div className="flex items-center space-x-2">
-                    <div
-                      className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                        autoUpdateEnabled
-                          ? 'bg-emerald-500 border-emerald-300 text-white shadow-xs'
-                          : 'bg-white/15 border-white/30 text-transparent'
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                    <span className="text-xs font-semibold text-purple-100">
-                      Auto-update for new development
+                    <span className="text-[11px] text-gray-500 truncate block">
+                      Tap to check releases & manage sync
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-300">
-                    {autoUpdateEnabled ? '✓ Enabled' : 'Disabled'}
-                  </span>
                 </div>
-              </div>
+                <div className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1 flex-shrink-0 ml-2">
+                  <span>Open</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
             </div>
             
             {/* Bottom spacer for comfortable scrolling */}
@@ -1080,6 +1099,93 @@ export default function Navigation() {
         isOpen={isPaymentModalOpen} 
         onClose={() => setIsPaymentModalOpen(false)} 
       />
+
+      {/* Update App Popup Modal */}
+      {isUpdateModalOpen && (
+        <div 
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsUpdateModalOpen(false)}
+        >
+          <div 
+            className="relative w-full max-w-sm bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 text-white rounded-3xl p-5 shadow-2xl border border-white/20 select-none animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsUpdateModalOpen(false)}
+              aria-label="Close update modal"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer transition-all"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
+
+            {/* Header */}
+            <div className="pr-8 mb-4">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <h3 className="font-bold text-lg tracking-tight">Update App</h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs transition-colors ${autoUpdateEnabled ? 'bg-emerald-500 text-white border border-emerald-300/40' : 'bg-white/20 text-purple-200'}`}>
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>{autoUpdateEnabled ? '24h Auto-Update Active' : 'Auto-Update OFF'}</span>
+                </span>
+              </div>
+              <p className="text-xs text-purple-100/90 leading-relaxed">
+                {updateStatusText || (autoUpdateEnabled ? `Auto-updates every 24h • ${lastUpdateLabel}` : 'Auto-updates disabled')}
+              </p>
+            </div>
+
+            {/* Action Card with Small "Update Now" Button */}
+            <div className="bg-black/25 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 flex items-center justify-between mb-3.5">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <RefreshCw className={`w-5 h-5 text-white ${isUpdatingApp ? 'animate-spin' : ''}`} />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-xs text-white block">Manual Sync</span>
+                  <span className="text-[11px] text-purple-200 block truncate">
+                    {isUpdatingApp ? 'Applying updates...' : 'Get latest fixes now'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Small Update Now Button */}
+              <button
+                type="button"
+                disabled={isUpdatingApp}
+                onClick={() => handleAppAutoUpdate(true)}
+                className="px-3 py-1.5 rounded-xl bg-white text-purple-900 hover:bg-purple-50 active:scale-95 font-bold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0 disabled:opacity-70 ml-2"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingApp ? 'animate-spin' : ''}`} />
+                <span>{isUpdatingApp ? 'Updating...' : 'Update Now'}</span>
+              </button>
+            </div>
+
+            {/* Interactive Checkmark Row for Auto-Update */}
+            <div
+              onClick={toggleAutoUpdate}
+              className="flex items-center justify-between pt-3 border-t border-white/15 cursor-pointer active:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center space-x-2.5">
+                <div
+                  className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                    autoUpdateEnabled
+                      ? 'bg-emerald-500 border-emerald-300 text-white shadow-xs'
+                      : 'bg-white/15 border-white/30 text-transparent'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </div>
+                <span className="text-xs font-semibold text-purple-100">
+                  Auto-update every 24 hours for new releases
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-300 flex-shrink-0 ml-2">
+                {autoUpdateEnabled ? '✓ Every 24h' : 'Manual only'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

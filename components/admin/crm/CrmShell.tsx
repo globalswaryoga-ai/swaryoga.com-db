@@ -121,13 +121,14 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     refreshStatus();
   };
 
-  const isDarkSection = pathname?.includes('/e-learning');
+  const isMohanRagManagement = pathname?.includes('/admin/crm/mohan-rag/management');
+  const isDarkSection = !isMohanRagManagement && (pathname?.includes('/e-learning') || pathname?.includes('/mohan-rag'));
 
   return (
     <CrmSidebarControlContext.Provider value={sidebarControl}>
     <PlanProvider>
     <ToastProvider>
-    <div className={`flex h-screen overflow-hidden ${isDarkSection ? 'bg-[#0b0f19]' : 'bg-gray-50'}`}>
+    <div className={`flex h-screen overflow-hidden ${isMohanRagManagement ? 'bg-white' : isDarkSection ? 'bg-[#0b0f19]' : 'bg-gray-50'}`}>
       {/* Compartment Setup Modal (blocks everything until setup complete) */}
       {showCompartmentSetup && !loading && !isSuper && (
         <CompartmentSetupModal
@@ -195,7 +196,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Page content - scrollable, guarded by compartment + plan */}
-        <main className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isDarkSection ? 'bg-[#0b0f19]' : ''}`}>
+        <main className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isMohanRagManagement ? 'bg-white' : isDarkSection ? 'bg-[#0b0f19]' : ''}`}>
           {currentModule ? (
             <PlanGate module={currentModule} variant="page">
               {children}

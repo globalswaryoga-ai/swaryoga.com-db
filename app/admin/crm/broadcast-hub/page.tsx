@@ -305,33 +305,33 @@ function BroadcastHubContent() {
             <Link
               key={card.href}
               href={card.href}
-              className="group bg-white rounded-2xl border border-gray-200/80 hover:border-purple-300 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col justify-between"
+              className="group bg-white rounded-3xl border border-slate-200/90 hover:border-purple-300 hover:shadow-[0_12px_32px_rgba(168,85,247,0.12)] hover:-translate-y-1 transition-all duration-200 p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.04)]"
             >
               <div>
-                <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center justify-between mb-4">
                   <div
-                    className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${card.gradient} flex items-center justify-center text-white shadow-md shadow-gray-200 group-hover:scale-105 transition-transform duration-200`}
+                    className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${card.gradient} flex items-center justify-center text-white shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform duration-200`}
                   >
-                    <Icon className="w-6 h-6" />
+                    <Icon className="w-6 h-6 stroke-[2]" />
                   </div>
                   {card.badge && (
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">
                       {card.badge}
                     </span>
                   )}
                 </div>
-                <h3 className="text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors flex items-center gap-1.5">
+                <h3 className="text-lg font-bold text-purple-600 group-hover:text-purple-700 transition-colors flex items-center gap-1.5">
                   {card.label}
-                  <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-purple-600" />
+                  <ArrowRight className="w-4 h-4 text-purple-600 transition-transform group-hover:translate-x-1" />
                 </h3>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-relaxed">
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                   {card.description}
                 </p>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-purple-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-sm text-purple-600 font-semibold group-hover:text-purple-700 transition-colors">
                 <span>Open module</span>
-                <span>→</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
               </div>
             </Link>
           );

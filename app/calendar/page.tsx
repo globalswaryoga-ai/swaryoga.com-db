@@ -308,7 +308,10 @@ const SwarCalendar: React.FC = () => {
       const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, lat, lng, tzOffset);
       const tomorrowPanchang = calculateCompletePanchang(tomorrowDate);
 
-      const tomorrowDominant = tomorrowPanchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
+      // In Swar Shastra, sleep guidance is strictly determined by the sunrise active nadi
+      // Moon (Chandra Nadi) -> Sleep whole night on left side to activate Moon swar at sunrise
+      // Sun (Surya Nadi) -> Sleep left side first, then turn right side ~3 hrs before dawn
+      const tomorrowDominant = tomorrowHinduData.nadi.type === 'Moon' ? 'Prakruti' as const : 'Purusha' as const;
       const srTime = tomorrowHinduData.sunriseTime12 || '06:30 AM';
       const srMatch = srTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
       let sleepSwitch = '03:30 AM';

@@ -47,6 +47,7 @@ import {
   Users,
   UsersRound,
   Sparkles,
+  Film,
   Calendar,
   CalendarDays,
   Video,
@@ -1010,6 +1011,14 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Share2,
       items: [
         {
+          icon: Film,
+          label: 'Media Studio & Pages Editor',
+          href: '/admin/crm/media',
+          color: 'text-amber-400',
+          module: 'dashboard',
+          description: 'Edit public media, e-learning, shorts & 20+ languages',
+        },
+        {
           icon: Share2,
           label: 'Social Media Hub',
           href: '/admin/crm/social-hub',
@@ -1201,6 +1210,24 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'elearning',
           planModule: 'community',
           description: 'Online learning platform & courses',
+        },
+      ],
+    },
+
+    // ===== 17. MOHAN RAG =====
+    {
+      key: 'mohan-rag',
+      label: 'Mohan Rag',
+      icon: Sparkles,
+      items: [
+        {
+          icon: Sparkles,
+          label: 'Mohan Rag Hub',
+          href: '/admin/crm/mohan-rag',
+          color: 'text-amber-400',
+          module: 'dashboard' as CrmModule,
+          planModule: 'dashboard' as CrmModule,
+          description: 'AI Avatar Studio & Multi-Content Hub',
         },
       ],
     },

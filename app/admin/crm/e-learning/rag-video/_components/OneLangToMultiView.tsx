@@ -14,29 +14,13 @@ import {
   FileText,
   AlertCircle
 } from 'lucide-react';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 
-const ALL_LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi (हिंदी)', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi (मराठी)', flag: '🇮🇳' },
-  { code: 'kn', name: 'Kannada (ಕನ್ನಡ)', flag: '🇮🇳' },
-  { code: 'ne', name: 'Nepali (नेपाली)', flag: '🇳🇵' },
-  { code: 'zh', name: 'Mandarin (中文)', flag: '🇨🇳' },
-  { code: 'es', name: 'Spanish (Español)', flag: '🇪🇸' },
-  { code: 'fr', name: 'French (Français)', flag: '🇫🇷' },
-  { code: 'ar', name: 'Arabic (العربية)', flag: '🇸🇦' },
-  { code: 'de', name: 'German (Deutsch)', flag: '🇩🇪' },
-  { code: 'pt', name: 'Portuguese (Português)', flag: '🇧🇷' },
-  { code: 'ja', name: 'Japanese (日本語)', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean (한국어)', flag: '🇰🇷' },
-  { code: 'ru', name: 'Russian (Русский)', flag: '🇷🇺' },
-  { code: 'it', name: 'Italian (Italiano)', flag: '🇮🇹' },
-  { code: 'tr', name: 'Turkish (Türkçe)', flag: '🇹🇷' },
-  { code: 'nl', name: 'Dutch (Nederlands)', flag: '🇳🇱' },
-  { code: 'sv', name: 'Swedish (Svenska)', flag: '🇸🇪' },
-  { code: 'th', name: 'Thai (ไทย)', flag: '🇹🇭' },
-  { code: 'id', name: 'Indonesian (Bahasa)', flag: '🇮🇩' },
-];
+const ALL_LANGUAGES = ELEARNING_LANGUAGES.map((l) => ({
+  code: l.code,
+  name: `${l.name} (${l.nativeName})`,
+  flag: l.flag,
+}));
 
 interface OneLangToMultiViewProps {
   token: string | null;

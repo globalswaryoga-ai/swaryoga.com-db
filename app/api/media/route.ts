@@ -96,9 +96,12 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : (request.cookies.get('adminToken')?.value || request.cookies.get('token')?.value || request.cookies.get('crm_token')?.value);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
@@ -213,9 +216,12 @@ ${description || 'No description'}`;
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : (request.cookies.get('adminToken')?.value || request.cookies.get('token')?.value || request.cookies.get('crm_token')?.value);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
