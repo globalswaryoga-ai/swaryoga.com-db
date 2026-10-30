@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('access_type', 'offline'); // Get refresh token
     authUrl.searchParams.set('prompt', 'consent'); // Force consent to get refresh token
-    authUrl.searchParams.set('state', 'swaryoga_admin_auth'); // Short state string
+    const returnTo = request.nextUrl.searchParams.get('returnTo');
+    authUrl.searchParams.set('state', returnTo ? `swaryoga_admin_auth:${encodeURIComponent(returnTo)}` : 'swaryoga_admin_auth');
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({

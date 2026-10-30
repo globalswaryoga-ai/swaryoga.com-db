@@ -206,11 +206,11 @@ export async function syncZoomToBunny(
         return false;
       }
 
-      // Check if it's older than 24 hours
+      // Allow Zoom at least 5 minutes to finish cloud processing before syncing
       const recordingTime = new Date(file.recording_start).getTime();
-      const ageHours = (Date.now() - recordingTime) / (1000 * 60 * 60);
-      if (ageHours < 24) {
-        result.skippedFiles.push(`${file.recording_type} (less than 24 hours old: ${ageHours.toFixed(1)}h)`);
+      const ageMinutes = (Date.now() - recordingTime) / (1000 * 60);
+      if (ageMinutes < 5) {
+        result.skippedFiles.push(`${file.recording_type} (recording still processing on Zoom: ${ageMinutes.toFixed(1)}m old)`);
         return false;
       }
 

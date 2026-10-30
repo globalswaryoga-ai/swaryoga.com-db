@@ -223,6 +223,8 @@ export default function WorkshopManagementPage() {
   }, [form.startDate, form.holidayDates]);
 
   const [savingEditCohort, setSavingEditCohort] = useState(false);
+  const [youtubeStatus, setYoutubeStatus] = useState<{ connected: boolean; accountName?: string; error?: string; loading: boolean }>({ connected: false, loading: true });
+  const [triggeringUpload, setTriggeringUpload] = useState(false);
   const token =
     typeof window !== 'undefined'
       ? localStorage.getItem('crm_token') ||
@@ -598,6 +600,7 @@ export default function WorkshopManagementPage() {
 
   useEffect(() => { 
     load(); 
+    checkYoutubeStatus();
     fetch('/api/admin/community/list', { headers }).then(r => r.json()).then(d => setCommunities(d.communities || [])).catch(() => {});
   }, []);
 
@@ -1325,6 +1328,70 @@ export default function WorkshopManagementPage() {
     }
   };
 
+  const checkYoutubeStatus = async () => {
+    try {
+      setYoutubeStatus(prev => ({ ...prev, loading: true }));
+      const res = await fetch('/api/admin/crm/workshop-management/recordings/youtube-status', { headers });
+      const data = await res.json();
+      setYoutubeStatus({
+        connected: Boolean(data.connected),
+        accountName: data.accountName || data.accountHandle,
+        error: data.error,
+        loading: false
+      });
+    } catch (e: any) {
+      setYoutubeStatus({ connected: false, error: e.message, loading: false });
+    }
+  };
+
+  const reconnectYoutube = async () => {
+    try {
+      const res = await fetch(`/api/admin/social-media/youtube/oauth?token=${token}&returnTo=${encodeURIComponent('/admin/crm/workshop-management')}`, { headers });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        alert(data.error || 'Failed to start YouTube authorization');
+      }
+    } catch (err: any) {
+      alert(`OAuth error: ${err.message}`);
+    }
+  };
+
+  const triggerZoomUpload = async () => {
+    if (!selected?.zoomMeetingId) {
+      alert('No Zoom Meeting ID configured for this cohort.');
+      return;
+    }
+    if (!confirm(`Download and upload Zoom recordings to YouTube for Meeting ${selected.zoomMeetingId}?\n\nThis will download recordings from Zoom and upload Speaker & Gallery views to YouTube as Unlisted.`)) {
+      return;
+    }
+    try {
+      setTriggeringUpload(true);
+      const res = await fetch('/api/admin/crm/workshop-management/recordings/trigger-upload', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ cohortId: selected._id, zoomMeetingId: selected.zoomMeetingId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('✅ Zoom recordings processed! Refreshing workshop recordings now.');
+        await load(selected._id);
+        await checkYoutubeStatus();
+      } else if (data.needReauth) {
+        if (confirm(`⚠️ ${data.error}\n\nWould you like to reconnect YouTube now?`)) {
+          await reconnectYoutube();
+        }
+      } else {
+        alert(`❌ Upload error: ${data.error || data.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Upload error: ${err.message}`);
+    } finally {
+      setTriggeringUpload(false);
+    }
+  };
+
   const syncRecordingsNow = async () => {
     if (!selected) return;
     try {
@@ -1338,6 +1405,7 @@ export default function WorkshopManagementPage() {
       if (res.ok && data.success) {
         alert(data.message || `Successfully synced ${data.count || 0} recording dates!`);
         await load(selected._id);
+        await checkYoutubeStatus();
       } else {
         alert(data.error || data.message || 'Failed to sync recordings from Zoom');
       }
@@ -2212,6 +2280,65 @@ export default function WorkshopManagementPage() {
                               Join Meeting <ExternalLink size={13} />
                             </a>
                           )}
+                        </div>
+                      </div>
+
+                      {/* YouTube Live Status & Auto-Upload Actions */}
+                      <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          {youtubeStatus.loading ? (
+                            <span className="text-xs text-indigo-200 flex items-center gap-1.5">
+                              <RefreshCw size={13} className="animate-spin text-cyan-300" />
+                              Checking YouTube account...
+                            </span>
+                          ) : youtubeStatus.connected ? (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                              <div>
+                                <p className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                                  YouTube Connected: {youtubeStatus.accountName || 'Active'}
+                                </p>
+                                <p className="text-[10px] text-emerald-100/70">
+                                  Auto-uploads Speaker View + Gallery View as Unlisted videos
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                              <div>
+                                <p className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                                  YouTube Disconnected (Token Expired or Revoked)
+                                </p>
+                                <p className="text-[10px] text-rose-200/80">
+                                  Zoom recordings cannot upload to YouTube until reconnected.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap shrink-0">
+                          {!youtubeStatus.connected && !youtubeStatus.loading && (
+                            <button
+                              type="button"
+                              onClick={reconnectYoutube}
+                              className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                              title="Reconnect YouTube with 1-Click"
+                            >
+                              <PlayCircle size={14} /> Reconnect YouTube
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={triggerZoomUpload}
+                            disabled={triggeringUpload || !selected.zoomMeetingId}
+                            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            title="Download Zoom recordings and upload to YouTube"
+                          >
+                            <Upload size={14} className={triggeringUpload ? 'animate-bounce' : ''} />
+                            {triggeringUpload ? 'Uploading to YouTube...' : 'Upload Zoom to YouTube'}
+                          </button>
                         </div>
                       </div>
 

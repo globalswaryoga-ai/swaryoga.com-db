@@ -1,5 +1,5 @@
-# Zoom recording uploader schedule for the bridge/worker server.
+# Zoom recording uploader schedule for Contabo VPS
 # Times are India Standard Time (IST).
 # Install with: crontab deploy/zoom-recording-uploader/zoom-recording-uploader.cron
 CRON_TZ=Asia/Kolkata
-0 */3 * * * cd /opt/swaryoga.com-db && /usr/bin/flock -n /opt/swaryoga.com-db/.zoom-recording-uploader.lock /usr/bin/node scripts/zoom-recording-uploader.mjs >> /var/log/swaryoga-zoom-recording-uploader.log 2>&1
+0 */2 * * * cd /var/www/swaryoga && /usr/bin/flock -n /var/www/swaryoga/.zoom-recording-uploader.lock /usr/bin/node scripts/zoom-recording-uploader.mjs >> /var/log/swaryoga-zoom-recording-uploader.log 2>&1

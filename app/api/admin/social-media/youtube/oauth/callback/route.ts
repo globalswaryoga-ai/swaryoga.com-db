@@ -80,7 +80,38 @@ export async function GET(request: NextRequest) {
       grantedScopes: ['youtube.upload', 'youtube.readonly'],
     });
 
-    return NextResponse.redirect(new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl));
+    // Also update YOUTUBE_REFRESH_TOKEN in .env.local if present so worker scripts have immediate access
+    if (tokenData.refresh_token) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envLocalPath = path.join(process.cwd(), '.env.local');
+        if (fs.existsSync(envLocalPath)) {
+          let envContent = fs.readFileSync(envLocalPath, 'utf8');
+          if (envContent.includes('YOUTUBE_REFRESH_TOKEN=')) {
+            envContent = envContent.replace(/YOUTUBE_REFRESH_TOKEN=.*/, `YOUTUBE_REFRESH_TOKEN=${tokenData.refresh_token}`);
+          } else {
+            envContent += `\nYOUTUBE_REFRESH_TOKEN=${tokenData.refresh_token}\n`;
+          }
+          fs.writeFileSync(envLocalPath, envContent, 'utf8');
+          console.log('[YouTube OAuth] Updated YOUTUBE_REFRESH_TOKEN in .env.local');
+        }
+      } catch (envErr) {
+        console.warn('[YouTube OAuth] Could not update .env.local:', envErr);
+      }
+    }
+
+    const state = params.get('state') || '';
+    let returnUrl = `/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`;
+    if (state.startsWith('swaryoga_admin_auth:')) {
+      const decodedReturnTo = decodeURIComponent(state.replace('swaryoga_admin_auth:', ''));
+      if (decodedReturnTo.startsWith('/')) {
+        const joinChar = decodedReturnTo.includes('?') ? '&' : '?';
+        returnUrl = `${decodedReturnTo}${joinChar}youtube_connected=true&channel=${encodeURIComponent(channelName)}`;
+      }
+    }
+
+    return NextResponse.redirect(new URL(returnUrl, baseUrl));
   } catch (error) {
     console.error('[YouTube OAuth] Callback error:', error);
     return new NextResponse(String(error) + '\\n' + (error as any)?.stack, { status: 500, headers: { 'Content-Type': 'text/plain' } });
