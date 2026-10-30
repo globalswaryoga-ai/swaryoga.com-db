@@ -289,59 +289,91 @@ export default function TodosPage() {
 
   if (!mounted) return null;
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-0">
-      {/* Android Top App Bar */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)] border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/life-planner/dashboard"
-            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 transition flex items-center justify-center text-slate-700 shrink-0"
-            title="Back to Launchpad"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate flex items-center gap-1.5">
-              <span>📝</span>
-              <span>Todos &amp; Checklist</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 font-medium truncate">
-              Manage your daily tasks, priority todos &amp; habit checklists
-            </p>
-          </div>
-        </div>
+  const totalCount = todos.length;
+  const completedCount = todos.filter(t => t.completed).length;
+  const inProgressCount = todos.filter(t => !t.completed && (t.status === 'in-progress' || !t.status)).length;
+  const highPriorityCount = todos.filter(t => !t.completed && t.priority === 'high').length;
 
-        <button
-          onClick={handleAddTodo}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-white font-bold text-xs transition active:scale-95 shadow-xs shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Todo</span>
-        </button>
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      {/* Top Header Bar with Glossy Orange-to-Green Header (Matches Calendar Overview Design) */}
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#ea580c] via-[#d97706] to-[#059669] text-white p-4 sm:p-6 shadow-[0_12px_28px_rgba(234,88,12,0.22)] border border-white/20">
+        {/* Top Specular Gloss Highlight */}
+        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent rounded-t-[26px] pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <Link
+              href="/life-planner/dashboard"
+              className="p-2.5 sm:p-3 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white transition active:scale-95 shadow-sm border border-white/25 flex items-center justify-center shrink-0 cursor-pointer"
+              title="Back to Launchpad"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-white/30 shadow-xs truncate">
+                  My Tools • Checklist
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 truncate drop-shadow-sm flex items-center gap-2">
+                <span>📝</span>
+                <span>Todos &amp; Checklist</span>
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAddTodo}
+            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white hover:bg-white/95 text-orange-700 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 transition active:scale-95 shadow-md shrink-0 cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            <span>+ Add Todo</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 space-y-3 sm:space-y-0 sm:flex sm:gap-4 sm:items-end flex-wrap">
+      {/* KPI Stats Row (4 Rounded Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-blue-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Todos</span>
+          <p className="text-xl sm:text-2xl font-black text-slate-800 mt-0.5">{totalCount}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-emerald-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600">Completed</span>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">{completedCount}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-amber-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-600">In Progress</span>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-0.5">{inProgressCount}</p>
+        </div>
+        <div className="bg-white/95 rounded-[20px] p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border-l-4 border-l-rose-500">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-600">High Priority</span>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-0.5">{highPriorityCount}</p>
+        </div>
+      </div>
+
+      {/* Filters (Clean 3D Card Container) */}
+      <div className="bg-white/95 rounded-[22px] border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.03)] p-4 sm:p-5 space-y-3 sm:space-y-0 sm:flex sm:gap-4 sm:items-end flex-wrap">
         {/* Search */}
         <div className="flex-1 min-w-xs">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Search</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Search Todos</label>
           <input
             type="text"
-            placeholder="Search todos..."
+            placeholder="Search by title, description or tag..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           />
         </div>
 
         {/* Task Filter */}
         <div className="w-full sm:w-48">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Task</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Parent Task</label>
           <select
             value={filterTask}
             onChange={(e) => setFilterTask(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Tasks</option>
             {tasks.map(t => (
@@ -352,11 +384,11 @@ export default function TodosPage() {
 
         {/* Status Filter */}
         <div className="w-full sm:w-40">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Status</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Status</label>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Status</option>
             <option value="not-started">Not Started</option>
@@ -368,11 +400,11 @@ export default function TodosPage() {
 
         {/* Priority Filter */}
         <div className="w-full sm:w-40">
-          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Priority</label>
+          <label className="block text-xs font-bold text-slate-600 mb-1">Priority</label>
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
-            className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
           >
             <option value="all">All Priority</option>
             <option value="high">High</option>
@@ -679,96 +711,153 @@ export default function TodosPage() {
         </div>
       )}
 
-      {/* Todos List */}
-      <div className="space-y-3">
+      {/* Todos List (Approved 3D Cards Pattern) */}
+      <div className="space-y-3.5">
         {filteredTodos.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg">
-            <p className="text-swar-text-secondary mb-4">No todos found</p>
+          <div className="text-center py-12 bg-white/95 rounded-[24px] border border-slate-200/90 p-8 shadow-sm">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-400 mb-3">
+              📝
+            </div>
+            <p className="text-sm font-bold text-slate-700 mb-1">No todos found</p>
+            <p className="text-xs text-slate-500 mb-4">Create your first task or change filter criteria above.</p>
             <button
               onClick={handleAddTodo}
-              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#ea580c] to-[#059669] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm hover:opacity-90 active:scale-95 cursor-pointer"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               <span>Create your first todo</span>
             </button>
           </div>
         ) : (
-          filteredTodos.map(todo => (
-            <div
-              key={todo.id}
-              className={`bg-white rounded-lg border border-swar-border p-4 flex gap-4 items-start hover:shadow-md transition ${
-                todo.completed ? 'opacity-70' : ''
-              }`}
-            >
-              {/* Checkbox */}
-              <button
-                onClick={() => handleToggleCompleted(todo.id)}
-                className={`flex-shrink-0 mt-1 w-6 h-6 rounded border-2 flex items-center justify-center transition ${
-                  todo.completed
-                    ? 'bg-swar-primary border-swar-primary'
-                    : 'border-swar-border hover:border-blue-500'
-                }`}
-              >
-                {todo.completed && <Check size={16} className="text-white" />}
-              </button>
+          filteredTodos.map(todo => {
+            const isCompleted = todo.completed;
+            const priorityBorder = isCompleted
+              ? 'border-l-emerald-500 bg-emerald-50/20'
+              : todo.priority === 'high'
+              ? 'border-l-rose-500'
+              : todo.priority === 'medium'
+              ? 'border-l-amber-500'
+              : 'border-l-blue-500';
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                  <div>
-                    <h3 className={`font-bold text-swar-text ${todo.completed ? 'line-through' : ''}`}>
-                      {todo.title}
-                    </h3>
-                    <p className="text-xs text-swar-text-secondary">{getTaskTitle(todo.taskId)}</p>
+            const titleColor = isCompleted
+              ? 'text-slate-400 line-through'
+              : todo.priority === 'high'
+              ? 'text-rose-700'
+              : todo.priority === 'medium'
+              ? 'text-amber-800'
+              : 'text-slate-900';
+
+            return (
+              <div
+                key={todo.id}
+                className={`group rounded-[22px] bg-white border border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_10px_28px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all p-4 sm:p-5 border-l-4 ${priorityBorder} flex flex-col justify-between gap-3`}
+              >
+                {/* Top Row: Squircle Checkbox + Tag Pills */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <button
+                      onClick={() => handleToggleCompleted(todo.id)}
+                      className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center transition active:scale-90 shadow-sm overflow-hidden shrink-0 cursor-pointer ${
+                        isCompleted
+                          ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-500/25'
+                          : 'bg-gradient-to-b from-slate-50 to-slate-100 hover:from-white hover:to-slate-100 text-slate-400 border border-slate-300'
+                      }`}
+                      title={isCompleted ? 'Mark incomplete' : 'Mark completed'}
+                    >
+                      <div className="absolute top-0.5 inset-x-1 h-3 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl pointer-events-none" />
+                      {isCompleted ? (
+                        <Check size={20} className="stroke-[3] drop-shadow-xs" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-300 group-hover:border-slate-400" />
+                      )}
+                    </button>
+
+                    <div className="min-w-0 space-y-1">
+                      <h3 className={`font-bold text-base sm:text-[17px] tracking-tight leading-snug ${titleColor}`}>
+                        {todo.title}
+                      </h3>
+                      {todo.taskId && (
+                        <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">Task:</span>
+                          <span className="text-slate-700 font-semibold truncate">{getTaskTitle(todo.taskId)}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {todo.priority && (
-                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                        PRIORITY_COLORS[todo.priority]?.bg || 'bg-gray-100'
-                      } ${PRIORITY_COLORS[todo.priority]?.text || 'text-gray-700'}`}>
-                        {todo.priority}
+
+                  {/* Priority & Category Badges */}
+                  <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                    {todo.category && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 font-bold text-[10px] sm:text-[11px] tracking-wider uppercase border border-slate-200/60">
+                        {todo.category}
+                      </span>
+                    )}
+                    <span
+                      className={`px-2.5 py-0.5 rounded-lg font-bold text-[10px] sm:text-[11px] tracking-wider uppercase border ${
+                        todo.priority === 'high'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : todo.priority === 'medium'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}
+                    >
+                      {todo.priority ? `${todo.priority} Priority` : 'Normal'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {todo.description && (
+                  <p className="text-xs sm:text-sm text-slate-600 font-normal leading-relaxed pl-13 line-clamp-2">
+                    {todo.description}
+                  </p>
+                )}
+
+                {/* Details & Actions Footer */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pl-0 sm:pl-13">
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500">
+                    {todo.dueDate && (
+                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60 font-semibold text-slate-700 text-[11px]">
+                        <span>📅</span>
+                        <span>Due: {todo.dueDate}</span>
+                        {todo.dueTime && <span className="text-slate-400">@ {todo.dueTime}</span>}
+                      </span>
+                    )}
+                    {todo.budget && (
+                      <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200 font-bold text-[11px]">
+                        <span>₹</span>
+                        <span>{todo.budget.toLocaleString()}</span>
+                      </span>
+                    )}
+                    {isCompleted && (
+                      <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                        <span>✓ Done</span>
                       </span>
                     )}
                   </div>
-                </div>
 
-                {todo.description && (
-                  <p className="text-sm text-swar-text-secondary mb-2 line-clamp-2">{todo.description}</p>
-                )}
-
-                {/* Details */}
-                <div className="text-xs text-swar-text-secondary space-y-1">
-                  {todo.dueDate && (
-                    <div>
-                      Due: {todo.dueDate}
-                      {todo.dueTime && ` at ${todo.dueTime}`}
-                    </div>
-                  )}
-                  {todo.budget && (
-                    <div className="text-swar-primary font-semibold">₹ {todo.budget.toLocaleString()}</div>
-                  )}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                    <button
+                      onClick={() => handleEditTodo(todo)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition border border-slate-200/80 flex items-center gap-1 cursor-pointer active:scale-95"
+                      title="Edit Todo"
+                    >
+                      <Edit2 size={13} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTodo(todo.id)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition border border-rose-200 flex items-center gap-1 cursor-pointer active:scale-95"
+                      title="Delete Todo"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => handleEditTodo(todo)}
-                  className="p-2 text-blue-700 hover:bg-blue-50 rounded transition"
-                  title="Edit"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={() => handleDeleteTodo(todo.id)}
-                  className="p-2 text-red-700 hover:bg-red-50 rounded transition"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
