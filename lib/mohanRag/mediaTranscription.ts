@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { access, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -56,8 +57,9 @@ export async function fetchBunnyMedia(url: string) {
 
 export async function fetchYouTubeMedia(url: string) {
   const binary = process.env.YT_DLP_PATH || 'yt-dlp';
-  const args = ['--no-playlist', '--no-warnings', '--format', 'best[ext=mp4][vcodec!=none][acodec!=none]', '--output', '-', url];
-  if (process.env.YOUTUBE_COOKIES_FILE) args.splice(args.length - 1, 0, '--cookies', process.env.YOUTUBE_COOKIES_FILE);
+  const cookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim();
+  if (cookiesFile) await assertReadableYouTubeCookiesFile(cookiesFile);
+  const args = buildYouTubeDownloadArgs(url, cookiesFile);
   return new Promise<{ buffer: Buffer; title: string; extension: string }>((resolve, reject) => {
     const videoId = new URL(url).searchParams.get('v') || new URL(url).pathname.split('/').filter(Boolean).pop() || 'video';
     let stderr = '';
@@ -71,12 +73,40 @@ export async function fetchYouTubeMedia(url: string) {
       clearTimeout(timeout);
       try {
         const buffer = await output;
-        if (code !== 0) return reject(new Error(`YouTube download failed: ${stderr.trim().slice(-1200) || `yt-dlp exited ${code}`}`));
+        if (code !== 0) return reject(formatYouTubeDownloadError(stderr, Boolean(cookiesFile), code));
         if (!buffer.length) return reject(new Error('YouTube returned an empty video stream.'));
         resolve({ buffer, title: `YouTube ${videoId}`.slice(0, 240), extension: 'mp4' });
       } catch (error) { reject(error); }
     });
   });
+}
+
+export function buildYouTubeDownloadArgs(url: string, cookiesFile?: string) {
+  const args = ['--no-playlist', '--no-warnings', '--format', 'best[ext=mp4][vcodec!=none][acodec!=none]'];
+  if (cookiesFile) args.push('--cookies', cookiesFile);
+  args.push('--output', '-', url);
+  return args;
+}
+
+export async function assertReadableYouTubeCookiesFile(cookiesFile: string) {
+  try {
+    const file = await stat(cookiesFile);
+    if (!file.isFile()) throw new Error('Not a file');
+    await access(cookiesFile, fsConstants.R_OK);
+  } catch {
+    throw new Error('YOUTUBE_COOKIES_FILE must point to a readable Netscape-format cookies.txt file on the ingestion worker.');
+  }
+}
+
+export function formatYouTubeDownloadError(stderr: string, cookiesConfigured: boolean, exitCode: number | null) {
+  const detail = stderr.trim().slice(-1200) || `yt-dlp exited ${exitCode}`;
+  if (!/sign in to confirm|not a bot|cookies?/i.test(detail)) {
+    return new Error(`YouTube download failed: ${detail}`);
+  }
+  const guidance = cookiesConfigured
+    ? 'YouTube rejected the configured cookies. Refresh the Netscape-format cookies file from an account authorized for this video and verify the account can view it.'
+    : 'YouTube requires an authorized session for this video. Export a Netscape-format cookies.txt from an account that can view it and set YOUTUBE_COOKIES_FILE on the ingestion worker.';
+  return new Error(`YouTube download failed: ${guidance} ${detail}`);
 }
 
 async function extractAudio(buffer: Buffer, extension: string) {

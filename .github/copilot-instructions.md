@@ -170,6 +170,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Mohan RAG YouTube Ingestion Authentication Guidance (Session: November 2, 2026) — Commit `pending`
+
+- Kept the existing `yt-dlp` downloader and added validation for `YOUTUBE_COOKIES_FILE`, an optional worker-local Netscape cookies file for videos accessible to the authorized account.
+- YouTube sign-in/bot-check failures now explain the required worker configuration; unrelated downloader failures retain their original diagnostic.
+- Documented secure cookie-file placement and worker prerequisites; no cookie contents, queued jobs, or Bunny records were changed. Five focused tests pass and the changed TypeScript files have no reported type errors. Repository-wide type-check still reports unrelated baseline errors; lint cannot load the missing `typescript-eslint` package.
+- The Contabo worker still needs an authorized cookies file configured and this change deployed before YouTube-only failed jobs can be retried.
+
 ### Workshop YouTube Recording Upload Repair (Session: October 13, 2026) — Commit `pending`
 
 - Fixed the external Zoom uploader's YouTube resumable `PUT` to include the required `Content-Range: bytes 0-(size-1)/size`; the missing header could prevent Zoom class recordings from being accepted by YouTube.

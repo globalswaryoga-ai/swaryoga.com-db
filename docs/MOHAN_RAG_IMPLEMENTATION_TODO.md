@@ -2,6 +2,13 @@
 
 **Status:** Approved to proceed. The management workspace supports Bunny-backed text sources and original-file import (PDF, DOCX, MP3, MP4), extraction/transcription drafts, library previews, keyword answer preview, manual cited research drafts, an explicit avatar render connection, and a persistent overnight queue for uploads plus Bunny/YouTube video URLs. Queued media produces Whisper timestamped minute timelines with transcript-based avatar emotion/face suggestions. Production runtime verification, resumable uploads, scanned-PDF OCR, visual facial-expression analysis, automatic research discovery, semantic retrieval, and student access remain pending.
 
+### YouTube ingestion worker setup
+
+- The RAG worker uses the system `yt-dlp` executable; install it on the Contabo worker and set `YT_DLP_PATH` only if it is not on `PATH`.
+- If YouTube requires sign-in, export a Netscape-format `cookies.txt` from an account authorized to view those videos. Store it outside the repository with owner-only permissions (for example, `chmod 600`) and set `YOUTUBE_COOKIES_FILE` to its absolute worker path.
+- Never put cookie contents in source control, logs, or chat. Cookies expire; refresh the file when YouTube rejects it. A cookie file does not grant access to videos the account cannot view.
+- The ingestion route validates the configured file and reports an actionable error for YouTube's sign-in/bot-check response. Existing failed jobs are not automatically retried.
+
 ## Goal
 
 Add a **RAG Management** button to the Mohan RAG hub header. It opens a dedicated management workspace with a persistent left sidebar for the major admin pages and a main work area that shows the selected page's controls, status, details, and actions. Keep **AI Avatar — My Clone** as its own separate section in the workspace, then connect it to the approved RAG answer flow.
@@ -87,6 +94,7 @@ Each sidebar item must load a real page state or explicitly show **Not implement
 - [ ] Add real, time-aligned facial-expression analysis from MP4 frames. Current import cues are conservative suggestions inferred from transcript wording; they are not visual observations. MP3 has no visual stream, so its face cues can only be performance suggestions.
 - [ ] Add large/resumable uploads and OCR for scanned PDFs.
 - [x] Add a Bunny Database-backed YouTube/Bunny video URL queue processed by the persistent Node server from 10 PM to 6 AM Asia/Kolkata; existing Bunny videos are transcribed in place without re-upload.
+- [x] Support a worker-local authorized YouTube cookies file for videos that require sign-in, with validation and clear setup errors.
 - [x] Add upload-from-device media intake that stores the original in Bunny Storage and queues the Bunny URL for processing.
 - [ ] Verify overnight worker, yt-dlp, FFmpeg, transcription credentials, and queue recovery on Contabo before production use; current processing is sequential and capped at 350 MB per media item.
 - [x] Replace the E-learning Module 5 hard-coded sample output with the shared real timestamped transcription and transcript-based cue workflow; label that visual facial analysis is not connected.
