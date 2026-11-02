@@ -170,7 +170,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Mohan RAG YouTube Ingestion Authentication Guidance (Session: November 2, 2026) — Commit `pending`
+### Mohan RAG YouTube Ingestion Authentication Guidance (Session: November 2, 2026) — Commit `fc644a8e`
 
 - Kept the existing `yt-dlp` downloader and added validation for `YOUTUBE_COOKIES_FILE`, an optional worker-local Netscape cookies file for videos accessible to the authorized account.
 - YouTube sign-in/bot-check failures now explain the required worker configuration; unrelated downloader failures retain their original diagnostic.
