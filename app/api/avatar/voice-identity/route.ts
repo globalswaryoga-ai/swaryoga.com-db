@@ -1,22 +1,65 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { MOHAN_VOCAL_DNA_MODELS } from '@/lib/mohanAiClone/avatarDna50Catalog';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId') || 'mohan_master_clone_proj_v1';
+    const projectId = searchParams.get('projectId');
 
-    const res = await bunnyExecute({
-      sql: `SELECT * FROM mohan_voice_identity_sql WHERE training_project_id = ? ORDER BY created_at DESC`,
-      args: [projectId],
+    let voicesRes;
+    if (projectId) {
+      voicesRes = await bunnyExecute({
+        sql: `SELECT * FROM mohan_voice_identity_sql WHERE training_project_id = ? ORDER BY created_at DESC`,
+        args: [projectId],
+      });
+    } else {
+      voicesRes = await bunnyExecute({
+        sql: `SELECT * FROM mohan_voice_identity_sql ORDER BY created_at DESC`,
+        args: [],
+      });
+    }
+
+    // Also fetch full vocal DNA models
+    let vocalDnaRows = [];
+    try {
+      const vocalRes = await bunnyExecute(`
+        SELECT id, language, tone_name, pitch_hz, cadence_words_per_minute,
+               characteristic, sample_phrase, audio_sample_url, created_at
+        FROM mohan_avatar_vocal_dna_sql
+        ORDER BY created_at ASC
+      `);
+      vocalDnaRows = vocalRes.rows || [];
+    } catch {}
+
+    const voices = (voicesRes.rows && voicesRes.rows.length > 0)
+      ? voicesRes.rows
+      : MOHAN_VOCAL_DNA_MODELS;
+
+    const vocalDna = (vocalDnaRows.length > 0)
+      ? vocalDnaRows
+      : MOHAN_VOCAL_DNA_MODELS;
+
+    return NextResponse.json({
+      success: true,
+      voices,
+      vocalDna,
+      catalog: MOHAN_VOCAL_DNA_MODELS,
+      activeVoiceSampleUrl: 'https://swaryogacrm.b-cdn.net/zoom-videos/2026-10-13-H1P12YTMTRy5J0baEAa-bQ---audio.mp3',
     });
-
-    return NextResponse.json({ success: true, voices: res.rows || [] });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
+    console.error('Error fetching voice identity:', error);
+    return NextResponse.json({
+      success: true,
+      voices: MOHAN_VOCAL_DNA_MODELS,
+      vocalDna: MOHAN_VOCAL_DNA_MODELS,
+      catalog: MOHAN_VOCAL_DNA_MODELS,
+      activeVoiceSampleUrl: 'https://swaryogacrm.b-cdn.net/zoom-videos/2026-10-13-H1P12YTMTRy5J0baEAa-bQ---audio.mp3',
+      source: 'catalog_fallback',
+    });
   }
 }
 
@@ -25,12 +68,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       training_project_id = 'mohan_master_clone_proj_v1',
-      provider = 'elevenlabs',
-      provider_voice_id = 'mohan_clone_v1',
+      provider = 'edge_tts_inhouse',
+      provider_voice_id = 'hi-IN-MadhurNeural',
       voice_name = 'Mohan Master Voice',
-      fundamental_pitch_hz = 118.5,
-      speaking_rate_wpm = 130,
-      supported_languages = ['hi', 'mr', 'en'],
+      fundamental_pitch_hz = 125,
+      speaking_rate_wpm = 115,
+      supported_languages = ['hi', 'mr', 'en', 'sa'],
       terminology_pronunciation_overrides = {
         'स्वर योग': 'Swar Yoga',
         'प्राणायाम': 'Pranayama',
@@ -38,7 +81,7 @@ export async function POST(request: Request) {
         'पिंगला': 'Pingala',
         'सुषुम्ना': 'Sushumna',
       },
-      sample_audio_keys = [],
+      sample_audio_keys = ['https://swaryogacrm.b-cdn.net/zoom-videos/2026-10-13-H1P12YTMTRy5J0baEAa-bQ---audio.mp3'],
     } = body;
 
     const id = body.id || `voice_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
@@ -84,4 +127,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
   }
 }
-

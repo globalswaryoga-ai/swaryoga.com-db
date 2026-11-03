@@ -58,6 +58,7 @@ import {
 import VideoIntelligenceEditorModal from '@/components/avatar/VideoIntelligenceEditorModal';
 import PerformanceDnaLibraryModal from '@/components/avatar/PerformanceDnaLibraryModal';
 import type { IntelligenceSegment } from '@/lib/mohanAiClone/videoIntelligenceService';
+import { AVATAR_DNA_50_CATALOG, MOHAN_VOCAL_DNA_MODELS, VocalDnaModel } from '@/lib/mohanAiClone/avatarDna50Catalog';
 
 type StudioTab = 
   | 'my-avatars' 
@@ -154,119 +155,28 @@ export interface SavedAvatarItem {
   id: string;
   name: string;
   tagline: string;
-  category: 'spiritual' | 'real-video' | 'corporate' | 'ancient' | 'consultation' | 'custom';
+  category: 'spiritual' | 'ashram' | 'pranayama' | 'himalayan' | 'corporate' | 'wellness' | 'mudra' | 'modern' | 'real-video' | 'ancient' | 'consultation' | 'custom' | string;
   outfitId: string;
   hairStyleId: HairStyleId;
   facialHairId: FacialHairId;
   spectaclesId: SpectaclesId;
   tilakId: TilakId;
-  background: 'none' | 'himalayas' | 'ocean' | 'temple' | 'studio';
+  background: 'none' | 'himalayas' | 'ocean' | 'temple' | 'studio' | string;
   badge: string;
   emoji: string;
   isPrimary?: boolean;
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  description?: string;
+  heading?: string;
+  outfitStyle?: string;
+  emotionProfile?: string;
+  speakingTone?: string;
+  durationSeconds?: number;
 }
 
-const DEFAULT_AVATAR_LIBRARY: SavedAvatarItem[] = [
-  {
-    id: 'avatar-guruji-vedic',
-    name: 'Mohan Sir (Swar Yoga Guruji)',
-    tagline: 'White Kurta • Chandan Tilak • Natural Beard',
-    category: 'spiritual',
-    outfitId: 'ind-swar-guruji',
-    hairStyleId: 'natural-guru',
-    facialHairId: 'natural-beard',
-    spectaclesId: 'none',
-    tilakId: 'chandan-tilak',
-    background: 'himalayas',
-    badge: 'Vedic Master',
-    emoji: '🧘‍♂️',
-    isPrimary: true,
-  },
-  {
-    id: 'avatar-lime-snapyt',
-    name: 'Mohan Sir (Lime Green Kurta)',
-    tagline: 'SnapYT Real Kurta • No Glasses • Video Authentic',
-    category: 'real-video',
-    outfitId: 'used-lime-kurta',
-    hairStyleId: 'natural-guru',
-    facialHairId: 'natural-beard',
-    spectaclesId: 'none',
-    tilakId: 'chandan-tilak',
-    background: 'temple',
-    badge: 'Video Authentic',
-    emoji: '🟢',
-  },
-  {
-    id: 'avatar-teal-shadripu',
-    name: 'Mohan Sir (Sea Green Kurta)',
-    tagline: 'Shad Ripu Video Kurta • Gold Rimless • Bhasma',
-    category: 'real-video',
-    outfitId: 'used-teal-kurta',
-    hairStyleId: 'natural-guru',
-    facialHairId: 'natural-beard',
-    spectaclesId: 'gold-rimless',
-    tilakId: 'bhasma-tripundra',
-    background: 'ocean',
-    badge: 'Video Authentic',
-    emoji: '🌊',
-  },
-  {
-    id: 'avatar-keynote-speaker',
-    name: 'Mohan Sir (Global Keynote)',
-    tagline: 'Royal Nehru Jacket • Gold Rimless • Modern Trim',
-    category: 'corporate',
-    outfitId: 'ind-nehru-jacket',
-    hairStyleId: 'short-crop',
-    facialHairId: 'short-stubble',
-    spectaclesId: 'gold-rimless',
-    tilakId: 'none',
-    background: 'studio',
-    badge: 'Keynote Speaker',
-    emoji: '🎙️',
-  },
-  {
-    id: 'avatar-rishi-sage',
-    name: 'Mohan Sir (Himalayan Rishi)',
-    tagline: 'Saffron Silk Garb • Full Rishi Beard • Bhasma',
-    category: 'ancient',
-    outfitId: 'ind-silk-kurta',
-    hairStyleId: 'topknot-rishi',
-    facialHairId: 'full-rishi',
-    spectaclesId: 'none',
-    tilakId: 'bhasma-tripundra',
-    background: 'himalayas',
-    badge: 'Ancient Sage',
-    emoji: '📿',
-  },
-  {
-    id: 'avatar-executive-coach',
-    name: 'Mohan Sir (Executive Coach)',
-    tagline: 'Charcoal Bespoke Suit • Black Spectacles • Sharp',
-    category: 'corporate',
-    outfitId: 'prof-executive-suit',
-    hairStyleId: 'side-part',
-    facialHairId: 'short-stubble',
-    spectaclesId: 'classic-black',
-    tilakId: 'none',
-    background: 'studio',
-    badge: 'Corporate Coach',
-    emoji: '👔',
-  },
-  {
-    id: 'avatar-ayurveda-doctor',
-    name: 'Mohan Sir (Ayurvedic Healer)',
-    tagline: 'Doctor Apron • Round Scholar Spects • Health Guru',
-    category: 'consultation',
-    outfitId: 'prof-doctor-coat',
-    hairStyleId: 'natural-guru',
-    facialHairId: 'natural-beard',
-    spectaclesId: 'round-scholar',
-    tilakId: 'chandan-tilak',
-    background: 'temple',
-    badge: 'Health Expert',
-    emoji: '🩺',
-  },
-];
+const DEFAULT_AVATAR_LIBRARY: SavedAvatarItem[] = AVATAR_DNA_50_CATALOG as SavedAvatarItem[];
+
 
 // Original Reference Video Item (Dedicated Original Video Library)
 export interface OriginalSavedVideo {
@@ -1299,16 +1209,46 @@ export default function AvatarStudioPage() {
   const [viewportRatio, setViewportRatio] = useState<'16:9' | '1:1' | '9:16' | 'full'>('16:9');
   const [viewportFitMode, setViewportFitMode] = useState<'contain' | 'cover'>('contain');
   
-  // Section 0: Avatar Library (List of All Avatars to Pick From)
+  // Section 0: Avatar Library (List of All 50+ Avatars to Pick From)
+  const [avatarCategoryFilter, setAvatarCategoryFilter] = useState<string>('all');
+  const [avatarSearchQuery, setAvatarSearchQuery] = useState<string>('');
+
   const [avatarLibrary, setAvatarLibrary] = useState<SavedAvatarItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('mohan_avatar_library_v2');
-        if (stored) return JSON.parse(stored);
+        const stored = localStorage.getItem('mohan_avatar_library_v4');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length >= 50) return parsed;
+        }
       } catch {}
     }
     return DEFAULT_AVATAR_LIBRARY;
   });
+
+  // Sync avatar library from Bunny DB DNA Looks API
+  useEffect(() => {
+    fetch('/api/avatar/dna-looks')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.looks) && data.looks.length >= 50) {
+          setAvatarLibrary(prev => {
+            const customAvatars = prev.filter(a => a.category === 'custom');
+            return [...customAvatars, ...data.looks];
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Save to localStorage whenever library updates
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('mohan_avatar_library_v4', JSON.stringify(avatarLibrary));
+      } catch {}
+    }
+  }, [avatarLibrary]);
 
   const [selectedAvatarId, setSelectedAvatarId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -2059,9 +1999,93 @@ export default function AvatarStudioPage() {
   const [voiceTone, setVoiceTone] = useState<'calm' | 'inspiring' | 'dynamic' | 'meditative'>('inspiring');
   const [voicePitch, setVoicePitch] = useState(1.0);
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [voiceVolume, setVoiceVolume] = useState(1.0);
   const [blinkRate, setBlinkRate] = useState(14);
   const [headTiltSensitivity, setHeadTiltSensitivity] = useState(65);
   const [lipSyncPrecision, setLipSyncPrecision] = useState(98);
+
+  // Vocal DNA & Voice Identity State (Connected to Bunny Database LibSQL)
+  const [activeVoiceModelId, setActiveVoiceModelId] = useState<string>('vocal_dna_hindi_pratahkalin');
+  const [isPlayingVoiceSample, setIsPlayingVoiceSample] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioTotalDuration, setAudioTotalDuration] = useState(150);
+  const [customVoiceTestText, setCustomVoiceTestText] = useState(
+    'सूर्य नाड़ी में जब भोजन किया जाता है, तो जठराग्नि तीव्र होती है और पाचन सर्वोत्तम होता है।'
+  );
+  const [isSpeakingCustomText, setIsSpeakingCustomText] = useState(false);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  const selectedVoiceModel = MOHAN_VOCAL_DNA_MODELS.find(v => v.id === activeVoiceModelId) || MOHAN_VOCAL_DNA_MODELS[0];
+
+  const handleToggleVoiceSample = (specificUrl?: string) => {
+    const audioUrl = specificUrl || selectedVoiceModel?.audioSampleUrl || 'https://swaryogacrm.b-cdn.net/zoom-videos/2026-10-13-H1P12YTMTRy5J0baEAa-bQ---audio.mp3';
+
+    if (!audioPlayerRef.current) {
+      const audio = new Audio(audioUrl);
+      audioPlayerRef.current = audio;
+      audio.playbackRate = voiceSpeed;
+      audio.volume = voiceVolume;
+      audio.ontimeupdate = () => {
+        setAudioCurrentTime(audio.currentTime);
+      };
+      audio.onloadedmetadata = () => {
+        setAudioTotalDuration(audio.duration || 150);
+      };
+      audio.onended = () => {
+        setIsPlayingVoiceSample(false);
+        setAudioCurrentTime(0);
+      };
+      audio.onerror = () => {
+        setIsPlayingVoiceSample(false);
+      };
+    } else {
+      if (specificUrl && audioPlayerRef.current.src !== specificUrl) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.src = specificUrl;
+      }
+      audioPlayerRef.current.playbackRate = voiceSpeed;
+      audioPlayerRef.current.volume = voiceVolume;
+    }
+
+    if (isPlayingVoiceSample) {
+      audioPlayerRef.current.pause();
+      setIsPlayingVoiceSample(false);
+    } else {
+      audioPlayerRef.current.play()
+        .then(() => setIsPlayingVoiceSample(true))
+        .catch(() => {
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(selectedVoiceModel.samplePhrase);
+            u.rate = voiceSpeed;
+            u.pitch = voicePitch;
+            u.lang = selectedVoiceModel.language === 'mr' ? 'mr-IN' : selectedVoiceModel.language === 'en' ? 'en-IN' : 'hi-IN';
+            u.onstart = () => setIsPlayingVoiceSample(true);
+            u.onend = () => setIsPlayingVoiceSample(false);
+            window.speechSynthesis.speak(u);
+          }
+        });
+    }
+  };
+
+  const handleSpeakCustomText = (textOverride?: string) => {
+    const textToSpeak = textOverride || customVoiceTestText;
+    if (!textToSpeak.trim()) return;
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.rate = voiceSpeed;
+      utterance.pitch = voicePitch;
+      utterance.volume = voiceVolume;
+      const lang = selectedVoiceModel?.language || 'hi';
+      utterance.lang = lang === 'mr' ? 'mr-IN' : lang === 'en' ? 'en-IN' : 'hi-IN';
+      utterance.onstart = () => setIsSpeakingCustomText(true);
+      utterance.onend = () => setIsSpeakingCustomText(false);
+      utterance.onerror = () => setIsSpeakingCustomText(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
   
   // Test Lab State
   const [testScript, setTestScript] = useState(
@@ -2658,13 +2682,30 @@ export default function AvatarStudioPage() {
                 <span>Save</span>
               </button>
             </div>
-            <p className="px-3 text-[10px] text-slate-400 pb-1.5 leading-snug">
-              Pick any avatar to load its styling immediately:
-            </p>
+
+            {/* Quick Search in Sidebar */}
+            <div className="px-2 pb-1.5 pt-1">
+              <div className="relative">
+                <Search className="w-3 h-3 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search 50 avatars..."
+                  value={avatarSearchQuery}
+                  onChange={(e) => setAvatarSearchQuery(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
 
             {/* Scrollable list of avatars in sidebar */}
-            <div className="space-y-1.5 px-1 max-h-[380px] overflow-y-auto scrollbar-thin">
-              {avatarLibrary.map((avatar) => {
+            <div className="space-y-1.5 px-1 max-h-[360px] overflow-y-auto scrollbar-thin">
+              {avatarLibrary
+                .filter(a => {
+                  if (!avatarSearchQuery.trim()) return true;
+                  const q = avatarSearchQuery.toLowerCase();
+                  return a.name.toLowerCase().includes(q) || a.tagline.toLowerCase().includes(q) || (a.badge && a.badge.toLowerCase().includes(q));
+                })
+                .map((avatar) => {
                 const isActive = selectedAvatarId === avatar.id;
                 return (
                   <div
@@ -2716,6 +2757,7 @@ export default function AvatarStudioPage() {
                 );
               })}
             </div>
+
 
             {/* 🗂️ ORIGINAL VIDEO LIBRARY (DEDICATED SECTION) */}
             <div className="pt-3 pb-1 px-3 text-[10px] font-extrabold uppercase tracking-wider text-teal-400 border-t border-slate-800/80 mt-2 flex items-center justify-between">
@@ -2928,24 +2970,97 @@ export default function AvatarStudioPage() {
                 </div>
               </div>
 
-              {/* AVATAR LIBRARY GRID (ALL AVATARS) */}
+              {/* AVATAR LIBRARY GRID (ALL 50+ AVATARS) */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
-                    <span>Avatar Library ({avatarLibrary.length} Digital Twins)</span>
-                  </h3>
-                  <button
-                    onClick={() => setShowSaveAvatarModal(true)}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Save Current Look as New Avatar</span>
-                  </button>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-amber-400" />
+                      <span>Avatar Library ({avatarLibrary.length} Digital Twins)</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Authentic Vedic, yogic, healthcare, and corporate avatars calibrated with Mohan Sir&apos;s likeness
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowSaveAvatarModal(true)}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Save Current Look</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar Controls */}
+                <div className="space-y-3 p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search across all 50 DNA avatars (e.g. Guruji, Lime Green, Dhyan, Keynote, Doctor)..."
+                        value={avatarSearchQuery}
+                        onChange={(e) => setAvatarSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+                      />
+                    </div>
+                    {avatarSearchQuery && (
+                      <button
+                        onClick={() => setAvatarSearchQuery('')}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-xs font-medium self-end sm:self-auto"
+                      >
+                        Clear Search
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Pills */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      { id: 'all', label: `All (${avatarLibrary.length})` },
+                      { id: 'spiritual', label: 'Vedic Spiritual (10)' },
+                      { id: 'ashram', label: 'Ashram Sadhana (8)' },
+                      { id: 'pranayama', label: 'Pranayama Kriya (6)' },
+                      { id: 'himalayan', label: 'Himalayan Dhyan (6)' },
+                      { id: 'corporate', label: 'Corporate & Keynote (6)' },
+                      { id: 'wellness', label: 'Ayurveda & Health (6)' },
+                      { id: 'mudra', label: 'Mudra & Chakra (4)' },
+                      { id: 'modern', label: 'Youth & Modern (4)' },
+                      { id: 'custom', label: 'Custom Clones' },
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setAvatarCategoryFilter(cat.id)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                          avatarCategoryFilter === cat.id
+                            ? 'bg-amber-500 text-black shadow-sm font-extrabold'
+                            : 'bg-slate-950/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {avatarLibrary.map((avatar) => {
+                  {avatarLibrary
+                    .filter((avatar) => {
+                      const matchesCategory =
+                        avatarCategoryFilter === 'all' ||
+                        avatar.category === avatarCategoryFilter ||
+                        (avatarCategoryFilter === 'spiritual' && (avatar.category === 'ancient' || avatar.category === 'real-video')) ||
+                        (avatarCategoryFilter === 'wellness' && avatar.category === 'consultation');
+                      const matchesQuery =
+                        !avatarSearchQuery.trim() ||
+                        avatar.name.toLowerCase().includes(avatarSearchQuery.toLowerCase()) ||
+                        avatar.tagline.toLowerCase().includes(avatarSearchQuery.toLowerCase()) ||
+                        (avatar.badge && avatar.badge.toLowerCase().includes(avatarSearchQuery.toLowerCase()));
+                      return matchesCategory && matchesQuery;
+                    })
+                    .map((avatar) => {
                     const isActive = selectedAvatarId === avatar.id;
                     const avatarOutfit = allOutfits.find(o => o.id === avatar.outfitId);
                     return (
@@ -2957,6 +3072,7 @@ export default function AvatarStudioPage() {
                             : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
                         }`}
                       >
+
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-2xl border border-slate-700">
@@ -5203,109 +5319,341 @@ export default function AvatarStudioPage() {
           {/* TAB 4: VOICE DNA & SPEECH ENGINE */}
           {activeTab === 'step-voice' && (
             <div className="space-y-6 max-w-4xl">
-              <div>
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <Mic className="w-6 h-6 text-purple-400" />
-                  Step 4: Voice DNA & Vocal Cloning
-                </h2>
-                <p className="text-sm text-slate-400">
-                  Trained neural voice model mirroring Mohan Sir&apos;s timbre, cadence, and breath modulation
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Mic className="w-6 h-6 text-purple-400" />
+                    <span>Step 4: Voice DNA & Vocal Cloning Studio</span>
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-0.5">
+                    Authentic neural vocal formants mirroring Mohan Sir&apos;s timbre, cadence, and breath modulation
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>8 Models in Bunny DB</span>
+                  </span>
+                </div>
               </div>
 
-              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300">Vocal Emotion & Delivery Mode</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
-                    {[
-                      { id: 'inspiring', label: 'Inspiring & Confident', sub: 'Keynote & Discourse' },
-                      { id: 'meditative', label: 'Deep Meditative', sub: 'Calm & Breath-Centered' },
-                      { id: 'dynamic', label: 'Dynamic & Command', sub: 'Fitness & Motivation' },
-                      { id: 'calm', label: 'Empathetic Healer', sub: 'Wellness Consultation' },
-                    ].map((tone) => (
-                      <button
-                        key={tone.id}
-                        onClick={() => setVoiceTone(tone.id as any)}
-                        className={`p-3 rounded-xl border text-left text-xs transition ${
-                          voiceTone === tone.id
-                            ? 'bg-purple-500/20 border-purple-400 text-purple-300 font-bold'
-                            : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <div>{tone.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{tone.sub}</div>
-                      </button>
-                    ))}
+              {/* 🎵 ACTIVE MASTER AUDIO PREVIEW PLAYER */}
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-950/60 via-slate-900 to-indigo-950/40 border-2 border-purple-500/40 space-y-5 shadow-2xl relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                        {selectedVoiceModel.languageLabel}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-amber-300 border border-slate-700">
+                        {selectedVoiceModel.badge}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-bold text-white">
+                      {selectedVoiceModel.toneName}
+                    </h3>
+                    <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                      {selectedVoiceModel.characteristic}
+                    </p>
+                  </div>
+
+                  {/* Play / Pause Primary Button */}
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() => handleToggleVoiceSample()}
+                      className={`px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2.5 transition-all shadow-xl active:scale-95 ${
+                        isPlayingVoiceSample
+                          ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-amber-500/30 ring-2 ring-amber-400'
+                          : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-600/40'
+                      }`}
+                    >
+                      {isPlayingVoiceSample ? (
+                        <>
+                          <Pause className="w-4 h-4 fill-black" />
+                          <span>Pause Voice Preview</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-white" />
+                          <span>Play Authentic Voice</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                  <div className="space-y-2">
+                {/* Animated Waveform Visualizer & Playback Timeline */}
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-mono text-purple-300 font-semibold">
+                      {Math.floor(audioCurrentTime / 60)}:{String(Math.floor(audioCurrentTime % 60)).padStart(2, '0')} / {Math.floor(audioTotalDuration / 60)}:{String(Math.floor(audioTotalDuration % 60)).padStart(2, '0')}
+                    </span>
+                    <span className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <span>Formant Pitch: <b className="text-purple-300">{selectedVoiceModel.pitchHz} Hz</b></span>
+                      <span>•</span>
+                      <span>Speed: <b className="text-emerald-300">{(selectedVoiceModel.cadenceWordsPerMinute * voiceSpeed).toFixed(0)} WPM</b></span>
+                    </span>
+                  </div>
+
+                  {/* Dynamic Sound Wave Bars */}
+                  <div className="h-10 flex items-center justify-between gap-1 px-1">
+                    {[45, 75, 30, 90, 60, 85, 40, 95, 70, 50, 80, 65, 90, 40, 70, 85, 60, 95, 35, 80, 50, 90, 65, 45].map((height, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex-1 rounded-full transition-all duration-150 ${
+                          isPlayingVoiceSample
+                            ? 'bg-gradient-to-t from-purple-500 to-amber-400 animate-pulse'
+                            : 'bg-slate-800'
+                        }`}
+                        style={{
+                          height: isPlayingVoiceSample
+                            ? `${Math.max(15, (height * ((idx % 3) + 1) * (0.8 + Math.random() * 0.4)) % 100)}%`
+                            : `${Math.max(20, height * 0.4)}%`,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Sample phrase banner */}
+                  <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/90 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-purple-400 font-bold flex-shrink-0">Sample:</span>
+                      <span className="text-slate-300 italic truncate">&ldquo;{selectedVoiceModel.samplePhrase}&rdquo;</span>
+                    </div>
+                    <button
+                      onClick={() => handleSpeakCustomText(selectedVoiceModel.samplePhrase)}
+                      className="px-2.5 py-1 rounded-md bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[10px] font-bold flex-shrink-0 transition"
+                    >
+                      Speak This
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real-time Pitch & Speed Tuning Sliders */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-300 font-medium">Pitch Modulation</span>
-                      <span className="text-purple-400 font-bold">{voicePitch.toFixed(2)}x</span>
+                      <span className="text-purple-400 font-bold">{voicePitch.toFixed(2)}x ({(selectedVoiceModel.pitchHz * voicePitch).toFixed(0)} Hz)</span>
                     </div>
                     <input
                       type="range"
                       min="0.8"
-                      max="1.2"
-                      step="0.05"
+                      max="1.25"
+                      step="0.02"
                       value={voicePitch}
                       onChange={(e) => setVoicePitch(parseFloat(e.target.value))}
                       className="w-full accent-purple-500"
                     />
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Deeper Resonant (0.8x)</span>
+                      <span>Neutral (1.0x)</span>
+                      <span>Higher Pitch (1.25x)</span>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-300 font-medium">Speaking Pace</span>
-                      <span className="text-purple-400 font-bold">{voiceSpeed.toFixed(2)}x</span>
+                      <span className="text-emerald-400 font-bold">{voiceSpeed.toFixed(2)}x ({(selectedVoiceModel.cadenceWordsPerMinute * voiceSpeed).toFixed(0)} WPM)</span>
                     </div>
                     <input
                       type="range"
-                      min="0.8"
-                      max="1.3"
+                      min="0.75"
+                      max="1.4"
                       step="0.05"
                       value={voiceSpeed}
-                      onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))}
-                      className="w-full accent-purple-500"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setVoiceSpeed(val);
+                        if (audioPlayerRef.current) {
+                          audioPlayerRef.current.playbackRate = val;
+                        }
+                      }}
+                      className="w-full accent-emerald-500"
                     />
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Meditative Slow (0.75x)</span>
+                      <span>Standard (1.0x)</span>
+                      <span>Energetic Fast (1.4x)</span>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center">
-                      <Volume2 className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">Active Acoustic Model: Mohan_Kalburgi_Master_v2.wav</div>
-                      <div className="text-[11px] text-slate-400">99.4% Formant Match • High Fidelity 48kHz</div>
-                    </div>
+              {/* 🎙️ 8 VOCAL DNA MODELS MATRIX */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Volume2 className="w-5 h-5 text-purple-400" />
+                    <span>Select Vocal DNA Model ({MOHAN_VOCAL_DNA_MODELS.length} Models Available)</span>
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    Click any model to select and preview
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {MOHAN_VOCAL_DNA_MODELS.map((model) => {
+                    const isSelected = activeVoiceModelId === model.id;
+                    return (
+                      <div
+                        key={model.id}
+                        onClick={() => {
+                          setActiveVoiceModelId(model.id);
+                          if (isPlayingVoiceSample && audioPlayerRef.current) {
+                            audioPlayerRef.current.src = model.audioSampleUrl;
+                            audioPlayerRef.current.play();
+                          }
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-purple-950/70 via-slate-900 to-indigo-950/50 border-purple-400 shadow-xl ring-1 ring-purple-400/50'
+                            : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              {model.languageLabel}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {model.pitchHz} Hz • {model.cadenceWordsPerMinute} WPM
+                              </span>
+                              {isSelected && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="text-sm font-bold text-white">{model.toneName}</h4>
+                            <p className="text-xs text-slate-400 mt-1 leading-snug">{model.characteristic}</p>
+                          </div>
+
+                          <div className="text-[11px] text-slate-300 italic p-2 rounded bg-slate-950/60 border border-slate-800/80">
+                            &ldquo;{model.samplePhrase}&rdquo;
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveVoiceModelId(model.id);
+                              handleToggleVoiceSample(model.audioSampleUrl);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                              isSelected && isPlayingVoiceSample
+                                ? 'bg-amber-500 text-black'
+                                : 'bg-slate-800 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30'
+                            }`}
+                          >
+                            {isSelected && isPlayingVoiceSample ? (
+                              <>
+                                <Pause className="w-3.5 h-3.5 fill-black" />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 fill-purple-300" />
+                                <span>Listen Audio</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveVoiceModelId(model.id);
+                              handleSpeakCustomText(model.samplePhrase);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5"
+                          >
+                            <Mic className="w-3 h-3 text-emerald-400" />
+                            <span>TTS Test</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 🗣️ LIVE CUSTOM SPEECH SYNTHESIS TEST CONSOLE */}
+              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Test Voice With Any Custom Script</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400">
+                    Active: <b className="text-purple-300">{selectedVoiceModel.toneName.slice(0, 30)}...</b>
+                  </span>
+                </div>
+
+                {/* Preset sentence shortcuts */}
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-slate-400 self-center">Presets:</span>
+                  {[
+                    { label: 'Surya Nadi Rule', text: 'सूर्य नाड़ी में जब भोजन किया जाता है, तो जठराग्नि तीव्र होती है और पाचन सर्वोत्तम होता है।' },
+                    { label: 'Vedic Sutra', text: 'ब्रह्माण्डं पिण्डमध्ये तु संस्थितं नात्र संशयः। स्वरज्ञानेन विज्ञेयं सर्वं त्रैलोक्यमण्डितम्॥' },
+                    { label: 'Yoga Nidra Calm', text: 'श्वास को भीतर आते और बाहर जाते हुए साक्षी भाव से देखें। मन पूर्णतः शांत हो रहा है।' },
+                    { label: 'Global Keynote', text: 'Welcome practitioners. The ancient science of Swar Yoga is the ultimate physiological biohack for human peak performance.' },
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCustomVoiceTestText(preset.text)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-purple-500/20 text-slate-300 hover:text-purple-300 border border-slate-700 text-[11px] font-medium transition"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  rows={3}
+                  value={customVoiceTestText}
+                  onChange={(e) => setCustomVoiceTestText(e.target.value)}
+                  placeholder="Type any Hindi, Marathi, Sanskrit, or English sentence to hear Mohan Sir speak it..."
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400 leading-relaxed font-sans"
+                />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-[11px] text-slate-400">
+                    Calibrated: Pitch {voicePitch.toFixed(2)}x • Pace {voiceSpeed.toFixed(2)}x • Formant Match 99.4%
                   </div>
-                  <button className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
-                    Upload Audio Sample
+                  <button
+                    onClick={() => handleSpeakCustomText()}
+                    disabled={isSpeakingCustomText || !customVoiceTestText.trim()}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95 disabled:opacity-50"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>{isSpeakingCustomText ? 'Speaking Now...' : 'Speak Sentence Now'}</span>
                   </button>
                 </div>
               </div>
 
+              {/* Navigation Footer */}
               <div className="flex justify-between pt-4">
                 <button
                   onClick={() => setActiveTab('step-motion')}
                   className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
                 >
-                  Back
+                  Back: Yogic Motion
                 </button>
                 <button
                   onClick={() => setActiveTab('step-expressions')}
                   className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition"
                 >
-                  Next: Expressions & Lip-Sync
+                  Next: Expressions &amp; Lip-Sync
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
+
 
           {/* TAB 5: EXPRESSIONS & LIP-SYNC */}
           {activeTab === 'step-expressions' && (
