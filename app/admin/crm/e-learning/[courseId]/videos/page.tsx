@@ -3102,7 +3102,11 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   const [aiSummary, setAiSummary] = useState(video.aiSummary || '');
   const [transcript, setTranscript] = useState(video.transcript || '');
   const [saving, setSaving] = useState(false);
+<<<<<<< HEAD
   const [uploadingThumb, setUploadingThumb] = useState(false);
+=======
+  const [transcribing, setTranscribing] = useState(false);
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
 
@@ -3131,6 +3135,60 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
     } finally {
       setUploadingThumb(false);
       if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
+
+  const handleAutoTranscribe = async () => {
+    setTranscribing(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/recorded-courses/videos/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ videoId: video._id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to auto-transcribe');
+      if (data.data?.transcript) {
+        setTranscript(data.data.transcript);
+        setRagEnabled(true);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Auto-transcribe failed');
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const handleUploadAndTranscribe = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTranscribing(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('videoId', video._id);
+      fd.append('file', file);
+      const res = await fetch('/api/admin/recorded-courses/videos/transcribe', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to transcribe file');
+      if (data.data?.transcript) {
+        setTranscript(data.data.transcript);
+        setRagEnabled(true);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Upload & transcribe failed');
+    } finally {
+      setTranscribing(false);
     }
   };
 
@@ -3322,13 +3380,41 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Transcript / Full Notes</label>
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <label className="block text-sm font-medium text-green-400">Transcript / Full Notes</label>
+                <div className="flex items-center gap-2">
+                  <label
+                    className="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded transition-colors flex items-center gap-1 cursor-pointer border border-gray-700"
+                    title="Upload local MP4 video or audio file to transcribe with Whisper"
+                  >
+                    <Upload size={12} />
+                    <span>Upload MP4</span>
+                    <input
+                      type="file"
+                      accept="video/mp4,video/*,audio/*"
+                      className="hidden"
+                      disabled={transcribing || saving}
+                      onChange={handleUploadAndTranscribe}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAutoTranscribe}
+                    disabled={transcribing || saving}
+                    className="px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium rounded transition-colors flex items-center gap-1 disabled:opacity-50"
+                    title="Extract audio from Bunny Video and transcribe using OpenAI Whisper"
+                  >
+                    {transcribing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {transcribing ? 'Transcribing...' : 'Auto-Transcribe (Whisper AI)'}
+                  </button>
+                </div>
+              </div>
               <textarea
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={6}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
-                placeholder="Paste transcript or detailed notes. The learner assistant will answer only from this context."
+                placeholder="Paste transcript or click Auto-Transcribe above to convert video to text automatically."
               />
             </div>
           </div>
@@ -3380,17 +3466,105 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
 
+<<<<<<< HEAD
   const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingThumb(true);
     setUploadError(null);
+=======
+  const handleUploadAndTranscribe = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTranscribing(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/admin/recorded-courses/videos/transcribe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to transcribe file');
+      if (data.data?.transcript) {
+        setTranscript(data.data.transcript);
+        setRagEnabled(true);
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload & transcribe failed');
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const handleAutoTranscribe = async () => {
+    if (selectedFile) {
+      setTranscribing(true);
+      setUploadError(null);
+      try {
+        const fd = new FormData();
+        fd.append('file', selectedFile);
+        const res = await fetch('/api/admin/recorded-courses/videos/transcribe', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to transcribe file');
+        if (data.data?.transcript) {
+          setTranscript(data.data.transcript);
+          setRagEnabled(true);
+        }
+      } catch (err: any) {
+        setUploadError(err.message || 'Auto-transcribe failed');
+      } finally {
+        setTranscribing(false);
+      }
+      return;
+    }
+
+    const cleanId = extractVideoIdFromUrl(bunnyVideoId);
+    if (!cleanId && !youtubeUrl) {
+      setUploadError('Please select a video file or enter Bunny Video URL first');
+      return;
+    }
+
+    setTranscribing(true);
+    setUploadError(null);
+    try {
+      const res = await fetch('/api/admin/recorded-courses/videos/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bunnyVideoId: cleanId, videoUrl: youtubeUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to auto-transcribe');
+      if (data.data?.transcript) {
+        setTranscript(data.data.transcript);
+        setRagEnabled(true);
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Auto-transcribe failed');
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const extractVideoIdFromUrl = (input: string): string => {
+    if (!input.includes('/')) return input;
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -3829,13 +4003,41 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Transcript / Full Notes</label>
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <label className="block text-sm font-medium text-green-400">Transcript / Full Notes</label>
+                <div className="flex items-center gap-2">
+                  <label
+                    className="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded transition-colors flex items-center gap-1 cursor-pointer border border-gray-700"
+                    title="Upload local MP4 video or audio file to transcribe with Whisper"
+                  >
+                    <Upload size={12} />
+                    <span>Upload MP4</span>
+                    <input
+                      type="file"
+                      accept="video/mp4,video/*,audio/*"
+                      className="hidden"
+                      disabled={transcribing || saving}
+                      onChange={handleUploadAndTranscribe}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAutoTranscribe}
+                    disabled={transcribing || saving}
+                    className="px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium rounded transition-colors flex items-center gap-1 disabled:opacity-50"
+                    title="Extract audio from Bunny Video and transcribe using OpenAI Whisper"
+                  >
+                    {transcribing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {transcribing ? 'Transcribing...' : 'Auto-Transcribe (Whisper AI)'}
+                  </button>
+                </div>
+              </div>
               <textarea
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={6}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
-                placeholder="Paste transcript or detailed notes. The learner assistant will answer only from this context."
+                placeholder="Paste transcript or click Auto-Transcribe above to convert video to text automatically."
               />
             </div>
           </div>

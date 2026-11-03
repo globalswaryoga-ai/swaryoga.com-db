@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+<<<<<<< HEAD
 import { getAiVideoJobById, updateAiVideoJob, deleteAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
 import { checkVideoStatus as checkHeyGenStatus } from '@/lib/aiVideo/heygen';
 import { checkCustomVideoStatus } from '@/lib/aiVideo/customAvatar';
+=======
+import {
+  getAiVideoJobById,
+  updateAiVideoJob,
+  deleteAiVideoJob,
+} from '@/lib/aiVideo/bunnyAiVideoRepository';
+import { checkReplicateStatus } from '@/lib/aiVideo/replicateAvatar';
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 import { uploadToBunnyStream } from '@/lib/bunny-stream';
 
 export const dynamic = 'force-dynamic';
@@ -23,9 +32,7 @@ function guard(request: NextRequest) {
   return { decoded };
 }
 
-// Poll endpoint: for any render still in progress, checks HeyGen; once a
-// render completes there, downloads the video and uploads it to Bunny
-// Stream, so the frontend can just keep calling this until everything's done.
+// Poll endpoint for Bunny Database jobs
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { error } = guard(request);
@@ -35,6 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
+<<<<<<< HEAD
     let anyPending = false;
     let rendersChanged = false;
     const newRenders = [...(job.renders || [])];
@@ -50,28 +58,47 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         }
         render.heygenStatus = heygenStatus.status;
         rendersChanged = true;
+=======
+    let modified = false;
+    const updatedRenders = [...(job.renders || [])];
 
-        if (heygenStatus.status === 'completed' && heygenStatus.videoUrl) {
+    for (const render of updatedRenders) {
+      if (render.status !== 'rendering' || !render.replicatePredictionId) continue;
+      try {
+        const repStatus = await checkReplicateStatus(render.replicatePredictionId);
+        render.replicateStatus = repStatus.status;
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
+
+        if (repStatus.status === 'completed' && repStatus.videoUrl) {
           render.status = 'uploading';
-          const videoRes = await fetch(heygenStatus.videoUrl);
-          if (!videoRes.ok) throw new Error(`Failed to download HeyGen video: ${videoRes.status}`);
-          const buffer = Buffer.from(await videoRes.arrayBuffer());
+          render.videoUrl = repStatus.videoUrl;
 
-          const upload = await uploadToBunnyStream(buffer, `${job.topicTitle} (${render.language})`);
-          if (!upload.success) throw new Error(upload.error || 'Bunny Stream upload failed');
+          // Upload to Bunny Stream
+          try {
+            const videoRes = await fetch(repStatus.videoUrl);
+            if (videoRes.ok) {
+              const buffer = Buffer.from(await videoRes.arrayBuffer());
+              const upload = await uploadToBunnyStream(buffer, `${job.topicTitle} (${render.language})`);
+              if (upload.success) {
+                render.bunnyVideoId = upload.videoId;
+                render.bunnyEmbedUrl = upload.embedUrl;
+              }
+            }
+          } catch (uploadErr) {
+            console.warn('Bunny Stream upload warning:', uploadErr);
+          }
 
-          render.bunnyVideoId = upload.videoId;
-          render.bunnyEmbedUrl = upload.embedUrl;
           render.status = 'completed';
-        } else if (heygenStatus.status === 'failed') {
+          modified = true;
+        } else if (repStatus.status === 'failed') {
           render.status = 'failed';
-          render.errorMessage = heygenStatus.errorMessage || 'HeyGen render failed';
-        } else {
-          anyPending = true;
+          render.errorMessage = repStatus.errorMessage || 'Replicate render failed';
+          modified = true;
         }
-      } catch (renderError) {
+      } catch (renderError: any) {
         render.status = 'failed';
         render.errorMessage = renderError instanceof Error ? renderError.message : 'Render check failed';
+<<<<<<< HEAD
         rendersChanged = true;
       }
     }
@@ -84,6 +111,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (rendersChanged || jobStatus !== job.status) {
       job = (await updateAiVideoJob(id, { renders: newRenders, status: jobStatus }))!;
+=======
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      const anyPending = updatedRenders.some((r) => r.status === 'rendering' || r.status === 'uploading');
+      let nextStatus = job.status;
+      if (job.status === 'rendering' && !anyPending) {
+        const anyFailed = updatedRenders.some((r) => r.status === 'failed');
+        nextStatus = anyFailed ? 'failed' : 'completed';
+      }
+
+      const updated = await updateAiVideoJob(id, {
+        renders: updatedRenders,
+        status: nextStatus,
+      });
+      if (updated) job = updated;
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });
@@ -93,15 +139,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-// Edits the corrected transcript (no language given) before condensing, or
-// edits/approves a language's condensed script (language given) before any
-// HeyGen render fires.
+// Edits the corrected transcript, scripts, or job metadata in Bunny Database
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { error } = guard(request);
     if (error) return error;
 
     const { id } = params;
+<<<<<<< HEAD
 
     const body = await request.json().catch(() => ({} as any));
     const language = String(body?.language || '').trim();
@@ -143,6 +188,43 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
       job = (await updateAiVideoJob(id, updates))!;
       return NextResponse.json({ success: true, data: job }, { status: 200 });
+=======
+    const body = await request.json().catch(() => ({} as any));
+    const language = String(body?.language || '').trim();
+
+    const job = await getAiVideoJobById(id);
+    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    if (language) {
+      const scripts = [...(job.scripts || [])];
+      const scriptIndex = scripts.findIndex((s) => s.language === language);
+      if (scriptIndex === -1) {
+        return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
+      }
+
+      if (typeof body?.text === 'string') scripts[scriptIndex].text = body.text;
+      if (typeof body?.approved === 'boolean') scripts[scriptIndex].approved = body.approved;
+
+      const updated = await updateAiVideoJob(id, { scripts });
+      return NextResponse.json({ success: true, data: updated }, { status: 200 });
+    }
+
+    if (typeof body?.correctedTranscript === 'string') {
+      const updated = await updateAiVideoJob(id, { correctedTranscript: body.correctedTranscript });
+      return NextResponse.json({ success: true, data: updated }, { status: 200 });
+    }
+
+    const updates: any = {};
+    if (typeof body?.topicTitle === 'string') updates.topicTitle = body.topicTitle.trim();
+    if (typeof body?.workshopName === 'string') updates.workshopName = body.workshopName.trim() || undefined;
+    if (body?.dayOrder !== undefined) updates.dayOrder = body.dayOrder === '' || body.dayOrder === null ? undefined : Number(body.dayOrder);
+    if (typeof body?.sourceLanguage === 'string') updates.sourceLanguage = body.sourceLanguage.trim();
+    if (typeof body?.sourceYoutubeUrl === 'string') updates.sourceYoutubeUrl = body.sourceYoutubeUrl.trim() || undefined;
+
+    if (Object.keys(updates).length > 0) {
+      const updated = await updateAiVideoJob(id, updates);
+      return NextResponse.json({ success: true, data: updated }, { status: 200 });
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     return NextResponse.json({ error: 'No recognized fields to update' }, { status: 400 });
@@ -158,12 +240,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (error) return error;
 
     const { id } = params;
+<<<<<<< HEAD
 
     const job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     await deleteAiVideoJob(id);
 
+=======
+    const deleted = await deleteAiVideoJob(id);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to delete job';

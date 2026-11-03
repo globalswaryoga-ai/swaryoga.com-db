@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { findBunnyVideoByTitle } from '@/lib/bunny-stream';
+<<<<<<< HEAD
 import {
   listVideosByCourse,
   getVideoById,
@@ -9,6 +10,9 @@ import {
   deleteVideo,
   getCourseById,
 } from '@/lib/bunnyCourseRepository';
+=======
+import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -44,6 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
+<<<<<<< HEAD
     const videos = await listVideosByCourse(courseId, true);
 
     return NextResponse.json({
@@ -51,6 +56,53 @@ export async function GET(request: NextRequest) {
       videos: videos.map((v) => ({
         _id: v.id,
         id: v.id,
+=======
+    if (isBunnyDatabaseConfigured()) {
+      const res = await bunnyExecute({
+        sql: 'SELECT * FROM course_videos_sql WHERE course_id = ? ORDER BY display_order ASC',
+        args: [courseId],
+      });
+
+      const videos = res.rows.map((v: any) => {
+        let contentObj: any = {};
+        try { contentObj = v.content_json ? JSON.parse(String(v.content_json)) : {}; } catch {}
+
+        return {
+          _id: v.id,
+          id: v.id,
+          title: v.title,
+          description: v.description,
+          bunnyVideoId: v.bunny_video_id,
+          duration: Number(v.duration) || 0,
+          hoursGap: 0,
+          order: Number(v.display_order) || 0,
+          isFree: Boolean(v.is_free),
+          isActive: Boolean(v.is_active),
+          thumbnail: contentObj.thumbnail || '',
+          transcript: v.transcript || contentObj.transcript || '',
+          aiSummary: v.ai_summary || contentObj.aiSummary || '',
+          ragEnabled: v.rag_enabled !== undefined ? Boolean(v.rag_enabled) : Boolean(contentObj.ragEnabled),
+          transcriptI18n: contentObj.transcriptI18n,
+          aiSummaryI18n: contentObj.aiSummaryI18n,
+          content: contentObj,
+        };
+      });
+
+      return NextResponse.json({
+        success: true,
+        videos,
+      });
+    }
+
+    await connectDB();
+    const CourseVideo = getCourseVideo();
+    const videos = await CourseVideo.find({ courseId, isActive: true }).sort({ order: 1 }).lean();
+
+    return NextResponse.json({
+      success: true,
+      videos: videos.map((v: any) => ({
+        _id: v._id?.toString() || v._id,
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         title: v.title,
         description: v.description,
         bunnyVideoId: v.bunnyVideoId,
@@ -226,8 +278,94 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
+<<<<<<< HEAD
     const existing = await getVideoById(videoId);
     if (!existing) {
+=======
+    if (isBunnyDatabaseConfigured()) {
+      const existing = await bunnyExecute({
+        sql: 'SELECT * FROM course_videos_sql WHERE id = ? LIMIT 1',
+        args: [videoId],
+      });
+
+      if (existing.rows.length) {
+        const row = existing.rows[0];
+        let contentObj: any = {};
+        try { contentObj = row.content_json ? JSON.parse(String(row.content_json)) : {}; } catch {}
+
+        if (transcript !== undefined) contentObj.transcript = transcript;
+        if (aiSummary !== undefined) contentObj.aiSummary = aiSummary;
+        if (transcriptI18n !== undefined) contentObj.transcriptI18n = transcriptI18n;
+        if (aiSummaryI18n !== undefined) contentObj.aiSummaryI18n = aiSummaryI18n;
+        if (ragEnabled !== undefined) contentObj.ragEnabled = ragEnabled;
+        if (title) {
+          contentObj.en = contentObj.en || {};
+          contentObj.en.title = title;
+        }
+        if (description !== undefined) {
+          contentObj.en = contentObj.en || {};
+          contentObj.en.description = description;
+        }
+
+        const now = new Date().toISOString();
+        await bunnyExecute({
+          sql: `UPDATE course_videos_sql 
+                SET title = COALESCE(?, title),
+                    description = COALESCE(?, description),
+                    duration = COALESCE(?, duration),
+                    is_free = COALESCE(?, is_free),
+                    transcript = ?,
+                    ai_summary = ?,
+                    rag_enabled = ?,
+                    content_json = ?,
+                    updated_at = ?
+                WHERE id = ?`,
+          args: [
+            title || null,
+            description !== undefined ? description : null,
+            duration !== undefined ? Number(duration) : null,
+            isFree !== undefined ? (isFree ? 1 : 0) : null,
+            transcript !== undefined ? String(transcript) : (row.transcript || null),
+            aiSummary !== undefined ? String(aiSummary) : (row.ai_summary || null),
+            ragEnabled !== undefined ? (ragEnabled ? 1 : 0) : (row.rag_enabled !== undefined ? row.rag_enabled : 1),
+            JSON.stringify(contentObj),
+            now,
+            videoId,
+          ],
+        });
+
+        return NextResponse.json({
+          success: true,
+          video: {
+            _id: videoId,
+            title: title || row.title,
+            description: description !== undefined ? description : row.description,
+            duration: duration !== undefined ? duration : row.duration,
+            isFree: isFree !== undefined ? isFree : Boolean(row.is_free),
+          },
+        });
+      }
+    }
+
+    const CourseVideo = getCourseVideo();
+
+    const updateData: any = { updatedBy: decoded.email || decoded.userId };
+    if (title) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
+    if (hoursGap !== undefined) updateData.hoursGap = parseInt(hoursGap) || 0;
+    if (isFree !== undefined) updateData.isFree = isFree === true;
+    if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
+    if (transcript !== undefined) updateData.transcript = String(transcript || '');
+    if (aiSummary !== undefined) updateData.aiSummary = String(aiSummary || '');
+    if (transcriptI18n !== undefined && (transcriptI18n === null || typeof transcriptI18n === 'object')) updateData.transcriptI18n = transcriptI18n || undefined;
+    if (aiSummaryI18n !== undefined && (aiSummaryI18n === null || typeof aiSummaryI18n === 'object')) updateData.aiSummaryI18n = aiSummaryI18n || undefined;
+    if (ragEnabled !== undefined) updateData.ragEnabled = ragEnabled === true;
+
+    const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
+
+    if (!video) {
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
@@ -360,8 +498,86 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
+<<<<<<< HEAD
     const deleted = await deleteVideo(videoId);
     if (!deleted) {
+=======
+    if (isBunnyDatabaseConfigured()) {
+      const existing = await bunnyExecute({
+        sql: 'SELECT * FROM course_videos_sql WHERE id = ? LIMIT 1',
+        args: [videoId],
+      });
+
+      if (existing.rows.length) {
+        const row = existing.rows[0];
+        let contentObj: any = {};
+        try { contentObj = row.content_json ? JSON.parse(String(row.content_json)) : {}; } catch {}
+
+        if (transcript !== undefined) contentObj.transcript = transcript;
+        if (aiSummary !== undefined) contentObj.aiSummary = aiSummary;
+        if (transcriptI18n !== undefined) contentObj.transcriptI18n = transcriptI18n;
+        if (aiSummaryI18n !== undefined) contentObj.aiSummaryI18n = aiSummaryI18n;
+        if (ragEnabled !== undefined) contentObj.ragEnabled = ragEnabled;
+        if (title) {
+          contentObj.en = contentObj.en || {};
+          contentObj.en.title = title;
+        }
+        if (description !== undefined) {
+          contentObj.en = contentObj.en || {};
+          contentObj.en.description = description;
+        }
+
+        const now = new Date().toISOString();
+        await bunnyExecute({
+          sql: `UPDATE course_videos_sql 
+                SET title = COALESCE(?, title),
+                    description = COALESCE(?, description),
+                    duration = COALESCE(?, duration),
+                    is_free = COALESCE(?, is_free),
+                    transcript = ?,
+                    ai_summary = ?,
+                    rag_enabled = ?,
+                    content_json = ?,
+                    updated_at = ?
+                WHERE id = ?`,
+          args: [
+            title || null,
+            description !== undefined ? description : null,
+            duration !== undefined ? Number(duration) : null,
+            isFree !== undefined ? (isFree ? 1 : 0) : null,
+            transcript !== undefined ? String(transcript) : (row.transcript || null),
+            aiSummary !== undefined ? String(aiSummary) : (row.ai_summary || null),
+            ragEnabled !== undefined ? (ragEnabled ? 1 : 0) : (row.rag_enabled !== undefined ? row.rag_enabled : 1),
+            JSON.stringify(contentObj),
+            now,
+            videoId,
+          ],
+        });
+
+        return NextResponse.json({
+          success: true,
+          video: {
+            _id: videoId,
+            title: title || row.title,
+            description: description !== undefined ? description : row.description,
+            duration: duration !== undefined ? duration : row.duration,
+            isFree: isFree !== undefined ? isFree : Boolean(row.is_free),
+          },
+        });
+      }
+    }
+
+    const CourseVideo = getCourseVideo();
+    const RecordedCourse = getRecordedCourse();
+
+    const video = await CourseVideo.findByIdAndUpdate(
+      videoId,
+      { isActive: false, deletedAt: new Date(), deletedBy: decoded.email || decoded.userId },
+      { new: true }
+    );
+
+    if (!video) {
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 

@@ -43,13 +43,15 @@ interface AiVideoScript {
 
 interface AiVideoRender {
   language: string;
-  heygenVideoId?: string;
-  heygenStatus?: string;
+  replicatePredictionId?: string;
+  replicateStatus?: string;
   status: 'pending' | 'rendering' | 'uploading' | 'completed' | 'failed';
   bunnyVideoId?: string;
   bunnyEmbedUrl?: string;
   courseVideoId?: string;
   errorMessage?: string;
+  videoUrl?: string;
+  audioUrl?: string;
 }
 
 interface EbookChapter {
@@ -190,6 +192,7 @@ export default function RagAndVideoPage() {
   const [sectionsByCourse, setSectionsByCourse] = useState<Record<string, Section[]>>({});
   const [attachChoice, setAttachChoice] = useState<Record<string, { courseId: string; sectionId: string }>>({});
   const [attaching, setAttaching] = useState<string>('');
+  const [healthInfo, setHealthInfo] = useState<any>(null);
 
   const [editingJobId, setEditingJobId] = useState<string>('');
   const [editDraft, setEditDraft] = useState({ topicTitle: '', workshopName: '', dayOrder: '', sourceLanguage: 'hi' });
@@ -259,10 +262,22 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
     }
   }, [token]);
 
+  const fetchHealth = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/e-learning/ai-video/health', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setHealthInfo(data);
+    } catch {}
+  }, [token]);
+
   useEffect(() => {
     fetchJobs();
     fetchCourses();
-  }, [fetchJobs, fetchCourses]);
+    fetchHealth();
+  }, [fetchJobs, fetchCourses, fetchHealth]);
 
   const fetchSections = useCallback(async (courseId: string) => {
     if (!token || !courseId || sectionsByCourse[courseId]) return;
@@ -1044,16 +1059,61 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">RAG and Video</h1>
-            <p className="text-sm text-gray-400">Audio → correction → condensed script → AI clone video → E-Learning</p>
+            <p className="text-sm text-gray-400">Audio/Video → correction → condensed script → AI clone video → Bunny Database</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowSettings((s) => !s)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors text-sm"
-        >
-          <SettingsIcon size={16} />
-          Avatar Settings
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSettings((s) => !s)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors text-sm"
+          >
+            <SettingsIcon size={16} />
+            Avatar & Voice Settings
+          </button>
+        </div>
+      </div>
+
+      {/* GPU & Hardware / Database Health Bar */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+          <div className="min-w-0">
+            <div className="text-xs text-gray-400">GPU Acceleration</div>
+            <div className="text-xs font-semibold text-white truncate">
+              {healthInfo?.gpu?.acceleration || 'Apple Silicon Metal / Cloud GPU'}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+          <div className="min-w-0">
+            <div className="text-xs text-gray-400">Database</div>
+            <div className="text-xs font-semibold text-white truncate">
+              {healthInfo?.database?.engine || 'Bunny Database (LibSQL)'}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+          <div className="min-w-0">
+            <div className="text-xs text-gray-400">Transcription</div>
+            <div className="text-xs font-semibold text-white truncate">
+              OpenAI Whisper (Auto-Converting)
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <div className="min-w-0">
+            <div className="text-xs text-gray-400">AI Clone Engine</div>
+            <div className="text-xs font-semibold text-white truncate">
+              OpenAI TTS + Replicate GPU
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mb-8">
@@ -1072,22 +1132,22 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
 
       {showSettings && (
         <div className="mb-6 bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
-          <h2 className="text-white font-semibold mb-1">HeyGen Avatar / Voice IDs per Language</h2>
+          <h2 className="text-white font-semibold mb-1">AI Avatar & Voice Settings (OpenAI & Replicate)</h2>
           <p className="text-xs text-gray-500 mb-4">
-            Create your avatar and voice clone in HeyGen&apos;s own dashboard first (one-time, manual step) — then paste the IDs here per language. Stored only in this browser.
+            Configure avatar image URL and OpenAI TTS voice (alloy, echo, onyx, nova, shimmer) per language. Connected directly with Bunny Storage.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {LANGUAGE_OPTIONS.filter((l) => selectedLanguages.includes(l.code) || avatarSettings[l.code]).map((l) => (
               <div key={l.code} className="bg-black/40 border border-gray-800 rounded-lg p-3">
                 <div className="text-sm text-gray-300 mb-2">{l.name}</div>
                 <input
-                  placeholder="Avatar ID"
+                  placeholder="Avatar Image URL (or Replicate Model)"
                   value={avatarSettings[l.code]?.avatarId || ''}
                   onChange={(e) => saveAvatarSettings(l.code, { avatarId: e.target.value })}
                   className="w-full mb-2 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white"
                 />
                 <input
-                  placeholder="Voice ID"
+                  placeholder="Voice (alloy, echo, onyx, nova, shimmer)"
                   value={avatarSettings[l.code]?.voiceId || ''}
                   onChange={(e) => saveAvatarSettings(l.code, { voiceId: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white"
@@ -1110,7 +1170,7 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                   sourceMode === 'audio' ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-black border-gray-700 text-gray-400'
                 }`}
               >
-                Audio file
+                Audio / Video file
               </button>
               <button
                 onClick={() => setSourceMode('text')}
@@ -1131,9 +1191,10 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
             </div>
             {sourceMode === 'audio' ? (
               <>
-                <label className="block text-xs text-gray-500 mb-1">Audio file (export from Final Cut or any tool)</label>
+                <label className="block text-xs text-gray-500 mb-1">Audio or Video file (MP3, WAV, MP4, MOV)</label>
                 <input
                   type="file"
+<<<<<<< HEAD
                   accept="audio/*,video/mp4,video/quicktime,video/webm"
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
@@ -1141,6 +1202,10 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                     setCompressedInfo(null);
                     setCreateError('');
                   }}
+=======
+                  accept="audio/*,video/*"
+                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
                   className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
                 />
 
@@ -1725,7 +1790,7 @@ async function safeJson(res: Response): Promise<{ ok: boolean; data: any; error?
                   onClick={handleRender}
                   className="px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors text-sm"
                 >
-                  Render approved scripts with HeyGen
+                  Generate AI Avatar Video (OpenAI / Replicate)
                 </button>
               )}
             </div>

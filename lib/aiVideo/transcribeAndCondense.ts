@@ -21,14 +21,22 @@
 // player, confirmed via a live test; open upstream issue:
 // https://github.com/distubejs/ytdl-core/issues/144).
 
+<<<<<<< HEAD
 const LANGUAGE_NAMES: Record<string, string> = {
+=======
+export const LANGUAGE_NAMES: Record<string, string> = {
+  hi: 'Hindi',
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   en: 'English',
   english: 'English',
   hi: 'Hindi',
   hindi: 'Hindi',
   mr: 'Marathi',
+<<<<<<< HEAD
   marathi: 'Marathi',
   kn: 'Kannada',
+=======
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   ne: 'Nepali',
   zh: 'Mandarin Chinese',
   es: 'Spanish',
@@ -41,10 +49,20 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian',
   it: 'Italian',
   tr: 'Turkish',
+<<<<<<< HEAD
   nl: 'Dutch',
   sv: 'Swedish',
   th: 'Thai',
   id: 'Indonesian',
+=======
+  gu: 'Gujarati',
+  bn: 'Bengali',
+  ta: 'Tamil',
+  te: 'Telugu',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  pa: 'Punjabi',
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 };
 
 export interface ExtractedAudio {
@@ -61,6 +79,7 @@ async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?:
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
 
+<<<<<<< HEAD
   const maxAudioBytes = 24 * 1024 * 1024;
   if (audio.buffer.length > maxAudioBytes) {
     throw new Error(
@@ -70,6 +89,54 @@ async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?:
 
   const form = new FormData();
   form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
+=======
+  // Determine correct file extension for OpenAI Whisper multipart form
+  let filename = 'audio.mp3';
+  let mimeType = audio.mimeType || 'audio/mpeg';
+  if (mimeType.includes('mp4')) filename = 'video.mp4';
+  else if (mimeType.includes('wav')) filename = 'audio.wav';
+  else if (mimeType.includes('webm')) filename = 'audio.webm';
+  else if (mimeType.includes('m4a')) filename = 'audio.m4a';
+
+  let sendBuffer = audio.buffer;
+
+  // For MP4/video files or files over 20MB: extract and compress audio track
+  // to 64k mono MP3 via ffmpeg so any video (even large 100MB+ workshops)
+  // converts effortlessly under Whisper's 25MB limit.
+  if (mimeType.includes('video') || mimeType.includes('mp4') || sendBuffer.length > 20 * 1024 * 1024) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      const { execSync } = await import('child_process');
+
+      const tmpDir = os.tmpdir();
+      const ext = filename.split('.').pop() || 'mp4';
+      const inPath = path.join(tmpDir, `in_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`);
+      const outPath = path.join(tmpDir, `out_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.mp3`);
+
+      const ffmpegBin =
+        process.env.FFMPEG_PATH ||
+        (fs.existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg');
+
+      fs.writeFileSync(inPath, sendBuffer);
+      execSync(`"${ffmpegBin}" -y -i "${inPath}" -vn -acodec libmp3lame -b:a 64k -ac 1 "${outPath}" 2>/dev/null`);
+
+      if (fs.existsSync(outPath) && fs.statSync(outPath).size > 0) {
+        sendBuffer = fs.readFileSync(outPath);
+        filename = 'audio.mp3';
+        mimeType = 'audio/mpeg';
+        try { fs.unlinkSync(outPath); } catch {}
+      }
+      try { fs.unlinkSync(inPath); } catch {}
+    } catch (ffmpegErr) {
+      console.warn('[Whisper] ffmpeg audio extraction fallback:', ffmpegErr);
+    }
+  }
+
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(sendBuffer)], { type: mimeType }), filename);
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   form.append('model', 'whisper-1');
   const transcriptionPrompts: Record<string, string> = {
     hi: 'यह स्वर योग और स्वरोदय पर हिंदी शिक्षण है। संस्कृत और योग शब्द सही देवनागरी में लिखें: स्वर, स्वरोदय, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर। मूल बोली गई हिंदी लिखें; अनुवाद या सारांश न करें।',

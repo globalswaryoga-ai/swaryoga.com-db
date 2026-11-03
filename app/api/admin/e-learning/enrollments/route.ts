@@ -1,5 +1,9 @@
 /**
+<<<<<<< HEAD
  * Admin API for E-Learning Enrollments (BunnyDB)
+=======
+ * Admin API for E-Learning Enrollments (Bunny Database / LibSQL)
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  * GET /api/admin/e-learning/enrollments - List all enrollments
  * GET /api/admin/e-learning/enrollments?enrollmentId=... - Get enrollment details
  * PUT /api/admin/e-learning/enrollments - Update enrollment
@@ -8,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+<<<<<<< HEAD
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import {
   initCourseSchema,
@@ -23,6 +28,9 @@ import {
 } from '@/lib/bunnyCourseRepository';
 import { getUserByEmail, upsertUser } from '@/lib/repositories/userRepository';
 import bcrypt from 'bcryptjs';
+=======
+import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -143,8 +151,11 @@ async function findStudentUser(userId: string, dataJson?: Record<string, any>) {
 
 export async function GET(request: NextRequest) {
   try {
+<<<<<<< HEAD
     await initCourseSchema();
 
+=======
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -161,15 +172,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    if (!isBunnyDatabaseConfigured()) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     const enrollmentId = request.nextUrl.searchParams.get('enrollmentId');
 
     // Get specific enrollment details
     if (enrollmentId) {
+<<<<<<< HEAD
       const res = await bunnyExecute({
+=======
+      const enrollRes = await bunnyExecute({
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
         args: [enrollmentId],
       });
 
+<<<<<<< HEAD
       if (!res.rows[0]) {
         return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
       }
@@ -770,10 +790,27 @@ export async function GET(request: NextRequest) {
           totalWatchTime: totalWatchSeconds,
         });
       }
+=======
+      if (!enrollRes.rows.length) {
+        return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
+      }
+
+      const raw = enrollRes.rows[0];
+      const devicesRes = await bunnyExecute({
+        sql: 'SELECT * FROM course_devices_sql WHERE user_id = ? AND course_id = ?',
+        args: [raw.user_id, raw.course_id],
+      });
+
+      let data: any = {};
+      try {
+        data = raw.data_json ? JSON.parse(String(raw.data_json)) : {};
+      } catch {}
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
       return NextResponse.json({
         success: true,
         enrollment: {
+<<<<<<< HEAD
           ...enrollment,
           userId: {
             ...studentUser,
@@ -794,17 +831,35 @@ export async function GET(request: NextRequest) {
         primaryLocation,
         primaryDevice,
         primaryLastUsed,
+=======
+          _id: raw.id,
+          id: raw.id,
+          userId: raw.user_id,
+          courseId: raw.course_id,
+          status: raw.status,
+          enrolledAt: raw.enrolled_at || raw.created_at,
+          expiresAt: raw.expires_at,
+          progress: Number(raw.progress_percent) || 0,
+          ...data,
+        },
+        watchLogs: [],
+        devices: devicesRes.rows,
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       });
     }
 
     // List all enrollments
     const userId = request.nextUrl.searchParams.get('userId');
     const courseId = request.nextUrl.searchParams.get('courseId');
+<<<<<<< HEAD
     const folderId = request.nextUrl.searchParams.get('folderId');
     const timeframe = request.nextUrl.searchParams.get('timeframe') || 'all';
+=======
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const page = parseInt(request.nextUrl.searchParams.get('page') || '1');
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50');
 
+<<<<<<< HEAD
     const conditions: string[] = [];
     const args: any[] = [];
 
@@ -962,6 +1017,51 @@ export async function GET(request: NextRequest) {
         progressPercent: Number(row.progress_percent || dJson.progress || 0),
         purchaseType: dJson.purchaseType || 'paid',
         giftHoursRemaining: Number(dJson.giftHoursRemaining ?? dJson.giftHours ?? 0),
+=======
+    let sql = 'SELECT * FROM course_enrollments_sql WHERE 1=1';
+    let countSql = 'SELECT COUNT(*) as total FROM course_enrollments_sql WHERE 1=1';
+    const args: any[] = [];
+    const countArgs: any[] = [];
+
+    if (userId) {
+      sql += ' AND user_id = ?';
+      countSql += ' AND user_id = ?';
+      args.push(userId);
+      countArgs.push(userId);
+    }
+    if (courseId) {
+      sql += ' AND course_id = ?';
+      countSql += ' AND course_id = ?';
+      args.push(courseId);
+      countArgs.push(courseId);
+    }
+
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    args.push(limit, (page - 1) * limit);
+
+    const [listRes, countRes] = await Promise.all([
+      bunnyExecute({ sql, args }),
+      bunnyExecute({ sql: countSql, args: countArgs }),
+    ]);
+
+    const total = Number(countRes.rows[0]?.total) || 0;
+
+    const enrollments = listRes.rows.map((r: any) => {
+      let data: any = {};
+      try {
+        data = r.data_json ? JSON.parse(String(r.data_json)) : {};
+      } catch {}
+      return {
+        _id: r.id,
+        id: r.id,
+        userId: r.user_id,
+        courseId: r.course_id,
+        status: r.status,
+        enrolledAt: r.enrolled_at || r.created_at,
+        expiresAt: r.expires_at,
+        progress: Number(r.progress_percent) || 0,
+        ...data,
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       };
     });
 
@@ -980,10 +1080,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+<<<<<<< HEAD
 export async function PUT(request: NextRequest) {
   try {
     await initCourseSchema();
 
+=======
+/**
+ * PUT - Update enrollment
+ */
+export async function PUT(request: NextRequest) {
+  try {
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -1000,7 +1108,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    if (!isBunnyDatabaseConfigured()) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     const body = await request.json();
+<<<<<<< HEAD
     const {
       enrollmentId,
       status,
@@ -1014,11 +1127,15 @@ export async function PUT(request: NextRequest) {
       completedVideoIds,
       videoWatchTimes,
     } = body;
+=======
+    const { enrollmentId, status, progress, expiresAt, ...extra } = body;
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     if (!enrollmentId) {
       return NextResponse.json({ error: 'Enrollment ID required' }, { status: 400 });
     }
 
+<<<<<<< HEAD
     const res = await bunnyExecute({
       sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
       args: [enrollmentId],
@@ -1089,6 +1206,31 @@ export async function PUT(request: NextRequest) {
         completedVideoIds: updatedData.completedVideoIds || [],
       },
     });
+=======
+    const now = new Date().toISOString();
+    await bunnyExecute({
+      sql: `UPDATE course_enrollments_sql 
+            SET status = COALESCE(?, status),
+                progress_percent = COALESCE(?, progress_percent),
+                expires_at = COALESCE(?, expires_at),
+                data_json = COALESCE(?, data_json),
+                updated_at = ?
+            WHERE id = ?`,
+      args: [
+        status || null,
+        progress !== undefined ? progress : null,
+        expiresAt || null,
+        Object.keys(extra).length ? JSON.stringify(extra) : null,
+        now,
+        enrollmentId,
+      ],
+    });
+
+    return NextResponse.json({
+      success: true,
+      enrollment: { id: enrollmentId, _id: enrollmentId },
+    });
+>>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   } catch (error: any) {
     console.error('[Enrollments PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

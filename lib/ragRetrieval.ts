@@ -158,6 +158,13 @@ const LANGUAGE_NAMES: Record<string, string> = {
   es: 'Spanish',
   fr: 'French',
   de: 'German',
+  zh: 'Mandarin Chinese',
+  pt: 'Portuguese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  ru: 'Russian',
+  it: 'Italian',
+  tr: 'Turkish',
 };
 
 export function languageName(code: string): string {
