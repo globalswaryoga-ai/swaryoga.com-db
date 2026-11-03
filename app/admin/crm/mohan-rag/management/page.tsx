@@ -12,10 +12,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
 import { parseAvatarScript } from '@/lib/avatarEmotionParser';
 import type { MohanRagModule } from '@/lib/mohanRag/knowledgeRepository';
+import AvatarDnaDetails from '@/components/avatar/AvatarDnaDetails';
 
 type SectionId =
   | 'overview' | 'library' | 'why' | 'level1' | 'level2' | 'level3' | 'general'
-  | 'research' | 'ingestion' | 'search' | 'instructions' | 'avatar'
+  | 'research' | 'ingestion' | 'search' | 'instructions' | 'avatar-dna' | 'avatar'
   | 'connection' | 'analytics' | 'settings';
 
 type NavItem = { id: SectionId; label: string; icon: ElementType };
@@ -84,6 +85,7 @@ const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
     title: 'AI Avatar — My Clone',
     items: [
+      { id: 'avatar-dna' as const, label: 'Avatar DNA Library', icon: Sparkles },
       { id: 'avatar' as const, label: 'Avatar & Voice', icon: UserRoundCog },
       { id: 'connection' as const, label: 'RAG Answer Connection', icon: Network },
     ],
@@ -363,6 +365,7 @@ export default function MohanRagManagementPage() {
             {active === 'ingestion' && <IngestionDetails token={authToken} />}
             {active === 'search' && <SearchDetails token={authToken} />}
             {active === 'instructions' && <InstructionDetails />}
+            {active === 'avatar-dna' && <AvatarDnaDetails token={authToken} />}
             {active === 'avatar' && <AvatarDetails token={authToken} />}
             {active === 'connection' && <ConnectionDetails />}
             {active === 'analytics' && <AnalyticsDetails />}
@@ -387,6 +390,7 @@ function sectionSubtitle(id: SectionId) {
     ingestion: 'Track source files, transcripts, processing and approval as one traceable flow.',
     search: 'Inspect retrieval sources and permission behavior before answers are released.',
     instructions: 'Set shared answer principles while retaining independent module rules.',
+    'avatar-dna': 'Complete Master Catalog of Mohan Sir 50+ Avatar Looks, Vocal DNA, Facial Kinematics, Postures & Wardrobe.',
     avatar: 'Manage the authorized digital clone through the existing Avatar Studio.',
     connection: 'Connect validated, permission-checked RAG answers to your clone’s voice and video.',
     analytics: 'View measured system and quality metrics when their data source is connected.',
