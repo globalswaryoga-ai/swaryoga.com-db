@@ -3,6 +3,8 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
 
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -37,23 +39,48 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const content = typeof body?.content === 'string' ? body.content : '';
-    const language = String(body?.language || 'auto');
+    const language = String(body?.language || 'auto').toLowerCase();
     if (!content.trim()) return NextResponse.json({ error: 'Add or import text before checking spelling.' }, { status: 400 });
     if (content.length > 500_000) return NextResponse.json({ error: 'Text exceeds the 500,000 character review limit.' }, { status: 413 });
-    if (!['auto', 'en', 'hi', 'mr'].includes(language)) return NextResponse.json({ error: 'Choose Auto, English, Hindi, or Marathi.' }, { status: 400 });
 
+    const langObj = ELEARNING_LANGUAGES.find(l => l.code === language);
     const resolvedLanguage = language === 'auto'
-      ? /[\u0900-\u097f]/.test(content) ? 'Hindi, Marathi, or Sanskrit in Devanagari; preserve the original language variety' : 'the source language; preserve its original language'
-      : ({ en: 'English', hi: 'Hindi in Devanagari', mr: 'Marathi in Devanagari' } as Record<string, string>)[language];
+      ? (/[\u0900-\u097f]/.test(content) ? 'Hindi, Marathi, or Sanskrit in Devanagari' : 'the source language; preserve its original script and language')
+      : (langObj ? `${langObj.name} (${langObj.nativeName})` : language);
+
     const chunks = splitIntoReviewChunks(content);
     const corrected: string[] = [];
     for (const chunk of chunks) {
       corrected.push(await generateAIText({
-        providerOrder: ['OpenAI', 'Anthropic'],
+        providerOrder: ['Gemini', 'OpenAI', 'Anthropic', 'Groq'],
         temperature: 0.1,
         maxOutputTokens: 8192,
-        systemPrompt: `Proofread every word in this source text in ${resolvedLanguage}. Correct spelling, Hindi matras/nukta, punctuation, OCR or speech-recognition misspellings, and accidental spaces or breaks inside words. Keep the original language, script, meaning, sequence, teaching style, headings, lists, timestamps, page labels, names, numbers, and bracketed avatar/emotion tags. Never translate, summarize, rewrite, remove a teaching, or add facts or explanations. Use Swar Yoga terms consistently when the context is clear: स्वर योग, स्वरोदय, नाड़ी (correct “नाड्य का परिचय” to “नाड़ी का परिचय”), इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर, समाधि. Correct other clear errors throughout; preserve a technical word if its intended correction is genuinely uncertain. Return only the complete corrected text, retaining paragraph and page breaks.`,
-        message: `Check the entire passage word by word and return the complete corrected passage, not a summary:\n\n${chunk}`,
+        systemPrompt: `CRITICAL INSTRUCTION - TARGET LANGUAGE CONVERSION & SPELL CHECKING:
+The mandatory target language is: ${resolvedLanguage} (language code: ${language}).
+
+MANDATORY RULES:
+1. COMPLETE TARGET LANGUAGE CONVERSION:
+   - Every single word, sentence, heading, outline, and explanation MUST be rendered in ${resolvedLanguage}.
+   - If the incoming input text is in Marathi, Hindi, English, or any other language different from ${resolvedLanguage}, you MUST convert/translate it completely into natural, fluent, native ${resolvedLanguage} (for Japanese: use natural kanji, hiragana, and katakana; for European languages: use proper native orthography; for Indian languages: use native scripts).
+   - Under NO circumstance should any source Marathi or English sentences remain unconverted in the final output (except the sacred Vedic terms listed below).
+2. RIGOROUS SPELL & ORTHOGRAPHY CHECKING:
+   - Verify character integrity, spelling, kanji/kana, matras, accents, and punctuation in ${resolvedLanguage}.
+3. STRICT SACRED VEDIC TERMS PRESERVATION (DO NOT DISTORT OR SUBSTITUTE WITH SYNONYMS):
+   - Swar Yoga (スワル・ヨガ / स्वर योग)
+   - Ida Nadi / Chandra Swara (イダー・ナーディー / चंद्र स्वर / डावी नाकपुडी)
+   - Pingala Nadi / Surya Swara (ピンガラ・ナーディー / सूर्य स्वर / उजवी नाकपुडी)
+   - Sushumna Nadi (スシュムナー・ナーディー / सुषुम्ना नाडी)
+   - Prana (プラーナ / प्राण)
+   - Kumbhaka (クンバカ / कुंभक)
+   - Chakras (チャクラ)
+   - Samadhi (サマーディ / समाधि)
+   - Pancha Mahabhuta / Tatva (パンチャ・マハーブータ / पंचमहाभूत)
+4. GRAMMAR (VERBS ONLY):
+   - Adjust ONLY verbs to agree with subject/object syntax (SOV for Japanese, Hindi, Marathi, etc.; SVO for English, French, Spanish, German, etc.).
+   - NEVER alter sacred nouns or objects.
+5. Retain all layout structure, headings, bullet lists, timestamps, and bracketed avatar cues [CALM], [EXPLAINING], [PAUSE], [HUMOROUS], [SMILING], [INSPIRATIONAL], [SERIOUS], etc.
+6. Return ONLY the complete text in ${resolvedLanguage}, without any conversational preamble, notes, or markdown code fences (\`\`\`).`,
+        message: `Convert all incoming data and spell check this text into ${resolvedLanguage}. Ensure ALL sentences are completely in native ${resolvedLanguage} with sacred Vedic terms preserved:\n\n${chunk}`,
       }));
     }
     let correctedText = corrected.join('');

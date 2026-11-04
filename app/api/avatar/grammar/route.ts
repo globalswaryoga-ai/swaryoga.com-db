@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, language = 'hi', mode = 'strict_exact' } = await request.json();
+    const { text, language = 'hi', mode = 'strict_exact', syntaxStructure = 'SOV' } = await request.json();
 
     if (!text || typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ error: 'Text is required for grammar check' }, { status: 400 });
@@ -14,6 +14,24 @@ export async function POST(request: NextRequest) {
     const trimmedInput = text.trim();
     const inputLines = trimmedInput.split('\n').filter(l => l.trim().length > 0);
     const inputLineCount = inputLines.length;
+
+    let syntaxInstruction = '';
+    if (syntaxStructure === 'SOV') {
+      syntaxInstruction = `
+SYNTAX STRUCTURE: SOV (Subject - Object - Verb)
+- Standard for Indian languages (Hindi, Marathi, Kannada, Sanskrit, etc.).
+- Word order is strictly Subject -> Object -> Verb.
+- CRITICAL: Modify ONLY the Verb (क्रियापद) at the clause end to agree with Subject/Object gender, number, and tense.
+- DO NOT rearrange words into English SVO order.
+- NEVER replace, delete, or alter any noun (नाम) or object (कर्म). Example: "मी मोहन ला आंबा दिली" -> "मी मोहन ला आंबा दिला" (only दिली -> दिला).`;
+    } else {
+      syntaxInstruction = `
+SYNTAX STRUCTURE: SVO (Subject - Verb - Object)
+- Standard for English and global languages (English, Spanish, French, German, etc.).
+- Word order is Subject -> Verb -> Object.
+- Verify subject-verb agreement (singular/plural, tense) and prepositional accuracy.
+- NEVER alter technical terms or nouns.`;
+    }
 
     let modeInstruction = '';
     if (mode === 'strict_exact') {
@@ -34,6 +52,8 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `You are an expert Vedic & Ayurvedic proofreader and Swar Yoga linguist.
 You will receive a spoken script or text in language code: "${language}".
 
+${syntaxInstruction}
+
 ${modeInstruction}
 
 CRITICAL RULES:
@@ -41,8 +61,10 @@ CRITICAL RULES:
 - The text may contain bracketed emotion/gesture symbols like [smile], [gentle_smile], [laugh], [namaste], [pointing_finger], [pause:1.5s], [calm], [serious], [teaching], etc.
 - You MUST PRESERVE ALL bracketed tags [tag] EXACTLY as they are and keep them at the corresponding places in the sentence! Do NOT remove, rename, or translate any tag inside brackets [].
 
-2. SACRED VEDIC TERMINOLOGY:
-- STRICT RULE: NEVER change, translate, or corrupt sacred Swar Yoga terms, Vedic concepts, or Sanskrit words (e.g. Swar Yoga, Shiva Swarodaya, Ida, Pingala, Sushumna, Surya Swar, Chandra Swar, Prana, Apana, Sadhana, Vayu, Nadi, Tattva, Jatharagni).
+2. SACRED VEDIC TERMINOLOGY & VERBATIM WORDS:
+- STRICT RULE: NEVER change, translate, or corrupt sacred Swar Yoga terms, Vedic concepts, or spoken words.
+- In Marathi/Hindi, words like "डावी नाकपुडी व उजवी नाकपुडी" must stay word-for-word. NEVER replace "नाकपुडी" with "छिद्र".
+- GRAMMAR CORRECTIONS CAN ONLY CHANGE VERBS (क्रियापद / Kriyapad). NEVER change Objects (कर्म / nouns like "आंबा" or "नाकपुडी"). Example: "मी मोहन ला आंबा दिली" -> change only verb to "मी मोहन ला आंबा दिला".
 
 3. OUTPUT FORMAT:
 Respond ONLY in valid JSON format:

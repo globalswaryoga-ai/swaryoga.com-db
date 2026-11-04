@@ -210,6 +210,7 @@ export default function WorkshopManagementPage() {
   const [editingDateModal, setEditingDateModal] = useState<{ classDate: string; dayNumber: number | null; isHoliday: boolean; } | null>(null);
   const [savingDateModal, setSavingDateModal] = useState(false);
   const [showHolidayPicker, setShowHolidayPicker] = useState(false);
+  const [autoRagIngest, setAutoRagIngest] = useState(true);
 
   // Auto-calculate end date for Create form
   useEffect(() => {
@@ -1495,6 +1496,23 @@ export default function WorkshopManagementPage() {
     if (!editingRecordingUrls || !selected) return;
     setSavingRecordingUrls(true);
     try {
+      if (autoRagIngest) {
+        const videoUrlToIngest = editingRecordingUrls.bunnySpeakerUrl?.trim() || editingRecordingUrls.youtubeSpeakerUrl?.trim();
+        if (videoUrlToIngest) {
+          const cohortName = selected.name || '';
+          const moduleId = /level\s*3/i.test(cohortName) ? 'level3' : /level\s*2/i.test(cohortName) ? 'level2' : 'level1';
+          fetch('/api/admin/crm/mohan-rag/ingestion', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              urls: [videoUrlToIngest],
+              topic: `${cohortName} - ${editingRecordingUrls.classDate || 'Workshop Day'}`,
+              moduleId,
+              language: 'auto',
+            }),
+          }).catch(err => console.warn('[Auto RAG Ingest modal] queue error:', err));
+        }
+      }
       await recordingUrlsAutosaveRef.current?.flush();
       setEditingRecordingUrls(null);
       recordingUrlsBaselineRef.current = null;
@@ -1576,9 +1594,26 @@ export default function WorkshopManagementPage() {
     });
     const data = await res.json();
     if (res.ok) {
+      if (autoRagIngest) {
+        const videoUrlToIngest = recordingForm.bunnySpeakerUrl?.trim() || (ytSpeaker ? getYoutubeUrl(ytSpeaker) : undefined);
+        if (videoUrlToIngest) {
+          const cohortName = selected.name || '';
+          const moduleId = /level\s*3/i.test(cohortName) ? 'level3' : /level\s*2/i.test(cohortName) ? 'level2' : 'level1';
+          fetch('/api/admin/crm/mohan-rag/ingestion', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              urls: [videoUrlToIngest],
+              topic: `${cohortName} - ${recordingForm.classDate || 'Workshop Class'}`,
+              moduleId,
+              language: 'auto',
+            }),
+          }).catch(err => console.warn('[Auto RAG Ingest] queue error:', err));
+        }
+      }
       await load(selected._id);
       setRecordingForm({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
-      alert("Recording saved successfully");
+      alert(autoRagIngest ? "Recording saved & auto-queued to Mohan RAG (10-Stage Pipeline)!" : "Recording saved successfully");
     } else {
       alert(data.error || 'Could not save recording delivery');
     }
@@ -2428,6 +2463,26 @@ export default function WorkshopManagementPage() {
                               </label>
                               <input placeholder="Bunny Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white mb-2 text-xs focus:ring-2 focus:ring-indigo-300" />
                               <input placeholder="Bunny Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3.5 py-2 bg-slate-50 focus:bg-white text-xs focus:ring-2 focus:ring-indigo-300" />
+                            </div>
+
+                            {/* Mohan RAG Auto-Ingestion Checkbox */}
+                            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left">
+                              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={autoRagIngest}
+                                  onChange={(e) => setAutoRagIngest(e.target.checked)}
+                                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                                />
+                                <div className="text-xs">
+                                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                    <Sparkles size={13} className="text-amber-600" /> Auto-Process into Mohan RAG
+                                  </span>
+                                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                                    Automatically transcribes speech, locks sacred Sanskrit terms, applies SOV/SVO filters, and syncs into Avatar Studio (YouTube &amp; Bunny).
+                                  </p>
+                                </div>
+                              </label>
                             </div>
                             
                             <button className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 py-3 font-bold text-white shadow-md shadow-indigo-600/20 transition-all mt-4 cursor-pointer text-sm hover:scale-105">
@@ -4118,6 +4173,26 @@ export default function WorkshopManagementPage() {
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500" 
                 />
                 <p className="text-[11px] text-slate-500 mt-1">Direct Bunny Stream player URL (Hindi / English / Marathi) or Bunny CDN video.</p>
+              </div>
+
+              {/* Mohan RAG Auto-Ingestion Checkbox */}
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoRagIngest}
+                    onChange={(e) => setAutoRagIngest(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-600" /> Auto-Process into Mohan RAG (YouTube &amp; Bunny)
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      Syncs speaker video into Mohan RAG, extracts transcript, locks sacred Sanskrit terms, applies SOV/SVO filters, and queues for Avatar Studio.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">

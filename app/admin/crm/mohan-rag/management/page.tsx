@@ -4,20 +4,37 @@ import { useEffect, useRef, useState, type ReactNode, type ElementType } from 'r
 import Link from 'next/link';
 import {
   Activity, AlertCircle, ArrowLeft, ArrowRight, BookOpen, Brain,
-  ChevronRight, CircleHelp, FileSearch, FileText, FlaskConical, Globe2,
+  ChevronRight, CircleHelp, Dna, FileSearch, FileText, FlaskConical, Globe2,
   HardDrive, Languages, LayoutDashboard, ListChecks, LockKeyhole, Mic2, Network,
   Search, Settings2, ShieldCheck, Sparkles, Upload, UserRoundCog, Users, Video, FileAudio, SpellCheck,
+  Heart, Flame, RefreshCw, CheckCircle2, Loader2, X, Trash2, Cpu,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
 import { parseAvatarScript } from '@/lib/avatarEmotionParser';
+import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
+import {
+  WORKSHOP_OPTIONS,
+  DAY_OPTIONS,
+  TOPIC_OPTIONS,
+  getLibraryCorpusText,
+  stripToPurePlainText,
+} from '@/lib/mohanRag/masterLibraryCorpus';
+import LibraryDashboardView from '@/lib/mohanRag/LibraryDashboardView';
+import GrammarCheckerWorkspace from '@/lib/mohanRag/GrammarCheckerWorkspace';
+import PlainTextWorkspace from '@/lib/mohanRag/PlainTextWorkspace';
+import HummerEmotionWorkspace from '@/lib/mohanRag/HummerEmotionWorkspace';
+import { SixStepPipelineView } from '@/components/admin/crm/mohan-rag/SixStepPipelineView';
+import FourWorkersPipelineView from '@/components/admin/crm/mohan-rag/FourWorkersPipelineView';
+import MohanSirAvatarDnaLibrary from '@/components/admin/crm/mohan-rag/MohanSirAvatarDnaLibrary';
+import YouTubeChannelIntake from '@/components/admin/crm/mohan-rag/YouTubeChannelIntake';
 import type { MohanRagModule } from '@/lib/mohanRag/knowledgeRepository';
-import AvatarDnaDetails from '@/components/avatar/AvatarDnaDetails';
 
 type SectionId =
-  | 'overview' | 'library' | 'why' | 'level1' | 'level2' | 'level3' | 'general'
-  | 'research' | 'ingestion' | 'search' | 'instructions' | 'avatar-dna' | 'avatar'
-  | 'connection' | 'analytics' | 'settings';
+  | 'overview' | 'library' | 'why' | 'level1' | 'level2' | 'level3'
+  | 'aahar_shastra' | 'children' | 'youth' | 'garbh_sanskar' | 'weight_loss' | 'meditation_sadhana'
+  | 'general' | 'research' | 'ingestion' | 'search' | 'instructions' | 'avatar-dna' | 'avatar'
+  | 'youtube-dna' | 'connection' | 'analytics' | 'settings';
 
 type NavItem = { id: SectionId; label: string; icon: ElementType };
 
@@ -67,14 +84,20 @@ function SpellcheckReview({ text, language, onApply, onDiscard }: { text: string
 
 const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
-    title: 'Knowledge Management',
+    title: 'Workshops & Modules',
     items: [
       { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
-      { id: 'library' as const, label: 'Library', icon: BookOpen },
+      { id: 'library' as const, label: 'Library (All Sources)', icon: BookOpen },
+      { id: 'level1' as const, label: 'Level 1: Basic Swar Yoga', icon: BookOpen },
+      { id: 'level2' as const, label: 'Level 2: Aham Brahmasmi', icon: BookOpen },
+      { id: 'level3' as const, label: 'Level-3 (Ashtavakra Dhyan)', icon: BookOpen },
+      { id: 'aahar_shastra' as const, label: 'Aahar Shastra (Diet & Digestion)', icon: Flame },
+      { id: 'children' as const, label: 'Children Yoga (बाल संस्कार)', icon: Sparkles },
+      { id: 'youth' as const, label: 'Youth Yoga (युवा योग)', icon: Activity },
+      { id: 'garbh_sanskar' as const, label: 'Pregnancy (Garbh Sanskar)', icon: Heart },
+      { id: 'weight_loss' as const, label: 'Weight Loss Program', icon: Flame },
+      { id: 'meditation_sadhana' as const, label: 'Meditation Sadhana', icon: Brain },
       { id: 'why' as const, label: 'Why Swar Yoga?', icon: Sparkles },
-      { id: 'level1' as const, label: 'Level 1', icon: BookOpen },
-      { id: 'level2' as const, label: 'Level 2', icon: BookOpen },
-      { id: 'level3' as const, label: 'Level 3', icon: BookOpen },
       { id: 'general' as const, label: 'General Topics', icon: Globe2 },
       { id: 'research' as const, label: 'Research & Search', icon: FlaskConical },
       { id: 'ingestion' as const, label: 'Ingestion & Jobs', icon: Upload },
@@ -85,7 +108,8 @@ const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
     title: 'AI Avatar — My Clone',
     items: [
-      { id: 'avatar-dna' as const, label: 'Avatar DNA Library', icon: Sparkles },
+      { id: 'youtube-dna' as const, label: 'YouTube Channel Intake', icon: Video },
+      { id: 'avatar-dna' as const, label: 'Avatar DNA Library', icon: Dna },
       { id: 'avatar' as const, label: 'Avatar & Voice', icon: UserRoundCog },
       { id: 'connection' as const, label: 'RAG Answer Connection', icon: Network },
     ],
@@ -109,24 +133,66 @@ const modules = [
   },
   {
     id: 'level1' as const,
-    title: 'Level 1',
-    purpose: 'Answer from approved Level 1 lessons and source material.',
+    title: 'Level 1: Basic & Master Swar Yoga',
+    purpose: 'Answer from approved Level 1 lessons and source material (Bhojan, Pani, Gas, Sleep).',
     access: 'Level 1 sources only',
     boundary: 'Do not expose Level 2 or Level 3 knowledge.',
   },
   {
     id: 'level2' as const,
-    title: 'Level 2',
-    purpose: 'Answer using approved Level 1 and Level 2 materials, with source-level context.',
+    title: 'Level 2: Aham Brahmasmi',
+    purpose: 'Answer using approved Level 1 and Level 2 materials (Samyama, 6 Ripu, Panch Tatva, Photographer vs Creator).',
     access: 'Level 1 + Level 2 sources',
     boundary: 'Do not expose Level 3 knowledge.',
   },
   {
     id: 'level3' as const,
-    title: 'Level 3',
-    purpose: 'Answer using approved Level 1, Level 2, and Level 3 materials.',
+    title: 'Level-3 (Ashtavakra Dhyan)',
+    purpose: 'Answer using approved Level 1, Level 2, and Level 3 materials (History vs Potential, My Dear Mind, 5 Truths, Shivoham).',
     access: 'Level 1 + Level 2 + Level 3 sources',
     boundary: 'Advanced answers require approved Level 3 sources.',
+  },
+  {
+    id: 'aahar_shastra' as const,
+    title: 'Aahar Shastra (Diet, Jatharagni & Digestion)',
+    purpose: 'Digestive fire (Jatharagni), food elements, 45-min water rules, and eating according to Surya Nadi.',
+    access: 'Approved Aahar Shastra sources',
+    boundary: 'Align with authentic Swar Yoga meal and water rules.',
+  },
+  {
+    id: 'children' as const,
+    title: 'Children Yoga (बाल संस्कार)',
+    purpose: 'Memory enhancement, concentration games, brain hemisphere balancing for kids.',
+    access: 'Approved Children Yoga sources',
+    boundary: 'Simple, joyful breathing practices.',
+  },
+  {
+    id: 'youth' as const,
+    title: 'Youth Yoga (युवा योग)',
+    purpose: 'Youth vitality, stress management, study focus, and emotional harmony.',
+    access: 'Approved Youth Yoga sources',
+    boundary: 'Practical teen and student breath mastery.',
+  },
+  {
+    id: 'garbh_sanskar' as const,
+    title: 'Pregnancy (Garbh Sanskar Shibir)',
+    purpose: 'Prenatal breathing, mother-child prana bond, and peaceful Chandra Nadi states.',
+    access: 'Approved Garbh Sanskar sources',
+    boundary: 'Safe, gentle prenatal guidance.',
+  },
+  {
+    id: 'weight_loss' as const,
+    title: 'Weight Loss Program',
+    purpose: 'Metabolic fire ignition, Surya Nadi meal schedule, fat reduction without starving.',
+    access: 'Approved Weight Loss sources',
+    boundary: 'No extreme diet starvation claims.',
+  },
+  {
+    id: 'meditation_sadhana' as const,
+    title: 'Meditation Sadhana',
+    purpose: 'Deep sadhana: Navaratri Dhyan, 7 Chakras, 45-minute Samyama, and Dash Onkar Gayatri.',
+    access: 'Approved Meditation sources',
+    boundary: 'Advanced inner sadhana.',
   },
   {
     id: 'general' as const,
@@ -198,9 +264,48 @@ function NotConnected({ children = 'This workflow is not connected to a backend 
   );
 }
 
+export type LibraryViewTab = 'library' | 'dashboard' | 'spellcheck' | 'grammar' | 'plaintext' | 'humor' | 'pipeline' | 'fourworkers';
+
 export default function MohanRagManagementPage() {
   const authToken = useAuth();
   const [active, setActive] = useState<SectionId>('overview');
+  const [libraryTab, setLibraryTab] = useState<LibraryViewTab>('library');
+
+  // Shared Multilingual Knowledge Pipeline State (flows across all stages)
+  const [pipelineLang, setPipelineLang] = useState('mr');
+  const [pipelineWorkshop, setPipelineWorkshop] = useState('all');
+  const [pipelineDay, setPipelineDay] = useState('all');
+  const [pipelineTopic, setPipelineTopic] = useState('all');
+  const [pipelineText, setPipelineText] = useState(() => getLibraryCorpusText('mr', 'all', 'all', 'all'));
+
+  // Auto-populate pipeline text with authentic spoken video lecture from database instead of static PDF outline
+  useEffect(() => {
+    if (!authToken) return;
+    if (pipelineText && (pipelineText.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || pipelineText.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'))) {
+      fetch('/api/admin/crm/mohan-rag/knowledge?module=level1', { headers: { Authorization: `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(d => {
+          const list = Array.isArray(d.sources) ? d.sources : [];
+          const realSources = list.filter((s: any) => (s.contentLength || s.content?.length || 0) > 5000 && !s.title?.toLowerCase().includes('syllabus'));
+          realSources.sort((a: any, b: any) => (b.contentLength || b.content?.length || 0) - (a.contentLength || a.content?.length || 0));
+          const top = realSources[0];
+          if (top) {
+            fetch(`/api/admin/crm/mohan-rag/knowledge/${top.id}`, { headers: { Authorization: `Bearer ${authToken}` } })
+              .then(sr => sr.json())
+              .then(sd => {
+                if (sd.source?.content) {
+                  setPipelineText(sd.source.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim());
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+  }, [authToken]);
+
+  const isSpellMode = active === 'library' && !['library', 'dashboard'].includes(libraryTab);
+  const showMainSidebar = !isSpellMode;
   const allItems: NavItem[] = navGroups.flatMap(group => group.items);
   const current = allItems.find(item => item.id === active) || { id: 'overview', label: 'Overview', icon: LayoutDashboard };
   const CurrentIcon = current.icon;
@@ -284,6 +389,21 @@ export default function MohanRagManagementPage() {
 
           <div className="relative z-10 flex items-center gap-2 shrink-0">
             <Link
+              href="/admin/crm/mohan-rag/monitor"
+              className="px-3.5 py-2 rounded-xl text-xs font-black text-emerald-950 bg-gradient-to-r from-emerald-300 to-teal-300 hover:from-emerald-200 hover:to-teal-200 shadow-md transition active:scale-95 flex items-center gap-1.5"
+            >
+              <span>🩺</span>
+              <span>Health Monitor</span>
+            </Link>
+            <Link
+              href="/podcasts"
+              target="_blank"
+              className="px-3.5 py-2 rounded-xl text-xs font-black text-slate-950 bg-gradient-to-r from-amber-300 to-emerald-300 hover:from-amber-200 hover:to-emerald-200 shadow-md transition active:scale-95 flex items-center gap-1.5"
+            >
+              <span>🎙️</span>
+              <span>Podcasts Hub</span>
+            </Link>
+            <Link
               href="/admin/crm/mohan-rag/avatar-studio"
               className="px-3.5 py-2 rounded-xl text-xs font-black text-white bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 shadow-sm transition active:scale-95 flex items-center gap-1.5"
             >
@@ -300,44 +420,46 @@ export default function MohanRagManagementPage() {
           </div>
         </div>
 
-        <div className="grid min-h-[70vh] grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
-            {navGroups.map(group => (
-              <div key={group.title} className="mb-5 last:mb-1">
-                <h2 className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 flex items-center justify-between">
-                  <span>{group.title}</span>
-                </h2>
-                <nav aria-label={group.title} className="space-y-1 bg-transparent">
-                  {group.items.map((item, index) => {
-                    const Icon = item.icon;
-                    const selected = active === item.id;
-                    const navTones = ['sky', 'emerald', 'amber', 'purple', 'teal', 'rose'];
-                    const currentTone = navTones[index % navTones.length];
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setActive(item.id)}
-                        aria-current={selected ? 'page' : undefined}
-                        data-nav-tone={currentTone}
-                        className={`mb-1.5 flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13px] font-bold transition-all duration-200 cursor-pointer ${
-                          selected
-                            ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-700/25 ring-1 ring-emerald-500 scale-[1.01]'
-                            : 'text-slate-700 hover:text-slate-900 bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className={`p-1.5 rounded-lg shrink-0 ${selected ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200 shadow-xs'}`}>
-                          <Icon className="h-3.5 w-3.5" />
-                        </div>
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        {selected && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white" />}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
-          </aside>
+        <div className={showMainSidebar ? "grid min-h-[70vh] grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]" : "min-h-[70vh] w-full"}>
+          {showMainSidebar && (
+            <aside className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
+              {navGroups.map(group => (
+                <div key={group.title} className="mb-5 last:mb-1">
+                  <h2 className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 flex items-center justify-between">
+                    <span>{group.title}</span>
+                  </h2>
+                  <nav aria-label={group.title} className="space-y-1 bg-transparent">
+                    {group.items.map((item, index) => {
+                      const Icon = item.icon;
+                      const selected = active === item.id;
+                      const navTones = ['sky', 'emerald', 'amber', 'purple', 'teal', 'rose'];
+                      const currentTone = navTones[index % navTones.length];
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setActive(item.id)}
+                          aria-current={selected ? 'page' : undefined}
+                          data-nav-tone={currentTone}
+                          className={`mb-1.5 flex w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13px] font-bold transition-all duration-200 cursor-pointer ${
+                            selected
+                              ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-700/25 ring-1 ring-emerald-500 scale-[1.01]'
+                              : 'text-slate-700 hover:text-slate-900 bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/60 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`p-1.5 rounded-lg shrink-0 ${selected ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200 shadow-xs'}`}>
+                            <Icon className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          {selected && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white" />}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
+              ))}
+            </aside>
+          )}
 
           <main className="min-w-0 space-y-6 rounded-2xl border border-slate-200/90 bg-white p-5 md:p-7 shadow-xs">
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200/80 pb-5">
@@ -354,18 +476,250 @@ export default function MohanRagManagementPage() {
                   <span>{current.label}</span>
                 </h2>
                 <p className="mt-1.5 max-w-3xl text-sm text-slate-600 leading-relaxed font-normal">{sectionSubtitle(active)}</p>
+
+                {/* Row of Library Tabs: Library (Default), Dashboard, Spell Checker, Grammar Checker, Plain Text, Humor & Emotion Text */}
+                {active === 'library' && (
+                  <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                    {/* 1. Library */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('library')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'library'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span>Library</span>
+                    </button>
+
+                    {/* 2. Dashboard */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('dashboard')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'dashboard'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      <span>Dashboard</span>
+                    </button>
+
+                    {/* 2. Spell Checker (with book symbol) */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('spellcheck')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'spellcheck'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span>Spell Checker</span>
+                    </button>
+
+                    {/* 3. Grammar Checker */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('grammar')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'grammar'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <Brain className="w-4 h-4" />
+                      <span>Grammar Checker</span>
+                    </button>
+
+                    {/* 4. Plain Text */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('plaintext')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'plaintext'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Plain Text</span>
+                    </button>
+
+                    {/* 5. Humor & Emotion Text */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('humor')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'humor'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-700/25 ring-1 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Text with Humor &amp; Emotion</span>
+                    </button>
+
+                    {/* 6. 6-Step Blueprint Pipeline */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('pipeline')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'pipeline'
+                          ? 'bg-emerald-800 text-white shadow-emerald-900/30 ring-2 ring-emerald-500'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>⚡ 6-Step Blueprint Pipeline</span>
+                    </button>
+
+                    {/* 7. 4-Worker Pipeline */}
+                    <button
+                      type="button"
+                      onClick={() => setLibraryTab('fourworkers')}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-xs ${
+                        libraryTab === 'fourworkers'
+                          ? 'bg-gradient-to-r from-emerald-700 to-teal-800 text-white shadow-emerald-900/40 ring-2 ring-emerald-400'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <Cpu className="w-4 h-4 text-emerald-400" />
+                      <span>⚙️ 4-Worker Pipeline</span>
+                    </button>
+                  </div>
+                )}
               </div>
               <StatusPill muted>System Operational • Active Admin Session</StatusPill>
             </div>
 
             {active === 'overview' && <Overview onSelect={setActive} />}
-            {active === 'library' && <Library token={authToken} />}
-            {currentModule && active !== 'research' && <KnowledgeModulePanel module={currentModule} token={authToken} />}
+            {active === 'library' && (
+              libraryTab === 'dashboard' ? (
+                <LibraryDashboardView
+                  token={authToken}
+                  onNavigateStage={(tab) => setLibraryTab(tab)}
+                  onSelectSection={(sec) => setActive(sec as SectionId)}
+                />
+              ) : libraryTab === 'library' ? (
+                <Library
+                  token={authToken}
+                  onForwardToPipeline={(data) => {
+                    if (data.text) setPipelineText(data.text);
+                    if (data.topic) setPipelineTopic(data.topic);
+                    if (data.workshop) setPipelineWorkshop(data.workshop);
+                    if (data.language && data.language !== 'auto') setPipelineLang(data.language);
+                    setLibraryTab('spellcheck');
+                  }}
+                />
+              ) : libraryTab === 'grammar' ? (
+                <GrammarCheckerWorkspace
+                  token={authToken}
+                  selectedLang={pipelineLang}
+                  onLanguageSelect={setPipelineLang}
+                  selectedWorkshop={pipelineWorkshop}
+                  onWorkshopChange={setPipelineWorkshop}
+                  selectedDay={pipelineDay}
+                  onDayChange={setPipelineDay}
+                  selectedTopic={pipelineTopic}
+                  onTopicChange={setPipelineTopic}
+                  text={pipelineText}
+                  onTextChange={setPipelineText}
+                  onProceedToPlainText={() => setLibraryTab('plaintext')}
+                />
+              ) : libraryTab === 'plaintext' ? (
+                <PlainTextWorkspace
+                  token={authToken}
+                  selectedLang={pipelineLang}
+                  onLanguageSelect={setPipelineLang}
+                  selectedWorkshop={pipelineWorkshop}
+                  onWorkshopChange={setPipelineWorkshop}
+                  selectedDay={pipelineDay}
+                  onDayChange={setPipelineDay}
+                  selectedTopic={pipelineTopic}
+                  onTopicChange={setPipelineTopic}
+                  text={pipelineText}
+                  onTextChange={setPipelineText}
+                  onProceedToHumor={() => setLibraryTab('humor')}
+                />
+              ) : libraryTab === 'humor' ? (
+                <HummerEmotionWorkspace
+                  token={authToken}
+                  selectedLang={pipelineLang}
+                  onLanguageSelect={setPipelineLang}
+                  selectedWorkshop={pipelineWorkshop}
+                  onWorkshopChange={setPipelineWorkshop}
+                  selectedDay={pipelineDay}
+                  onDayChange={setPipelineDay}
+                  selectedTopic={pipelineTopic}
+                  onTopicChange={setPipelineTopic}
+                  text={pipelineText}
+                  onTextChange={setPipelineText}
+                />
+              ) : libraryTab === 'fourworkers' ? (
+                <FourWorkersPipelineView
+                  token={authToken}
+                  onNavigateToTab={(tab, _topic, text) => {
+                    if (text) setPipelineText(text);
+                    if (['plaintext', 'spellcheck', 'grammar', 'humor', 'pipeline'].includes(tab)) {
+                      setLibraryTab(tab as LibraryViewTab);
+                    }
+                  }}
+                />
+              ) : libraryTab === 'pipeline' ? (
+                <SixStepPipelineView
+                  token={authToken}
+                  initialTopic={pipelineTopic !== 'all' ? pipelineTopic : 'Swar Yoga Day-1'}
+                  initialText={pipelineText}
+                  initialLanguage={pipelineLang}
+                />
+              ) : (
+                <SpellCheckerModule
+                  token={authToken}
+                  activeTab={libraryTab}
+                  sharedLang={pipelineLang}
+                  onLangChange={setPipelineLang}
+                  sharedWorkshop={pipelineWorkshop}
+                  onWorkshopChange={setPipelineWorkshop}
+                  sharedDay={pipelineDay}
+                  onDayChange={setPipelineDay}
+                  sharedTopic={pipelineTopic}
+                  onTopicChange={setPipelineTopic}
+                  sharedText={pipelineText}
+                  onTextChange={setPipelineText}
+                  onProceedToGrammar={() => setLibraryTab('grammar')}
+                  onProceedToPlainText={() => setLibraryTab('plaintext')}
+                />
+              )
+            )}
+            {currentModule && active !== 'research' && (
+              <KnowledgeModulePanel
+                module={currentModule}
+                token={authToken}
+                onOpenInSpellCheck={(source) => {
+                  const clean = (source.content || '').replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                  setPipelineText(clean);
+                  setPipelineTopic(`src_${source.id}`);
+                  setPipelineWorkshop(source.moduleId);
+                  if (source.language && source.language !== 'auto') {
+                    const normLang = source.language.startsWith('mr') || source.language.includes('marathi') ? 'mr' : source.language.startsWith('hi') || source.language.includes('hindi') ? 'hi' : 'en';
+                    setPipelineLang(normLang);
+                  }
+                  setActive('library');
+                  setLibraryTab('spellcheck');
+                }}
+              />
+            )}
             {active === 'research' && <ResearchDetails token={authToken} />}
             {active === 'ingestion' && <IngestionDetails token={authToken} />}
             {active === 'search' && <SearchDetails token={authToken} />}
             {active === 'instructions' && <InstructionDetails />}
-            {active === 'avatar-dna' && <AvatarDnaDetails token={authToken} />}
+            {active === 'avatar-dna' && <MohanSirAvatarDnaLibrary token={authToken} />}
+            {active === 'youtube-dna' && <YouTubeChannelIntake token={authToken} />}
             {active === 'avatar' && <AvatarDetails token={authToken} />}
             {active === 'connection' && <ConnectionDetails />}
             {active === 'analytics' && <AnalyticsDetails />}
@@ -385,12 +739,19 @@ function sectionSubtitle(id: SectionId) {
     level1: 'Manage the approved Level 1 corpus and its access boundary.',
     level2: 'Manage Level 1 and Level 2 knowledge for eligible learners.',
     level3: 'Manage the approved advanced corpus and inherited learning levels.',
+    aahar_shastra: 'Manage approved Aahar Shastra sources and transcripts.',
+    weight_loss: 'Manage approved weight-loss program sources and transcripts.',
+    garbh_sanskar: 'Manage approved Garbh Sanskar sources and transcripts.',
+    children: 'Manage approved Children Yoga sources and transcripts.',
+    youth: 'Manage approved Youth Yoga sources and transcripts.',
+    meditation_sadhana: 'Manage approved Meditation Sadhana sources and transcripts.',
     general: 'Separate approved general education from Swar Yoga teachings.',
     research: 'Collect cited research into drafts for human review before publication.',
     ingestion: 'Track source files, transcripts, processing and approval as one traceable flow.',
     search: 'Inspect retrieval sources and permission behavior before answers are released.',
     instructions: 'Set shared answer principles while retaining independent module rules.',
-    'avatar-dna': 'Complete Master Catalog of Mohan Sir 50+ Avatar Looks, Vocal DNA, Facial Kinematics, Postures & Wardrobe.',
+    'avatar-dna': 'Browse all created Mohan Sir DNA looks, facial landmark expressions, vocal cadence, and deploy active avatar styles anywhere.',
+    'youtube-dna': 'Discover videos accessible from the Swar Yoga channel and review the Bunny-backed inventory before transcript and DNA analysis.',
     avatar: 'Manage the authorized digital clone through the existing Avatar Studio.',
     connection: 'Connect validated, permission-checked RAG answers to your clone’s voice and video.',
     analytics: 'View measured system and quality metrics when their data source is connected.',
@@ -629,6 +990,7 @@ type KnowledgeSourceView = {
   moduleId: string;
   title: string;
   content?: string;
+  contentLength?: number;
   topic: string;
   language: string;
   sourceType: string;
@@ -645,7 +1007,18 @@ type KnowledgeSourceView = {
   chunkCount?: number;
 };
 
-function Library({ token }: { token: string | null }) {
+function Library({
+  token,
+  onForwardToPipeline,
+}: {
+  token: string | null;
+  onForwardToPipeline?: (data: {
+    text: string;
+    topic: string;
+    workshop: string;
+    language: string;
+  }) => void;
+}) {
   const [sources, setSources] = useState<KnowledgeSourceView[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -653,6 +1026,119 @@ function Library({ token }: { token: string | null }) {
   const [topic, setTopic] = useState<string | null>(null);
   const [source, setSource] = useState<KnowledgeSourceView | null>(null);
   const [view, setView] = useState<'plain' | 'cues'>('plain');
+  const [langFilter, setLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
+  const [isFixingLang, setIsFixingLang] = useState(false);
+  const [filterMsg, setFilterMsg] = useState('');
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [autoFixMsg, setAutoFixMsg] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [autoFixingId, setAutoFixingId] = useState<string | null>(null);
+
+  const handleScanAutoFix = async () => {
+    if (!token) return;
+    setIsScanning(true);
+    setAutoFixMsg('');
+    try {
+      const res = await fetch(`/api/admin/crm/mohan-rag/ai-recheck-autofix?module=${moduleId || 'all'}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Scan failed');
+      setScanResult(data.scan);
+      setShowScanModal(true);
+    } catch (err: any) {
+      setAutoFixMsg(err.message || 'Scan failed');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleAutoFixSingle = async (sourceId: string) => {
+    if (!token) return;
+    setIsAutoFixing(true);
+    setAutoFixingId(sourceId);
+    setAutoFixMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/ai-recheck-autofix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'fix_single', sourceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Auto-fix failed');
+      setAutoFixMsg(data.result?.message || 'Successfully auto-fixed video source with authentic spoken audio!');
+      if (source && source.id === sourceId) {
+        await openSource(source);
+      }
+      if (moduleId) {
+        const resp = await fetch(`/api/admin/crm/mohan-rag/knowledge?module=${moduleId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const d = await readManagementApiJson(resp);
+        if (Array.isArray(d.sources)) {
+          setSources(prev => prev.map(s => {
+            const updated = (d.sources as KnowledgeSourceView[]).find(x => x.id === s.id);
+            return updated || s;
+          }));
+        }
+      }
+      if (showScanModal) {
+        handleScanAutoFix();
+      }
+    } catch (err: any) {
+      setAutoFixMsg(err.message || 'Auto-fix failed');
+    } finally {
+      setIsAutoFixing(false);
+      setAutoFixingId(null);
+    }
+  };
+
+  const handleAutoFixBatch = async (limit = 5) => {
+    if (!token) return;
+    setIsAutoFixing(true);
+    setAutoFixMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/ai-recheck-autofix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'batch', moduleId: moduleId || undefined, limit }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Batch auto-fix failed');
+      setAutoFixMsg(`Batch complete! Successfully auto-fixed ${data.result?.fixed} sources (${data.result?.failed} failed).`);
+      handleScanAutoFix();
+      if (source) {
+        await openSource(source);
+      }
+    } catch (err: any) {
+      setAutoFixMsg(err.message || 'Batch auto-fix failed');
+    } finally {
+      setIsAutoFixing(false);
+    }
+  };
+
+  const handleDeleteLibrarySource = async (sourceId: string, title: string) => {
+    if (!token) return;
+    if (!window.confirm(`Are you sure you want to permanently delete "${title}"?`)) return;
+    try {
+      const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${sourceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to delete');
+      }
+      setSources(prev => prev.filter(s => s.id !== sourceId));
+      if (source?.id === sourceId) {
+        clearSource();
+      }
+      setAutoFixMsg(`Source "${title}" deleted successfully.`);
+      setTimeout(() => setAutoFixMsg(''), 4000);
+    } catch (err: any) {
+      alert(`Could not delete: ${err.message}`);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -675,13 +1161,60 @@ function Library({ token }: { token: string | null }) {
   }, [token]);
 
   const activeModule = modules.find(item => item.id === moduleId);
-  const moduleSources = sources.filter(item => item.moduleId === moduleId);
+  const filteredSources = langFilter === 'all'
+    ? sources
+    : sources.filter(item => item.language?.toLowerCase() === langFilter);
+  const moduleSources = filteredSources.filter(item => item.moduleId === moduleId);
   const topics = Array.from(new Set(moduleSources.map(item => item.topic.trim() || 'Uncategorized'))).sort((a, b) => a.localeCompare(b));
   const topicSources = moduleSources.filter(item => (item.topic.trim() || 'Uncategorized') === topic);
   const detailedSource = source ? { ...source, content: source.content || '' } : null;
   const parsed = detailedSource ? parseAvatarScript(detailedSource.content) : null;
   const plainText = detailedSource?.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '') || '';
   const hasCues = Boolean(detailedSource?.content.match(/\[(?:[a-z_]+:\d{1,3}|face:[a-z_]+)\]/i));
+
+  const isVideoSource = Boolean(
+    detailedSource && (
+      detailedSource.originalFileName?.match(/\.(mp4|mov|webm|mp3|m4a|wav)$/i) ||
+      detailedSource.sourceType === 'bunny_stream' ||
+      detailedSource.sourceType === 'youtube' ||
+      detailedSource.sourceType === 'mp4' ||
+      (detailedSource as any).originalFileUrl?.includes('.mp4') ||
+      (detailedSource as any).sourceReference?.includes('.mp4')
+    )
+  );
+
+  const isDummyOrPdfData = Boolean(
+    detailedSource && isVideoSource && (
+      detailedSource.content.length < 900 ||
+      (plainText.includes('मार्गदर्शक: मोहन काळबुर्गी') && detailedSource.content.length < 3500) ||
+      (plainText.includes('दिवस ') && plainText.includes('अभ्यासक्रम') && detailedSource.content.length < 3500) ||
+      (plainText.includes('[00:00–01:00]') && plainText.includes('[10:00–11:00]') && detailedSource.content.length < 1500)
+    )
+  );
+
+  const handleLanguageAction = async (targetLang: 'hi' | 'mr' | 'en', action: 'reassign' | 'standardize') => {
+    if (!token || !detailedSource) return;
+    setIsFixingLang(true);
+    setFilterMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/sources/language-filter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sourceId: detailedSource.id, targetLanguage: targetLang, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update language');
+      setFilterMsg(data.message || 'Updated successfully!');
+      if (data.source) {
+        setSource(data.source);
+        setSources(prev => prev.map(s => s.id === data.source.id ? data.source : s));
+      }
+    } catch (err: any) {
+      setFilterMsg(err.message || 'Operation failed');
+    } finally {
+      setIsFixingLang(false);
+    }
+  };
 
   const openSource = async (item: KnowledgeSourceView) => {
     if (!token) return;
@@ -707,9 +1240,37 @@ function Library({ token }: { token: string | null }) {
       <section className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Knowledge Library</p><h3 className="mt-1 text-lg font-semibold text-slate-900">Browse your source material</h3><p className="mt-1 text-sm text-slate-600">Choose a library, open a topic, then inspect the saved text or avatar cues.</p></div>
-          {(moduleId || topic || source) && <button type="button" onClick={() => { setModuleId(null); setTopic(null); setSource(null); }} className="rounded-lg px-3 py-2 text-sm font-semibold">All six libraries</button>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleScanAutoFix}
+              disabled={isScanning}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-amber-600 px-3.5 py-2 text-xs font-black text-white shadow-md hover:from-amber-400 hover:to-orange-500 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-yellow-200" />}
+              <span>{isScanning ? 'Scanning Video Audio...' : '⚡ AI Re-Check & Auto-Fix Video Sources'}</span>
+            </button>
+            {(moduleId || topic || source) && <button type="button" onClick={() => { setModuleId(null); setTopic(null); setSource(null); }} className="rounded-lg px-3 py-2 text-sm font-semibold">All six libraries</button>}
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>Library</span>{activeModule && <><ChevronRight className="h-3 w-3" /><button type="button" onClick={() => { setTopic(null); setSource(null); }} className="rounded-md px-2 py-1 text-xs">{activeModule.title}</button></>}{topic && <><ChevronRight className="h-3 w-3" /><button type="button" onClick={clearSource} className="rounded-md px-2 py-1 text-xs">{topic}</button></>}{source && <><ChevronRight className="h-3 w-3" /><span className="font-medium text-slate-700">{source.title}</span></>}</div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-emerald-100/60 pt-3">
+          <span className="text-xs font-bold text-slate-600">Language Filter:</span>
+          {(['all', 'mr', 'hi', 'en'] as const).map(l => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => setLangFilter(l)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                langFilter === l
+                  ? 'bg-emerald-800 text-white shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              {l === 'all' ? '🌐 All Languages' : l === 'mr' ? '🚩 Marathi (MR)' : l === 'hi' ? '🕉️ Hindi (HI)' : '🇬🇧 English (EN)'}
+            </button>
+          ))}
+        </div>
       </section>
 
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
@@ -720,18 +1281,1199 @@ function Library({ token }: { token: string | null }) {
         return <button key={item.id} type="button" data-tone={toneFor(index)} onClick={() => { setModuleId(item.id); setTopic(null); setSource(null); }} className="mohan-rag-overview-card group min-h-36 rounded-2xl p-5 text-left transition"><div className="flex items-start justify-between gap-2"><h4 className="font-semibold text-slate-900">{item.title}</h4><span className="rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">{count} {count === 1 ? 'source' : 'sources'}</span></div><p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{item.purpose}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800">Browse topics <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span></button>;
       })}</div>}
 
-      {activeModule && !topic && !loading && <section className="space-y-3"><div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-slate-900">Topics in {activeModule.title}</h3><p className="text-sm text-slate-500">{moduleSources.length} saved sources · topics are based on source metadata.</p></div><button type="button" onClick={() => setModuleId(null)} className="rounded-lg px-3 py-2 text-sm font-semibold">All libraries</button></div>{topics.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{topics.map((item, index) => {const count = moduleSources.filter(sourceItem => (sourceItem.topic.trim() || 'Uncategorized') === item).length; return <button key={item} type="button" data-tone={toneFor(index)} onClick={() => setTopic(item)} className="mohan-rag-overview-card group rounded-2xl p-4 text-left transition"><div className="flex items-center justify-between gap-2"><h4 className="font-semibold text-slate-900">{item}</h4><span className="rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-xs font-medium text-slate-600">{count}</span></div><p className="mt-2 text-xs text-slate-600">Open sources in this topic</p></button>;})}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">No sources have been added to this library yet.</div>}</section>}
+      {activeModule && !topic && !loading && <section className="space-y-3"><div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-slate-900">Topics in {activeModule.title}</h3><p className="text-sm text-slate-500">{moduleSources.length} saved sources · topics are based on source metadata.</p></div><button type="button" onClick={() => setModuleId(null)} className="rounded-lg px-3 py-2 text-sm font-semibold">All libraries</button></div>{topics.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{topics.map((item, index) => {
+        const count = moduleSources.filter(sourceItem => (sourceItem.topic.trim() || 'Uncategorized') === item).length;
+        return (
+          <div key={item} data-tone={toneFor(index)} className="mohan-rag-overview-card group rounded-2xl p-4 text-left transition flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-semibold text-slate-900">{item}</h4>
+                <span className="rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-xs font-medium text-slate-600">{count}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTopic(item)}
+                className="mt-2 text-xs font-semibold text-slate-600 hover:text-emerald-900 block text-left"
+              >
+                Open sources in this topic →
+              </button>
+            </div>
+            {onForwardToPipeline && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const matching = moduleSources.filter(sourceItem => (sourceItem.topic.trim() || 'Uncategorized') === item);
+                  matching.sort((a, b) => ((b as any).content?.length || 0) - ((a as any).content?.length || 0));
+                  const first = matching[0];
+                  if (first) {
+                    let textContent = '';
+                    try {
+                      const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${first.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                      const d = await readManagementApiJson(res);
+                      textContent = d.source?.content || '';
+                    } catch {}
+                    const clean = textContent.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                    onForwardToPipeline({
+                      text: clean,
+                      topic: item,
+                      workshop: activeModule?.id || 'level1',
+                      language: first.language === 'auto' ? 'mr' : first.language,
+                    });
+                  }
+                }}
+                className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black text-white bg-emerald-700 hover:bg-emerald-600 shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <span>🚀 Forward Topic to Spell Check & Grammar</span>
+              </button>
+            )}
+          </div>
+        );
+      })}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">No sources have been added to this library yet.</div>}</section>}
 
-      {activeModule && topic && !source && !loading && <section className="space-y-3"><div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-slate-900">Sources · {topic}</h3><p className="text-sm text-slate-500">Select a source to inspect its full text.</p></div><button type="button" onClick={() => setTopic(null)} className="rounded-lg px-3 py-2 text-sm font-semibold">All topics</button></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{topicSources.map((item, index) => <button key={item.id} type="button" data-tone={toneFor(index)} onClick={() => openSource(item)} className="mohan-rag-overview-card group rounded-2xl p-4 text-left transition"><div className="flex items-start justify-between gap-2"><h4 className="font-semibold text-slate-900">{item.title}</h4><StatusPill muted>{item.status}</StatusPill></div><p className="mt-2 text-xs text-slate-600">{item.originalFileName || 'Text source'} · {item.language.toUpperCase()}</p><span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800">View text <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span></button>)}</div></section>}
+      {activeModule && topic && !source && !loading && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Sources · {topic}</h3>
+              <p className="text-sm text-slate-500">Select a source to inspect its full text or forward to grammar.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isAutoFixing}
+                onClick={() => handleAutoFixBatch(5)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:from-emerald-600 hover:to-teal-700 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isAutoFixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-300" />}
+                <span>Auto-Fix Outline Videos</span>
+              </button>
+              <button type="button" onClick={() => setTopic(null)} className="rounded-lg px-3 py-2 text-sm font-semibold">All topics</button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {topicSources.map((item, index) => {
+              const cLen = Number(item.contentLength || item.content?.length || 0);
+              const isVideo = Boolean(
+                item.originalFileName?.match(/\.(mp4|mov|webm|mp3|m4a|wav)$/i) ||
+                item.sourceType === 'bunny_stream' ||
+                item.sourceType === 'youtube' ||
+                item.sourceType === 'mp4'
+              );
+              const isOutline = isVideo && cLen < 900;
 
-      {detailedSource && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{activeModule?.title} · {topic}</p><h3 className="mt-1 text-lg font-bold text-slate-900">{detailedSource.title}</h3><p className="mt-1 text-xs text-slate-500">{detailedSource.originalFileName || 'Text source'} · {detailedSource.status} · {detailedSource.language.toUpperCase()}</p></div><button type="button" onClick={clearSource} className="rounded-lg px-3 py-2 text-sm font-semibold">Back to sources</button></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" aria-pressed={view === 'plain'} onClick={() => setView('plain')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'plain' ? 'ring-2 ring-emerald-300' : ''}`}>Plain text</button><button type="button" aria-pressed={view === 'cues'} onClick={() => setView('cues')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'cues' ? 'ring-2 ring-violet-300' : ''}`}>Emotion & face cues</button></div></div>
+              return (
+                <div key={item.id} data-tone={toneFor(index)} className="mohan-rag-overview-card group rounded-2xl p-4 text-left transition flex flex-col justify-between">
+                  <div onClick={() => openSource(item)} className="cursor-pointer">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-semibold text-slate-900">{item.title}</h4>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {isVideo && (
+                          isOutline ? (
+                            <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[10px] font-black uppercase">⚠️ PDF Outline</span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 text-[10px] font-black uppercase">✅ Audio ({(cLen / 1000).toFixed(1)}k)</span>
+                          )
+                        )}
+                        <StatusPill muted>{item.status}</StatusPill>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-600">
+                      {item.originalFileName || 'Text source'} · {item.language.toUpperCase()} · <span className="font-semibold">{cLen.toLocaleString()} chars</span>
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => openSource(item)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:underline cursor-pointer"
+                    >
+                      View text <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {isOutline && (
+                        <button
+                          type="button"
+                          disabled={isAutoFixing}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAutoFixSingle(item.id);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                          title="AI Worker: Transcribe real video audio"
+                        >
+                          {isAutoFixing && autoFixingId === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-amber-300" />}
+                          <span>{isAutoFixing && autoFixingId === item.id ? 'Fixing...' : '⚡ Auto-Fix Video'}</span>
+                        </button>
+                      )}
+                      {onForwardToPipeline && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            let textContent = '';
+                            try {
+                              const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${item.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                              const d = await readManagementApiJson(res);
+                              textContent = d.source?.content || '';
+                            } catch {}
+                            const clean = textContent.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                            onForwardToPipeline({
+                              text: clean,
+                              topic: item.topic,
+                              workshop: item.moduleId,
+                              language: item.language === 'auto' ? 'mr' : item.language,
+                            });
+                          }}
+                          className="text-xs font-bold text-sky-700 hover:text-sky-950 underline flex items-center gap-1 cursor-pointer"
+                        >
+                          🚀 Correct →
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteLibrarySource(item.id, item.title);
+                        }}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 underline cursor-pointer"
+                        title="Delete this source from library"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {detailedSource && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{activeModule?.title} · {topic}</p><h3 className="mt-1 text-lg font-bold text-slate-900">{detailedSource.title}</h3><p className="mt-1 text-xs text-slate-500">{detailedSource.originalFileName || 'Text source'} · {detailedSource.status} · {detailedSource.language.toUpperCase()}</p></div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {onForwardToPipeline && (
+                <button
+                  type="button"
+                  onClick={() => onForwardToPipeline({
+                    text: plainText,
+                    topic: detailedSource.topic,
+                    workshop: detailedSource.moduleId,
+                    language: detailedSource.language === 'auto' ? 'mr' : detailedSource.language,
+                  })}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 px-4 py-2 text-xs font-black text-white shadow-md hover:from-emerald-500 hover:to-teal-600 transition active:scale-95 cursor-pointer"
+                >
+                  <span>🚀 Forward to Spell Check & Grammar Pipeline</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDeleteLibrarySource(detailedSource.id, detailedSource.title)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 px-3.5 py-2 text-xs font-bold text-red-700 shadow-xs transition active:scale-95 cursor-pointer"
+                title="Permanently delete this source from library"
+              >
+                <span>🗑️</span>
+                <span>Delete</span>
+              </button>
+              <button type="button" onClick={clearSource} className="rounded-lg px-3 py-2 text-sm font-semibold">Back to sources</button>
+            </div>
+          </div>
+          {isDummyOrPdfData && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-amber-100/70 to-orange-50 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-amber-950 font-black text-xl shadow">⚠️</div>
+                <div>
+                  <h4 className="text-sm font-black text-amber-950">PDF Outline Detected in Video Record ({detailedSource.content.length} characters)</h4>
+                  <p className="mt-0.5 text-xs font-medium text-amber-800">
+                    This video source currently contains brief syllabus/PDF notes instead of authentic spoken video speech.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isAutoFixing}
+                onClick={() => handleAutoFixSingle(detailedSource.id)}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 px-4 py-2.5 text-xs font-black text-white shadow-md hover:from-emerald-500 hover:to-teal-600 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isAutoFixing && autoFixingId === detailedSource.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-amber-300" />}
+                <span>{isAutoFixing && autoFixingId === detailedSource.id ? 'AI Worker Transcribing Real Video...' : '⚡ AI Worker: Transcribe & Auto-Fix Real Video Speech'}</span>
+              </button>
+            </div>
+          )}
+          {autoFixMsg && (
+            <p className="mt-2 rounded-lg bg-emerald-100 p-2.5 text-xs font-bold text-emerald-900 border border-emerald-300">{autoFixMsg}</p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/90 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-amber-950">Active Language:</span>
+              <span className="rounded-full bg-amber-200 border border-amber-300 px-3 py-0.5 text-xs font-extrabold text-amber-950 uppercase">{detailedSource.language}</span>
+              <span className="text-xs text-amber-800">(If lecture is in Hindi or mixed, standardize below):</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={isFixingLang}
+                onClick={() => handleLanguageAction('hi', 'standardize')}
+                className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {isFixingLang ? 'Processing...' : '✨ Clean & Standardize to Hindi'}
+              </button>
+              <button
+                type="button"
+                disabled={isFixingLang}
+                onClick={() => handleLanguageAction('mr', 'standardize')}
+                className="rounded-lg bg-orange-700 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-orange-600 disabled:opacity-50"
+              >
+                {isFixingLang ? 'Processing...' : '🚩 Clean & Standardize to Marathi'}
+              </button>
+              <button
+                type="button"
+                disabled={isFixingLang}
+                onClick={() => handleLanguageAction('hi', 'reassign')}
+                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Tag HI
+              </button>
+              <button
+                type="button"
+                disabled={isFixingLang}
+                onClick={() => handleLanguageAction('mr', 'reassign')}
+                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Tag MR
+              </button>
+            </div>
+          </div>
+          {filterMsg && (
+            <p className="mt-2 rounded-lg bg-emerald-100 p-2.5 text-xs font-semibold text-emerald-900 border border-emerald-200">{filterMsg}</p>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2"><button type="button" aria-pressed={view === 'plain'} onClick={() => setView('plain')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'plain' ? 'ring-2 ring-emerald-300' : ''}`}>Plain text</button><button type="button" aria-pressed={view === 'cues'} onClick={() => setView('cues')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'cues' ? 'ring-2 ring-violet-300' : ''}`}>Emotion & face cues</button></div></div>
           {view === 'plain' ? <pre lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`max-h-[65vh] overflow-auto whitespace-pre-wrap p-5 text-sm leading-7 text-slate-800 ${devanagariFontClass(plainText, detailedSource.language)}`}>{plainText || 'Loading source text…'}</pre> : <div className="space-y-3 p-5">{hasCues ? <><p className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-900">Cue tags are suggestions inferred from transcript wording. They do not represent measured facial observations from video frames.</p>{parsed?.segments.map(segment => <article key={`${segment.index}-${segment.rawText.slice(0, 24)}`} className="rounded-xl border border-slate-200 bg-white p-4"><div className="mb-2 flex flex-wrap gap-2">{segment.emotions.filter(cue => cue.tag !== 'face').map((cue, index) => <span key={`${cue.tag}-${index}`} className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">{cue.name} · {cue.intensity}%</span>)}{segment.facialExpression && <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-900">Face · {segment.facialExpression.replace(/_/g, ' ')}</span>}</div><p lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`whitespace-pre-wrap text-sm leading-6 text-slate-800 ${devanagariFontClass(segment.cleanText, detailedSource.language)}`}>{segment.cleanText}</p></article>)}</> : <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50/60 p-8 text-center"><p className="font-semibold text-slate-800">No emotion or face tags in this source</p><p className="mt-1 text-sm text-slate-600">Tags are added to MP3/MP4 transcripts when annotation succeeds. Plain text sources remain untagged unless cues are added manually.</p></div>}</div>}
         </section>}
+
+      {showScanModal && scanResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white font-bold text-xl">⚡</div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight">AI Worker · Video Audio Health Re-Check</h3>
+                  <p className="text-xs text-amber-100">Scan results for authentic spoken video recordings in Library</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScanModal(false)}
+                className="rounded-xl p-2 hover:bg-white/20 text-white transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 border-b border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 text-center">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Video Records</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{scanResult.videoSources}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-center">
+                <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Authentic Spoken Audio</p>
+                <p className="mt-1 text-2xl font-black text-emerald-700">{scanResult.healthyVideoSources}</p>
+              </div>
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-center">
+                <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Needs Fix (PDF/Outline)</p>
+                <p className="mt-1 text-2xl font-black text-amber-700">{scanResult.needingFixSources}</p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Video Sources List</h4>
+                {scanResult.needingFixSources > 0 && (
+                  <button
+                    type="button"
+                    disabled={isAutoFixing}
+                    onClick={() => handleAutoFixBatch(5)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 px-4 py-2 text-xs font-black text-white shadow hover:from-emerald-500 hover:to-teal-600 transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {isAutoFixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-amber-300" />}
+                    <span>{isAutoFixing ? 'Auto-Fixing in Background...' : '⚡ Auto-Fix Next 5 Sources (Batch AI Worker)'}</span>
+                  </button>
+                )}
+              </div>
+
+              {scanResult.sources.map((s: any) => (
+                <div
+                  key={s.id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 transition ${
+                    s.needsFix
+                      ? 'border-amber-300 bg-amber-50/60'
+                      : 'border-slate-200 bg-white hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex-1 min-w-[280px]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                        s.needsFix ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-900'
+                      }`}>
+                        {s.needsFix ? '⚠️ Needs Fix' : '✅ Authentic Audio'}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">{s.moduleId} · {s.language}</span>
+                      <span className="text-[10px] text-slate-400">({s.contentLength} chars)</span>
+                    </div>
+                    <h5 className="mt-1 text-sm font-bold text-slate-900">{s.title}</h5>
+                    <p className="mt-0.5 text-xs text-slate-600">{s.reason}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {s.needsFix ? (
+                      <button
+                        type="button"
+                        disabled={isAutoFixing}
+                        onClick={() => handleAutoFixSingle(s.id)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition disabled:opacity-50 cursor-pointer active:scale-95"
+                      >
+                        {isAutoFixing && autoFixingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        <span>{isAutoFixing && autoFixingId === s.id ? 'Fixing...' : 'Fix Now'}</span>
+                      </button>
+                    ) : (
+                      <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                        <CheckCircle2 className="h-4 w-4" /> Ready
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-200 bg-slate-50 p-4 flex items-center justify-between">
+              <p className="text-xs text-slate-500">AI Worker transcribes real audio directly from Bunny Video CDN into Bunny Database.</p>
+              <button
+                type="button"
+                onClick={() => setShowScanModal(false)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function KnowledgeModulePanel({ module, token }: { module: typeof modules[number]; token: string | null }) {
+function SpellCheckerModule({
+  token,
+  activeTab,
+  sharedLang,
+  onLangChange,
+  sharedWorkshop,
+  onWorkshopChange,
+  sharedDay,
+  onDayChange,
+  sharedTopic,
+  onTopicChange,
+  sharedText,
+  onTextChange,
+  onProceedToGrammar,
+  onProceedToPlainText,
+}: {
+  token: string | null;
+  activeTab?: LibraryViewTab;
+  sharedLang?: string;
+  onLangChange?: (l: string) => void;
+  sharedWorkshop?: string;
+  onWorkshopChange?: (w: string) => void;
+  sharedDay?: string;
+  onDayChange?: (d: string) => void;
+  sharedTopic?: string;
+  onTopicChange?: (t: string) => void;
+  sharedText?: string;
+  onTextChange?: (t: string) => void;
+  onProceedToGrammar?: () => void;
+  onProceedToPlainText?: () => void;
+}) {
+  const [selectedLang, setSelectedLang] = useState(sharedLang || 'mr');
+  const [langSearch, setLangSearch] = useState('');
+
+  // 2nd Header Navigation State: Workshop, Day, Topic & Active selection
+  const [selectedWorkshop, setSelectedWorkshop] = useState(sharedWorkshop || 'all');
+  const [selectedDay, setSelectedDay] = useState(sharedDay || 'all');
+  const [selectedTopic, setSelectedTopic] = useState(sharedTopic || 'all');
+
+  const [activeWorkshop, setActiveWorkshop] = useState(sharedWorkshop || 'all');
+  const [activeDay, setActiveDay] = useState(sharedDay || 'all');
+  const [activeTopic, setActiveTopic] = useState(sharedTopic || 'all');
+
+  // Immediately load the complete Master Marathi Corpus by default
+  const [text, setText] = useState(() => sharedText || getLibraryCorpusText('mr', 'all', 'all', 'all'));
+  const [oldText, setOldText] = useState('');
+  const [checkingSpell, setCheckingSpell] = useState(false);
+  const [checkingGrammarMode, setCheckingGrammarMode] = useState<'SOV' | 'SVO' | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [savingCorpus, setSavingCorpus] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [dbLibraryTopics, setDbLibraryTopics] = useState<Array<{ id: string; label: string; count: number; sourceId?: string }>>([]);
+  const [dbSources, setDbSources] = useState<Array<{ id: string; title: string; topic: string; length: number; language: string }>>([]);
+
+  // Dynamically load actual topics and sources from the Library Database for the active language
+  useEffect(() => {
+    if (!token) return;
+    let isCancelled = false;
+    const fetchDbTopics = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (selectedWorkshop !== 'all') params.set('module', selectedWorkshop);
+        if (selectedLang) params.set('language', selectedLang);
+        const queryStr = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`/api/admin/crm/mohan-rag/knowledge${queryStr}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await readManagementApiJson(res);
+        const sources = Array.isArray(data.sources) ? data.sources : [];
+        const mappedSources = sources.map((s: any) => ({
+          id: String(s.id),
+          title: String(s.title || 'Untitled Source'),
+          topic: String(s.topic || ''),
+          length: Number(s.contentLength || s.content?.length || 0),
+          language: String(s.language || selectedLang),
+        }));
+        const topicMap = new Map<string, { count: number; sourceId: string; maxLen: number }>();
+        for (const s of sources) {
+          const tName = (s.topic || s.title || 'Uncategorized').trim();
+          const sLen = Number(s.contentLength || s.content?.length || 0);
+          const existing = topicMap.get(tName);
+          if (existing) {
+            existing.count += 1;
+            if (sLen > existing.maxLen) {
+              existing.maxLen = sLen;
+              existing.sourceId = s.id;
+            }
+          } else {
+            topicMap.set(tName, { count: 1, sourceId: s.id, maxLen: sLen });
+          }
+        }
+        const topicsList: Array<{ id: string; label: string; count: number; sourceId?: string }> = [];
+        for (const [name, meta] of topicMap.entries()) {
+          topicsList.push({
+            id: name,
+            label: name,
+            count: meta.count,
+            sourceId: meta.sourceId,
+          });
+        }
+        if (!isCancelled) {
+          setDbSources(mappedSources);
+          setDbLibraryTopics(topicsList);
+
+          // AUTO-LOAD REAL VIDEO LECTURE DATA IF CURRENT TEXT IS STATIC PDF SYLLABUS
+          if (!sharedText && sources.length > 0 && selectedTopic === 'all' && (!text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || text.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'))) {
+            const realSources = sources.filter((s: any) => Number(s.contentLength || s.content?.length || 0) > 500);
+            realSources.sort((a: any, b: any) => Number(b.contentLength || b.content?.length || 0) - Number(a.contentLength || a.content?.length || 0));
+            const primarySource = realSources[0] || sources[0];
+            if (primarySource) {
+              try {
+                const sRes = await fetch(`/api/admin/crm/mohan-rag/knowledge/${primarySource.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                const sData = await readManagementApiJson(sRes);
+                const rawContent = sData.source?.content || '';
+                const clean = rawContent.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                if (clean) {
+                  updateWorkingText(clean);
+                  setSelectedTopic(`src_${primarySource.id}`);
+                  setStatusMsg(`✅ Loaded real lecture "${primarySource.title}" (${clean.length.toLocaleString()} characters) from Library Database.`);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    };
+    fetchDbTopics();
+    return () => { isCancelled = true; };
+  }, [token, selectedWorkshop, selectedLang]);
+
+  // Keep internal module state synced when parent pipeline switches tabs or updates props
+  useEffect(() => {
+    if (sharedLang && sharedLang !== selectedLang) {
+      setSelectedLang(sharedLang);
+    }
+  }, [sharedLang]);
+
+  useEffect(() => {
+    if (sharedText !== undefined && sharedText !== text) {
+      setText(sharedText);
+    }
+  }, [sharedText]);
+
+  useEffect(() => {
+    if (sharedWorkshop && sharedWorkshop !== selectedWorkshop) {
+      setSelectedWorkshop(sharedWorkshop);
+      setActiveWorkshop(sharedWorkshop);
+    }
+  }, [sharedWorkshop]);
+
+  useEffect(() => {
+    if (sharedDay && sharedDay !== selectedDay) {
+      setSelectedDay(sharedDay);
+      setActiveDay(sharedDay);
+    }
+  }, [sharedDay]);
+
+  useEffect(() => {
+    if (sharedTopic && sharedTopic !== selectedTopic) {
+      setSelectedTopic(sharedTopic);
+      setActiveTopic(sharedTopic);
+    }
+  }, [sharedTopic]);
+
+  const updateWorkingText = (newVal: string) => {
+    setText(newVal);
+    if (onTextChange) onTextChange(newVal);
+  };
+
+  const workshopOptions = WORKSHOP_OPTIONS;
+  const dayOptions = DAY_OPTIONS;
+  const topicOptions = TOPIC_OPTIONS;
+
+  const filteredLanguages = ELEARNING_LANGUAGES.filter(lang => {
+    if (!langSearch.trim()) return true;
+    const q = langSearch.toLowerCase();
+    return (
+      lang.name.toLowerCase().includes(q) ||
+      lang.nativeName.toLowerCase().includes(q) ||
+      lang.code.toLowerCase().includes(q)
+    );
+  });
+
+  const SOV_LANGUAGES = ['hi', 'mr', 'kn', 'sa', 'ta', 'te', 'ml', 'gu', 'bn', 'pa', 'or', 'ja', 'ko'];
+  const isLanguageSOV = SOV_LANGUAGES.includes(selectedLang.toLowerCase());
+  const detectedSyntax: 'SOV' | 'SVO' = isLanguageSOV ? 'SOV' : 'SVO';
+
+  const currentLangObj = ELEARNING_LANGUAGES.find(l => l.code === selectedLang) || ELEARNING_LANGUAGES[0];
+  const currentWorkshopLabel = workshopOptions.find(w => w.id === activeWorkshop)?.label || 'All Workshops';
+  const currentDayLabel = dayOptions.find(d => d.id === activeDay)?.label || 'All Days';
+  const currentTopicList = topicOptions[activeWorkshop] || topicOptions.all;
+  const currentDbTopic = dbLibraryTopics.find(t => 
+    t.id === activeTopic || 
+    t.label === activeTopic || 
+    `lib_topic_${t.label}` === activeTopic ||
+    activeTopic.replace(/^lib_topic_/, '') === t.label
+  );
+  const currentTopicLabel = currentDbTopic 
+    ? currentDbTopic.label 
+    : (currentTopicList.find(t => t.id === activeTopic)?.label || activeTopic || `All Topics (${currentLangObj.name})`);
+
+  const handleLanguageSelect = (code: string) => {
+    setSelectedLang(code);
+    if (onLangChange) onLangChange(code);
+    setOldText(text);
+    const newCorpus = getLibraryCorpusText(code, selectedWorkshop, selectedDay, selectedTopic);
+    updateWorkingText(newCorpus);
+    const langObj = ELEARNING_LANGUAGES.find(l => l.code === code);
+    setStatusMsg(`Loaded ${langObj?.name || code} master library corpus.`);
+  };
+
+  const handleSelectTopic = async (topicId: string) => {
+    setSelectedTopic(topicId);
+    setActiveTopic(topicId);
+    if (onTopicChange) onTopicChange(topicId);
+
+    // 1. Check if user selected an individual video lecture / source
+    const rawSrcId = topicId.startsWith('src_') ? topicId.replace(/^src_/, '') : topicId;
+    const directSource = dbSources.find(s => s.id === rawSrcId);
+    if (directSource) {
+      try {
+        setStatusMsg(`Loading "${directSource.title}" from Library Database...`);
+        const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${directSource.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const d = await readManagementApiJson(res);
+        const raw = d.source?.content || '';
+        const clean = raw.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+        if (clean) {
+          setOldText(text);
+          updateWorkingText(clean);
+          setStatusMsg(`✅ Loaded "${directSource.title}" (${Math.round(clean.length / 5)} words) from Library. Ready for Spell Check & AI Grammar!`);
+          return;
+        }
+      } catch (err: any) {
+        setStatusMsg(`Failed to load source from library: ${err.message}`);
+      }
+    }
+
+    // 2. Check if user selected an actual library topic group from Bunny database
+    const match = dbLibraryTopics.find(t => 
+      t.id === topicId || 
+      t.label === topicId || 
+      `topic_${t.id}` === topicId ||
+      `lib_topic_${t.label}` === topicId ||
+      topicId.replace(/^lib_topic_/, '') === t.label
+    );
+    if (match && match.sourceId) {
+      try {
+        setStatusMsg(`Loading "${match.label}" from Library Database...`);
+        const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${match.sourceId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const d = await readManagementApiJson(res);
+        const raw = d.source?.content || '';
+        const clean = raw.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+        if (clean) {
+          setOldText(text);
+          updateWorkingText(clean);
+          setStatusMsg(`✅ Loaded "${match.label}" (${match.count} sources) from Library. Ready for Spell Check & Grammar!`);
+          return;
+        }
+      } catch (err: any) {
+        setStatusMsg(`Failed to load from library: ${err.message}`);
+      }
+    }
+
+    // 3. If 'all' or no specific source was selected, prioritize the real video lecture data from dbSources!
+    if (dbSources.length > 0) {
+      const realSources = dbSources.filter(s => s.length > 500);
+      realSources.sort((a, b) => b.length - a.length);
+      const topSource = realSources[0] || dbSources[0];
+      if (topSource) {
+        try {
+          setStatusMsg(`Loading real lecture "${topSource.title}" from Library Database...`);
+          const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${topSource.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const d = await readManagementApiJson(res);
+          const raw = d.source?.content || '';
+          const clean = raw.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+          if (clean) {
+            setOldText(text);
+            updateWorkingText(clean);
+            setSelectedTopic(`src_${topSource.id}`);
+            setStatusMsg(`✅ Loaded real lecture "${topSource.title}" (${clean.length.toLocaleString()} characters) from Library.`);
+            return;
+          }
+        } catch {}
+      }
+    }
+
+    const newCorpus = getLibraryCorpusText(selectedLang, selectedWorkshop, selectedDay, topicId);
+    setOldText(text);
+    updateWorkingText(newCorpus);
+    const chosenTopic = (topicOptions[selectedWorkshop] || topicOptions.all).find(t => t.id === topicId)?.label || topicId;
+    const chosenWorkshop = workshopOptions.find(w => w.id === selectedWorkshop)?.label || selectedWorkshop;
+    setStatusMsg(`Loaded "${chosenTopic}" (${chosenWorkshop}) in ${currentLangObj.name}. Previous data archived below.`);
+  };
+
+  const handleSubmitNavigation = async () => {
+    setActiveWorkshop(selectedWorkshop);
+    setActiveDay(selectedDay);
+    if (onWorkshopChange) onWorkshopChange(selectedWorkshop);
+    if (onDayChange) onDayChange(selectedDay);
+    await handleSelectTopic(selectedTopic);
+  };
+
+  const handleSaveToCorpus = async () => {
+    if (!token || !text.trim()) return;
+    setSavingCorpus(true);
+    setStatusMsg('Saving to Master Corpus in Bunny Database...');
+    try {
+      const validModule = ['why', 'level1', 'level2', 'level3', 'general', 'research'].includes(selectedWorkshop)
+        ? selectedWorkshop
+        : 'level1';
+      const res = await fetch('/api/admin/crm/mohan-rag/knowledge', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          moduleId: validModule,
+          title: `${currentLangObj.name} - ${currentTopicLabel}`.slice(0, 150),
+          topic: currentTopicLabel.slice(0, 150),
+          content: text,
+          language: ['hi', 'mr', 'en'].includes(selectedLang) ? selectedLang : 'auto',
+          sourceReference: `Master Library [${selectedWorkshop} • ${selectedDay} • ${selectedTopic}]`,
+        }),
+      });
+      const data = await readManagementApiJson(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+      setStatusMsg(`✅ Successfully saved "${currentTopicLabel}" to Bunny Database!`);
+    } catch (err: any) {
+      setStatusMsg(`❌ Save notice: ${err.message}`);
+    } finally {
+      setSavingCorpus(false);
+    }
+  };
+
+  const handleSpellCheck = async () => {
+    if (!token || !text.trim()) return;
+    setCheckingSpell(true);
+    setStatusMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/proofread', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, language: selectedLang }),
+      });
+      const data = await readManagementApiJson(res);
+      if (!res.ok) throw new Error(data.error || 'Spell check failed');
+      if (data.correctedText) {
+        setOldText(text);
+        updateWorkingText(data.correctedText);
+        setStatusMsg(`✅ Spell check completed for ${currentLangObj.name}: orthography & character integrity verified (verbatim vocabulary strictly preserved)`);
+      }
+    } catch (err: any) {
+      setStatusMsg(`❌ Error: ${err.message}`);
+    } finally {
+      setCheckingSpell(false);
+    }
+  };
+
+  const handleGrammarCheck = async (syntax?: 'SOV' | 'SVO') => {
+    if (!token || !text.trim()) return;
+    const targetSyntax = syntax || detectedSyntax;
+    setCheckingGrammarMode(targetSyntax);
+    setStatusMsg('');
+    try {
+      const res = await fetch('/api/avatar/grammar', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language: selectedLang, syntaxStructure: targetSyntax }),
+      });
+      const data = await readManagementApiJson(res);
+      if (!res.ok) throw new Error(data.error || `${targetSyntax} grammar check failed`);
+      const corrected = data.data?.correctedText || data.correctedText || data.corrected;
+      if (corrected) {
+        setOldText(text);
+        updateWorkingText(corrected);
+        setStatusMsg(`✅ AI Grammar (${targetSyntax}) applied: ${targetSyntax === 'SOV' ? 'SOV (Subject-Object-Verb) verbs adjusted, nouns/objects untouched' : 'SVO (Subject-Verb-Object) agreement verified, sacred terms preserved'}`);
+      }
+    } catch (err: any) {
+      setStatusMsg(`❌ Error: ${err.message}`);
+    } finally {
+      setCheckingGrammarMode(null);
+    }
+  };
+
+  const handleAutoTranslate = async () => {
+    if (!text.trim()) return;
+    setTranslating(true);
+    setStatusMsg(`Auto-converting content to ${currentLangObj.name} (${currentLangObj.nativeName})...`);
+    try {
+      const res = await fetch('/api/avatar/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: text, targetLang: selectedLang }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Translation failed');
+      const translated = data.translatedText || data.translatedScript || data.cleanText;
+      if (translated) {
+        setOldText(text);
+        updateWorkingText(translated);
+        setStatusMsg(`✅ Auto-converted to ${currentLangObj.name} (${currentLangObj.nativeName}) with sacred terminology preserved`);
+      }
+    } catch (err: any) {
+      setStatusMsg(`❌ Translation error: ${err.message}`);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const [extractingHummer, setExtractingHummer] = useState(false);
+
+  const handleExtractHummerText = async () => {
+    if (!token || !text.trim()) return;
+    setExtractingHummer(true);
+    setStatusMsg('Extracting genuine voice emotions, pauses & humour annotations for Avatar...');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/hummer', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language: selectedLang }),
+      });
+      const data = await readManagementApiJson(res);
+      if (!res.ok) throw new Error(data.error || 'Hummer emotion extraction failed');
+      if (data.hummerText) {
+        setOldText(text);
+        setText(data.hummerText);
+        setStatusMsg('✅ Emotional Hummer Text generated: genuine voice delivery tags [CALM], [EXPLAINING], [EMPHASIS], [SMILING], [HUMOROUS] added for Avatar training!');
+      }
+    } catch (err: any) {
+      setStatusMsg(`❌ Emotion Extraction Error: ${err.message}`);
+    } finally {
+      setExtractingHummer(false);
+    }
+  };
+
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const readTime = Math.max(1, Math.ceil(wordCount / 130));
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+      {/* Left Sidebar: ALL 27+ LANGUAGES */}
+      <div className="w-full lg:w-80 shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Globe2 className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+              ALL 27+ LANGUAGES
+            </h3>
+          </div>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {filteredLanguages.length} Languages
+          </span>
+        </div>
+
+        {/* Search */}
+        <div className="relative mt-3 pb-3 border-b border-slate-100">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={langSearch}
+            onChange={e => setLangSearch(e.target.value)}
+            placeholder="Search Marathi, Hindi, English..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 transition"
+          />
+        </div>
+
+        {/* Languages Scrollable List */}
+        <div className="mt-3 max-h-72 overflow-y-auto space-y-1 pr-1">
+          {filteredLanguages.map(lang => {
+            const isSelected = selectedLang === lang.code;
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => handleLanguageSelect(lang.code)}
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="text-sm shrink-0">{lang.flag}</span>
+                  <span className="truncate">
+                    {lang.name} <span className={isSelected ? 'text-emerald-100' : 'text-slate-500'}>({lang.nativeName})</span>
+                  </span>
+                </div>
+                {isSelected && <span className="text-white text-xs font-bold shrink-0">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right Content Area */}
+      <div className="flex-1 w-full space-y-4">
+        {/* 2nd Header Navigation: Workshop, Day, Topic & Submit */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Workshop Dropdown */}
+            <div className="flex flex-col gap-1 min-w-[150px] flex-1 sm:flex-initial">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <span>📚</span> Workshop Name
+              </label>
+              <select
+                value={selectedWorkshop}
+                onChange={e => {
+                  setSelectedWorkshop(e.target.value);
+                  setSelectedTopic('all');
+                }}
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                {workshopOptions.map(w => (
+                  <option key={w.id} value={w.id}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Day Dropdown */}
+            <div className="flex flex-col gap-1 min-w-[120px] flex-1 sm:flex-initial">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <span>📅</span> Select Day
+              </label>
+              <select
+                value={selectedDay}
+                onChange={e => setSelectedDay(e.target.value)}
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                {dayOptions.map(d => (
+                  <option key={d.id} value={d.id}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Topic Dropdown */}
+            <div className="flex flex-col gap-1 min-w-[200px] flex-1">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <span>🎯</span> Select Topic
+              </label>
+              <select
+                value={selectedTopic}
+                onChange={e => handleSelectTopic(e.target.value)}
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                {dbSources.length > 0 && (
+                  <optgroup label={`📹 All Saved Video Lectures & Sources (${dbSources.length} from Library)`}>
+                    {dbSources.map(s => (
+                      <option key={`src_${s.id}`} value={`src_${s.id}`}>
+                        {s.title} · {s.topic || 'General'} ({s.length ? `${Math.round(s.length / 5)} words` : 'source'})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {dbLibraryTopics.length > 0 && (
+                  <optgroup label={`📁 Saved Topic Groups (${dbLibraryTopics.length} groups)`}>
+                    {dbLibraryTopics.map(t => (
+                      <option key={`topic_${t.id}`} value={`topic_${t.id}`}>
+                        📁 {t.label} ({t.count} {t.count === 1 ? 'source' : 'sources'})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="📖 Master Teaching Syllabus Reference">
+                  {(topicOptions[selectedWorkshop] || topicOptions.all).map(t => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex flex-col gap-1 self-end">
+              <label className="text-[10px] font-black uppercase tracking-wider text-transparent select-none hidden sm:block">
+                Submit
+              </label>
+              <button
+                type="button"
+                onClick={handleSubmitNavigation}
+                className="px-5 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 transition active:scale-95 shadow-md shadow-emerald-700/25 ring-1 ring-emerald-500 flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Submit</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Breadcrumb & Title */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 flex-wrap">
+              <span className="text-emerald-700">▶ {currentLangObj.name}</span>
+              <span>&gt;</span>
+              <span>{currentWorkshopLabel}</span>
+              {activeDay !== 'all' && (
+                <>
+                  <span>&gt;</span>
+                  <span>{currentDayLabel}</span>
+                </>
+              )}
+              <span>&gt;</span>
+              <span className="text-slate-700">{currentTopicLabel}</span>
+            </div>
+            <h2 className="text-xl font-black text-slate-900 mt-1">
+              {currentTopicLabel}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+              {wordCount} words • ~{readTime}m
+            </span>
+            <button
+              type="button"
+              disabled={savingCorpus}
+              onClick={handleSaveToCorpus}
+              className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <span>💾</span>
+              <span>{savingCorpus ? 'Saving…' : 'Save'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Master Corpus Box */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+          {/* Box Header */}
+          <div className="px-5 py-3.5 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-emerald-600" />
+                <h4 className="text-sm font-bold text-slate-900">
+                  Master Teaching Corpus &amp; Lecture Script
+                </h4>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Word-for-word transcript in {currentLangObj.name}. Spoken vocabulary is strictly preserved.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Auto-Convert / Translate button */}
+              <button
+                type="button"
+                onClick={handleAutoTranslate}
+                disabled={translating}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
+                title={`Auto-convert and dub into ${currentLangObj.name} while preserving verbatim terms`}
+              >
+                <span>✨</span>
+                <span>{translating ? 'Converting...' : `Auto-Convert to ${currentLangObj.name}`}</span>
+              </button>
+
+              {/* Spell Check */}
+              <button
+                type="button"
+                onClick={handleSpellCheck}
+                disabled={checkingSpell}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <span>A</span>
+                <span>{checkingSpell ? 'Checking...' : 'Spell Check →'}</span>
+              </button>
+
+              {/* Intelligent AI Grammar (Auto SVO / SOV based on language) */}
+              <button
+                type="button"
+                onClick={() => handleGrammarCheck()}
+                disabled={checkingGrammarMode !== null}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                title={`Smart AI Grammar: Automatically uses ${detectedSyntax} for ${currentLangObj.name}`}
+              >
+                <span>🧠</span>
+                <span>{checkingGrammarMode ? 'Checking...' : `AI Grammar (${detectedSyntax}) →`}</span>
+              </button>
+
+              {/* Explicit SOV Button (Subject-Object-Verb for Indian languages) */}
+              <button
+                type="button"
+                onClick={() => handleGrammarCheck('SOV')}
+                disabled={checkingGrammarMode !== null}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 disabled:opacity-50 ${
+                  detectedSyntax === 'SOV'
+                    ? 'text-sky-800 bg-sky-100/80 border border-sky-300 ring-1 ring-sky-300'
+                    : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                }`}
+                title="Force SOV (Subject-Object-Verb) for Indian languages (Hindi, Marathi, Kannada) - verb adjusted, nouns untouched"
+              >
+                <span>SOV</span>
+              </button>
+
+              {/* Explicit SVO Button (Subject-Verb-Object for English & Global languages) */}
+              <button
+                type="button"
+                onClick={() => handleGrammarCheck('SVO')}
+                disabled={checkingGrammarMode !== null}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 disabled:opacity-50 ${
+                  detectedSyntax === 'SVO'
+                    ? 'text-indigo-800 bg-indigo-100/80 border border-indigo-300 ring-1 ring-indigo-300'
+                    : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                }`}
+                title="Force SVO (Subject-Verb-Object) for English and foreign languages - verbs adjusted, nouns untouched"
+              >
+                <span>SVO</span>
+              </button>
+
+              {/* Pipeline Stage Navigation: Forward to Next Stages */}
+              {onProceedToGrammar && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onTextChange) onTextChange(text);
+                    onProceedToGrammar();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 shadow-md shadow-sky-800/20 transition active:scale-95 cursor-pointer flex items-center gap-1.5 ml-1"
+                  title="Forward this verified text to AI Grammar stage"
+                >
+                  <span>Forward to AI Grammar</span>
+                  <span>→</span>
+                </button>
+              )}
+              {onProceedToPlainText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onTextChange) onTextChange(text);
+                    onProceedToPlainText();
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition active:scale-95 cursor-pointer flex items-center gap-1"
+                  title="Forward to Plain Text Workspace"
+                >
+                  <span>Plain Text</span>
+                  <span>→</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Status notification */}
+          {statusMsg && (
+            <div className="mx-5 mt-3 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between">
+              <span>{statusMsg}</span>
+              <button type="button" onClick={() => setStatusMsg('')} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            </div>
+          )}
+
+          {/* Upper Textarea: Active Working Area */}
+          <div className="p-5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+              <span>Active Working &amp; Correction Area</span>
+              <span className="text-[10px] text-slate-400 font-normal">Edit directly or run Spell/Grammar AI</span>
+            </label>
+            <textarea
+              rows={8}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              className="w-full text-sm font-mono text-slate-800 bg-white border border-slate-200 rounded-xl p-4 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-emerald-500 shadow-inner"
+              placeholder="Paste or edit lecture transcript here..."
+            />
+          </div>
+        </div>
+
+        {/* Bottom Preview Area: Prior Versions & Master Reference Corpus */}
+        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📜</span>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                Prior Version &amp; Master Reference Corpus (Bottom Archive)
+              </h4>
+            </div>
+            {oldText && (
+              <button
+                type="button"
+                onClick={() => {
+                  const current = text;
+                  setText(oldText);
+                  setOldText(current);
+                  setStatusMsg('Restored previous version to working area');
+                }}
+                className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>↺</span>
+                <span>Restore to Working Area</span>
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Whenever you filter, submit, translate, or correct, the previous text automatically archives here so work is never lost.
+          </p>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-600 font-mono leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap select-all">
+            {oldText || 'No prior version yet. As soon as you filter, submit, or apply spell/grammar check, the previous text will be displayed here for instant comparison.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeModulePanel({
+  module,
+  token,
+  onOpenInSpellCheck,
+}: {
+  module: typeof modules[number];
+  token: string | null;
+  onOpenInSpellCheck?: (source: KnowledgeSourceView) => void;
+}) {
   const [sources, setSources] = useState<KnowledgeSourceView[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -756,6 +2498,15 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
   const [ebookBusyId, setEbookBusyId] = useState('');
   const [spellcheckBusyId, setSpellcheckBusyId] = useState('');
   const [ebookDraft, setEbookDraft] = useState<{ sourceId: string; title: string; language: string; content: string } | null>(null);
+  const [activeResearchEbookId, setActiveResearchEbookId] = useState('');
+  const [researchEbookInlineDrafts, setResearchEbookInlineDrafts] = useState<Record<string, { title: string; language: string; content: string } | null>>({});
+  const [researchEbookLoadingId, setResearchEbookLoadingId] = useState('');
+  const [researchCopiedId, setResearchCopiedId] = useState('');
+  const [activeEbookId, setActiveEbookId] = useState('');
+  const [ebookInlineDrafts, setEbookInlineDrafts] = useState<Record<string, { title: string; language: string; content: string } | null>>({});
+  const [ebookLoadingId, setEbookLoadingId] = useState('');
+  const [fourWorkersBusyId, setFourWorkersBusyId] = useState('');
+  const [copiedId, setCopiedId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSources = async () => {
@@ -814,7 +2565,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
       if (file.size > 150 * 1024 * 1024) {
         const params = new URLSearchParams({
           module: module.id, topic, language, fileName: file.name,
-          title: title.trim() || file.name.replace(/\.[^.]+$/, ''),
+          title: title.trim() || file.name.replace(/\.[^.]+$/, ''), size: String(file.size),
         });
         setImportMessage('Streaming original media to Bunny; MP4 audio will be converted to MP3 in the overnight transcription job…');
         const queuedResponse = await fetch(`/api/admin/crm/mohan-rag/ingestion/upload?${params}`, {
@@ -889,7 +2640,7 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
 
   const createEbookDraft = async (source: KnowledgeSourceView) => {
     if (!token) return;
-    setEbookBusyId(source.id); setError(''); setNotice(''); setEbookDraft(null);
+    setEbookBusyId(source.id); setError(''); setNotice('');
     try {
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${source.id}/ebook`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -897,7 +2648,10 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not create e-book chapter');
-      setEbookDraft({ sourceId: source.id, title: data.sourceTitle, language: data.draft.language, content: data.draft.content });
+      const draftObj = { sourceId: source.id, title: data.sourceTitle || source.title, language: data.draft.language, content: data.draft.content };
+      setEbookDraft(draftObj);
+      setEbookInlineDrafts(prev => ({ ...prev, [source.id]: draftObj }));
+      setActiveEbookId(source.id);
       setNotice('E-book chapter draft created and saved. Review it before publishing.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create e-book chapter'); }
     finally { setEbookBusyId(''); }
@@ -905,24 +2659,106 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
 
   const viewSavedEbookDraft = async (source: KnowledgeSourceView) => {
     if (!token) return;
+    if (activeEbookId === source.id) {
+      setActiveEbookId('');
+      return;
+    }
+    setActiveEbookId(source.id);
+    setEbookLoadingId(source.id);
+    setError('');
     try {
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${source.id}/ebook`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load e-book drafts');
       const latest = data.drafts?.[0];
-      if (!latest) { setNotice('No saved e-book chapter for this source yet.'); return; }
-      setEbookDraft({ sourceId: source.id, title: source.title, language: latest.language, content: latest.content });
-      setNotice(`Loaded saved ${latest.language.toUpperCase()} e-book chapter draft.`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load e-book drafts'); }
+      if (!latest) {
+        setNotice(`Generating initial E-book chapter for "${source.title}"…`);
+        await createEbookDraft(source);
+        return;
+      }
+      const draftObj = { sourceId: source.id, title: source.title, language: latest.language, content: latest.content };
+      setEbookDraft(draftObj);
+      setEbookInlineDrafts(prev => ({ ...prev, [source.id]: draftObj }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load e-book drafts');
+    } finally {
+      setEbookLoadingId('');
+    }
+  };
+
+  const deleteEbookDraft = async (sourceId: string) => {
+    if (!token) return;
+    if (!window.confirm('Are you sure you want to delete this saved E-book chapter?')) return;
+    setEbookBusyId(sourceId);
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${sourceId}/ebook`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not delete e-book');
+      setEbookInlineDrafts(prev => {
+        const next = { ...prev };
+        delete next[sourceId];
+        return next;
+      });
+      if (activeEbookId === sourceId) setActiveEbookId('');
+      if (ebookDraft?.sourceId === sourceId) setEbookDraft(null);
+      setNotice('E-book chapter deleted successfully.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not delete e-book');
+    } finally {
+      setEbookBusyId('');
+    }
+  };
+
+  const triggerSourceFourWorkers = async (source: KnowledgeSourceView) => {
+    if (!token) return;
+    setFourWorkersBusyId(source.id);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/admin/crm/mohan-rag/four-workers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'run_single', sourceId: source.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to run 4-worker pipeline');
+      setNotice(`✅ 4-Worker Pipeline successfully transcribed and distributed "${source.title}" everywhere! (${data.report?.worker1_conversion?.charCount || 0} characters)`);
+      if (data.report?.worker1_conversion?.text) {
+        setPreviewText(data.report.worker1_conversion.text);
+      }
+      await loadSources();
+    } catch (err: any) {
+      setError(err.message || 'Pipeline execution failed');
+    } finally {
+      setFourWorkersBusyId('');
+    }
+  };
+
+  const copyInlineEbook = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(''), 2500);
+    } catch {}
+  };
+
+  const downloadInlineDraft = (draft: { title: string; language: string; content: string }) => {
+    const blob = new Blob([`# ${draft.title}\n\n${draft.content}\n`], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${draft.title.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-${draft.language}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const downloadEbookDraft = () => {
     if (!ebookDraft) return;
-    const blob = new Blob([`# ${ebookDraft.title}\n\n${ebookDraft.content}\n`], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `${ebookDraft.title.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-${ebookDraft.language}.md`;
-    anchor.click(); URL.revokeObjectURL(url);
+    downloadInlineDraft(ebookDraft);
   };
 
   const resetForm = () => {
@@ -1008,9 +2844,166 @@ function KnowledgeModulePanel({ module, token }: { module: typeof modules[number
         </div>
         {loading ? <p className="py-8 text-center text-sm text-slate-500">Loading sources…</p> : !sources.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No sources in this library yet.</p> : <div className="space-y-2">{sources.map(source => <article key={source.id} className="rounded-xl border border-emerald-200 bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{source.title}</h4><StatusPill muted>{source.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{source.topic || 'No topic'} · {source.language} · {source.chunkCount || 0} chunks · {source.extractionType || 'text'} · Updated {new Date(source.updatedAt).toLocaleString()}</p>{source.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {source.originalFileName}</p>}{source.status === 'approved' && <p className="mt-1 text-[11px] text-emerald-700">Approved by {source.reviewedBy || 'admin'}{source.reviewedAt ? ` · ${new Date(source.reviewedAt).toLocaleString()}` : ''}</p>}</div>
-            <div className="flex flex-wrap gap-2"><button onClick={() => togglePreview(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50">{previewId === source.id ? 'Hide text' : 'View extracted text'}</button><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedSource(source)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === source.id ? 'Correcting…' : 'Correct spelling & grammar'}</button>{source.status === 'approved' && <><button disabled={ebookBusyId === source.id} onClick={() => createEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50 disabled:opacity-50">{ebookBusyId === source.id ? 'Creating chapter…' : 'Create E-book chapter'}</button><button onClick={() => viewSavedEbookDraft(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{source.originalFileUrl && <a href={source.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open original</a>}<button onClick={() => sourceAction(source, 'edit')} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900">Edit</button>{source.status !== 'approved' && <button onClick={() => sourceAction(source, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800 hover:bg-emerald-900/30">Approve</button>}{source.status !== 'rejected' && <button onClick={() => sourceAction(source, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800 hover:bg-yellow-900/30">Reject</button>}<button onClick={() => sourceAction(source, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-950/40">Delete</button></div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => togglePreview(source)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 hover:bg-violet-50">{previewId === source.id ? 'Hide text' : 'View extracted text'}</button>
+              <button
+                disabled={Boolean(spellcheckBusyId)}
+                onClick={() => {
+                  if (onOpenInSpellCheck) {
+                    onOpenInSpellCheck(source);
+                  } else {
+                    correctSavedSource(source);
+                  }
+                }}
+                className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                title="Open directly in Spell Check & AI Grammar Workspace"
+              >
+                <SpellCheck className="mr-1 inline h-3.5 w-3.5" />
+                {spellcheckBusyId === source.id ? 'Correcting…' : 'Correct spelling & grammar →'}
+              </button>
+              {source.originalFileUrl && <a href={source.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open original</a>}
+              <button onClick={() => sourceAction(source, 'edit')} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900">Edit</button>
+              {source.status !== 'approved' && <button onClick={() => sourceAction(source, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800 hover:bg-emerald-900/30">Approve</button>}
+              {source.status !== 'rejected' && <button onClick={() => sourceAction(source, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800 hover:bg-yellow-900/30">Reject</button>}
+              <button
+                onClick={() => sourceAction(source, 'delete')}
+                className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-200 flex items-center gap-1 cursor-pointer transition shadow-xs"
+                title={`Delete ${source.title}`}
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                Delete
+              </button>
+            </div>
           </div>
-          {previewId === source.id && <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-violet-950">Extracted source text</p><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedSource(source)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === source.id ? 'Correcting full source…' : 'Correct spelling & grammar'}</button></div><pre lang={source.language === 'auto' ? undefined : source.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(previewText, source.language)}`}>{previewText}</pre></div>}
+          {previewId === source.id && (
+            <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-3">
+              {/* Worker 2 Quality Warning Banner if Dummy / Outline */}
+              {(previewText.length < 600 || (previewText.startsWith('Title: ') && previewText.includes('Video Duration:')) || (previewText.includes('[00:00–01:00]') && previewText.includes('[10:00–11:00]') && previewText.length < 2000)) && (
+                <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50/90 p-3 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-amber-900">⚠️ Worker 2 Alert: Needs Real Spoken Audio Transcription</p>
+                      <p className="text-amber-800 text-[11px] mt-0.5">
+                        This source contains only brief catalog metadata or outline placeholders ({previewText.length} characters). Real spoken lecture speech has not been transcribed yet.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    disabled={fourWorkersBusyId === source.id}
+                    onClick={() => triggerSourceFourWorkers(source)}
+                    className="rounded-lg bg-gradient-to-r from-amber-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:from-amber-400 hover:to-emerald-500 transition cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    {fourWorkersBusyId === source.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {fourWorkersBusyId === source.id ? 'Running 4-Worker Pipeline...' : '⚡ Run 4-Worker Pipeline (Convert & Distribute Everywhere)'}
+                  </button>
+                </div>
+              )}
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-violet-950">Extracted source text</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={fourWorkersBusyId === source.id}
+                    onClick={() => triggerSourceFourWorkers(source)}
+                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    {fourWorkersBusyId === source.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5" />}
+                    {fourWorkersBusyId === source.id ? 'Processing...' : 'Run 4-Worker Pipeline'}
+                  </button>
+                  <button
+                    disabled={Boolean(spellcheckBusyId)}
+                    onClick={() => { if (onOpenInSpellCheck) onOpenInSpellCheck(source); else correctSavedSource(source); }}
+                    className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    <SpellCheck className="mr-1 inline h-3.5 w-3.5" />
+                    {spellcheckBusyId === source.id ? 'Correcting…' : 'Correct spelling & grammar →'}
+                  </button>
+                </div>
+              </div>
+              <pre lang={source.language === 'auto' ? undefined : source.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(previewText, source.language)}`}>
+                {previewText}
+              </pre>
+            </div>
+          )}
+          {activeEbookId === source.id && (
+            <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+              {ebookLoadingId === source.id ? (
+                <div className="flex items-center gap-2 py-3 text-xs font-semibold text-violet-900">
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-700 border-t-transparent" />
+                  Checking saved e-book drafts for this source…
+                </div>
+              ) : ebookInlineDrafts[source.id] ? (
+                <div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-violet-200/60 pb-3">
+                    <div>
+                      <h4 className="font-bold text-violet-950">📖 E-Book Chapter · {ebookInlineDrafts[source.id]?.title}</h4>
+                      <p className="mt-0.5 text-xs text-violet-700">Language: <span className="font-semibold uppercase">{ebookInlineDrafts[source.id]?.language}</span> · Grounded authentic Swar Yoga teaching</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => copyInlineEbook(source.id, ebookInlineDrafts[source.id]!.content)}
+                        className="rounded-lg border border-violet-300 bg-white px-2.5 py-1 text-xs font-semibold text-violet-900 shadow-2xs hover:bg-violet-50"
+                      >
+                        {copiedId === source.id ? '✓ Copied' : 'Copy text'}
+                      </button>
+                      <button
+                        onClick={() => downloadInlineDraft(ebookInlineDrafts[source.id]!)}
+                        className="rounded-lg bg-violet-700 px-3 py-1 text-xs font-bold text-white shadow-sm hover:bg-violet-800"
+                      >
+                        Download Markdown
+                      </button>
+                      <button
+                        onClick={() => deleteEbookDraft(source.id)}
+                        disabled={ebookBusyId === source.id}
+                        className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 shadow-2xs hover:bg-red-100 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                        title="Delete this saved E-book chapter"
+                      >
+                        <span>🗑️</span>
+                        <span>{ebookBusyId === source.id ? 'Deleting…' : 'Delete E-Book'}</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveEbookId('')}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  <pre
+                    lang={ebookInlineDrafts[source.id]?.language}
+                    className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-800 shadow-inner ${devanagariFontClass(ebookInlineDrafts[source.id]?.content || '', ebookInlineDrafts[source.id]?.language)}`}
+                  >
+                    {ebookInlineDrafts[source.id]?.content}
+                  </pre>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-violet-950">No saved e-book chapter for this source yet.</h4>
+                    <p className="mt-1 text-[11px] text-violet-700">
+                      Convert this approved lecture into a publication-ready Swar Yoga book chapter with the click of a button.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={ebookBusyId === source.id}
+                      onClick={() => createEbookDraft(source)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-violet-700 hover:to-purple-700 active:scale-95 disabled:opacity-50"
+                    >
+                      {ebookBusyId === source.id ? '⚡ Generating Chapter…' : '⚡ Generate E-Book Chapter Now'}
+                    </button>
+                    <button
+                      onClick={() => setActiveEbookId('')}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </article>)}</div>}
         {ebookDraft && <section className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-violet-900">E-book chapter draft · {ebookDraft.title}</h4><p className="mt-1 text-xs text-violet-800">{ebookDraft.language.toUpperCase()} · Generated from an approved library source. Review before publishing.</p></div><button onClick={downloadEbookDraft} className="rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-900 hover:bg-violet-100">Download Markdown</button></div><pre lang={ebookDraft.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(ebookDraft.content, ebookDraft.language)}`}>{ebookDraft.content}</pre></section>}
       </section>
@@ -1023,6 +3016,7 @@ type ResearchReportSource = {
   id: string;
   title: string;
   content?: string;
+  contentLength?: number;
   topic: string;
   language: string;
   sourceReference: string;
@@ -1057,6 +3051,10 @@ function ResearchDetails({ token }: { token: string | null }) {
   const [ebookBusyId, setEbookBusyId] = useState('');
   const [spellcheckBusyId, setSpellcheckBusyId] = useState('');
   const [ebookDraft, setEbookDraft] = useState<{ sourceId: string; title: string; language: string; content: string } | null>(null);
+  const [activeResearchEbookId, setActiveResearchEbookId] = useState('');
+  const [researchEbookInlineDrafts, setResearchEbookInlineDrafts] = useState<Record<string, { title: string; language: string; content: string } | null>>({});
+  const [researchEbookLoadingId, setResearchEbookLoadingId] = useState('');
+  const [researchCopiedId, setResearchCopiedId] = useState('');
 
   const loadReports = async () => {
     if (!token) return;
@@ -1158,7 +3156,10 @@ function ResearchDetails({ token }: { token: string | null }) {
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${report.id}/ebook`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceLanguage: report.language !== 'auto' ? report.language : ebookSourceLanguage, targetLanguage: ebookTargetLanguage }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not create e-book chapter');
-      setEbookDraft({ sourceId: report.id, title: data.sourceTitle, language: data.draft.language, content: data.draft.content });
+      const draftObj = { sourceId: report.id, title: data.sourceTitle || report.title, language: data.draft.language, content: data.draft.content };
+      setEbookDraft(draftObj);
+      setResearchEbookInlineDrafts(prev => ({ ...prev, [report.id]: draftObj }));
+      setActiveResearchEbookId(report.id);
       setNotice('E-book chapter draft created and saved. Review it before publishing.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create e-book chapter'); }
     finally { setEbookBusyId(''); }
@@ -1166,15 +3167,48 @@ function ResearchDetails({ token }: { token: string | null }) {
 
   const viewResearchEbookDraft = async (report: ResearchReportSource) => {
     if (!token) return;
+    if (activeResearchEbookId === report.id) {
+      setActiveResearchEbookId('');
+      return;
+    }
+    setActiveResearchEbookId(report.id);
+    setResearchEbookLoadingId(report.id);
+    setError('');
     try {
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${report.id}/ebook`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load e-book drafts');
       const latest = data.drafts?.[0];
-      if (!latest) { setNotice('No saved e-book chapter for this report yet.'); return; }
-      setEbookDraft({ sourceId: report.id, title: report.title, language: latest.language, content: latest.content });
-      setNotice(`Loaded saved ${latest.language.toUpperCase()} e-book chapter draft.`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load e-book drafts'); }
+      if (!latest) {
+        setResearchEbookInlineDrafts(prev => ({ ...prev, [report.id]: null }));
+        return;
+      }
+      const draftObj = { sourceId: report.id, title: report.title, language: latest.language, content: latest.content };
+      setEbookDraft(draftObj);
+      setResearchEbookInlineDrafts(prev => ({ ...prev, [report.id]: draftObj }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load e-book drafts');
+    } finally {
+      setResearchEbookLoadingId('');
+    }
+  };
+
+  const copyResearchInlineEbook = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setResearchCopiedId(id);
+      setTimeout(() => setResearchCopiedId(''), 2500);
+    } catch {}
+  };
+
+  const downloadResearchInlineDraft = (draft: { title: string; language: string; content: string }) => {
+    const blob = new Blob([`# ${draft.title}\n\n${draft.content}\n`], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${draft.title.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-${draft.language}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const clearForm = () => { setSelected(null); setTitle(''); setTopic(''); setSourceReference(''); setLanguage('en'); setContent(''); };
@@ -1227,7 +3261,94 @@ function ResearchDetails({ token }: { token: string | null }) {
     <section className="rounded-2xl border border-emerald-200 bg-white p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">{selected ? 'Edit research draft' : 'Add research draft'}</h3><p className="mt-1 text-xs text-slate-500">Editing an approved report returns it to draft review.</p></div>{selected && <button onClick={clearForm} className="text-xs text-slate-700 underline">Cancel edit</button>}</div><div className="grid gap-3 md:grid-cols-2"><label className="text-xs text-slate-700">Report title<input value={title} onChange={event => setTitle(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Research report title" /></label><label className="text-xs text-slate-700">Topic<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. PCOD" /></label><label className="text-xs text-slate-700">Source citation<input value={sourceReference} onChange={event => setSourceReference(event.target.value)} maxLength={1000} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="Author · date · journal · DOI / URL" /></label><label className="text-xs text-slate-700">Report language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label><div className="text-xs text-slate-700 md:col-span-2"><div className="mb-1.5 flex flex-wrap items-center justify-between gap-2"><label htmlFor="mohan-rag-research-content">Research report</label><button type="button" onClick={proofreadContent} disabled={proofreading || !content.trim()} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-900 disabled:opacity-50"><SpellCheck className="h-3.5 w-3.5" />{proofreading ? 'Checking all words…' : 'Check all words'}</button></div><textarea id="mohan-rag-research-content" lang={language} spellCheck value={content} onChange={event => { setContent(event.target.value); setProofreadPreview(''); }} rows={10} maxLength={500_000} className={`w-full resize-y rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 ${devanagariFontClass(content, language)}`} placeholder={`Definition and scope:\nEstablished scientific findings:\nResearch design and evidence quality:\nTraditional Swar Yoga perspective:\nPossible connections or hypotheses:\nLimitations and precautions:\nConclusion and references:`} />{proofreadPreview && <SpellcheckReview text={proofreadPreview} language={language} onDiscard={() => setProofreadPreview('')} onApply={() => { setContent(proofreadPreview); setProofreadPreview(''); setNotice('Corrected text applied to the editor. Review it and save when ready.'); }} />}</div></div>{(error || notice) && <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${error ? 'bg-red-500/10 text-red-700' : 'bg-emerald-500/10 text-emerald-700'}`}>{error || notice}</p>}<div className="mt-3 flex justify-end"><button onClick={saveReport} disabled={saving || !title.trim() || !topic.trim() || !content.trim()} className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40">{saving ? 'Saving…' : selected ? 'Save draft changes' : 'Save as draft'}</button></div></section>
     <section className="rounded-2xl border border-emerald-200 bg-white p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Research source library</h3><p className="mt-1 text-xs text-slate-500">Open extracted report text, review citations, and create E-book chapters from approved research.</p></div><div className="flex flex-wrap items-center gap-2"><select value={ebookSourceLanguage} onChange={event => setEbookSourceLanguage(event.target.value)} className="rounded-lg border border-emerald-200 bg-white px-2 py-2 text-xs text-slate-900"><option value="en">Source: English</option><option value="hi">Source: Hindi</option><option value="mr">Source: Marathi</option></select><select value={ebookTargetLanguage} onChange={event => setEbookTargetLanguage(event.target.value)} className="rounded-lg border border-emerald-200 bg-white px-2 py-2 text-xs text-slate-900"><option value="en">E-book: English</option><option value="hi">E-book: Hindi</option><option value="mr">E-book: Marathi</option></select><button onClick={loadReports} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs text-slate-700">Refresh</button></div></div>
-      {loading ? <p className="py-6 text-center text-sm text-slate-500">Loading reports…</p> : !reports.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No research reports yet.</p> : <div className="space-y-2">{reports.map(report => <article key={report.id} className="rounded-xl border border-emerald-200 bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{report.title}</h4><StatusPill muted>{report.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{report.topic} · {report.language} · {report.chunkCount || 0} chunks · {report.extractionType || 'text'}{report.sourceReference ? ` · ${report.sourceReference}` : ''}</p>{report.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {report.originalFileName} {report.originalFileUrl && <a href={report.originalFileUrl} target="_blank" rel="noreferrer" className="underline">Open file</a>}</p>}</div><div className="flex flex-wrap gap-2"><button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedReport(report)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === report.id ? 'Correcting…' : 'Correct spelling & grammar'}</button><button onClick={() => openReport(report)} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open / edit text</button>{report.status === 'approved' && <><button disabled={ebookBusyId === report.id} onClick={() => createResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-900 disabled:opacity-50">{ebookBusyId === report.id ? 'Creating…' : 'Create E-book chapter'}</button><button onClick={() => viewResearchEbookDraft(report)} className="rounded-md border border-violet-200 px-2.5 py-1.5 text-xs text-violet-800">View saved E-book</button></>}{report.status !== 'approved' && <button onClick={() => reportAction(report, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800">Approve</button>}{report.status !== 'rejected' && <button onClick={() => reportAction(report, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800">Reject</button>}<button onClick={() => reportAction(report, 'delete')} className="rounded-md border border-red-900/70 px-2.5 py-1.5 text-xs text-red-700">Delete</button></div></div></article>)}</div>}
+      {loading ? <p className="py-6 text-center text-sm text-slate-500">Loading reports…</p> : !reports.length ? <p className="rounded-xl border border-dashed border-emerald-200 px-4 py-8 text-center text-sm text-slate-500">No research reports yet.</p> : <div className="space-y-2">{reports.map(report => <article key={report.id} className="rounded-xl border border-emerald-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><div className="flex flex-wrap items-center gap-2"><h4 className="font-medium text-slate-900">{report.title}</h4><StatusPill muted>{report.status}</StatusPill></div><p className="mt-1 text-xs text-slate-500">{report.topic} · {report.language} · {report.chunkCount || 0} chunks · {report.extractionType || 'text'}{report.sourceReference ? ` · ${report.sourceReference}` : ''}</p>{report.originalFileName && <p className="mt-1 text-xs text-violet-800">Original: {report.originalFileName} {report.originalFileUrl && <a href={report.originalFileUrl} target="_blank" rel="noreferrer" className="underline">Open file</a>}</p>}</div>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={Boolean(spellcheckBusyId)} onClick={() => correctSavedReport(report)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 disabled:opacity-50"><SpellCheck className="mr-1 inline h-3.5 w-3.5" />{spellcheckBusyId === report.id ? 'Correcting…' : 'Correct spelling & grammar'}</button>
+            <button onClick={() => openReport(report)} className="rounded-md border border-emerald-200 px-2.5 py-1.5 text-xs text-slate-700">Open / edit text</button>
+            {report.status !== 'approved' && <button onClick={() => reportAction(report, 'approved')} className="rounded-md border border-emerald-300 px-2.5 py-1.5 text-xs text-emerald-800">Approve</button>}
+            {report.status !== 'rejected' && <button onClick={() => reportAction(report, 'rejected')} className="rounded-md border border-yellow-300 px-2.5 py-1.5 text-xs text-yellow-800">Reject</button>}
+            <button
+              onClick={() => reportAction(report, 'delete')}
+              className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-200 flex items-center gap-1 cursor-pointer transition shadow-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+              Delete
+            </button>
+          </div>
+        </div>
+        {activeResearchEbookId === report.id && (
+          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+            {researchEbookLoadingId === report.id ? (
+              <div className="flex items-center gap-2 py-3 text-xs font-semibold text-violet-900">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-700 border-t-transparent" />
+                Checking saved e-book drafts for this report…
+              </div>
+            ) : researchEbookInlineDrafts[report.id] ? (
+              <div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-violet-200/60 pb-3">
+                  <div>
+                    <h4 className="font-bold text-violet-950">📖 E-Book Chapter · {researchEbookInlineDrafts[report.id]?.title}</h4>
+                    <p className="mt-0.5 text-xs text-violet-700">Language: <span className="font-semibold uppercase">{researchEbookInlineDrafts[report.id]?.language}</span> · Grounded authentic Swar Yoga research</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => copyResearchInlineEbook(report.id, researchEbookInlineDrafts[report.id]!.content)}
+                      className="rounded-lg border border-violet-300 bg-white px-2.5 py-1 text-xs font-semibold text-violet-900 shadow-2xs hover:bg-violet-50"
+                    >
+                      {researchCopiedId === report.id ? '✓ Copied' : 'Copy text'}
+                    </button>
+                    <button
+                      onClick={() => downloadResearchInlineDraft(researchEbookInlineDrafts[report.id]!)}
+                      className="rounded-lg bg-violet-700 px-3 py-1 text-xs font-bold text-white shadow-sm hover:bg-violet-800"
+                    >
+                      Download Markdown
+                    </button>
+                    <button
+                      onClick={() => setActiveResearchEbookId('')}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <pre
+                  lang={researchEbookInlineDrafts[report.id]?.language}
+                  className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-800 shadow-inner ${devanagariFontClass(researchEbookInlineDrafts[report.id]?.content || '', researchEbookInlineDrafts[report.id]?.language)}`}
+                >
+                  {researchEbookInlineDrafts[report.id]?.content}
+                </pre>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
+                <div>
+                  <h4 className="text-xs font-bold text-violet-950">No saved e-book chapter for this report yet.</h4>
+                  <p className="mt-1 text-[11px] text-violet-700">
+                    Convert this approved research into a publication-ready Swar Yoga book chapter with the click of a button.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={ebookBusyId === report.id}
+                    onClick={() => createResearchEbookDraft(report)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-violet-700 hover:to-purple-700 active:scale-95 disabled:opacity-50"
+                  >
+                    {ebookBusyId === report.id ? '⚡ Generating Chapter…' : '⚡ Generate E-Book Chapter Now'}
+                  </button>
+                  <button
+                    onClick={() => setActiveResearchEbookId('')}
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </article>)}</div>}
       {ebookDraft && <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold text-violet-900">E-book chapter draft · {ebookDraft.title}</h4><p className="mt-1 text-xs text-violet-800">{ebookDraft.language.toUpperCase()} · Review before publishing.</p></div><button onClick={() => { const blob = new Blob([`# ${ebookDraft.title}\n\n${ebookDraft.content}\n`], { type: 'text/markdown;charset=utf-8' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${ebookDraft.title.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}-${ebookDraft.language}.md`; anchor.click(); URL.revokeObjectURL(url); }} className="rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-900">Download Markdown</button></div><pre lang={ebookDraft.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-white p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(ebookDraft.content, ebookDraft.language)}`}>{ebookDraft.content}</pre></div>}
     </section>
   </div>;
@@ -1241,6 +3362,7 @@ function IngestionDetails({ token }: { token: string | null }) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [startingWorker, setStartingWorker] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -1289,7 +3411,7 @@ function IngestionDetails({ token }: { token: string | null }) {
     try {
       let response: Response;
       if (uploadFile.size > 150 * 1024 * 1024) {
-        const params = new URLSearchParams({ module: moduleId, topic, language, fileName: uploadFile.name, title: uploadFile.name.replace(/\.[^.]+$/, '') });
+        const params = new URLSearchParams({ module: moduleId, topic, language, fileName: uploadFile.name, title: uploadFile.name.replace(/\.[^.]+$/, ''), size: String(uploadFile.size) });
         response = await fetch(`/api/admin/crm/mohan-rag/ingestion/upload?${params}`, {
           method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': uploadFile.type || 'application/octet-stream' }, body: uploadFile,
         });
@@ -1312,9 +3434,45 @@ function IngestionDetails({ token }: { token: string | null }) {
     finally { setSaving(false); }
   };
 
+  const processQueuedJobs = async () => {
+    if (!token) return;
+    setStartingWorker(true); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/admin/crm/mohan-rag/ingestion/process-now', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize: 5 }),
+      });
+      const data = await readManagementApiJson(response);
+      if (!response.ok) throw new Error(data.error || 'Could not start the video transcription worker');
+      setNotice(`${data.message} Completed transcripts appear in Library (All Sources) as reviewable sources, not in the separate Master Teaching Corpus.`);
+      await loadJobs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not start the video transcription worker');
+    } finally { setStartingWorker(false); }
+  };
+
+  const retryJob = async (jobId: string) => {
+    if (!token) return;
+    setSaving(true); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/admin/crm/mohan-rag/ingestion', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry', jobId }),
+      });
+      const data = await readManagementApiJson(response);
+      if (!response.ok) throw new Error(data.error || 'Could not retry this video job');
+      setNotice(data.message || 'Job queued for retry.');
+      await loadJobs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not retry this video job');
+    } finally { setSaving(false); }
+  };
+
   const statusStyle: Record<string, string> = { queued: 'border-amber-200 bg-amber-50 text-amber-800', processing: 'border-blue-200 bg-blue-50 text-blue-800', completed: 'border-emerald-200 bg-emerald-50 text-emerald-800', failed: 'border-rose-200 bg-rose-50 text-rose-800' };
   return <div className="space-y-5">
-    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Overnight media queue</p><h3 className="mt-1 text-lg font-semibold text-slate-900">Video to text, emotions & face cues</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Upload MP4/MP3 files or paste up to 500 YouTube and Bunny URLs. Existing Bunny videos are reused without re-uploading. Audio becomes a real minute-by-minute timestamped transcript with AI emotion and face-delivery suggestions for the avatar.</p></div><span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">10 PM–6 AM · Asia/Kolkata</span></div>
+    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Bunny media transcription queue</p><h3 className="mt-1 text-lg font-semibold text-slate-900">MP4/MP3 to timestamped text</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Uploaded media is stored in Bunny and transcribed by the background worker. Completed transcripts appear in Library (All Sources) as drafts to review; they do not appear in the separate Master Teaching Corpus automatically.</p></div><span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">Automatic: 10 PM–6 AM · Asia/Kolkata</span></div>
       <div className="mt-4 grid gap-3 md:grid-cols-3"><label className="text-xs font-medium text-slate-600">Knowledge library<select value={moduleId} onChange={event => setModuleId(event.target.value as MohanRagModule)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900">{modules.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><label className="text-xs font-medium text-slate-600">Topic (optional)<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. Swar Yoga basics" /></label><label className="text-xs font-medium text-slate-600">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="auto">Auto detect</option><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option></select></label></div>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <div className="rounded-xl border border-sky-200 bg-white p-4"><div className="flex items-center gap-2"><Upload className="h-4 w-4 text-sky-700"/><h4 className="text-sm font-semibold text-slate-900">Upload from this device</h4></div><p className="mt-1 text-xs text-slate-600">MP4, WebM, MOV, MP3, M4A, or WAV · up to 5 GB. Large files stream directly to Bunny; long audio is split into MP3 segments for transcription and word-level correction.</p><input type="file" accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/wav,.mp4,.webm,.mov,.mp3,.m4a,.wav" onChange={event => setUploadFile(event.target.files?.[0] || null)} className="mt-3 block w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-900 hover:file:bg-sky-200"/><div className="mt-3 flex items-center justify-between gap-2"><span className="min-w-0 truncate text-xs text-slate-500">{uploadFile ? `${uploadFile.name} · ${(uploadFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose a media file'}</span><button type="button" disabled={saving || !uploadFile} onClick={uploadMedia} className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? 'Uploading…' : 'Upload & queue'}</button></div></div>
@@ -1323,7 +3481,63 @@ function IngestionDetails({ token }: { token: string | null }) {
       {(notice || error) && <div className="mt-3 space-y-2">{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}{error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>}</div>}
       <p className="mt-3 text-xs leading-5 text-slate-500">Worker runs automatically during the overnight window. Server needs FFmpeg, yt-dlp for YouTube URLs, Bunny Storage/Database, and OpenAI transcription. Emotion and facial-expression tags are AI delivery suggestions from transcript wording; this does not visually analyze a face in the video.</p>
     </section>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Recent video jobs</h3><p className="mt-1 text-xs text-slate-500">Completed items create draft sources in the selected library; approve them before RAG can retrieve them.</p></div><button type="button" onClick={loadJobs} disabled={loading} className="rounded-lg px-3 py-2 text-xs font-semibold">{loading ? 'Refreshing…' : 'Refresh queue'}</button></div>{jobs.length ? <div className="space-y-2">{jobs.map(job => <article key={job.id} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{job.provider}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusStyle[job.status] || statusStyle.queued}`}>{job.status}</span><span className="text-xs text-slate-500">{job.moduleId} · {job.topic || 'No topic'}</span></div><p className="mt-1 max-w-3xl break-all text-xs text-slate-700">{job.sourceUrl}</p>{job.errorMessage && <p className="mt-1 text-xs text-rose-700">{job.errorMessage}</p>}</div>{job.originalFileUrl && <a href={job.originalFileUrl} target="_blank" rel="noreferrer" className="rounded-lg px-2.5 py-1.5 text-xs font-semibold">Open Bunny file</a>}</div></article>)}</div> : <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{loading ? 'Loading queue…' : 'No video URLs queued yet.'}</p>}</section>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900">Recent video jobs</h3>
+          <p className="mt-1 text-xs text-slate-500">Completed items create transcript sources in the selected library. Refresh to see updates; click Run queued jobs to start processing now.</p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={loadJobs} disabled={loading || startingWorker} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">
+            {loading ? 'Refreshing…' : 'Refresh queue'}
+          </button>
+          <button type="button" onClick={processQueuedJobs} disabled={startingWorker || loading || saving || !jobs.some(job => job.status === 'queued')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+            {startingWorker ? 'Starting…' : 'Run queued jobs now'}
+          </button>
+        </div>
+      </div>
+      {jobs.length ? (
+        <div className="space-y-2">
+          {jobs.map(job => {
+            const guid = (job.sourceUrl + ' ' + (job.originalFileUrl || '')).match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i)?.[0];
+            const isBunny = job.provider === 'bunny' || job.sourceUrl.includes('mediadelivery.net') || (job.originalFileUrl && job.originalFileUrl.includes('mediadelivery.net'));
+            const previewUrl = guid ? `https://iframe.mediadelivery.net/play/606386/${guid}` : (job.originalFileUrl || job.sourceUrl);
+
+            return (
+              <article key={job.id} className="rounded-xl border border-slate-200 bg-white p-3 hover:border-emerald-300 transition">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">{job.provider}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusStyle[job.status] || statusStyle.queued}`}>{job.status}</span>
+                      <span className="text-xs text-slate-500">{job.moduleId} · {job.topic || 'No topic'}</span>
+                      {job.title && <span className="text-xs font-bold text-slate-800">· {job.title}</span>}
+                    </div>
+                    <p className="mt-1 max-w-3xl break-all text-xs text-slate-700">{job.sourceUrl}</p>
+                    {job.errorMessage && <p className="mt-1 text-xs text-rose-700">{job.errorMessage}</p>}
+                    {job.status === 'completed' && job.sourceId && <p className="mt-1 text-xs text-emerald-700">Transcript saved to the {job.moduleId} library. Open Library (All Sources) to review it.</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {job.status === 'failed' && <button type="button" onClick={() => retryJob(job.id)} disabled={saving} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-800 disabled:opacity-50">Retry</button>}
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs transition active:scale-95 cursor-pointer"
+                      title="Watch video in Bunny Stream player"
+                    >
+                      <span>▶️ Play Video</span>
+                    </a>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{loading ? 'Loading queue…' : 'No video URLs queued yet.'}</p>
+      )}
+    </section>
     <div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Bunny links" icon={HardDrive}>Direct Bunny CDN MP3/MP4 URLs are read from Bunny and are not copied or re-uploaded. Bunny Stream player links are converted to their Bunny CDN video URL. Bunny media is streamed through FFmpeg and can be up to 5 GB.</DetailCard><DetailCard title="YouTube links" icon={Video}>Public videos are downloaded with yt-dlp. Private videos need an authorized cookies file configured as YOUTUBE_COOKIES_FILE on the server. YouTube downloads remain capped at 350 MB; audio is converted to compact MP3 before transcription.</DetailCard></div>
   </div>;
 }
@@ -1332,6 +3546,7 @@ function SearchDetails({ token }: { token: string | null }) {
   const [query, setQuery] = useState('');
   const [moduleId, setModuleId] = useState('level1');
   const [language, setLanguage] = useState('auto');
+  const [searchMode, setSearchMode] = useState<'mohan_sir' | 'web_ai'>('mohan_sir');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
@@ -1356,14 +3571,15 @@ function SearchDetails({ token }: { token: string | null }) {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [token, videoJob?.id, videoJob?.status]);
 
-  const runSearch = async () => {
+  const runSearch = async (mode: 'mohan_sir' | 'web_ai' = searchMode) => {
     if (!token || !query.trim()) return;
+    setSearchMode(mode);
     setLoading(true); setError(''); setResult(null); setVideoJob(null); setRenderError('');
     try {
       const response = await fetch('/api/admin/crm/mohan-rag/search', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, moduleId, language }),
+        body: JSON.stringify({ query, moduleId, language, searchMode: mode }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Search failed');
@@ -1390,18 +3606,104 @@ function SearchDetails({ token }: { token: string | null }) {
 
   return (
     <div className="space-y-5">
-      <DetailCard title="Grounded answer preview" icon={Search}>
-        <p className="mb-4 text-slate-700">Searches approved Bunny Database chunks, applies the selected module boundary, then asks the configured text provider for a grounded draft answer.</p>
+      <DetailCard title="Grounded answer preview & Knowledge Search" icon={Search}>
+        <p className="mb-4 text-slate-700">
+          Ask any question to test Mohan Sir’s approved RAG database or compare with modern online AI web intelligence.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs text-slate-700">Question<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Ask a question grounded in approved sources" className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-yellow-400/50" /></label>
-          <label className="text-xs text-slate-700">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="auto">Auto detect</option><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label>
-          <label className="text-xs text-slate-700">Knowledge module / learner boundary<select value={moduleId} onChange={event => setModuleId(event.target.value)} className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900">{modules.map(module => <option key={module.id} value={module.id}>{module.title}</option>)}</select></label>
+          <label className="text-xs font-bold text-slate-700">
+            Question
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder="e.g. why we have to do lunch in surya nadi, let me know in simple way"
+              className="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-700">
+            Language
+            <select
+              value={language}
+              onChange={event => setLanguage(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="auto">Auto detect</option>
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="mr">Marathi</option>
+            </select>
+          </label>
+          <label className="text-xs font-bold text-slate-700">
+            Knowledge module / learner boundary
+            <select
+              value={moduleId}
+              onChange={event => setModuleId(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-200"
+            >
+              {modules.map(module => <option key={module.id} value={module.id}>{module.title}</option>)}
+            </select>
+          </label>
         </div>
-        <button disabled={loading || !query.trim()} onClick={runSearch} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-40">{loading ? 'Searching…' : 'Search approved sources'} <ArrowRight className="h-4 w-4" /></button>
+
+        {/* Two distinct search buttons */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          {/* Button 1: Mohan Sir's Data */}
+          <button
+            type="button"
+            disabled={loading || !query.trim()}
+            onClick={() => runSearch('mohan_sir')}
+            className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white shadow-md transition active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+              searchMode === 'mohan_sir' && loading
+                ? 'bg-emerald-700 ring-2 ring-emerald-400'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 shadow-emerald-900/20'
+            }`}
+            title="Ground answer strictly in Mohan Sir's approved Swar Yoga lectures, transcripts & master library corpus"
+          >
+            <span>🕉️</span>
+            <span>{loading && searchMode === 'mohan_sir' ? 'Searching Mohan Sir’s Data…' : 'Mohan Sir’s Data'}</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
+
+          {/* Button 2: Online Web Search from AI */}
+          <button
+            type="button"
+            disabled={loading || !query.trim()}
+            onClick={() => runSearch('web_ai')}
+            className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white shadow-md transition active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+              searchMode === 'web_ai' && loading
+                ? 'bg-indigo-700 ring-2 ring-indigo-400'
+                : 'bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-700 hover:from-sky-500 hover:to-indigo-500 shadow-indigo-900/20'
+            }`}
+            title="Answer using modern online AI web search, anatomical science & global yogic knowledge"
+          >
+            <span>🌐</span>
+            <span>{loading && searchMode === 'web_ai' ? 'Searching Online AI Web…' : 'Online Web Search from AI'}</span>
+            <Sparkles className="h-4 w-4" />
+          </button>
+        </div>
+
         {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
       </DetailCard>
+
       {result && <div className="space-y-4">
-        <section className="rounded-2xl border border-emerald-200 bg-white p-5"><div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-semibold text-slate-900">Draft answer</h3><StatusPill muted>{result.sufficientContext ? 'Sources found' : 'Insufficient context'}</StatusPill></div><p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{result.answer}</p>{result.sufficientContext && result.citations?.length > 0 && <><button onClick={generateAvatarVideo} disabled={language === 'auto' || result.language !== language || videoJob?.status === 'rendering' || videoJob?.status === 'completed'} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-emerald-500 disabled:opacity-50"><Video className="h-4 w-4" />{videoJob?.status === 'rendering' ? 'Rendering your clone video…' : videoJob?.status === 'completed' ? 'Clone video ready' : 'Generate video with My Clone'}</button>{(language === 'auto' || result.language !== language) && <p className="mt-2 text-xs text-slate-500">Choose a verified voice language and rerun the answer preview before generating your clone video.</p>}</>}</section>
+        <section className="rounded-2xl border border-emerald-200 bg-white p-5">
+          <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-900">
+                {result.searchMode === 'web_ai' ? 'Online AI Web Answer' : 'Draft Answer from Mohan Sir’s Data'}
+              </h3>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                result.searchMode === 'web_ai'
+                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+              }`}>
+                {result.searchMode === 'web_ai' ? '🌐 Online AI Web Search' : '🕉️ Mohan Sir Approved RAG'}
+              </span>
+            </div>
+            <StatusPill muted>{result.sufficientContext ? 'Sources found' : 'Insufficient context'}</StatusPill>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{result.answer}</p>
+          {result.sufficientContext && result.citations?.length > 0 && <><button onClick={generateAvatarVideo} disabled={language === 'auto' || result.language !== language || videoJob?.status === 'rendering' || videoJob?.status === 'completed'} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-emerald-500 disabled:opacity-50"><Video className="h-4 w-4" />{videoJob?.status === 'rendering' ? 'Rendering your clone video…' : videoJob?.status === 'completed' ? 'Clone video ready' : 'Generate video with My Clone'}</button>{(language === 'auto' || result.language !== language) && <p className="mt-2 text-xs text-slate-500">Choose a verified voice language and rerun the answer preview before generating your clone video.</p>}</>}</section>
         <section className="rounded-2xl border border-emerald-200 bg-white p-5"><h3 className="mb-3 font-semibold text-slate-900">Retrieved citations</h3>{result.citations?.length ? <div className="space-y-2">{result.citations.map((citation: any, index: number) => <div key={`${citation.sourceId}-${citation.chunkIndex}`} className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-50 text-xs font-bold text-yellow-800">{index + 1}</span><div><div className="text-sm font-medium text-slate-800">{citation.title}</div><div className="mt-1 text-xs text-slate-500">{citation.moduleId} · {citation.topic || 'No topic'} · chunk {citation.chunkIndex + 1}{citation.sourceReference ? ` · ${citation.sourceReference}` : ''}</div></div></div>)}</div> : <p className="text-sm text-slate-500">No approved source matched this question.</p>}</section>
       </div>}
       {renderError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{renderError}</p>}
@@ -1412,6 +3714,7 @@ function SearchDetails({ token }: { token: string | null }) {
     </div>
   );
 }
+
 function InstructionDetails() {
   return <div className="space-y-5"><NotConnected>Instruction editing and version history are not backed by a persisted settings API yet.</NotConnected><div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Global principles" icon={ListChecks}>Use the preferred language; preserve Mohan Sir’s terminology; answer plainly; cite sources where available; say when approved knowledge does not contain an answer; never invent teachings.</DetailCard><DetailCard title="Module-specific rules" icon={Brain}>Store WHY, Level 1, Level 2, Level 3, and General Topics instructions separately. Resolve module scope before retrieval and validate the response against that module afterward.</DetailCard><DetailCard title="Safety and claims" icon={ShieldCheck}>Separate general education from Swar Yoga teachings and distinguish traditional interpretations from scientific findings. Avoid diagnosis and unsupported health claims.</DetailCard><DetailCard title="Change control" icon={FileText}>Version every change, record editor and timestamp, provide preview/diff, and allow rollback. Do not expose hidden system instructions to student users.</DetailCard></div></div>;
 }

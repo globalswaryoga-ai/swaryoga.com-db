@@ -49,3 +49,33 @@ ssh root@169.58.238.255 "/var/www/swaryoga/scripts/deploy-atomic.sh"
 ssh root@169.58.238.255 "cd /var/www/swaryoga && NODE_OPTIONS='--max-old-space-size=6144' npm run build && pm2 reload swaryoga"
 ```
 
+---
+
+## 4. Video-to-Transcript, Spell Checker & Grammar Engine Rules (CRITICAL: VERBATIM FIDELITY)
+
+### 1. Strict Word-for-Word Verbatim Audio-to-Transcript:
+- When converting Mohan Sir's lecture videos/audio to text transcripts, the system must capture **EXACTLY what was spoken word-for-word**.
+- **NEVER substitute, paraphrase, "formalize", or replace spoken vocabulary**:
+  - ❌ **STRICTLY FORBIDDEN**: Replacing spoken Marathi words like `डावी नाकपुडी व उजवी नाकपुडी` with `डावी छिद्र व उजवी छिन्द्र` (this distorts the yogic and anatomical meaning completely).
+  - ✅ **MANDATORY**: Preserve `डावी नाकपुडी`, `उजवी नाकपुडी`, `स्वर`, `नाडी`, `श्वास`, etc. exactly as spoken.
+
+### 2. Spell Checker Scope (Orthography & Matras Only):
+- The spell checker is strictly limited to fixing spelling mistakes, matras (वेलांटी, उकार, काना, मात्रा, अनुस्वार), halanta, and conjunct characters of the **exact same word**.
+- The spell checker must **NEVER replace a word with a synonym or alternative noun**.
+
+### 3. Grammar Checker Scope:
+#### A. Marathi & Hindi (Mohan Sir's Native Tongues — Verbs Only):
+- The user (Mohan Sir) knows Marathi and Hindi intimately and spoke these lectures.
+- The grammar checker is permitted to adjust **ONLY VERBS (क्रियापद / Kriyapad)** to fix subject-object-verb gender, number, and tense agreement.
+- **NEVER alter Objects (कर्म / Karma), Nouns (नाम / Noun), or Sentence Structure**:
+  - Example: `मी मोहन ला आंबा दिली` ➔ The grammar error is solely in the verb `दिली`.
+  - Corrected: `मी मोहन ला आंबा दिला` (only verb `दिली` changed to `दिला` to agree with masculine object `आंबा`).
+  - The object `आंबा`, the recipient `मोहन ला`, and sentence structure must remain 100% untouched.
+
+#### B. English & All Other Global Languages (Hometown Sentence Naturalization):
+- For English and all other languages (Japanese, Spanish, French, German, Italian, Russian, etc.), Mohan Sir does not speak with hometown native colloquial idioms.
+- The system must check and adapt **BOTH the VERBS AND the FULL SENTENCE STRUCTURE**.
+- The sentence structure is converted into the native hometown way of that target language (natural, fluent native phrasing), **WHILE preserving the exact same meaning, educational depth, and humor/punchlines**.
+- Sacred yogic nouns (`Swar Yoga`, `Ida Nadi`, `Pingala Nadi`, `Sushumna Nadi`, `Prana`, `Chakras`) remain 100% intact.
+
+

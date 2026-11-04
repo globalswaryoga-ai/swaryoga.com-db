@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ProgressBar
@@ -80,9 +81,71 @@ class SwarYogaWebViewClient(
         super.onPageFinished(view, url)
         progressBar.visibility = android.view.View.GONE
         Log.d(TAG, "Page loaded: $url")
+
+        // Permanent Anti-Crack Guard: If remote CSS failed to load or is 404, inject bundled core CSS
+        view?.evaluateJavascript("""
+            (function() {
+                var hasActiveStyles = false;
+                for (var i = 0; i < document.styleSheets.length; i++) {
+                    try {
+                        var rules = document.styleSheets[i].cssRules || document.styleSheets[i].rules;
+                        if (rules && rules.length > 20) {
+                            hasActiveStyles = true;
+                            break;
+                        }
+                    } catch(e) {}
+                }
+                if (!hasActiveStyles && window.SwarYoga && window.SwarYoga.injectFallbackCss) {
+                    console.warn('[SwarYogaApp] No active CSS detected on page. Invoking native bundled CSS fallback.');
+                    window.SwarYoga.injectFallbackCss();
+                }
+            })();
+        """.trimIndent(), null)
         
         // Notify MainActivity that page has loaded (hide splash)
         onPageLoaded?.invoke()
+    }
+
+    /**
+     * Permanent Anti-Crack Request Interceptor:
+     * If any Next.js CSS stylesheet fails over network or returns 404 due to new deployments,
+     * immediately fallback to the bundled APK assets (swaryoga-core.css) so the page NEVER renders as raw HTML.
+     */
+    override fun shouldInterceptRequest(
+        view: WebView?,
+        request: WebResourceRequest?
+    ): WebResourceResponse? {
+        val url = request?.url ?: return super.shouldInterceptRequest(view, request)
+        val path = url.path ?: ""
+
+        if (path.contains("/_next/static/css/") || (path.endsWith(".css") && (url.host?.contains("swaryoga.com") == true))) {
+            try {
+                val connection = java.net.URL(url.toString()).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 3000
+                connection.readTimeout = 4000
+                connection.instanceFollowRedirects = true
+                connection.connect()
+
+                if (connection.responseCode == 200) {
+                    val encoding = connection.contentEncoding ?: "UTF-8"
+                    return WebResourceResponse("text/css", encoding, connection.inputStream)
+                } else {
+                    Log.w(TAG, "CSS network request returned HTTP ${connection.responseCode} for $url. Serving bundled swaryoga-core.css fallback.")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "CSS network request error for $url (${e.message}). Serving bundled swaryoga-core.css fallback.")
+            }
+
+            // Fallback: Return bundled core CSS from APK assets
+            try {
+                val assetStream = activity.assets.open("swaryoga-core.css")
+                return WebResourceResponse("text/css", "UTF-8", assetStream)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load bundled fallback CSS asset", e)
+            }
+        }
+
+        return super.shouldInterceptRequest(view, request)
     }
 
     override fun onReceivedError(
@@ -97,50 +160,10 @@ class SwarYogaWebViewClient(
             
             val errorCode = error?.errorCode ?: -1
             val errorDescription = error?.description?.toString() ?: "Unknown error"
-            Log.e(TAG, "WebView error: $errorCode - $errorDescription")
+            Log.e(TAG, "WebView error: $errorCode - $errorDescription. Loading bundled offline page.")
             
-            // Show branded error page
-            val html = """
-                <html>
-                <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body {
-                            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                            text-align: center;
-                            padding: 60px 24px;
-                            background: #FAFAFA;
-                            color: #111;
-                        }
-                        .icon { font-size: 64px; margin-bottom: 24px; }
-                        h1 { font-size: 20px; color: #111; margin-bottom: 8px; }
-                        p { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.5; }
-                        .btn {
-                            display: inline-block;
-                            padding: 12px 32px;
-                            background: #1E7F43;
-                            color: #fff;
-                            border: none;
-                            border-radius: 8px;
-                            font-size: 16px;
-                            cursor: pointer;
-                            text-decoration: none;
-                        }
-                        .code { font-size: 11px; color: #999; margin-top: 32px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="icon">🍃</div>
-                    <h1>Connection Error</h1>
-                    <p>Unable to load Swar Yoga.<br>Please check your internet connection.</p>
-                    <a class="btn" href="javascript:location.reload()">Try Again</a>
-                    <p class="code">Error $errorCode</p>
-                </body>
-                </html>
-            """.trimIndent()
-            
-            view?.loadData(html, "text/html", "utf-8")
+            // Fallback: Load bundled core front-end page so user never sees a broken page
+            view?.loadUrl("file:///android_asset/offline-home.html")
             
             // Also notify so splash hides
             onPageLoaded?.invoke()

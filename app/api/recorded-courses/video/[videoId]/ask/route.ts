@@ -2,17 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { generateAIText, type AiHistoryTurn } from '@/lib/ai/generateWithFallback';
 import { buildRagContext, pickLangVariant, languageName, type RagSource } from '@/lib/ragRetrieval';
-<<<<<<< HEAD
-import {
-  getVideoById,
-  getCourseById,
-  getEnrollment,
-  listMaterialsByCourse,
-} from '@/lib/bunnyCourseRepository';
-import { parseAvatarScript } from '@/lib/avatarEmotionParser';
-=======
+
 import { bunnyExecute } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -31,10 +22,7 @@ async function canAccessVideo(request: NextRequest, video: any) {
     const userId = (decoded as any)?.id || (decoded as any)?._id || (decoded as any)?.userId || null;
     if (!userId) return false;
 
-<<<<<<< HEAD
-    const enrollment = await getEnrollment(String(userId), course.id);
-    return !!enrollment;
-=======
+
     // Check enrollment in Bunny Database
     const res = await bunnyExecute({
       sql: `SELECT id FROM course_enrollments_sql 
@@ -43,7 +31,6 @@ async function canAccessVideo(request: NextRequest, video: any) {
     });
 
     return res.rows.length > 0;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   } catch {
     return false;
   }
@@ -61,15 +48,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const video = await getVideoById(videoId);
-    if (!video || !video.isActive) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
 
-    const course = await getCourseById(video.courseId);
-    if (!course || !course.isActive) {
-=======
     // 1. Fetch video from Bunny Database
     const videoRes = await bunnyExecute({
       sql: 'SELECT * FROM course_videos_sql WHERE id = ? LIMIT 1',
@@ -92,7 +71,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (!courseRes.rows.length) {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
@@ -103,11 +81,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Enrollment required' }, { status: 403 });
     }
 
-<<<<<<< HEAD
-    const description = String(video.description || video.content?.[lang]?.description || video.content?.en?.description || '').trim();
 
-    const materials = await listMaterialsByCourse(course.id, true);
-=======
     // Parse content_json
     let contentObj: any = {};
     try {
@@ -142,24 +116,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             ORDER BY display_order ASC LIMIT 20`,
       args: [course.id],
     });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     const sources: RagSource[] = [];
     if (description) sources.push({ label: 'Video notes', text: description });
 
-<<<<<<< HEAD
-    for (const m of materials) {
-      const text = pickLangVariant(m.content?.[lang]?.ragText, m.content?.ragText, lang);
-      if (!text) continue;
-      const title = String(m.content?.[lang]?.title || m.content?.en?.title || m.title || 'Study material');
-      sources.push({ label: `E-book: ${title}`, text });
-    }
 
-    if (!sources.length) {
-      sources.push({
-        label: 'Swar Yoga Foundational Wisdom',
-        text: `Swar Yoga is the sacred Vedic science of breath cycle awareness (Shiva Swarodaya). The breath cycles between Ida Nadi (Chandra/left nostril, cooling, calm, mental work) and Pingala Nadi (Surya/right nostril, heating, physical digestion, vitality) approximately every 60-90 minutes. When both nostrils flow equally, Sushumna is active, ideal for meditation and prayer. Lesson topic: ${video.title}. Always observe breath awareness before decisions, meals, and sadhana.`
-=======
     for (const m of materialsRes.rows) {
       let mContent: any = {};
       try {
@@ -180,7 +141,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({
         success: true,
         reply: 'No transcript, study notes, or e-book content is added for this video yet. Please ask the admin to generate or attach RAG transcript content.',
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       });
     }
 
@@ -203,23 +163,13 @@ Video: ${videoTitle}
 Context:
 ${context}
 
-<<<<<<< HEAD
-Rules for Mohan Sir's Avatar Response:
-1. Speak in first person as Mohan Sir ("मैं", "आम्ही", "I").
-2. Start with a warm greeting and emotion tag like [smile:80] or [namaste].
-3. Give practical, crystal-clear explanation with [teaching] or [inspire] where appropriate.
-4. Keep the answer concise (2-4 brief paragraphs), engaging, and encouraging.
-5. End with an uplifting closing blessing like [blessing] or [namaste].
-6. Use natural punctuation (। for Hindi/Marathi, ? for curiosity, ! for inspiration).
-${languageRule}`;
-=======
+
 Rules:
 - Keep answers clear, accurate, and practical.
 ${languageRule}
 - Do not invent facts outside the context.
 - When the answer comes from an e-book or notes, mention which material it is from.
 - For study questions, give concise bullet points when useful.`;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     const rawReply = await generateAIText({
       systemPrompt,

@@ -20,6 +20,11 @@ import android.widget.ProgressBar
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import android.content.pm.ActivityInfo
+import android.widget.FrameLayout
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.swaryoga.api.TokenManager
 import com.swaryoga.webview.SwarYogaWebViewClient
 import com.swaryoga.webview.JavaScriptInterface
@@ -43,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tokenManager: TokenManager
     private lateinit var splashView: LinearLayout
     private lateinit var errorView: LinearLayout
+    private lateinit var fullscreenContainer: FrameLayout
+    private var customView: View? = null
+    private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
     companion object {
         private const val TAG = "SwarYoga"
@@ -62,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         splashView = findViewById(R.id.splashView)
         errorView = findViewById(R.id.errorView)
+        fullscreenContainer = findViewById(R.id.fullscreenContainer)
 
         // Show splash screen
         splashView.visibility = View.VISIBLE
@@ -76,7 +85,8 @@ class MainActivity : AppCompatActivity() {
             if (isNetworkAvailable()) {
                 loadWebsite()
             } else {
-                showError("No internet connection", "Please check your network and try again.")
+                // Offline fallback: load bundled front-end home page
+                webView.loadUrl("file:///android_asset/offline-home.html")
             }
         }
 
@@ -85,6 +95,10 @@ class MainActivity : AppCompatActivity() {
         // Handle physical and gesture back button navigation
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (customView != null) {
+                    hideCustomView()
+                    return
+                }
                 if (webView.canGoBack()) {
                     webView.goBack()
                 } else {
@@ -162,11 +176,65 @@ class MainActivity : AppCompatActivity() {
                     progressBar.progress = newProgress
                     progressBar.visibility = if (newProgress == 100) View.GONE else View.VISIBLE
                 }
+
+                override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                    showCustomView(view, callback)
+                }
+
+                override fun onHideCustomView() {
+                    hideCustomView()
+                }
             }
 
             // JavaScript interface for native access
-            addJavascriptInterface(JavaScriptInterface(this@MainActivity, tokenManager), "SwarYoga")
+            addJavascriptInterface(JavaScriptInterface(this@MainActivity, tokenManager, webView), "SwarYoga")
         }
+    }
+
+    /**
+     * Display fullscreen video and automatically rotate device to landscape
+     */
+    private fun showCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+        if (customView != null) {
+            hideCustomView()
+            return
+        }
+        customView = view ?: return
+        customViewCallback = callback
+
+        webView.visibility = View.GONE
+        fullscreenContainer.visibility = View.VISIBLE
+        fullscreenContainer.removeAllViews()
+        fullscreenContainer.addView(customView)
+
+        // Automatically rotate to landscape for full screen
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        // Immersive sticky fullscreen mode
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    /**
+     * Restore original view and portrait orientation when exiting fullscreen
+     */
+    private fun hideCustomView() {
+        val view = customView ?: return
+        fullscreenContainer.removeView(view)
+        fullscreenContainer.visibility = View.GONE
+        customView = null
+        customViewCallback?.onCustomViewHidden()
+        customViewCallback = null
+
+        webView.visibility = View.VISIBLE
+
+        // Restore sensor orientation
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+
+        // Restore system bars
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
     }
 
     /**

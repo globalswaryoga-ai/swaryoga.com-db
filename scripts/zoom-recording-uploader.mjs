@@ -865,6 +865,27 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
           log('  Zoom recording → trash ✓');
         }
       });
+
+      // Auto-queue video into Mohan RAG & Clone Ingestion Pipeline in Bunny Database
+      if (result.bunny?.speaker) {
+        try {
+          const rawUrl = String(result.bunny.speaker);
+          const fullUrl = rawUrl.startsWith('http') ? rawUrl : `https://swaryogacrm.b-cdn.net/${rawUrl}`;
+          const urlHash = crypto.createHash('sha256').update(fullUrl).digest('hex').slice(0, 32);
+          const topic = m.topic || 'Swar Yoga Workshop';
+          const lang = topic.toLowerCase().includes('marathi') ? 'mr' : topic.toLowerCase().includes('english') ? 'en' : 'hi';
+          
+          await bunnyClient.execute({
+            sql: `INSERT OR IGNORE INTO mohan_rag_video_ingestion_sql (
+              id, url_hash, source_url, provider, module_id, title, topic, language, status, created_by, attempts, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 'auto_zoom_uploader', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            args: [`rag_zoom_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, urlHash, fullUrl, 'bunny', 'level1', `${topic} — ${dateLabel}`, topic, lang],
+          });
+          log(`  Auto-queued into Mohan RAG Ingestion Pipeline ✓: ${fullUrl}`);
+        } catch (ragErr) {
+          log('  Warning auto-queueing to RAG:', ragErr.message);
+        }
+      }
       // Update the YouTube account doc in Bunny DB with this meeting
       try {
         if (ytDoc && (ytDoc._id || ytDoc.document_id)) {

@@ -1,9 +1,6 @@
 /**
-<<<<<<< HEAD
- * Admin API for Course Materials (BunnyDB)
-=======
+
  * Admin API for Course Materials (Bunny Database / LibSQL)
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  * GET /api/admin/e-learning/materials - List materials
  * POST /api/admin/e-learning/materials - Upload/create material
  * PUT /api/admin/e-learning/materials - Update material
@@ -12,20 +9,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-<<<<<<< HEAD
-import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
-import {
-  listMaterialsByCourse,
-  saveMaterial,
-  deleteMaterial,
-} from '@/lib/bunnyCourseRepository';
-=======
+
 import crypto from 'crypto';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -60,9 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const materials = await listMaterialsByCourse(courseId, true);
-=======
+
     if (!isBunnyDatabaseConfigured()) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
@@ -94,7 +80,6 @@ export async function GET(request: NextRequest) {
         content,
       };
     });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     return NextResponse.json({
       success: true,
@@ -128,24 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-<<<<<<< HEAD
-    const { courseId, title, fileUrl, fileType, fileSize, order, sectionId } = body;
 
-    if (!courseId || !title || !fileUrl) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    const material = await saveMaterial({
-      courseId,
-      sectionId: sectionId || null,
-      title,
-      fileUrl,
-      fileType: fileType || '',
-      fileSize: Number(fileSize || 0),
-      order: Number(order || 1),
-      isActive: true,
-      content: { en: { title } },
-=======
     const { courseId, title, fileUrl, fileType, fileSize, sectionId, order, content, ragText } = body;
 
     if (!courseId || !title) {
@@ -186,7 +154,6 @@ export async function POST(request: NextRequest) {
         now,
         ragText || '',
       ],
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     });
 
     return NextResponse.json({
@@ -230,32 +197,17 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-<<<<<<< HEAD
-    const { materialId, courseId, title, fileUrl, fileType, fileSize, order } = body;
-=======
+
     const { materialId, title, fileUrl, fileType, fileSize, sectionId, order, content, ragText } = body;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     if (!materialId) {
       return NextResponse.json({ error: 'Material ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const material = await saveMaterial({
-      id: materialId,
-      courseId: courseId || '',
-      title: title || '',
-      fileUrl: fileUrl || '',
-      fileType: fileType || '',
-      fileSize: Number(fileSize || 0),
-      order: Number(order || 1),
-      isActive: true,
-    });
-=======
+
     if (!isBunnyDatabaseConfigured()) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     const now = new Date().toISOString();
     await bunnyExecute({
@@ -295,8 +247,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
-<<<<<<< HEAD
-=======
+
  * PATCH - Update material order only
  */
 export async function PATCH(request: NextRequest) {
@@ -342,7 +293,6 @@ export async function PATCH(request: NextRequest) {
 }
 
 /**
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  * DELETE - Delete material
  */
 export async function DELETE(request: NextRequest) {
@@ -368,15 +318,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Material ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    await deleteMaterial(materialId);
-=======
+
     const now = new Date().toISOString();
     await bunnyExecute({
       sql: 'UPDATE course_materials_sql SET is_active = 0, updated_at = ? WHERE id = ?',
       args: [now, materialId],
     });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     return NextResponse.json({
       success: true,

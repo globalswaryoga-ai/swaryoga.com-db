@@ -17,6 +17,7 @@ import {
   Activity,
   Layers,
   CheckCircle2,
+  Boxes,
 } from 'lucide-react';
 
 type AdminUserPayload = {
@@ -344,14 +345,24 @@ export default function AdminRoot() {
                 icon={<FileQuestion size={24} />}
               />
               <Card
-                href="/admin/avatar-studio"
+                href="/admin/crm/mohan-rag/avatar-studio"
                 enabled={true}
-                title="AI Avatar & Video Studio"
-                description="Custom scenes (Kitchen, Ashram, Product Studio), Wardrobes, Mohan Sir voice & Multilingual Lip-Sync."
+                title="Master Mohan AI Avatar Studio"
+                description="20-Slot Reference Matrix, Kinematics (Walk/Run/Yoga), Mohan Sir Voice & 27-Language Lip-Sync."
                 cta="Launch Avatar Studio"
-                badge="AI Studio"
+                badge="Master Rig"
                 gradientClass="from-amber-500 to-orange-600"
                 icon={<Sparkles size={24} />}
+              />
+              <Card
+                href="/admin/crm/e-learning/creation-hub"
+                enabled={true}
+                title="Multilingual Creation Hub"
+                description="1 Master Copy ➔ 27 Languages Factory: Master Class, AI Avatar, PPT Studio, 3D Animations & Final Video."
+                cta="Open Creation Hub"
+                badge="27 Languages Factory"
+                gradientClass="from-purple-600 via-indigo-600 to-emerald-600"
+                icon={<Boxes size={24} />}
               />
             </div>
           </div>

@@ -1,9 +1,6 @@
 /**
-<<<<<<< HEAD
- * Admin API for Course Assignments (BunnyDB)
-=======
+
  * Admin API for Course Assignments (Bunny Database / LibSQL)
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  * GET /api/admin/e-learning/assignments - List assignments for course
  * POST /api/admin/e-learning/assignments - Create assignment
  * PUT /api/admin/e-learning/assignments - Update assignment
@@ -12,20 +9,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-<<<<<<< HEAD
-import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
-import {
-  listAssignmentsByCourse,
-  saveAssignment,
-  deleteAssignment,
-} from '@/lib/bunnyCourseRepository';
-=======
+
 import crypto from 'crypto';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -60,9 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const assignments = await listAssignmentsByCourse(courseId, true);
-=======
+
     if (!isBunnyDatabaseConfigured()) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
@@ -89,7 +75,6 @@ export async function GET(request: NextRequest) {
         content,
       };
     });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     return NextResponse.json({
       success: true,
@@ -123,21 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-<<<<<<< HEAD
-    const resolvedTitle = body.title || body.content?.en?.title || body.content?.title || '';
-    const { courseId, order, ...rest } = body;
 
-    if (!courseId || !resolvedTitle) {
-      return NextResponse.json({ error: 'Course ID and title required' }, { status: 400 });
-    }
-
-    const assignment = await saveAssignment({
-      courseId,
-      title: resolvedTitle,
-      order: Number(order || 1),
-      isActive: true,
-      content: { ...rest, en: { ...(rest.content?.en || {}), title: resolvedTitle } },
-=======
     const { courseId, title, order, content } = body;
 
     if (!courseId || !title) {
@@ -173,7 +144,6 @@ export async function POST(request: NextRequest) {
         now,
         now,
       ],
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     });
 
     return NextResponse.json({
@@ -214,31 +184,17 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-<<<<<<< HEAD
-    const resolvedTitle = body.title || body.content?.en?.title || body.content?.title || '';
-    const { assignmentId, courseId, order, ...rest } = body;
-=======
+
     const { assignmentId, title, order, content } = body;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     if (!assignmentId) {
       return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const assignment = await saveAssignment({
-      id: assignmentId,
-      courseId: courseId || '',
-      title: resolvedTitle,
-      order: order !== undefined ? Number(order) : 1,
-      isActive: true,
-      content: { ...rest, en: { ...(rest.content?.en || {}), title: resolvedTitle } },
-    });
-=======
+
     if (!isBunnyDatabaseConfigured()) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     const now = new Date().toISOString();
     await bunnyExecute({
@@ -268,9 +224,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
-<<<<<<< HEAD
- * DELETE - Delete assignment
-=======
+
  * PATCH - Update order
  */
 export async function PATCH(request: NextRequest) {
@@ -317,7 +271,6 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * DELETE - Soft delete assignment
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -342,15 +295,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Assignment ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    await deleteAssignment(assignmentId);
-=======
+
     const now = new Date().toISOString();
     await bunnyExecute({
       sql: 'UPDATE course_assignments_sql SET is_active = 0, updated_at = ? WHERE id = ?',
       args: [now, assignmentId],
     });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     return NextResponse.json({
       success: true,

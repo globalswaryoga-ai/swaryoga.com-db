@@ -24,14 +24,16 @@ let schemaReady = false;
 export async function ensureVideoIngestionSchema() {
   if (schemaReady) return;
   await bunnyBatch([
-    { sql: `CREATE TABLE IF NOT EXISTS mohan_rag_video_ingestion_sql (
+    {
+      sql: `CREATE TABLE IF NOT EXISTS mohan_rag_video_ingestion_sql (
       id TEXT PRIMARY KEY, url_hash TEXT NOT NULL UNIQUE, source_url TEXT NOT NULL,
       provider TEXT NOT NULL, module_id TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
       topic TEXT NOT NULL DEFAULT '', language TEXT NOT NULL DEFAULT 'auto',
       status TEXT NOT NULL DEFAULT 'queued', source_id TEXT, original_file_url TEXT,
       error_message TEXT, created_by TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-    )`, args: [] },
+    )`, args: []
+    },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_mohan_rag_video_ingestion_status ON mohan_rag_video_ingestion_sql(status, created_at)', args: [] },
   ]);
   schemaReady = true;
@@ -51,8 +53,8 @@ export function normalizeVideoSourceUrl(value: unknown): { url: string; provider
     }
     if (host === 'iframe.mediadelivery.net') {
       const parts = parsed.pathname.split('/').filter(Boolean);
-      if (parts[0] !== 'play' || !/^\d+$/.test(parts[1] || '') || !/^[a-f\d-]{20,}$/i.test(parts[2] || '')) return null;
-      return { url: `https://vz-${parts[1]}.b-cdn.net/${parts[2]}/play_720p.mp4`, provider: 'bunny' };
+      if (parts[0] !== 'play' || !/^\d+$/.test(parts[1] || '') || !/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(parts[2] || '')) return null;
+      return { url: `https://iframe.mediadelivery.net/play/${parts[1]}/${parts[2]}`, provider: 'bunny' };
     }
     const configuredCdn = process.env.BUNNY_STORAGE_CDN_HOST?.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
     const isBunnyHost = host.endsWith('.b-cdn.net') || host === 'mediadelivery.net' || host.endsWith('.mediadelivery.net') || (configuredCdn && host === configuredCdn);
@@ -81,15 +83,16 @@ export async function enqueueVideoSources(input: {
 }) {
   await ensureVideoIngestionSchema();
   const timestamp = new Date().toISOString();
-  let accepted = 0;
+  const parsedUrls = new Set<string>();
   const errors: Array<{ url: string; error: string }> = [];
   const statements = input.urls.map((rawUrl, index) => {
     const parsed = normalizeVideoSourceUrl(rawUrl);
     if (!parsed) {
-      errors.push({ url: rawUrl.slice(0, 250), error: 'Use a valid YouTube URL or direct Bunny CDN media URL.' });
+      errors.push({ url: rawUrl.slice(0, 250), error: 'Use a valid YouTube URL or Bunny CDN/Stream media URL.' });
       return null;
     }
-    accepted++;
+    if (parsedUrls.has(parsed.url)) return null;
+    parsedUrls.add(parsed.url);
     const id = randomUUID();
     const hash = createHash('sha256').update(parsed.url).digest('hex');
     return {
@@ -100,11 +103,13 @@ export async function enqueueVideoSources(input: {
     };
   }).filter(Boolean) as Array<{ sql: string; args: any[] }>;
 
+  let accepted = 0;
   for (let offset = 0; offset < statements.length; offset += 80) {
-    await bunnyBatch(statements.slice(offset, offset + 80));
+    const results = await bunnyBatch(statements.slice(offset, offset + 80));
+    accepted += results.reduce((count, result) => count + Number(result.rowsAffected || 0), 0);
   }
   const jobs = await listVideoIngestionJobs(100);
-  return { accepted, errors, jobs };
+  return { accepted, duplicateCount: parsedUrls.size - accepted, errors, jobs };
 }
 
 export async function listVideoIngestionJobs(limit = 100) {
@@ -116,24 +121,54 @@ export async function listVideoIngestionJobs(limit = 100) {
   return result.rows.map(mapJob);
 }
 
+export async function listVideoIngestionJobsForUrls(urls: string[]) {
+  await ensureVideoIngestionSchema();
+  const normalized = [...new Set(urls.map(url => normalizeVideoSourceUrl(url)?.url).filter((url): url is string => Boolean(url)))];
+  const jobs: VideoIngestionJob[] = [];
+  for (let offset = 0; offset < normalized.length; offset += 80) {
+    const chunk = normalized.slice(offset, offset + 80);
+    if (!chunk.length) continue;
+    const result = await bunnyExecute({
+      sql: `SELECT * FROM mohan_rag_video_ingestion_sql WHERE source_url IN (${chunk.map(() => '?').join(',')})`,
+      args: chunk,
+    });
+    jobs.push(...result.rows.map(mapJob));
+  }
+  return jobs;
+}
+
 export async function claimNextVideoIngestionJob() {
   await ensureVideoIngestionSchema();
   const timestamp = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const result = await bunnyExecute({
     sql: `UPDATE mohan_rag_video_ingestion_sql SET status='processing', attempts=attempts+1, error_message=NULL, updated_at=?
-      WHERE id=(SELECT id FROM mohan_rag_video_ingestion_sql WHERE status='queued' ORDER BY created_at LIMIT 1)
-      AND status='queued' RETURNING *`,
-    args: [timestamp],
+      WHERE id=(SELECT id FROM mohan_rag_video_ingestion_sql
+        WHERE status='queued' OR (status='processing' AND updated_at < ?)
+        ORDER BY created_at LIMIT 1)
+      AND (status='queued' OR (status='processing' AND updated_at < ?)) RETURNING *`,
+    args: [timestamp, staleBefore, staleBefore],
   });
   return result.rows[0] ? mapJob(result.rows[0]) : null;
 }
 
+export async function retryFailedVideoIngestionJob(id: string) {
+  await ensureVideoIngestionSchema();
+  const result = await bunnyExecute({
+    sql: `UPDATE mohan_rag_video_ingestion_sql
+      SET status='queued', error_message=NULL, updated_at=?
+      WHERE id=? AND status='failed'`,
+    args: [new Date().toISOString(), id],
+  });
+  return Number(result.rowsAffected || 0) > 0;
+}
+
 export async function finishVideoIngestionJob(id: string, values: {
-  status: 'completed' | 'failed'; sourceId?: string | null; originalFileUrl?: string | null; errorMessage?: string | null;
+  status: 'completed' | 'failed'; sourceId?: string | null; originalFileUrl?: string | null; errorMessage?: string | null; title?: string | null;
 }) {
   await ensureVideoIngestionSchema();
   await bunnyExecute({
-    sql: `UPDATE mohan_rag_video_ingestion_sql SET status=?, source_id=?, original_file_url=?, error_message=?, updated_at=? WHERE id=?`,
-    args: [values.status, values.sourceId ?? null, values.originalFileUrl ?? null, values.errorMessage?.slice(0, 2000) ?? null, new Date().toISOString(), id],
+    sql: `UPDATE mohan_rag_video_ingestion_sql SET status=?, source_id=?, original_file_url=?, error_message=?, title=CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE title END, updated_at=? WHERE id=?`,
+    args: [values.status, values.sourceId ?? null, values.originalFileUrl ?? null, values.errorMessage?.slice(0, 2000) ?? null, values.title ?? null, values.title ?? null, values.title ?? null, new Date().toISOString(), id],
   });
 }

@@ -1,13 +1,5 @@
 /**
-<<<<<<< HEAD
- * Course Certificate API (BunnyDB)
- * GET /api/recorded-courses/certificate/[enrollmentId] - Download certificate PDF
- * POST /api/recorded-courses/certificate/[enrollmentId] - Generate new certificate
- */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
-=======
  * Course Certificate API (Bunny Database / LibSQL)
  * GET /api/recorded-courses/certificate/[enrollmentId] - Download certificate PDF
  * POST /api/recorded-courses/certificate/[enrollmentId] - Generate/issue certificate
@@ -17,7 +9,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { verifyToken } from '@/lib/auth';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 import { generateCourseCertificate } from '@/lib/course-certificate-generator';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { initCourseSchema, getCourseById } from '@/lib/bunnyCourseRepository';
@@ -28,12 +19,7 @@ interface RouteParams {
   params: Promise<{ enrollmentId: string }>;
 }
 
-<<<<<<< HEAD
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    await initCourseSchema();
 
-=======
 export const dynamic = 'force-dynamic';
 
 /**
@@ -41,7 +27,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const { enrollmentId } = await params;
 
     const authHeader = request.headers.get('authorization');
@@ -54,21 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-<<<<<<< HEAD
-    const userId = (decoded as any).id || (decoded as any)._id || (decoded as any).userId;
 
-    const res = await bunnyExecute({
-      sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
-      args: [enrollmentId],
-    });
-
-    if (!res.rows[0]) {
-      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
-    }
-
-    const enrollment: any = res.rows[0];
-
-=======
     const userId = decoded.id || decoded._id || decoded.userId;
 
     if (!isBunnyDatabaseConfigured()) {
@@ -88,24 +59,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const enrollment = enrollRes.rows[0];
 
     // Check ownership
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     if (String(enrollment.user_id) !== String(userId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-<<<<<<< HEAD
-    const course = await getCourseById(String(enrollment.course_id));
 
-    const certificate = generateCourseCertificate({
-      studentName: decoded.name || 'Student',
-      studentEmail: decoded.email || '',
-      courseTitle: course?.content?.en?.title || course?.slug || 'Recorded Course',
-      courseInstructor: 'Swar Yoga Team',
-      completionDate: new Date(),
-      certificateNumber: `CERT-${enrollmentId.substring(0, 12).toUpperCase()}`,
-      duration: course?.totalDuration || 0,
-      progress: Number(enrollment.progress_percent || 100),
-=======
     // Get course
     const courseRes = await bunnyExecute({
       sql: 'SELECT * FROM recorded_courses_sql WHERE id = ? LIMIT 1',
@@ -136,17 +94,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       certificateNumber: certNum,
       duration: Number(course.total_duration) || 0,
       progress: Number(enrollment.progress_percent) || 100,
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     });
 
     return new NextResponse(certificate as any, {
       headers: {
         'Content-Type': 'application/pdf',
-<<<<<<< HEAD
-        'Content-Disposition': `attachment; filename="Certificate_${enrollmentId.substring(0, 8)}.pdf"`,
-=======
+
         'Content-Disposition': `attachment; filename="${studentName.replace(/\s+/g, '_')}_${courseTitle.replace(/\s+/g, '_')}.pdf"`,
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
@@ -156,18 +110,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-<<<<<<< HEAD
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  try {
-    await initCourseSchema();
 
-=======
 /**
  * POST - Generate/issue certificate
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const { enrollmentId } = await params;
 
     const authHeader = request.headers.get('authorization');
@@ -180,20 +128,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-<<<<<<< HEAD
-    const userId = (decoded as any).id || (decoded as any)._id || (decoded as any).userId;
 
-    const res = await bunnyExecute({
-      sql: 'SELECT * FROM course_enrollments_sql WHERE id = ? LIMIT 1',
-      args: [enrollmentId],
-    });
-
-    if (!res.rows[0]) {
-      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
-    }
-
-    const enrollment: any = res.rows[0];
-=======
     const userId = decoded.id || decoded._id || decoded.userId;
 
     if (!isBunnyDatabaseConfigured()) {
@@ -211,26 +146,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const enrollment = enrollRes.rows[0];
 
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     if (String(enrollment.user_id) !== String(userId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-<<<<<<< HEAD
-    const certificateNumber = `CERT-${enrollmentId.substring(0, 12).toUpperCase()}-${new Date().getFullYear()}`;
 
-    await bunnyExecute({
-      sql: `INSERT OR REPLACE INTO course_certificates_sql (
-        id, enrollment_id, user_id, course_id, certificate_number, issued_at, data_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      args: [
-        crypto.randomUUID(),
-        enrollmentId,
-        String(userId),
-        String(enrollment.course_id),
-        certificateNumber,
-      ],
-=======
     const certId = `cert_${crypto.randomBytes(8).toString('hex')}`;
     const certNum = `CERT-${enrollmentId.substring(0, 8).toUpperCase()}-${new Date().getFullYear()}`;
     const now = new Date().toISOString();
@@ -256,18 +176,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             (id, enrollment_id, user_id, course_id, certificate_number, issued_at, data_json, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [certId, enrollmentId, userId, enrollment.course_id, certNum, now, JSON.stringify(enrollmentData), now, now],
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     });
 
     return NextResponse.json({
       success: true,
       message: 'Certificate issued',
-<<<<<<< HEAD
-      certificateNumber,
-=======
+
       certificateNumber: certNum,
       certificateId: certId,
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     });
   } catch (error: any) {
     console.error('[Certificate Generate Error]:', error);

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
   try {
     const config = await getMohanRagAvatarConfig();
-    const hasApiKey = Boolean(process.env.REPLICATE_API_TOKEN);
+    const hasApiKey = Boolean(process.env.HEYGEN_API_KEY);
     const connected = Boolean(config?.authorized && config.avatarId && config.voiceId && config.supportedLanguages.length && hasApiKey);
     return NextResponse.json({
       success: true,
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       status: connected ? 'ready' : 'setup_required',
       config,
       hasApiKey,
-      message: connected ? 'Clone is ready.' : 'Run avatar training from the studio after uploading vault videos, and confirm REPLICATE_API_TOKEN is set on the server.',
+      message: connected ? 'Clone is ready for RAG answer video rendering.' : 'Confirm the authorized HeyGen avatar and voice IDs, verified languages, and HEYGEN_API_KEY on the server.',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to read active clone';

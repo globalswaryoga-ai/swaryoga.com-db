@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Plus, Edit2, Trash2, Video, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2,
   ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera,
-  Video as VideoIcon, Calendar, Clock, Globe, AlertCircle, Layers, Bell, ListTodo
+  Video as VideoIcon, Calendar, Clock, Globe, AlertCircle, Layers, Bell, ListTodo, Sparkles
 } from 'lucide-react';
 
 type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question' | 'zoom' | 'level';
@@ -3102,11 +3102,9 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   const [aiSummary, setAiSummary] = useState(video.aiSummary || '');
   const [transcript, setTranscript] = useState(video.transcript || '');
   const [saving, setSaving] = useState(false);
-<<<<<<< HEAD
   const [uploadingThumb, setUploadingThumb] = useState(false);
-=======
+
   const [transcribing, setTranscribing] = useState(false);
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
 
@@ -3473,13 +3471,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
 
-<<<<<<< HEAD
-  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingThumb(true);
-    setUploadError(null);
-=======
+
   const handleUploadAndTranscribe = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -3562,9 +3554,11 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
     }
   };
 
-  const extractVideoIdFromUrl = (input: string): string => {
-    if (!input.includes('/')) return input;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
+  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    setUploadError(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -3585,6 +3579,18 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
     } finally {
       setUploadingThumb(false);
       if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
+
+  const extractVideoIdFromUrl = (input: string): string => {
+    if (!input.includes('/')) return input;
+    try {
+      const url = new URL(input);
+      const parts = url.pathname.split('/').filter(Boolean);
+      return parts[parts.length - 1] || input;
+    } catch {
+      const parts = input.split('/').filter(Boolean);
+      return parts[parts.length - 1] || input;
     }
   };
 

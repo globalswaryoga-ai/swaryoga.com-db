@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, ChevronDown, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon, Calendar, Globe, Sparkles } from 'lucide-react';
+import { Search, Users, Clock, TrendingUp, ArrowRight, Loader, ChevronRight, ChevronDown, ChevronUp, Flag, Plus, Trash2, Edit2, X, Check, Award, FileSpreadsheet, Upload, Download, Copy, AlertCircle, FileText, Link as LinkIcon, Calendar, Globe, Sparkles, Eye, EyeOff, Filter, BarChart3, SlidersHorizontal } from 'lucide-react';
 
 const MONTH_OPTIONS = [
   { value: '2026-10', label: 'Oct 2026' },
@@ -88,6 +88,38 @@ export default function ELearningUsersPage() {
     week: 0,
     month: 0,
   });
+
+  // Open & Hide UI toggles for Overview Cards & Filter Bar (persisted in localStorage)
+  const [showStatsCards, setShowStatsCards] = useState<boolean>(true);
+  const [showFilterPanel, setShowFilterPanel] = useState<boolean>(true);
+
+  // Load saved preferences on client mount
+  useEffect(() => {
+    try {
+      const savedCards = localStorage.getItem('swar_users_show_cards');
+      if (savedCards !== null) setShowStatsCards(savedCards === 'true');
+      const savedFilters = localStorage.getItem('swar_users_show_filters');
+      if (savedFilters !== null) setShowFilterPanel(savedFilters === 'true');
+    } catch (e) {
+      // ignore SSR or storage exceptions
+    }
+  }, []);
+
+  const toggleStatsCards = () => {
+    setShowStatsCards((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('swar_users_show_cards', String(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const toggleFilterPanel = () => {
+    setShowFilterPanel((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('swar_users_show_filters', String(next)); } catch (e) {}
+      return next;
+    });
+  };
 
   // Hierarchical navigation state
   const [folders, setFolders] = useState<LanguageFolder[]>([]);
@@ -546,6 +578,40 @@ export default function ELearningUsersPage() {
               <Plus size={18} />
               Add New Student
             </button>
+
+            {/* Master Open / Hide Toggle for Top Panels */}
+            <button
+              type="button"
+              onClick={() => {
+                const bothOpen = showStatsCards && showFilterPanel;
+                setShowStatsCards(!bothOpen);
+                setShowFilterPanel(!bothOpen);
+                try {
+                  localStorage.setItem('swar_users_show_cards', String(!bothOpen));
+                  localStorage.setItem('swar_users_show_filters', String(!bothOpen));
+                } catch (e) {}
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border transition-all ${
+                showStatsCards || showFilterPanel
+                  ? 'bg-gray-800/90 hover:bg-gray-700 text-gray-200 border-gray-700 shadow-md'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-md shadow-emerald-500/10'
+              }`}
+              title={showStatsCards || showFilterPanel ? 'Hide overview cards & filter panels to maximize student table' : 'Open overview cards & filter panels'}
+            >
+              {showStatsCards || showFilterPanel ? (
+                <>
+                  <EyeOff size={16} className="text-gray-400" />
+                  <span>Hide Panels</span>
+                  <ChevronUp size={16} />
+                </>
+              ) : (
+                <>
+                  <Eye size={16} className="text-emerald-400" />
+                  <span>Open Panels</span>
+                  <ChevronDown size={16} />
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -559,8 +625,50 @@ export default function ELearningUsersPage() {
 
       </div>
 
-            {/* 4 Quick Filter Cards: All Students, Today, Week, Month with View Button */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* 4 Quick Filter Cards Section Header with Open/Hide Toggle Button */}
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+            <BarChart3 size={14} className="text-emerald-400" />
+            Enrollment Analytics & Quick Filters
+          </span>
+          {!showStatsCards && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
+                Active: {timeframe === 'all' ? 'All Students' : timeframe === 'today' ? 'Today' : timeframe === 'week' ? 'This Week' : 'This Month'}
+              </span>
+              <span className="text-gray-400 font-mono text-xs">
+                ({timeframe === 'all' ? stats.all || total || enrollments.length : timeframe === 'today' ? stats.today : timeframe === 'week' ? stats.week : stats.month} students)
+              </span>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleStatsCards}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0e1522] hover:bg-[#141d2e] text-gray-300 hover:text-white border border-gray-800 hover:border-gray-700 transition-all shadow-sm"
+          title={showStatsCards ? 'Hide 4 analytics cards' : 'Open 4 analytics cards'}
+        >
+          {showStatsCards ? (
+            <>
+              <EyeOff size={13} className="text-gray-400" />
+              <span>Hide Cards</span>
+              <ChevronUp size={13} className="text-emerald-400" />
+            </>
+          ) : (
+            <>
+              <Eye size={13} className="text-emerald-400" />
+              <span>Open Cards</span>
+              <ChevronDown size={13} className="text-emerald-400" />
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* 4 Quick Filter Cards: All Students, Today, Week, Month with View Button */}
+      {showStatsCards && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Card 1: All Students */}
         <div
           onClick={() => {
@@ -779,172 +887,297 @@ export default function ELearningUsersPage() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Side-by-side Filter Panel: Select Language, Select Workshop Name, and Search */}
-      <div className="bg-[#0b1019] border border-gray-800 rounded-2xl p-4 sm:p-5 mb-6 shadow-xl space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Select Language (Col 4) */}
-          <div className="md:col-span-4 space-y-1.5">
-            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-              <Globe size={14} className="text-emerald-400" />
-              <span>Select Language</span>
-              {selectedFolderId && (
-                <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
-                  Active
+      {/* Filter Panel (Expandable / Collapsible with Open and Hide Buttons) */}
+      {showFilterPanel ? (
+        <div className="bg-[#0b1019] border border-gray-800 rounded-2xl p-4 sm:p-5 mb-6 shadow-xl space-y-3 transition-all">
+          {/* Filter Panel Header with Open/Hide Toggle */}
+          <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-gray-800/80">
+            <div className="flex items-center gap-2">
+              <Filter size={15} className="text-emerald-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+                Filter & Search Controls
+              </span>
+              {(selectedFolderId || selectedCourseId || search) && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Filters Active
                 </span>
               )}
-            </label>
-            <div className="relative">
-              <select
-                value={selectedFolderId || ''}
-                onChange={(e) => {
-                  const val = e.target.value || null;
-                  setSelectedFolderId(val);
+            </div>
+
+            <div className="flex items-center gap-2">
+              {(timeframe !== 'all' || selectedFolderId || selectedCourseId || search) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimeframe('all');
+                    setSelectedFolderId(null);
+                    setSelectedCourseId(null);
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-all font-semibold"
+                  title="Reset all search filters"
+                >
+                  <X size={12} />
+                  <span>Reset All</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={toggleFilterPanel}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[#141d2e] hover:bg-[#1b273e] text-gray-300 hover:text-white border border-gray-700/80 hover:border-gray-600 transition-all shadow-sm"
+                title="Hide filter controls to focus on student table"
+              >
+                <EyeOff size={13} className="text-gray-400" />
+                <span>Hide Filters</span>
+                <ChevronUp size={13} className="text-emerald-400" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+            {/* Select Language (Col 4) */}
+            <div className="md:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                <Globe size={14} className="text-emerald-400" />
+                <span>Select Language</span>
+                {selectedFolderId && (
+                  <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                    Active
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedFolderId || ''}
+                  onChange={(e) => {
+                    const val = e.target.value || null;
+                    setSelectedFolderId(val);
+                    setSelectedCourseId(null);
+                    setPage(1);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
+                >
+                  <option value="">🌐 All Languages ({folders.length} available)</option>
+                  {folders.map((folder) => (
+                    <option key={folder._id} value={folder._id}>
+                      {LANGUAGE_FLAGS[folder.code] || '🌍'} {folder.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
+                  ▼
+                </div>
+              </div>
+            </div>
+
+            {/* Select Workshop Name (Col 4) */}
+            <div className="md:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                <Award size={14} className="text-emerald-400" />
+                <span>Select Workshop Name</span>
+                {selectedCourseId && (
+                  <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                    Active
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedCourseId || ''}
+                  onChange={(e) => {
+                    setSelectedCourseId(e.target.value || null);
+                    setPage(1);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
+                >
+                  <option value="">
+                    🎓 All Workshops ({availableCourses.length} available)
+                  </option>
+                  {availableCourses.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.content?.en?.title || c.slug} ({c.level || 'All'})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
+                  ▼
+                </div>
+              </div>
+            </div>
+
+            {/* Search by Name, Email, Phone (Col 4) */}
+            <div className="md:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                <Search size={14} className="text-emerald-400" />
+                <span>Search Student</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or phone..."
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                />
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => handleSearch('')}
+                    className="absolute right-2.5 top-2.5 text-gray-400 hover:text-white p-0.5"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Language Pill Buttons for 1-Click filter */}
+          <div className="pt-2 border-t border-gray-800/70 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                Languages:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFolderId(null);
                   setSelectedCourseId(null);
                   setPage(1);
                 }}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  !selectedFolderId
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                    : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
+                }`}
               >
-                <option value="">🌐 All Languages ({folders.length} available)</option>
-                {folders.map((folder) => (
-                  <option key={folder._id} value={folder._id}>
-                    {LANGUAGE_FLAGS[folder.code] || '🌍'} {folder.name}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
-                ▼
-              </div>
+                All Languages
+              </button>
+              {folders.map((folder) => {
+                const isSelected = selectedFolderId === folder._id;
+                return (
+                  <button
+                    key={folder._id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFolderId(isSelected ? null : folder._id);
+                      setSelectedCourseId(null);
+                      setPage(1);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      isSelected
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                        : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
+                    }`}
+                  >
+                    <span>{LANGUAGE_FLAGS[folder.code] || '🌍'}</span>
+                    <span>{folder.name}</span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
 
-          {/* Select Workshop Name (Col 4) */}
-          <div className="md:col-span-4 space-y-1.5">
-            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-              <Award size={14} className="text-emerald-400" />
-              <span>Select Workshop Name</span>
-              {selectedCourseId && (
-                <span className="ml-auto text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
-                  Active
-                </span>
-              )}
-            </label>
-            <div className="relative">
-              <select
-                value={selectedCourseId || ''}
-                onChange={(e) => {
-                  setSelectedCourseId(e.target.value || null);
+            {/* Reset Filters button if any active */}
+            {(timeframe !== 'all' || selectedFolderId || selectedCourseId || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeframe('all');
+                  setSelectedFolderId(null);
+                  setSelectedCourseId(null);
+                  setSearch('');
                   setPage(1);
                 }}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none pr-8 cursor-pointer"
+                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 transition-all font-semibold ml-auto"
               >
-                <option value="">
-                  🎓 All Workshops ({availableCourses.length} available)
-                </option>
-                {availableCourses.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.content?.en?.title || c.slug} ({c.level || 'All'})
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-3 pointer-events-none text-gray-400 text-xs">
-                ▼
-              </div>
-            </div>
+                <X size={12} />
+                <span>Clear All Filters</span>
+              </button>
+            )}
           </div>
+        </div>
+      ) : (
+        /* Collapsed Minimal Filter Bar with Open Filters Button */
+        <div className="bg-[#0b1019] border border-gray-800/90 rounded-2xl p-3 sm:px-4 mb-6 shadow-md flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-1 min-w-[240px]">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-300 shrink-0">
+              <Filter size={14} className="text-emerald-400" />
+              <span>Filters:</span>
+            </div>
 
-          {/* Search by Name, Email, Phone (Col 4) */}
-          <div className="md:col-span-4 space-y-1.5">
-            <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-              <Search size={14} className="text-emerald-400" />
-              <span>Search Student</span>
-            </label>
-            <div className="relative">
+            {/* Quick search input even when filters are collapsed */}
+            <div className="relative flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="Search by name, email, or phone..."
+                placeholder="Quick search student name, email, phone..."
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 bg-gray-900 border border-gray-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-gray-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                className="w-full pl-8 pr-7 py-1.5 bg-gray-900 border border-gray-700/70 rounded-xl text-white text-xs placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
               />
-              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500" />
               {search && (
                 <button
                   type="button"
                   onClick={() => handleSearch('')}
-                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-white p-0.5"
+                  className="absolute right-2 top-1.5 text-gray-400 hover:text-white p-0.5"
                 >
-                  <X size={14} />
+                  <X size={12} />
                 </button>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Quick Language Pill Buttons for 1-Click filter */}
-        <div className="pt-2 border-t border-gray-800/70 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-              Languages:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedFolderId(null);
-                setSelectedCourseId(null);
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                !selectedFolderId
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
-              }`}
-            >
-              All Languages
-            </button>
-            {folders.map((folder) => {
-              const isSelected = selectedFolderId === folder._id;
-              return (
-                <button
-                  key={folder._id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedFolderId(isSelected ? null : folder._id);
-                    setSelectedCourseId(null);
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    isSelected
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                      : 'bg-gray-800/80 text-gray-400 hover:text-white border border-gray-700/60'
-                  }`}
-                >
-                  <span>{LANGUAGE_FLAGS[folder.code] || '🌍'}</span>
-                  <span>{folder.name}</span>
-                </button>
-              );
-            })}
+            {/* Active summary badges */}
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-400">
+              {selectedFolderId && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-medium">
+                  {LANGUAGE_FLAGS[folders.find(f => f._id === selectedFolderId)?.code || ''] || '🌍'} {folders.find(f => f._id === selectedFolderId)?.name || 'Language'}
+                </span>
+              )}
+              {selectedCourseId && (
+                <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-medium">
+                  🎓 {availableCourses.find(c => c._id === selectedCourseId)?.content?.en?.title || 'Workshop'}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Reset Filters button if any active */}
-          {(timeframe !== 'all' || selectedFolderId || selectedCourseId || search) && (
+          <div className="flex items-center gap-2">
+            {(timeframe !== 'all' || selectedFolderId || selectedCourseId || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeframe('all');
+                  setSelectedFolderId(null);
+                  setSelectedCourseId(null);
+                  setSearch('');
+                  setPage(1);
+                }}
+                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-all font-semibold"
+                title="Reset filters"
+              >
+                <X size={12} />
+                <span>Reset</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => {
-                setTimeframe('all');
-                setSelectedFolderId(null);
-                setSelectedCourseId(null);
-                setSearch('');
-                setPage(1);
-              }}
-              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 transition-all font-semibold ml-auto"
+              onClick={toggleFilterPanel}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 transition-all shadow-sm"
+              title="Open full filter panel"
             >
-              <X size={12} />
-              <span>Clear All Filters</span>
+              <Eye size={13} className="text-emerald-400" />
+              <span>Open Filters</span>
+              <ChevronDown size={13} className="text-emerald-400" />
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Enrollments Table */}
       {loading ? (

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.webkit.JavascriptInterface
+import android.webkit.WebView
 import com.swaryoga.api.TokenManager
 import com.google.gson.Gson
 
@@ -21,10 +22,40 @@ import com.google.gson.Gson
  */
 class JavaScriptInterface(
     private val activity: Activity,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val webView: WebView? = null
 ) {
 
     private val gson = Gson()
+
+    /**
+     * Permanent Anti-Crack Fallback: Injects bundled core CSS from APK assets
+     * if remote CSS ever fails or is delayed during deployments.
+     */
+    @JavascriptInterface
+    fun injectFallbackCss() {
+        activity.runOnUiThread {
+            try {
+                val css = activity.assets.open("swaryoga-core.css").bufferedReader().use { it.readText() }
+                val escapedCss = css.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+                val js = """
+                    (function() {
+                        var existing = document.getElementById('swar-native-core-css');
+                        if (!existing) {
+                            var style = document.createElement('style');
+                            style.id = 'swar-native-core-css';
+                            style.textContent = `$escapedCss`;
+                            document.head.appendChild(style);
+                            console.log('[SwarYogaNative] Injected bundled core CSS from APK assets');
+                        }
+                    })();
+                """.trimIndent()
+                webView?.evaluateJavascript(js, null)
+            } catch (e: Exception) {
+                android.util.Log.e("SwarYoga", "Failed to inject bundled fallback CSS", e)
+            }
+        }
+    }
 
     /**
      * Get JWT token from native storage
@@ -179,9 +210,26 @@ class JavaScriptInterface(
     }
 
     @JavascriptInterface
+    fun setLandscape() {
+        setOrientationLandscape()
+    }
+
+    @JavascriptInterface
     fun setOrientationPortrait() {
         activity.runOnUiThread {
             activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    @JavascriptInterface
+    fun setPortrait() {
+        setOrientationPortrait()
+    }
+
+    @JavascriptInterface
+    fun setAutoOrientation() {
+        activity.runOnUiThread {
+            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 }

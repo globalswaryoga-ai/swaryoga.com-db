@@ -108,7 +108,16 @@ export async function GET(request: NextRequest) {
     const settingsWorkshops: string[] = Array.isArray((settings as any)?.workshopNames)
       ? (settings as any).workshopNames.map((w: any) => String(w || '').trim()).filter(Boolean)
       : [];
-    const allWorkshops = Array.from(new Set([...uniqueWorkshops, ...settingsWorkshops]));
+    const defaultWorkshops = [
+      'Level 1: Basic & Master Swar Yoga',
+      'Level 2: Advanced Swar Yoga',
+      'Level 3: Ashtavakra Dhyan',
+      'Aahar Shastra',
+      'Children Yoga',
+      'Youth Yoga',
+      'Pregnancy (Garbh Sanskar Shibir)',
+    ];
+    const allWorkshops = Array.from(new Set([...defaultWorkshops, ...uniqueWorkshops, ...settingsWorkshops]));
 
     // Get workshop counts
     const workshopCounts: Record<string, number> = {};

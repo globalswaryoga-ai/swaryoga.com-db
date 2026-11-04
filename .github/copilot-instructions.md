@@ -170,6 +170,77 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Mohan RAG YouTube Facial Extraction Smoke Check (Session: November 4, 2026) — Commit `working tree`, Contabo build `1aUT-w4y8hZAEWK7RQcE2`
+
+- Verified unlisted English speaker-view video `_27tyc20PKk` from the configured Swar Yoga channel (4,355 seconds) using metadata only, then started exactly one 0.1-FPS extraction job: `face_job_1793807839605_11e103`.
+- The Contabo worker failed before frame analysis because YouTube returned “Sign in to confirm you’re not a bot.” Bunny records the job as failed with 0 frames and 0 clips; no extraction batch, clone training, or provider render ran.
+- Added facial-worker support for the server-configured `YOUTUBE_COOKIES_FILE` and `YT_DLP_PATH`. The worker validates the file, passes it only via yt-dlp's `--cookies` argument, limits the download to ten minutes, and gives explicit guidance when YouTube rejects access. It never reads browser cookies or bypasses access restrictions.
+- Five focused Python tests, bytecode compilation, and Pylance syntax checks pass. The worker-only change was deployed through Contabo atomic build `ugkvdsOEAVURs8PoPvKqU`; both management pages return HTTP 200, the unauthenticated facial API returns 403, and PM2 is online.
+- No authorized cookies file is configured on Contabo, so the failed job was not retried. A retry still requires the user to securely configure a readable Netscape cookies file from an account permitted to view the video.
+- Found two different approved Bunny Stream English speaker recordings from October 22 and 26; neither is the tested October 6 video. They were not used for this YouTube test.
+
+### Mohan RAG Bunny/YouTube Inventory Reconciliation (Session: November 4, 2026) — Commit `working tree`
+
+- A metadata-only scan of the configured channel (`Swar Yoga and Naturopathy`, channel ID `UCuBNo0VLOvAySOjEk48fMxg`) saved 166 unique video IDs to Bunny. This scan used no authorized cookies; 85 entries are labeled `subscriber_only` and 81 `unknown`, so accessibility is not established and no video media was downloaded or transcribed.
+- Bunny's community catalog contains 48 YouTube rows, all flagged unlisted, representing 47 unique IDs; one ID appears in two lesson entries. None overlaps the 166 channel-tab IDs, consistent with unlisted videos not appearing in the channel listing.
+- A no-cookie, metadata-only check of those 47 unique unlisted IDs resolved 28 as accessible unlisted videos from the configured channel: 13 Hindi, 10 Marathi, 2 English, and 3 with unknown language. The other 19 were not usable without further access: 1 private/sign-in required, 12 unavailable, and 6 reported by yt-dlp as removed for being too long. No video media was downloaded, transcribed, or queued.
+- The RAG source catalog separately has 39 Bunny Stream rows, 43 `youtube` rows, and 7 `mp4` rows. The 43 `youtube` rows include 6 Bunny CDN references; 7 MP4 rows have 5 distinct references. A repeated YouTube reference and one MP4 reference repeated three times were found; no records were deleted.
+- The 87 count could be 39 Bunny Stream rows plus 48 community YouTube rows, but those are separate catalogs and include one duplicate, so they are not a verified list of 87 unique videos. The existing ingestion queue has 84 completed jobs (42 YouTube, 42 Bunny); no full extraction batch was started.
+
+### Mohan RAG Facial DNA Smoke Test Verification (Session: November 4, 2026) — Commit `working tree`, Contabo build `1aUT-w4y8hZAEWK7RQcE2`
+
+- The single Bunny Stream smoke job `face_job_1793798450842_de550e` completed successfully: 966 frames sampled and 481 valid face clips persisted.
+- The result reported `meditative_focus` (771), `serene_contemplation` (131), `smile_warm` (60), and `duchenne_smile` (2). This verifies extraction for one source only; it does not train or certify an AI clone.
+- No full batch was started. The inventory reconciliation below finds the reported 47 in a separate community YouTube catalog; the reported 87 is not a verified unique-video list.
+
+### Mohan RAG Bunny Facial DNA Pipeline Repair (Session: November 4, 2026) — Commit `working tree`, Contabo build `1aUT-w4y8hZAEWK7RQcE2`
+
+- Added Bunny Stream rendition resolution for MP4 transcription and face extraction; the worker now selects a rendition Bunny reports as available instead of assuming `play_720p.mp4`.
+- Corrected face extraction to send Bunny's player `Referer`, store only face-detected clips, exclude no-face samples from expression totals, and use safe argument-based Python process invocation.
+- Replaced the restarting legacy PM2 worker with a finite, sequential Bunny-only batch runner. The old process remains stopped; no full batch was started.
+- Deployed with Contabo's atomic build. Build `1aUT-w4y8hZAEWK7RQcE2` succeeded; both management URLs return HTTP 200, unauthenticated DNA APIs return 403, `swaryoga` is online, and Bunny-only mode is verified.
+- Bunny currently contains 39 `bunny_stream`, 43 `youtube`, and 7 `mp4` RAG sources; 37,158 historical face clips have blendshapes, but none were linked to those 39 Bunny Stream sources before the smoke test. The single live smoke job completed with 481 valid face clips; the full batch remains pending.
+
+### Mohan RAG Facial DNA Review Visibility Repair (Session: November 4, 2026) — Commit `working tree`
+
+- The Avatar DNA Facial tab now shows bounded, paginated extracted clip samples, per-expression counts, source-video timestamps, and actual extraction job status.
+- Historical clips without corresponding Bunny job rows are explicitly labeled untracked; the UI does not fabricate completion status or auto-promote extracted clips into curated Facial DNA.
+- Replaced the legacy `avatar-dna` fake success response with the actual Bunny-backed extraction job trigger and validation. Added focused dashboard and route tests.
+- No existing curated DNA was changed. The UI/API work was deployed with the pipeline repair logged above; extraction results remain unreviewed and are not auto-promoted into curated DNA.
+
+### Mohan RAG Avatar DNA Duplicate Video Repair (Session: November 4, 2026) — Commit `working tree`
+
+- Avatar DNA look identity now normalizes Bunny playback/CDN URLs and YouTube links so repeated saves reuse the same Bunny SQL row; auto-crown updates and activates the reused row instead of creating another copy.
+- The DNA library displays one card per video and reports duplicate rows. Super Admin can explicitly remove duplicate rows while preserving the active look; deleting a look also removes any hidden duplicates for that same video.
+- Added regressions for URL normalization, active-row preservation, duplicate detection, and idempotent saves. Existing Bunny data is only cleaned after the admin confirms the duplicate-removal action.
+- Fixed the DNA library request header and verified the changed RAG files have no TypeScript diagnostics. Five focused RAG suites pass (11 tests).
+- With the user's request, removed 53 duplicate DNA database rows in Bunny SQL, retaining the active look and two other unique video entries. Verified the table has three rows and zero duplicates; Bunny video files were not deleted.
+
+### Mohan RAG YouTube Channel Inventory (Session: November 4, 2026) — Commit `working tree`
+
+- Added a Super Admin-only YouTube Channel Intake panel to RAG Management. It scans the configured Swar Yoga channel with server-side `yt-dlp`, stores metadata in Bunny SQL, and upserts by video ID so repeat scans do not create duplicate inventory rows.
+- Optional `YOUTUBE_COOKIES_FILE` is read only from server configuration and must belong to an account authorized for the videos. The UI explains that unlisted videos require an accessible playlist/inventory and membership access is not bypassed.
+- A terminal live check found the channel root returned only tab links, not videos. Discovery now targets the `/videos` tab; a limited live scan returned five valid video IDs. Removed yt-dlp's deprecated `--no-call-home` option.
+- Added focused tests for the channel URL allowlist, safe yt-dlp arguments, and repeated video-ID deduplication. Channel inventory is metadata-only: transcript language/topic screening, segment ranking/cutting, and DNA extraction are not yet wired to these records.
+- Bunny write/read verification, authorized member-cookie access, unlisted coverage, and production deployment have not been performed. Repository-wide TypeScript still reports unrelated baseline errors; the changed paths had no matching diagnostics in the captured run.
+
+### Mohan RAG YouTube Transcript Screening (Session: November 4, 2026) — Commit `working tree`
+
+- Added a Super Admin action to queue up to 500 discovered videos through the existing Bunny ingestion queue; normalized URLs are deduplicated and the API refuses subscriber-only rows unless an authorized cookies file is configured.
+- The ingestion worker now detects channel-inventory videos, saves their transcripts as general-library drafts, records the detected transcript language, and requests an AI-assisted topic/relevance label. Classification remains advisory and every source remains a draft for human review.
+- Screening failures stay visible and now offer a topic-screen retry against the saved transcript, without re-downloading or creating another transcript draft. Failed ingestion also updates the channel inventory status. No channel videos were queued or downloaded, and no provider calls or Bunny data writes were performed.
+- Added queue idempotency/count and topic-response validation tests; 13 focused tests pass, the local production build generates all 505 pages, and the changed paths had no reported TypeScript diagnostics. Deployed the scoped feature through Contabo atomic build `nVbkV_libS29we5u-HyY_`; PM2 is online, both management URLs return HTTP 200, and the unauthenticated intake API correctly returns 403. The full repository type check still reports unrelated existing errors. Timestamped moment approval, real clip cutting, DNA extraction, and actual avatar/voice provider verification remain pending.
+
+### Mohan RAG MP4 Transcription Queue Repair (Session: November 4, 2026) — Commit `working tree`
+
+- Replaced the Node runtime's unresolved `@/` worker require with an authenticated localhost call to the existing Bunny-backed worker API; this keeps Node-only media dependencies out of the Next.js instrumentation bundle.
+- The overnight trigger now requires `CRON_SECRET`, uses the persistent local Next.js endpoint, and logs unavailable/failed triggers instead of importing the media worker into the startup bundle.
+- Large streaming uploads now accept the browser-declared size when the request lacks `Content-Length` and verify the actual streamed byte count before the Bunny upload completes.
+- Imported PDFs and completed audio/video transcripts now stay drafts until reviewed and approved. Ingestion & Jobs adds a manual worker trigger and failed-job retry; interrupted jobs become reclaimable after 24 hours.
+- The Bunny knowledge-source writer now honors an explicitly requested draft status instead of silently promoting imported media transcripts to approved; ordinary text-source saves retain their existing approved default.
+- RAG avatar readiness now checks `HEYGEN_API_KEY`, matching the HeyGen answer-render route instead of incorrectly checking the separate Replicate token.
+- Clarified that completed transcripts appear in Mohan RAG **Library (All Sources)**, not the separate Master Teaching Corpus. Twelve focused tests pass across five suites; the production build succeeds and changed-file TypeScript diagnostics are clean. Production login was unavailable, so live Bunny/FFmpeg/provider behavior remains unverified and no deployment was performed.
+
 ### Mohan RAG YouTube Ingestion Authentication Guidance (Session: November 2, 2026) — Commit `fc644a8e`
 
 - Kept the existing `yt-dlp` downloader and added validation for `YOUTUBE_COOKIES_FILE`, an optional worker-local Netscape cookies file for videos accessible to the authorized account.

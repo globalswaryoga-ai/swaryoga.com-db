@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-<<<<<<< HEAD
-import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
-import { listAiVideoJobs, initBunnyAiVideoJobsSchema } from '@/lib/bunnyAiVideoJobRepository';
-=======
+
 import os from 'os';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -101,17 +96,7 @@ export async function GET(request: NextRequest) {
 
     const live = request.nextUrl.searchParams.get('live') === '1';
 
-<<<<<<< HEAD
-    await initBunnyAiVideoJobsSchema();
-    const jobs = await listAiVideoJobs();
 
-    // Group jobs by status
-    const statusMap = new Map<string, number>();
-    jobs.forEach(job => {
-      statusMap.set(job.status, (statusMap.get(job.status) || 0) + 1);
-    });
-    const statusCounts = Array.from(statusMap.entries()).map(([status, count]) => ({ _id: status, count }));
-=======
     // Verify Bunny Database
     let bunnyStatus = { configured: isBunnyDatabaseConfigured(), ok: false, error: '' };
     let statusCounts: any[] = [];
@@ -122,7 +107,6 @@ export async function GET(request: NextRequest) {
     } catch (dbErr: any) {
       bunnyStatus.error = dbErr.message;
     }
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     return NextResponse.json({
       success: true,
@@ -149,11 +133,7 @@ export async function GET(request: NextRequest) {
       },
       jobs: {
         statusCounts,
-<<<<<<< HEAD
-        staleLegacyProviderErrorCount: 0,
-        cleanedLegacyProviderErrors: 0,
-=======
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
+
       },
       checkedAt: new Date().toISOString(),
     });

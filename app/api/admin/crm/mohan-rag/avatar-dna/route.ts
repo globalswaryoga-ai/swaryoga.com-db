@@ -43,29 +43,6 @@ export async function GET(request: NextRequest) {
       console.warn('Could not query mohan_avatar_dna_looks_sql:', e);
     }
 
-    // Fallback/merge catalog if DB has few rows
-    if (looks.length < 50) {
-      const existingIds = new Set(looks.map(l => l.id));
-      const catalogLooks = AVATAR_DNA_50_CATALOG.filter(c => !existingIds.has(c.id)).map(c => ({
-        id: c.id,
-        title: c.name,
-        heading: c.heading || c.name,
-        description: c.description,
-        video_url: c.videoUrl,
-        thumbnail_url: c.thumbnailUrl || 'https://swaryogacrm.b-cdn.net/mohan.jpg',
-        look_category: c.category,
-        outfit_style: c.outfitStyle || '',
-        emotion_profile: c.emotionProfile || '',
-        speaking_tone: c.speakingTone || '',
-        duration_seconds: c.durationSeconds || 120,
-        is_active: c.isPrimary ? 1 : 0,
-        source_type: 'direct_mp4',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-      looks = [...looks, ...catalogLooks];
-    }
-
     // 2. Resolve Active Look ID
     let activeLookId = '';
     try {

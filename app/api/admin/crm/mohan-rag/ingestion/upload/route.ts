@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
       const language = params.get('language') || 'auto';
       const fileName = (params.get('fileName') || '').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 240);
       const extension = fileName.split('.').pop()?.toLowerCase() || '';
-      const contentLength = Number(request.headers.get('content-length') || 0);
+      const contentLengthHeader = Number(request.headers.get('content-length') || 0);
+      const declaredSize = Number(params.get('size') || contentLengthHeader);
       const contentTypes: Record<string, string> = {
         mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
         mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
@@ -40,11 +41,28 @@ export async function POST(request: NextRequest) {
       if (!isMohanRagModule(moduleId) || !SUPPORTED_MEDIA.has(extension) || !request.body) {
         return NextResponse.json({ error: 'Choose a supported media file and knowledge library.' }, { status: 400 });
       }
-      if (!Number.isSafeInteger(contentLength) || contentLength <= 0 || contentLength > MAX_STREAM_UPLOAD_BYTES) {
+      if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0 || declaredSize > MAX_STREAM_UPLOAD_BYTES) {
         return NextResponse.json({ error: 'Large media uploads must be between 1 byte and 5 GB.' }, { status: 413 });
       }
+      if (contentLengthHeader > 0 && params.has('size') && contentLengthHeader !== declaredSize) {
+        return NextResponse.json({ error: 'The uploaded file size did not match its declared size. Please retry the upload.' }, { status: 400 });
+      }
       if (!['auto', 'en', 'hi', 'mr'].includes(language)) return NextResponse.json({ error: 'Choose Auto, English, Hindi, or Marathi.' }, { status: 400 });
-      const bunnyUrl = await uploadStreamToBunnyStorage(request.body, fileName, { contentType: contentTypes[extension], contentLength });
+      let receivedBytes = 0;
+      const verifiedBody = request.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          receivedBytes += chunk.byteLength;
+          if (receivedBytes > declaredSize) {
+            controller.error(new Error('The uploaded media exceeded its declared file size.'));
+            return;
+          }
+          controller.enqueue(chunk);
+        },
+        flush(controller) {
+          if (receivedBytes !== declaredSize) controller.error(new Error('The uploaded media was incomplete. Please retry the upload.'));
+        },
+      }));
+      const bunnyUrl = await uploadStreamToBunnyStorage(verifiedBody, fileName, { contentType: contentTypes[extension], contentLength: declaredSize });
       const userId = String((admin as any).userId || (admin as any).username || 'admin');
       const result = await enqueueVideoSources({
         urls: [bunnyUrl], titles: [params.get('title') || fileName.replace(/\.[^.]+$/, '')], moduleId, topic, language, createdBy: userId,

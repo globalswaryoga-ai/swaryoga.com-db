@@ -340,12 +340,31 @@ function CoursesContent() {
     return '0 days';
   };
 
-  // Format price
+  // Format price & currency based on selected language
+  const getCoursePricing = (course: Course) => {
+    if (course.isFree) {
+      return { symbol: '', price: 0, isFree: true, currency: 'INR' };
+    }
+    const isIndian = ['hi', 'mr', 'kn'].includes(language);
+    const isNepali = language === 'ne';
+
+    if (isNepali) {
+      const price = course.pricing?.NPR?.price || course.pricing?.INR?.price || 0;
+      return { symbol: 'रु.', price, isFree: false, currency: 'NPR' };
+    }
+
+    if (!isIndian && course.pricing?.USD?.price && course.pricing.USD.price > 0) {
+      return { symbol: '$', price: course.pricing.USD.price, isFree: false, currency: 'USD' };
+    }
+
+    const price = course.pricing?.INR?.price || 0;
+    return { symbol: '₹', price, isFree: false, currency: 'INR' };
+  };
+
   const formatPrice = (course: Course) => {
-    if (course.isFree) return t.free;
-    const symbol = language === 'ne' ? 'रु.' : '₹';
-    const price = language === 'ne' ? (course.pricing.NPR?.price || course.pricing.INR.price) : course.pricing.INR.price;
-    return `${symbol}${price?.toLocaleString() || '0'}`;
+    const p = getCoursePricing(course);
+    if (p.isFree) return t.free;
+    return `${p.symbol}${p.price.toLocaleString()}`;
   };
 
   const getDisplayedStudentCount = (course: Course) =>
@@ -872,19 +891,25 @@ function CoursesContent() {
                       <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
                         <div className="flex flex-col gap-1">
                           {!course.isFree && course.discount && course.discount > 0 ? (
-                            <>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400 line-through">
-                                  {language === 'ne' ? 'रु.' : '₹'}{(course.pricing.INR?.price || 0).toLocaleString()}
-                                </span>
-                                <span className="text-lg font-bold text-red-600">
-                                  {language === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) * (1 - course.discount / 100)).toLocaleString()}
-                                </span>
-                              </div>
-                              <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded w-fit">
-                                {course.discount}% OFF
-                              </span>
-                            </>
+                            (() => {
+                              const p = getCoursePricing(course);
+                              const discounted = Math.round(p.price * (1 - course.discount / 100));
+                              return (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400 line-through">
+                                      {p.symbol}{p.price.toLocaleString()}
+                                    </span>
+                                    <span className="text-lg font-bold text-red-600">
+                                      {p.symbol}{discounted.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded w-fit">
+                                    {course.discount}% OFF
+                                  </span>
+                                </>
+                              );
+                            })()
                           ) : (
                             <span className="text-xl font-bold text-green-600">
                               {formatPrice(course)}

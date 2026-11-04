@@ -89,11 +89,11 @@ export default function AdminMobileRecorderPage() {
       {/* Top Header Navigation */}
       <div className="max-w-4xl mx-auto flex items-center justify-between mb-6">
         <Link
-          href="/admin/crm/e-learning/rag-video"
+          href="/admin/crm/mohan-rag"
           className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-white px-3 py-1.5 rounded-xl bg-gray-900 border border-gray-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to RAG Studio</span>
+          <span>Back to Mohan RAG</span>
         </Link>
 
         {/* Tab switch */}

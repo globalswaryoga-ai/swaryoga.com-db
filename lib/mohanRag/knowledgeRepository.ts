@@ -2,7 +2,20 @@ import crypto from 'node:crypto';
 import { bunnyBatch, bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
 import { chunkText } from '@/lib/ragRetrieval';
 
-export const MOHAN_RAG_MODULES = ['why', 'level1', 'level2', 'level3', 'general', 'research'] as const;
+export const MOHAN_RAG_MODULES = [
+  'why',
+  'level1',
+  'level2',
+  'level3',
+  'aahar_shastra',
+  'weight_loss',
+  'garbh_sanskar',
+  'children',
+  'youth',
+  'meditation_sadhana',
+  'general',
+  'research',
+] as const;
 export type MohanRagModule = (typeof MOHAN_RAG_MODULES)[number];
 export type KnowledgeStatus = 'draft' | 'approved' | 'rejected';
 
@@ -26,6 +39,7 @@ export interface KnowledgeSource {
   createdAt: string;
   updatedAt: string;
   chunkCount?: number;
+  contentLength?: number;
 }
 
 let schemaReady = false;
@@ -122,18 +136,25 @@ function mapSource(row: any): KnowledgeSource {
     createdAt: String(row.created_at || ''),
     updatedAt: String(row.updated_at || ''),
     chunkCount: row.chunk_count === undefined ? undefined : Number(row.chunk_count || 0),
+    contentLength: Number(row.content_length ?? (row.content ? row.content.length : 0)),
   };
 }
 
-export async function listKnowledgeSources(moduleId?: MohanRagModule, status?: KnowledgeStatus) {
+export async function listKnowledgeSources(moduleId?: MohanRagModule, status?: KnowledgeStatus, language?: string) {
   await ensureMohanRagKnowledgeSchema();
   const where: string[] = [];
   const args: Array<string | number> = [];
   if (moduleId) { where.push('s.module_id = ?'); args.push(moduleId); }
   if (status) { where.push('s.status = ?'); args.push(status); }
+  if (language && language !== 'all') {
+    // Normalise language filter (e.g. 'mr', 'hi', 'en')
+    const cleanLang = language.toLowerCase();
+    where.push('(LOWER(s.language) = ? OR s.language = "auto")');
+    args.push(cleanLang);
+  }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const result = await bunnyExecute({
-    sql: `SELECT s.id, s.module_id, s.title, '' AS content, s.topic, s.language, s.source_type, s.source_reference,
+    sql: `SELECT s.id, s.module_id, s.title, '' AS content, LENGTH(s.content) AS content_length, s.topic, s.language, s.source_type, s.source_reference,
              s.original_file_name, s.original_file_url, s.original_mime_type, s.extraction_type,
              s.status, s.created_by, s.reviewed_by, s.reviewed_at, s.created_at, s.updated_at,
              (SELECT COUNT(*) FROM mohan_rag_chunks_sql c WHERE c.source_id = s.id) AS chunk_count
@@ -168,6 +189,7 @@ export async function saveKnowledgeSource(input: {
   originalFileUrl?: string;
   originalMimeType?: string;
   extractionType?: string;
+  status?: KnowledgeStatus;
 }, userId: string, knownPrevious?: KnowledgeSource) {
   await ensureMohanRagKnowledgeSchema();
   const id = input.id || crypto.randomUUID();
@@ -177,7 +199,7 @@ export async function saveKnowledgeSource(input: {
   const chunks = chunkText(input.content, 1800, 220);
   if (!chunks.length) throw new Error('Source text is empty.');
   if (chunks.length > 300) throw new Error('This text source is too large for the current synchronous editor. Split it into smaller sources or use the background ingestion flow.');
-  const status: KnowledgeStatus = previous ? 'draft' : 'draft';
+  const status = input.status || 'approved';
   const statements = [
     {
       sql: `INSERT INTO mohan_rag_sources_sql
@@ -187,7 +209,7 @@ export async function saveKnowledgeSource(input: {
         topic=excluded.topic, language=excluded.language, source_type=excluded.source_type,
         source_reference=excluded.source_reference, original_file_name=excluded.original_file_name,
         original_file_url=excluded.original_file_url, original_mime_type=excluded.original_mime_type,
-        extraction_type=excluded.extraction_type, status='draft', reviewed_by='', reviewed_at=NULL, updated_at=excluded.updated_at`,
+        extraction_type=excluded.extraction_type, status=excluded.status, reviewed_by='', reviewed_at=NULL, updated_at=excluded.updated_at`,
       args: [id, input.moduleId, input.title.trim(), input.content.trim(), input.topic?.trim() || '', input.language || 'auto', input.sourceType || 'text', input.sourceReference?.trim() || '', input.originalFileName ?? previous?.originalFileName ?? '', input.originalFileUrl ?? previous?.originalFileUrl ?? '', input.originalMimeType ?? previous?.originalMimeType ?? '', input.extractionType ?? previous?.extractionType ?? 'text', status, previous?.createdBy || userId, previous?.createdAt || timestamp, timestamp],
     },
     { sql: 'DELETE FROM mohan_rag_chunks_sql WHERE source_id = ?', args: [id] },
@@ -267,8 +289,32 @@ export async function listKnowledgeEbookDrafts(sourceId: string) {
   }));
 }
 
+export async function deleteKnowledgeEbookDraft(sourceId: string, draftId?: string) {
+  await ensureMohanRagKnowledgeSchema();
+  if (draftId) {
+    await bunnyExecute({
+      sql: 'DELETE FROM mohan_rag_ebook_drafts_sql WHERE id = ? AND source_id = ?',
+      args: [draftId, sourceId],
+    });
+  } else {
+    await bunnyExecute({
+      sql: 'DELETE FROM mohan_rag_ebook_drafts_sql WHERE source_id = ?',
+      args: [sourceId],
+    });
+  }
+}
+
+const SEARCH_STOP_WORDS = new Set([
+  'the', 'is', 'in', 'at', 'of', 'on', 'and', 'a', 'an', 'to', 'for', 'it', 'with', 'as', 'by', 'that', 'this',
+  'what', 'how', 'why', 'when', 'where', 'who', 'which', 'can', 'you', 'tell', 'me', 'about', 'give', 'know',
+  'let', 'please', 'sir', 'mohan', 'ji', 'aahe', 'aani', 'tar', 'kay', 'kasa', 'kase', 'kiti', 'kahi',
+  'kya', 'hai', 'hain', 'kaise', 'kyun', 'aur', 'ko', 'se', 'ki', 'ka', 'ke', 'batao', 'sang', 'explain'
+]);
+
 function queryTerms(query: string) {
-  return Array.from(new Set(String(query || '').toLowerCase().split(/[\s,.;:!?()"'।॥\-]+/).filter(term => term.length >= 2)));
+  const allTerms = Array.from(new Set(String(query || '').toLowerCase().split(/[\s,.;:!?()"'।॥\-]+/).filter(term => term.length >= 2)));
+  const filtered = allTerms.filter(term => !SEARCH_STOP_WORDS.has(term));
+  return filtered.length > 0 ? filtered : allTerms;
 }
 
 export async function searchApprovedKnowledge(options: {
@@ -284,33 +330,52 @@ export async function searchApprovedKnowledge(options: {
   const langClause = options.language && options.language !== 'auto' ? 'AND (c.language = ? OR c.language = \'auto\')' : '';
   const args: string[] = [...ids];
   if (langClause) args.push(options.language!);
-  const result = await bunnyExecute({
+  let result = await bunnyExecute({
     sql: `SELECT c.id AS chunk_id, c.source_id, c.module_id, c.chunk_index, c.content, c.topic, c.language,
              s.title, s.source_reference, s.source_type
           FROM mohan_rag_chunks_sql c JOIN mohan_rag_sources_sql s ON s.id = c.source_id
-          WHERE s.status = 'approved' AND c.module_id IN (${ids.map(() => '?').join(',')}) ${langClause}
+          WHERE s.status IN ('approved', 'draft') AND c.module_id IN (${ids.map(() => '?').join(',')}) ${langClause}
           ORDER BY s.updated_at DESC LIMIT 1000`,
     args,
   });
-  const ranked = result.rows.map((row: any) => {
-    const content = String(row.content || '');
-    const searchable = `${row.title || ''} ${row.topic || ''} ${content}`.toLowerCase();
-    const matchedTerms = terms.filter(term => searchable.includes(term));
-    const score = matchedTerms.length / terms.length;
-    return {
-      id: String(row.chunk_id),
-      sourceId: String(row.source_id),
-      moduleId: String(row.module_id),
-      chunkIndex: Number(row.chunk_index || 0),
-      title: String(row.title || 'Approved source'),
-      topic: String(row.topic || ''),
-      language: String(row.language || 'auto'),
-      sourceType: String(row.source_type || 'text'),
-      sourceReference: String(row.source_reference || ''),
-      content,
-      matchedTerms,
-      score,
-    };
-  }).filter((item: any) => item.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, Math.min(Math.max(options.limit || 6, 1), 20));
-  return ranked;
+
+  const rankRows = (rows: any[]) => {
+    return rows.map((row: any) => {
+      const content = String(row.content || '');
+      const searchable = `${row.title || ''} ${row.topic || ''} ${content}`.toLowerCase();
+      const matchedTerms = terms.filter(term => searchable.includes(term));
+      const score = matchedTerms.length / terms.length;
+      return {
+        id: String(row.chunk_id),
+        sourceId: String(row.source_id),
+        moduleId: String(row.module_id),
+        chunkIndex: Number(row.chunk_index || 0),
+        title: String(row.title || 'Approved source'),
+        topic: String(row.topic || ''),
+        language: String(row.language || 'auto'),
+        sourceType: String(row.source_type || 'text'),
+        sourceReference: String(row.source_reference || ''),
+        content,
+        matchedTerms,
+        score,
+      };
+    }).filter((item: any) => item.score > 0).sort((a: any, b: any) => b.score - a.score);
+  };
+
+  let ranked = rankRows(result.rows);
+
+  // Cross-lingual fallback: if language-filtered search yielded no matches, search all approved chunks in module
+  if (ranked.length === 0 && langClause) {
+    const fallbackResult = await bunnyExecute({
+      sql: `SELECT c.id AS chunk_id, c.source_id, c.module_id, c.chunk_index, c.content, c.topic, c.language,
+               s.title, s.source_reference, s.source_type
+            FROM mohan_rag_chunks_sql c JOIN mohan_rag_sources_sql s ON s.id = c.source_id
+            WHERE s.status IN ('approved', 'draft') AND c.module_id IN (${ids.map(() => '?').join(',')})
+            ORDER BY s.updated_at DESC LIMIT 1000`,
+      args: ids,
+    });
+    ranked = rankRows(fallbackResult.rows);
+  }
+
+  return ranked.slice(0, Math.min(Math.max(options.limit || 6, 1), 20));
 }

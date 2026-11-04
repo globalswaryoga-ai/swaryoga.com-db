@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { isMohanRagModule } from '@/lib/mohanRag/knowledgeRepository';
-import { enqueueVideoSources, listVideoIngestionJobs } from '@/lib/mohanRag/videoIngestionQueue';
+import { enqueueVideoSources, listVideoIngestionJobs, retryFailedVideoIngestionJob } from '@/lib/mohanRag/videoIngestionQueue';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,14 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
   try {
     const body = await request.json();
+    if (body?.action === 'retry') {
+      const jobId = typeof body.jobId === 'string' ? body.jobId.trim() : '';
+      if (!jobId || jobId.length > 100) return NextResponse.json({ error: 'Choose a valid failed job to retry.' }, { status: 400 });
+      const retried = await retryFailedVideoIngestionJob(jobId);
+      if (!retried) return NextResponse.json({ error: 'This job is no longer failed. Refresh the queue before retrying.' }, { status: 409 });
+      return NextResponse.json({ success: true, message: 'Job queued for retry.' });
+    }
+
     const moduleId = String(body?.moduleId || '');
     const urls = typeof body?.urls === 'string' ? body.urls.split(/[\r\n,\t ]+/).filter(Boolean) : body?.urls;
     const language = String(body?.language || 'auto');

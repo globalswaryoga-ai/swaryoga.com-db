@@ -187,19 +187,21 @@ export default function AvatarDnaDetails({ token }: AvatarDnaDetailsProps) {
 
   // Video playback toggling
   const togglePlayVideo = (lookId: string) => {
-    const vid = videoRefs.current[lookId];
-    if (!vid) return;
-
     if (playingLookId === lookId) {
-      vid.pause();
+      if (videoRefs.current[lookId]) {
+        videoRefs.current[lookId]?.pause();
+      }
       setPlayingLookId(null);
     } else {
-      // Pause previous
       if (playingLookId && videoRefs.current[playingLookId]) {
         videoRefs.current[playingLookId]?.pause();
       }
-      vid.play().catch(e => console.warn('Playback error:', e));
       setPlayingLookId(lookId);
+      setTimeout(() => {
+        if (videoRefs.current[lookId]) {
+          videoRefs.current[lookId]?.play().catch(e => console.warn('Playback error:', e));
+        }
+      }, 50);
     }
   };
 
@@ -605,25 +607,45 @@ export default function AvatarDnaDetails({ token }: AvatarDnaDetailsProps) {
                 >
                   {/* Video & Poster Area */}
                   <div className="relative flex-1 bg-black overflow-hidden min-h-[220px]">
-                    <video
-                      ref={el => {
-                        videoRefs.current[item.id] = el;
-                      }}
-                      src={item.video_url}
-                      poster={item.thumbnail_url || 'https://swaryogacrm.b-cdn.net/mohan.jpg'}
-                      preload="metadata"
-                      playsInline
-                      loop
-                      className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-102"
-                      onError={e => {
-                        // Poster fallback if broken
-                        const target = e.currentTarget;
-                        target.poster = 'https://swaryogacrm.b-cdn.net/mohan.jpg';
-                      }}
-                    />
+                    {isPlaying ? (
+                      item.video_url.includes('iframe.mediadelivery.net') ? (
+                        <iframe
+                          src={`${item.video_url}?autoplay=true&preload=true`}
+                          className="h-full w-full border-0 absolute inset-0"
+                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <video
+                          ref={el => {
+                            videoRefs.current[item.id] = el;
+                          }}
+                          src={item.video_url}
+                          autoPlay
+                          playsInline
+                          controls
+                          className="h-full w-full object-cover object-top absolute inset-0"
+                        />
+                      )
+                    ) : (
+                      <div className="relative h-full w-full min-h-[220px]">
+                        <img
+                          src={item.thumbnail_url || (item.video_url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) ? `https://vz-d0769ece-079.b-cdn.net/${item.video_url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i)?.[1]}/preview.webp` : '/avatar-studio/looks/mohan_white_khadi_1080p.jpg')}
+                          alt={item.title}
+                          className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-105"
+                          onError={e => {
+                            const guid = item.video_url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i)?.[1];
+                            if (guid && !e.currentTarget.src.includes('thumbnail.jpg')) {
+                              e.currentTarget.src = `https://vz-d0769ece-079.b-cdn.net/${guid}/thumbnail.jpg`;
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
+                      </div>
+                    )}
 
                     {/* Top Floating Badges */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
                       <span className="rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-md border border-white/10 uppercase tracking-wide">
                         {item.look_category.replace(/_/g, ' ')}
                       </span>
@@ -641,43 +663,39 @@ export default function AvatarDnaDetails({ token }: AvatarDnaDetailsProps) {
                     </div>
 
                     {/* Center Play / Pause Circle Button */}
-                    <div className="absolute inset-0 flex items-center justify-center transition-all bg-black/10 group-hover:bg-black/30">
-                      <button
-                        type="button"
-                        onClick={() => togglePlayVideo(item.id)}
-                        className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 shadow-2xl ${
-                          isPlaying
-                            ? 'bg-black/70 text-white hover:scale-110 ring-2 ring-emerald-400'
-                            : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-110 shadow-emerald-500/40'
-                        }`}
-                        title={isPlaying ? 'Pause video' : 'Play Mohan Sir Look Video'}
-                      >
-                        {isPlaying ? (
-                          <Pause className="h-6 w-6 fill-current" />
-                        ) : (
+                    {!isPlaying && (
+                      <div className="absolute inset-0 flex items-center justify-center transition-all bg-black/10 group-hover:bg-black/30 z-10">
+                        <button
+                          type="button"
+                          onClick={() => togglePlayVideo(item.id)}
+                          className="flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 shadow-2xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-110 shadow-emerald-500/40 cursor-pointer"
+                          title="Play Mohan Sir Look Video"
+                        >
                           <Play className="h-6 w-6 ml-0.5 fill-current" />
-                        )}
-                      </button>
-                    </div>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Bottom Control Strip */}
-                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] text-white/90">
-                      <button
-                        type="button"
-                        onClick={e => toggleMuteVideo(item.id, e)}
-                        className="rounded-md bg-black/60 p-1.5 backdrop-blur-md hover:bg-black/80"
-                        title={isMuted ? 'Unmute' : 'Mute'}
-                      >
-                        {isMuted ? (
-                          <VolumeX className="h-3.5 w-3.5 text-red-400" />
-                        ) : (
-                          <Volume2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                      <span className="rounded-md bg-black/60 px-2 py-0.5 font-mono text-[10px] backdrop-blur-md">
-                        {durationMin}
-                      </span>
-                    </div>
+                    {!isPlaying && (
+                      <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] text-white/90 z-10">
+                        <button
+                          type="button"
+                          onClick={e => toggleMuteVideo(item.id, e)}
+                          className="rounded-md bg-black/60 p-1.5 backdrop-blur-md hover:bg-black/80 cursor-pointer"
+                          title={isMuted ? 'Unmute' : 'Mute'}
+                        >
+                          {isMuted ? (
+                            <VolumeX className="h-3.5 w-3.5 text-red-400" />
+                          ) : (
+                            <Volume2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <span className="rounded-md bg-black/60 px-2 py-0.5 font-mono text-[10px] backdrop-blur-md">
+                          {durationMin}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Card Content & Action Buttons */}

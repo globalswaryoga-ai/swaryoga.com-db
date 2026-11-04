@@ -1437,6 +1437,40 @@ export default function AvatarStudioPage() {
   const [dramaSuccess, setDramaSuccess] = useState(false);
   const [customDramaVideoName, setCustomDramaVideoName] = useState<string | null>(null);
 
+  // Mohan RAG Multi-Talk Synthesis State
+  const [showRagSynthesizeModal, setShowRagSynthesizeModal] = useState(false);
+  const [ragSynthesizeTopic, setRagSynthesizeTopic] = useState('Pranayama and Digestion with Right Nostril');
+  const [ragSynthesizeDuration, setRagSynthesizeDuration] = useState<'reel_30s' | 'lesson_3m' | 'master_15m'>('lesson_3m');
+  const [ragSynthesizeLanguage, setRagSynthesizeLanguage] = useState('mr');
+  const [isSynthesizingRagScript, setIsSynthesizingRagScript] = useState(false);
+
+  const handleSynthesizeScript = async () => {
+    setIsSynthesizingRagScript(true);
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: ragSynthesizeTopic,
+          duration: ragSynthesizeDuration,
+          targetLanguage: ragSynthesizeLanguage,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.script) {
+        setTestScript(data.script);
+        setDramaScript(data.script);
+        setShowRagSynthesizeModal(false);
+      } else {
+        alert(data.error || 'Failed to synthesize script.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error connecting to Mohan RAG synthesis.');
+    } finally {
+      setIsSynthesizingRagScript(false);
+    }
+  };
+
   // 360° Persistent Aside State
   const [avatarAngle, setAvatarAngle] = useState(0);
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
@@ -6118,18 +6152,28 @@ export default function AvatarStudioPage() {
                     />
 
                     <div className="flex items-center justify-between pt-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => setTestScript('According to Vedic Swar Yoga, solar nadi breath accelerates vitality, strength, and metabolic fire.')}
                           className="px-2.5 py-1 rounded bg-slate-800 text-[11px] text-slate-300 hover:bg-slate-700"
                         >
                           Sample 1 (Swar)
                         </button>
                         <button
+                          type="button"
                           onClick={() => setTestScript('Welcome to our international masterclass on circadian breath rhythms and yogic longevity.')}
                           className="px-2.5 py-1 rounded bg-slate-800 text-[11px] text-slate-300 hover:bg-slate-700"
                         >
                           Sample 2 (Global)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowRagSynthesizeModal(true)}
+                          className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500/25 via-emerald-500/25 to-teal-500/25 border border-amber-500/50 text-[11px] font-bold text-amber-300 hover:bg-amber-500/35 flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                        >
+                          <Sparkles size={12} className="text-amber-400" />
+                          ⚡ Generate from Mohan RAG DNA
                         </button>
                       </div>
 
@@ -7601,6 +7645,148 @@ export default function AvatarStudioPage() {
           </div>
         );
       })()}
+
+      {/* MOHAN RAG MULTI-TALK SCRIPT SYNTHESIS MODAL */}
+      {showRagSynthesizeModal && (
+        <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="relative w-full max-w-2xl bg-slate-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl space-y-5 text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-black font-black shadow-lg">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-lg text-white">Generate Script from Mohan RAG DNA</h3>
+                  <p className="text-xs text-slate-400">Multi-Talk Synthesis • Dual SOV/SVO Grammar • Heart-Touch Wit &amp; Emotion</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRagSynthesizeModal(false)}
+                className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Topic Input */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-300">Teaching Topic</label>
+                <input
+                  type="text"
+                  value={ragSynthesizeTopic}
+                  onChange={(e) => setRagSynthesizeTopic(e.target.value)}
+                  placeholder="e.g. Pranayama and Digestion with Right Nostril"
+                  className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    'Pranayama and Digestion with Right Nostril',
+                    'Ida & Pingala Breath Balance',
+                    'Deep Sleep and Chandra Nadi Calmness',
+                    'Shiva Swarodaya Basics for Beginners',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setRagSynthesizeTopic(preset)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 text-[11px] text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Target Duration */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-300">Target Duration &amp; Style</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'reel_30s' as const, label: '⚡ 30-Sec Reel', desc: 'Punchy hook & daily secret' },
+                    { id: 'lesson_3m' as const, label: '🎬 3-Min Lesson', desc: 'Complete avatar daily practice' },
+                    { id: 'master_15m' as const, label: '🧘 15-Min Masterclass', desc: 'Deep scripture discourse' },
+                  ].map((dur) => (
+                    <button
+                      key={dur.id}
+                      type="button"
+                      onClick={() => setRagSynthesizeDuration(dur.id)}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        ragSynthesizeDuration === dur.id
+                          ? 'border-amber-400 bg-amber-500/15 text-amber-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-white">{dur.label}</div>
+                      <div className="text-[10px] mt-0.5 opacity-80">{dur.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Target Language & Grammar Typology */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-300">Target Delivery Language &amp; Grammar Family</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'mr', label: '🇮🇳 Marathi (मराठी)', family: 'SOV' },
+                    { id: 'hi', label: '🇮🇳 Hindi (हिन्दी)', family: 'SOV' },
+                    { id: 'en', label: '🇬🇧 English (Global)', family: 'SVO' },
+                    { id: 'ja', label: '🇯🇵 Japanese (日本語)', family: 'SOV' },
+                    { id: 'es', label: '🇪🇸 Spanish (Español)', family: 'SVO' },
+                    { id: 'de', label: '🇩🇪 German (Deutsch)', family: 'SVO' },
+                    { id: 'gu', label: '🇮🇳 Gujarati (ગુજરાતી)', family: 'SOV' },
+                    { id: 'ta', label: '🇮🇳 Tamil (தமிழ்)', family: 'SOV' },
+                  ].map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      onClick={() => setRagSynthesizeLanguage(lang.id)}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        ragSynthesizeLanguage === lang.id
+                          ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="font-semibold text-xs text-white truncate">{lang.label}</div>
+                      <div className="text-[10px] font-mono text-cyan-400 mt-0.5">Family: {lang.family}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowRagSynthesizeModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSynthesizeScript}
+                disabled={isSynthesizingRagScript || !ragSynthesizeTopic.trim()}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-black font-extrabold text-xs shadow-lg shadow-amber-950/40 flex items-center gap-2 transition disabled:opacity-50 cursor-pointer"
+              >
+                {isSynthesizingRagScript ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    Synthesizing Multi-Talk Knowledge...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    Synthesize Authentic Script Now
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

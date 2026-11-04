@@ -3,11 +3,8 @@ import path from 'path';
 import PDFDocument from 'pdfkit';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-<<<<<<< HEAD
-import { getAiVideoJobsByWorkshop, initBunnyAiVideoJobsSchema } from '@/lib/bunnyAiVideoJobRepository';
-=======
+
 import { bunnyExecute } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -30,10 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'workshopName and language are required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    await initBunnyAiVideoJobsSchema();
-    const jobs = await getAiVideoJobsByWorkshop(workshopName, language);
-=======
+
     // Query Bunny Database
     const res = await bunnyExecute({
       sql: `SELECT job_id, topic_title, day_order, ebook_chapters_json 
@@ -44,7 +38,6 @@ export async function POST(request: NextRequest) {
     });
 
     const matchingJobs: { topicTitle: string; chapterText: string }[] = [];
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     for (const row of res.rows) {
       let chapters: any[] = [];
@@ -77,14 +70,8 @@ export async function POST(request: NextRequest) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-<<<<<<< HEAD
-      jobs.forEach((job: any, i: number) => {
-        const chapter = job.ebookChapters.find((c: any) => c.language === language);
-        if (!chapter) return;
 
-=======
       matchingJobs.forEach((job, i) => {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         if (i > 0) doc.addPage();
         doc.fontSize(20).text(`Chapter ${i + 1}: ${job.topicTitle}`, { align: 'left' });
         doc.moveDown(1);

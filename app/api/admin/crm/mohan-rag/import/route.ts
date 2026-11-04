@@ -233,6 +233,7 @@ export async function POST(request: NextRequest) {
       moduleId, title: title || fileName.replace(/\.[^.]+$/, ''), content: extractedText,
       topic, language, sourceType, sourceReference,
       originalFileName: fileName, originalFileUrl, originalMimeType: file.type || 'application/octet-stream', extractionType,
+      status: 'draft',
     }, userId);
     return NextResponse.json({
       success: true, source, extractedCharacters: extractedText.length, extractionType,

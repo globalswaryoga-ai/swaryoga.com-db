@@ -9,22 +9,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-<<<<<<< HEAD
-import {
-  listSectionsByCourse,
-  saveSection,
-  deleteSection,
-} from '@/lib/bunnyCourseRepository';
 
-export const dynamic = 'force-dynamic';
-
-=======
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
 // Check superadmin access - E-Learning management is superadmin only
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;
   return isSuperAdmin(decoded);
@@ -56,12 +46,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const sections = await listSectionsByCourse(courseId);
 
-    return NextResponse.json({
-      success: true,
-=======
     if (isBunnyDatabaseConfigured()) {
       const res = await bunnyExecute({
         sql: 'SELECT * FROM course_sections_sql WHERE course_id = ? ORDER BY display_order ASC',
@@ -91,14 +76,6 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('[Admin Course Sections GET Error]:', error);
     return NextResponse.json({ error: error?.message || 'Server error' }, { status: 500 });
-  }
-}
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
-      sections,
-    });
-  } catch (error: any) {
-    console.error('[Admin Sections GET Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 

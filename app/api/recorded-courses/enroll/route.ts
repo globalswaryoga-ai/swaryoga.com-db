@@ -1,25 +1,14 @@
 /**
-<<<<<<< HEAD
- * Course Enrollment API (BunnyDB)
-=======
+
  * Course Enrollment API (Bunny Database / LibSQL)
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
  * POST /api/recorded-courses/enroll - Enroll user in a course
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-<<<<<<< HEAD
-import { verifyToken } from '@/lib/auth';
-import {
-  getCourseById,
-  getEnrollment,
-  saveEnrollment,
-} from '@/lib/bunnyCourseRepository';
-=======
+
 import crypto from 'crypto';
 import { verifyToken } from '@/lib/auth';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 
@@ -35,31 +24,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-<<<<<<< HEAD
-    const body = await request.json();
-    const { courseId, currency = 'INR', useGiftHours } = body;
 
-    if (!courseId) {
-      return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
-    }
-
-    const userId = (decoded as any).id || (decoded as any)._id || (decoded as any).userId;
-=======
     const userId = decoded.id || decoded._id || decoded.userId;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     if (!userId) {
       return NextResponse.json({ error: 'User ID not found' }, { status: 401 });
     }
 
-<<<<<<< HEAD
-    const course = await getCourseById(courseId);
-    if (!course || !course.isActive || !course.isPublished) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
 
-    const existingEnrollment = await getEnrollment(String(userId), course.id);
-    if (existingEnrollment) {
-=======
     if (!isBunnyDatabaseConfigured()) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
@@ -92,7 +63,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingEnrollRes.rows.length) {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({
         success: true,
         message: 'Already enrolled',
@@ -101,12 +71,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-<<<<<<< HEAD
-    let price = course.pricing?.INR?.price || 0;
-    let currencyUsed = 'INR';
-    if (currency === 'USD' && course.pricing?.USD?.price) {
-      price = course.pricing.USD.price;
-=======
+
     let pricingObj: any = {};
     try {
       pricingObj = course.pricing_json ? JSON.parse(String(course.pricing_json)) : {};
@@ -127,34 +92,13 @@ export async function POST(request: NextRequest) {
 
     if (currency === 'USD' && pricingObj?.USD?.price) {
       price = pricingObj.USD.price;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       currencyUsed = 'USD';
     } else if (currency === 'NPR' && pricingObj?.NPR?.price) {
       price = pricingObj.NPR.price;
       currencyUsed = 'NPR';
     }
 
-<<<<<<< HEAD
-    const needsPayment = !course.isFree && price > 0;
 
-    // Gift hours trial enrollment
-    if (useGiftHours && course.giftHours?.enabled) {
-      const giftHours = course.giftHours.hours || 2;
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      const enrollment = await saveEnrollment({
-        userId: String(userId),
-        courseId: course.id,
-        status: 'active',
-        expiresAt,
-        data: {
-          purchaseType: 'gift',
-          currency: currencyUsed,
-          giftHoursRemaining: giftHours,
-        },
-      });
-
-=======
     const isFree = Boolean(course.is_free) || price === 0;
     const now = new Date().toISOString();
     const enrollId = `enr_${crypto.randomBytes(8).toString('hex')}`;
@@ -187,7 +131,6 @@ export async function POST(request: NextRequest) {
         args: [enrollId, userId, realCourseId, now, expiresAt, dataJson, now, now],
       });
 
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({
         success: true,
         message: 'Gift hours activated',
@@ -196,20 +139,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-<<<<<<< HEAD
-    // Free course enrollment
-    if (!needsPayment || course.isFree) {
-      const enrollment = await saveEnrollment({
-        userId: String(userId),
-        courseId: course.id,
-        status: 'active',
-        data: {
-          purchaseType: 'free',
-          currency: currencyUsed,
-        },
-      });
 
-=======
     // 4. Free course enrollment
     if (isFree) {
       const dataJson = JSON.stringify({
@@ -225,7 +155,6 @@ export async function POST(request: NextRequest) {
         args: [enrollId, userId, realCourseId, now, dataJson, now, now],
       });
 
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({
         success: true,
         message: 'Enrolled successfully',
@@ -233,22 +162,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-<<<<<<< HEAD
-    // Paid course payment initiation
-    const orderId = `RC-${course.id.slice(-8)}-${Date.now()}`;
-    const pendingEnrollment = await saveEnrollment({
-      userId: String(userId),
-      courseId: course.id,
-      status: 'pending',
-      data: {
-        purchaseType: 'paid',
-        paymentId: orderId,
-        currency: currencyUsed,
-        amountPaid: price,
-      },
-    });
 
-=======
     // 5. Paid course - create pending enrollment & return order data
     const orderId = `RC-${realCourseId.slice(-8)}-${Date.now()}`;
     const dataJson = JSON.stringify({
@@ -265,20 +179,14 @@ export async function POST(request: NextRequest) {
       args: [enrollId, userId, realCourseId, now, dataJson, now, now],
     });
 
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const paymentData = {
       orderId,
       orderAmount: price,
       orderCurrency: currencyUsed,
-<<<<<<< HEAD
-      courseId: course.id,
-      courseName: course.content?.en?.title || course.slug,
-      enrollmentId: pendingEnrollment.id,
-=======
+
       courseId: realCourseId,
       courseName: contentObj?.en?.title || course.slug,
       enrollmentId: enrollId,
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       customerDetails: {
         customerId: userId,
         customerEmail: decoded.email || '',

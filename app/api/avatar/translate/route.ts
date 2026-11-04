@@ -42,40 +42,94 @@ Format as a complete, multi-section book chapter:
 [Actionable bullet points]
 ## Chapter Summary
 Output ONLY the chapter text in ${langName}.`;
-    } else {
-      // DEFAULT: STRICT EXACT 1:1 LENGTH PRESERVATION
+    } else if (mode === 'strict_exact' && inputLineCount <= 2) {
+      // 1:1 line preservation for short avatar dialog lines
       systemPrompt = `You are a professional Vedic multilingual translator for Swar Yoga lectures.
 Translate the input script into ${langName}.
 
-ABSOLUTE 1:1 LENGTH RULE (MANDATORY):
+ABSOLUTE 1:1 LENGTH RULE:
 1. The input has ${inputLineCount} line(s). Your output MUST have EXACTLY ${inputLineCount} line(s).
-2. If the user gives 1 line, you MUST return EXACTLY 1 line in ${langName}. NEVER inflate 1 line into 4-5 lines!
-3. Do NOT add extra explanations, interpretations, background commentary, or alternative translations.
-4. Translate meaning faithfully and concisely for spoken delivery by an avatar.
+2. Translate meaning faithfully and concisely for spoken delivery by an avatar.
+3. PRESERVE all bracket tags exactly as they appear: [smile], [laugh], [serious], [teaching], [inspire], [pause:X.Xs], [CALM], [EXPLAINING], [EMPHASIS], [HUMOROUS].
+4. Keep sacred Swar Yoga terms accurate.
+5. Output ONLY the translated line(s). No markdown fences, no prefaces.`;
+    } else {
+      // MASTER KNOWLEDGE & FULL DOCUMENT TRANSLATION (Default for Library, Corpus & Workshops)
+      systemPrompt = `You are a master Vedic scholar and professional multilingual translator specializing in Shri Mohan Kalburgi's Swar Yoga teachings.
+Translate the complete input text faithfully into authentic native ${langName}.
 
-EMOTION & GESTURE SYMBOLS PRESERVATION:
-5. STRICTLY PRESERVE all bracket tags exactly as they appear: [smile], [big_smile], [laugh], [curious], [serious], [teaching], [inspire], [namaste], [open_palms], [pointing_finger], [pause:X.Xs], [tag:XX].
-6. Place the tags at the natural corresponding place in the ${langName} sentence so the digital avatar exhibits the exact same emotional expression.
+CORE TRANSLATION MANDATES:
+1. 100% COMPLETE FAITHFUL TRANSLATION:
+   - Translate all paragraphs, bullet points, explanations, examples, and stories into fluent, natural, grammatically correct ${langName}.
+   - Do NOT summarize, shorten, condense, or omit any content. Keep 100% of the teaching intact.
+   - For Japanese: use authentic Japanese phrasing (敬語 / 丁寧語), natural kanji, hiragana, and katakana.
+   - For Hindi/Marathi/Kannada/Russian/Spanish/German/etc.: use natural native vocabulary and idioms.
 
-SACRED TERMINOLOGY:
-7. Keep sacred Swar Yoga terms accurate (स्वर योग / Swar Yoga, इड़ा / Ida, पिंगला / Pingala, सुषुम्ना / Sushumna, सूर्य स्वर / Surya Swar, चंद्र स्वर / Chandra Swar, प्राण / Prana, साधना / Sadhana).
-8. Output ONLY the translated text with the bracket tags. Do NOT add quotes, markdown headers, or prefaces.`;
+2. SACRED YOGIC TERMINOLOGY:
+   - Preserve sacred Vedic terminology with utmost reverence:
+     • Swar Yoga (स्वर योग)
+     • Ida Nadi / Chandra Swara (इडा नाडी / चंद्र स्वर)
+     • Pingala Nadi / Surya Swara (पिंगळा नाडी / सूर्य स्वर)
+     • Sushumna Nadi (सुषुम्ना नाडी)
+     • Pranayama & Kumbhaka (प्राणायाम व कुंभक)
+     • Pancha Mahatattva (पंच महातत्त्व)
+   - In target language, use standard native yogic script accompanied by transliteration where appropriate.
+
+3. STRUCTURE & BRACKET EMOTION TAGS:
+   - Preserve all headings, dividers, and bullet lists.
+   - If the input contains bracketed emotion or delivery tags ([CALM], [EXPLAINING], [EMPHASIS], [PAUSE: 2 SECONDS], [HUMOROUS], [SMILING], [INSPIRATIONAL], [SERIOUS], [face:...], [gesture:...]):
+     KEEP them positioned before their corresponding sentences in ${langName}.
+
+4. CLEAN OUTPUT:
+   - Output ONLY the translated content. Do NOT include markdown code fences (\`\`\`), do NOT output "Here is the translation".`;
     }
 
-    const translatedScript = await generateAIText({
-      systemPrompt,
-      message: script,
-      maxOutputTokens: mode === 'ebook_chapter' ? 4000 : mode === 'expand_detail' ? 1200 : 800,
-      temperature: mode === 'strict_exact' ? 0.15 : 0.4,
-      providerOrder: ['OpenAI', 'Anthropic'],
-    });
+    // Handle long scripts via chunking to avoid context truncation
+    let resultText = '';
+    if (script.length <= 8000) {
+      const translated = await generateAIText({
+        systemPrompt,
+        message: script,
+        maxOutputTokens: mode === 'ebook_chapter' ? 4000 : mode === 'expand_detail' ? 2000 : 4000,
+        temperature: mode === 'strict_exact' ? 0.15 : 0.3,
+        providerOrder: ['OpenAI', 'Anthropic', 'Groq', 'Gemini'],
+      });
+      resultText = translated.replace(/^```(?:text)?\s*|\s*```$/g, '').trim();
+    } else {
+      const paragraphs = script.split(/\n\n+/);
+      const chunks: string[] = [];
+      let current = '';
+      for (const para of paragraphs) {
+        if (current.length + para.length > 7000) {
+          if (current) chunks.push(current.trim());
+          current = para;
+        } else {
+          current = current ? `${current}\n\n${para}` : para;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
 
-    const parsed = parseAvatarScript(translatedScript);
+      const translatedChunks: string[] = [];
+      for (const chunk of chunks) {
+        const trans = await generateAIText({
+          systemPrompt,
+          message: chunk,
+          maxOutputTokens: 4000,
+          temperature: 0.2,
+          providerOrder: ['OpenAI', 'Anthropic', 'Groq', 'Gemini'],
+        });
+        translatedChunks.push(trans.replace(/^```(?:text)?\s*|\s*```$/g, '').trim());
+      }
+      resultText = translatedChunks.join('\n\n');
+    }
+
+    const parsed = parseAvatarScript(resultText);
 
     return NextResponse.json({
       success: true,
-      translatedScript: translatedScript.trim(),
-      cleanText: parsed.fullCleanText,
+      translatedText: resultText,
+      translatedScript: resultText,
+      cleanText: parsed.fullCleanText || resultText,
       segments: parsed.segments,
       targetLang,
       mode,

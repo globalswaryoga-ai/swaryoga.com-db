@@ -32,6 +32,8 @@ interface Course {
   totalDuration?: number;
   pricing: {
     INR?: { price: number };
+    USD?: { price: number };
+    NPR?: { price: number };
   };
   discount?: number;
   promoCode?: string;
@@ -147,9 +149,14 @@ export default function CourseDetailPage() {
     );
   }
 
-  const priceINR = course.pricing?.INR?.price || 0;
-  const originalPrice = priceINR;
-  const discountedPrice = course.discount ? Math.round(priceINR * (1 - course.discount / 100)) : priceINR;
+  const isIndian = ['hi', 'mr', 'kn'].includes(language);
+  const isNepali = language === 'ne';
+  const currencySymbol = isNepali ? 'रु.' : (!isIndian && course.pricing?.USD?.price ? '$' : '₹');
+  const currencyCode = isNepali ? 'NPR' : (!isIndian && course.pricing?.USD?.price ? 'USD' : 'INR');
+  const originalPrice = isNepali 
+    ? (course.pricing?.NPR?.price || course.pricing?.INR?.price || 0)
+    : (!isIndian && course.pricing?.USD?.price ? course.pricing.USD.price : (course.pricing?.INR?.price || 0));
+  const discountedPrice = course.discount ? Math.round(originalPrice * (1 - course.discount / 100)) : originalPrice;
   const discountAmount = originalPrice - discountedPrice;
   const displayedStudentCount = (course.defaultStudents ?? 15) + (course.enrolledCount || 0);
 
@@ -310,15 +317,15 @@ export default function CourseDetailPage() {
                       <>
                         {/* Original Price - Strikethrough */}
                         <p className="text-gray-400 line-through text-lg mb-2">
-                          ₹{originalPrice.toLocaleString()}
+                          {currencySymbol}{originalPrice.toLocaleString()}
                         </p>
                         {/* Final Price - RED & BOLD */}
                         <p className="text-4xl font-bold text-red-600 mb-2">
-                          ₹{discountedPrice.toLocaleString()}
+                          {currencySymbol}{discountedPrice.toLocaleString()}
                         </p>
                         {/* Discount Badge */}
                         <div className="bg-red-100 text-red-700 rounded-lg py-2 px-3 text-sm font-semibold mb-2">
-                          Save ₹{discountAmount.toLocaleString()} ({course.discount}% OFF)
+                          Save {currencySymbol}{discountAmount.toLocaleString()} ({course.discount}% OFF)
                         </div>
                         {/* Promo Code Note */}
                         {course.promoCode && (!course.promoExpiry || Date.now() <= new Date(course.promoExpiry).getTime()) && (
@@ -333,7 +340,7 @@ export default function CourseDetailPage() {
                         )}
                       </>
                     ) : (
-                      <p className="text-4xl font-bold text-gray-900 mb-2">₹{priceINR.toLocaleString()}</p>
+                      <p className="text-4xl font-bold text-gray-900 mb-2">{currencySymbol}{originalPrice.toLocaleString()}</p>
                     )}
                   </div>
                 )}
@@ -416,6 +423,8 @@ export default function CourseDetailPage() {
             promoDiscount: course.promoDiscount,
             promoExpiry: course.promoExpiry,
           }}
+          language={language}
+          currencyCode={currencyCode}
           token={token}
           enrollmentCount={displayedStudentCount}
         />

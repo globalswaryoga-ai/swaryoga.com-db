@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-<<<<<<< HEAD
-import { listAiVideoJobs, createAiVideoJob, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
-=======
+
 import { listAiVideoJobs, createAiVideoJob, updateAiVideoJob } from '@/lib/aiVideo/bunnyAiVideoRepository';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 import { transcribeAudio, correctTranscript, ExtractedAudio } from '@/lib/aiVideo/transcribeAndCondense';
 
 export const dynamic = 'force-dynamic';
@@ -25,10 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     const jobs = await listAiVideoJobs();
-<<<<<<< HEAD
 
-=======
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     return NextResponse.json({ success: true, data: jobs }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load jobs';
@@ -68,25 +62,13 @@ export async function POST(request: NextRequest) {
 
     if ((sourceMode !== 'url' && !audioFile && !sourceText) || !topicTitle || !targetLanguages.length) {
       return NextResponse.json(
-<<<<<<< HEAD
-        { error: 'audioFile or sourceText (or URL mode), topicTitle, and at least one targetLanguage are required' },
-=======
+
         { error: 'audioFile/videoFile or sourceText, topicTitle, and at least one targetLanguage are required' },
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         { status: 400 }
       );
     }
 
-<<<<<<< HEAD
-    if (audioFile && audioFile.size > 24 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: `Audio file is ${(audioFile.size / (1024 * 1024)).toFixed(1)}MB. Transcription limit is 24MB. Please use the MP4 to MP3 Converter to compress to a lightweight speech MP3, or paste text.` },
-        { status: 400 }
-      );
-    }
 
-=======
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     let job = await createAiVideoJob({
       sourceYoutubeUrl: sourceYoutubeUrl || undefined,
       sourceFileName: audioFile ? audioFile.name : undefined,
@@ -100,47 +82,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-<<<<<<< HEAD
-      let rawTranscript = sourceText;
 
-      if (audioFile) {
-        rawTranscript = await transcribeAudio(
-          { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
-        );
-      } else if (sourceMode === 'url' && sourceYoutubeUrl) {
-        try {
-          const fetchRes = await fetch(sourceYoutubeUrl);
-          if (fetchRes.ok) {
-            const buf = Buffer.from(await fetchRes.arrayBuffer());
-            const cType = fetchRes.headers.get('content-type') || 'audio/webm';
-            rawTranscript = await transcribeAudio({ buffer: buf, mimeType: cType });
-          }
-        } catch (fetchErr) {
-          console.warn('URL auto-transcribe fallback:', fetchErr);
-        }
-      }
-
-      job = await updateAiVideoJob(job._id, { transcript: rawTranscript || '' }) as any;
-
-      if (rawTranscript && rawTranscript.trim()) {
-        const corrected = await correctTranscript(rawTranscript, sourceLanguage);
-        job = await updateAiVideoJob(job._id, { 
-          correctedTranscript: corrected,
-          status: 'awaiting_correction_review',
-          errorMessage: undefined
-        }) as any;
-      } else {
-        job = await updateAiVideoJob(job._id, { 
-          status: 'awaiting_correction_review',
-          errorMessage: undefined
-        }) as any;
-      }
-    } catch (pipelineError) {
-      job = await updateAiVideoJob(job._id, {
-        status: 'failed',
-        errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed'
-      }) as any;
-=======
       const rawTranscript = audioFile
         ? await transcribeAudio({
             buffer: Buffer.from(await audioFile.arrayBuffer()),
@@ -164,7 +106,6 @@ export async function POST(request: NextRequest) {
         errorMessage: pipelineError instanceof Error ? pipelineError.message : 'Transcription/correction failed',
       });
       if (failed) job = failed;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 201 });

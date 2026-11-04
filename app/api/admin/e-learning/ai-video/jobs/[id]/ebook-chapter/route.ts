@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-<<<<<<< HEAD
-import { getAiVideoJobById, updateAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
-=======
+
 import { getAiVideoJobById, updateAiVideoJob } from '@/lib/aiVideo/bunnyAiVideoRepository';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 import { rewriteForReading } from '@/lib/aiVideo/transcribeAndCondense';
 
 export const dynamic = 'force-dynamic';
@@ -25,46 +22,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const { id } = params;
-<<<<<<< HEAD
 
-    const body = await request.json().catch(() => ({} as any));
-=======
     const body = await request.json().catch(() => ({}));
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     const language = String(body?.language || '').trim();
 
-<<<<<<< HEAD
-    let job = await getAiVideoJobById(id);
-    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    if (!job.correctedTranscript) {
-      return NextResponse.json({ error: 'No corrected transcript yet — finish the correction review first' }, { status: 400 });
-=======
+
     if (!language) {
       return NextResponse.json({ error: 'language is required' }, { status: 400 });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-<<<<<<< HEAD
-    const newEbookChapters = [...(job.ebookChapters || [])];
-    const existingIndex = newEbookChapters.findIndex((c: any) => c.language === language);
-    if (existingIndex >= 0) {
-      newEbookChapters[existingIndex] = { ...newEbookChapters[existingIndex], text };
-    } else {
-      newEbookChapters.push({ language, text });
-    }
 
-    job = (await updateAiVideoJob(id, {
-      ebookChapters: newEbookChapters,
-      errorMessage: undefined
-    }))!;
-=======
     if (!job.correctedTranscript) {
       return NextResponse.json({ error: 'No corrected transcript to write e-book from yet' }, { status: 400 });
     }
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
     const chapterText = await rewriteForReading(
       job.correctedTranscript,

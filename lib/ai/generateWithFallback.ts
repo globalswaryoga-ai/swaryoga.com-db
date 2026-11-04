@@ -39,58 +39,58 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getGeminiModel(): string {
-  // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
-  return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+function getGeminiModels(): string[] {
+  const configured = process.env.GEMINI_MODEL;
+  if (configured) return [configured];
+  // gemini-2.5-flash has a 20 req/day free-tier cap — skip it; use higher-limit models first
+  return ['gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
 }
 
 async function callGemini(params: GenerateTextParams, attempt = 1): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${apiKey}`;
-  const contents = [
-    ...(params.history || []).slice(-8).map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    })),
-    { role: 'user', parts: [{ text: params.message }] },
-  ];
+  const models = getGeminiModels();
+  let lastError: Error | null = null;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: params.signal,
-    body: JSON.stringify({
-      ...(params.systemPrompt ? { system_instruction: { parts: [{ text: params.systemPrompt }] } } : {}),
-      contents,
-      generationConfig: { temperature: params.temperature ?? 0.3, maxOutputTokens: params.maxOutputTokens ?? 2000 },
-    }),
-  });
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const contents = [
+        ...(params.history || []).slice(-8).map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        })),
+        { role: 'user', parts: [{ text: params.message }] },
+      ];
 
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    const details: any[] = data?.error?.details || [];
-    const isDailyCap = details.some((d) => String(d?.quotaId || '').includes('PerDay'));
-    const retryDelaySeconds = Number((details.find((d) => d?.retryDelay)?.retryDelay || '').replace(/s$/, '')) || null;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: params.signal,
+        body: JSON.stringify({
+          ...(params.systemPrompt ? { system_instruction: { parts: [{ text: params.systemPrompt }] } } : {}),
+          contents,
+          generationConfig: { temperature: params.temperature ?? 0.3, maxOutputTokens: params.maxOutputTokens ?? 2000 },
+        }),
+      });
 
-    if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 3) {
-      // Cap the wait even when Gemini suggests a longer retryDelay (seen:
-      // 30s+ on non-daily 429s) — a capped retry here means the fallbacks
-      // below still kick in quickly instead of stalling the whole request
-      // behind Gemini's own suggested backoff.
-      const delayMs = Math.min((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500, 8000);
-      await sleep(delayMs);
-      return callGemini(params, attempt + 1);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data?.error?.message || res.statusText);
+      }
+
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('Gemini returned no text');
+      return text;
+    } catch (err: any) {
+      lastError = err;
+      // If quota or not found on this model, try next model in fallback list
+      continue;
     }
-
-    const baseMessage = data?.error?.message || res.statusText;
-    throw new Error(isDailyCap ? `Gemini free-tier daily limit reached: ${baseMessage}` : `Gemini error: ${baseMessage}`);
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no text');
-  return text;
+  throw lastError || new Error('All Gemini models failed');
 }
 
 async function callAnthropic(params: GenerateTextParams): Promise<string> {
@@ -160,22 +160,21 @@ async function callReplicate(params: GenerateTextParams): Promise<string> {
     `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
   ).join('\n');
 
-  // Llama 3 8B Instruct
-  const LLAMA3_VERSION = '5a6809ca6288247d06daf6365557e5e429063f32a21146b2a807c682652136b8';
+  const fullPrompt = historyText ? `${historyText}\nUser: ${params.message}\nAssistant:` : params.message;
 
-  const res = await fetch('https://api.replicate.com/v1/predictions', {
+  const res = await fetch('https://api.replicate.com/v1/models/meta/meta-llama-3-70b-instruct/predictions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'Prefer': 'wait=60'
     },
+    signal: params.signal,
     body: JSON.stringify({
-      version: LLAMA3_VERSION,
       input: {
-        prompt: `${historyText}\nUser: ${params.message}\nAssistant:`,
+        prompt: fullPrompt,
         system_prompt: params.systemPrompt || '',
-        max_new_tokens: params.maxOutputTokens ?? 2000,
+        max_tokens: params.maxOutputTokens ?? 2000,
         temperature: params.temperature ?? 0.3,
       }
     })
@@ -186,19 +185,21 @@ async function callReplicate(params: GenerateTextParams): Promise<string> {
   
   if (prediction.status === 'succeeded') {
     const text = Array.isArray(prediction.output) ? prediction.output.join('') : String(prediction.output);
-    return text;
+    return text.trim();
   }
 
-  // Poll
+  // Poll if not immediately finished
   const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
   for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 2000));
+    await sleep(1500);
     const pollRes = await fetch(pollUrl, {
-      headers: { 'Authorization': `Bearer ${apiKey}` }
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: params.signal
     });
     const data = await pollRes.json();
     if (data.status === 'succeeded') {
-      return Array.isArray(data.output) ? data.output.join('') : String(data.output);
+      const text = Array.isArray(data.output) ? data.output.join('') : String(data.output);
+      return text.trim();
     }
     if (data.status === 'failed') throw new Error(data.error || 'Replicate prediction failed');
   }

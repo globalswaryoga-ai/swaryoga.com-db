@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-<<<<<<< HEAD
-import { getAiVideoJobById, updateAiVideoJob, deleteAiVideoJob } from '@/lib/bunnyAiVideoJobRepository';
-import { checkVideoStatus as checkHeyGenStatus } from '@/lib/aiVideo/heygen';
-import { checkCustomVideoStatus } from '@/lib/aiVideo/customAvatar';
-=======
+
 import {
   getAiVideoJobById,
   updateAiVideoJob,
   deleteAiVideoJob,
 } from '@/lib/aiVideo/bunnyAiVideoRepository';
 import { checkReplicateStatus } from '@/lib/aiVideo/replicateAvatar';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 import { uploadToBunnyStream } from '@/lib/bunny-stream';
 
 export const dynamic = 'force-dynamic';
@@ -42,23 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     let job = await getAiVideoJobById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-<<<<<<< HEAD
-    let anyPending = false;
-    let rendersChanged = false;
-    const newRenders = [...(job.renders || [])];
 
-    for (const render of newRenders) {
-      if (render.status !== 'rendering' || !render.heygenVideoId) continue;
-      try {
-        let heygenStatus;
-        try {
-          heygenStatus = await checkHeyGenStatus(render.heygenVideoId);
-        } catch {
-          heygenStatus = await checkCustomVideoStatus(render.heygenVideoId);
-        }
-        render.heygenStatus = heygenStatus.status;
-        rendersChanged = true;
-=======
     let modified = false;
     const updatedRenders = [...(job.renders || [])];
 
@@ -67,7 +46,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       try {
         const repStatus = await checkReplicateStatus(render.replicatePredictionId);
         render.replicateStatus = repStatus.status;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
         if (repStatus.status === 'completed' && repStatus.videoUrl) {
           render.status = 'uploading';
@@ -98,20 +76,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       } catch (renderError: any) {
         render.status = 'failed';
         render.errorMessage = renderError instanceof Error ? renderError.message : 'Render check failed';
-<<<<<<< HEAD
-        rendersChanged = true;
-      }
-    }
 
-    let jobStatus = job.status;
-    if (job.status === 'rendering' && !anyPending) {
-      const anyFailed = newRenders.some((r: any) => r.status === 'failed');
-      jobStatus = anyFailed ? 'failed' : 'completed';
-    }
-
-    if (rendersChanged || jobStatus !== job.status) {
-      job = (await updateAiVideoJob(id, { renders: newRenders, status: jobStatus }))!;
-=======
         modified = true;
       }
     }
@@ -129,7 +94,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         status: nextStatus,
       });
       if (updated) job = updated;
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });
@@ -146,49 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (error) return error;
 
     const { id } = params;
-<<<<<<< HEAD
 
-    const body = await request.json().catch(() => ({} as any));
-    const language = String(body?.language || '').trim();
-
-    let job = await getAiVideoJobById(id);
-    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-
-    if (language) {
-      const newScripts = [...(job.scripts || [])];
-      const scriptIndex = newScripts.findIndex((s: any) => s.language === language);
-      if (scriptIndex === -1) return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
-
-      const script = { ...newScripts[scriptIndex] };
-      if (typeof body?.text === 'string') script.text = body.text;
-      if (typeof body?.approved === 'boolean') script.approved = body.approved;
-      newScripts[scriptIndex] = script;
-
-      job = (await updateAiVideoJob(id, { scripts: newScripts }))!;
-      return NextResponse.json({ success: true, data: job }, { status: 200 });
-    }
-
-    if (typeof body?.correctedTranscript === 'string') {
-      job = (await updateAiVideoJob(id, { correctedTranscript: body.correctedTranscript }))!;
-      return NextResponse.json({ success: true, data: job }, { status: 200 });
-    }
-
-    // Metadata edit: topic title, workshop grouping, source language. Lets
-    // the admin fix a typo or regroup a topic without recreating the job
-    // (and re-spending a transcription call) from scratch.
-    const metaFields = ['topicTitle', 'workshopName', 'dayOrder', 'sourceLanguage', 'sourceYoutubeUrl'] as const;
-    const hasMetaUpdate = metaFields.some((f) => body?.[f] !== undefined);
-    if (hasMetaUpdate) {
-      const updates: any = {};
-      if (typeof body.topicTitle === 'string') updates.topicTitle = body.topicTitle.trim();
-      if (typeof body.workshopName === 'string') updates.workshopName = body.workshopName.trim() || undefined;
-      if (body.dayOrder !== undefined) updates.dayOrder = body.dayOrder === '' || body.dayOrder === null ? undefined : Number(body.dayOrder);
-      if (typeof body.sourceLanguage === 'string') updates.sourceLanguage = body.sourceLanguage.trim();
-      if (typeof body.sourceYoutubeUrl === 'string') updates.sourceYoutubeUrl = body.sourceYoutubeUrl.trim() || undefined;
-
-      job = (await updateAiVideoJob(id, updates))!;
-      return NextResponse.json({ success: true, data: job }, { status: 200 });
-=======
     const body = await request.json().catch(() => ({} as any));
     const language = String(body?.language || '').trim();
 
@@ -224,7 +146,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (Object.keys(updates).length > 0) {
       const updated = await updateAiVideoJob(id, updates);
       return NextResponse.json({ success: true, data: updated }, { status: 200 });
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     }
 
     return NextResponse.json({ error: 'No recognized fields to update' }, { status: 400 });
@@ -240,20 +161,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (error) return error;
 
     const { id } = params;
-<<<<<<< HEAD
 
-    const job = await getAiVideoJobById(id);
-    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-
-    await deleteAiVideoJob(id);
-
-=======
     const deleted = await deleteAiVideoJob(id);
     if (!deleted) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to delete job';

@@ -7,6 +7,7 @@ import { Readable, Transform } from 'node:stream';
 import { transcribeAudioWithTimestamps } from '@/lib/aiVideo/transcribeAndCondense';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
 import { annotateTranscriptForAvatar } from './avatarCueAnnotator';
+import { detectTextLanguage } from './languageFilterEngine';
 
 export const MAX_MEDIA_BYTES = 350 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
@@ -59,12 +60,30 @@ export async function fetchYouTubeMedia(url: string) {
   const binary = process.env.YT_DLP_PATH || 'yt-dlp';
   const cookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim();
   if (cookiesFile) await assertReadableYouTubeCookiesFile(cookiesFile);
+  const videoId = new URL(url).searchParams.get('v') || new URL(url).pathname.split('/').filter(Boolean).pop() || 'video';
+
+  let title = `YouTube ${videoId}`;
+  try {
+    const titleArgs = ['--no-playlist', '--no-warnings', '--print', '%(title)s'];
+    if (cookiesFile) titleArgs.push('--cookies', cookiesFile);
+    titleArgs.push(url);
+    const titleChild = spawn(binary, titleArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let titleStdout = '';
+    titleChild.stdout.on('data', chunk => { titleStdout += chunk.toString(); });
+    await new Promise(resolve => {
+      const timer = setTimeout(() => { try { titleChild.kill('SIGKILL'); } catch { } resolve(null); }, 15000);
+      titleChild.on('close', () => { clearTimeout(timer); resolve(null); });
+    });
+    if (titleStdout.trim()) title = titleStdout.trim();
+  } catch {
+    /* Fallback to video ID */
+  }
+
   const args = buildYouTubeDownloadArgs(url, cookiesFile);
   return new Promise<{ buffer: Buffer; title: string; extension: string }>((resolve, reject) => {
-    const videoId = new URL(url).searchParams.get('v') || new URL(url).pathname.split('/').filter(Boolean).pop() || 'video';
     let stderr = '';
     const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    const timeout = setTimeout(() => child.kill('SIGKILL'), 180_000);
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 600_000);
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', chunk => { stderr = `${stderr}${chunk}`.slice(-3000); });
     const output = streamToBuffer(child.stdout as Readable, MAX_MEDIA_BYTES);
@@ -75,14 +94,14 @@ export async function fetchYouTubeMedia(url: string) {
         const buffer = await output;
         if (code !== 0) return reject(formatYouTubeDownloadError(stderr, Boolean(cookiesFile), code));
         if (!buffer.length) return reject(new Error('YouTube returned an empty video stream.'));
-        resolve({ buffer, title: `YouTube ${videoId}`.slice(0, 240), extension: 'mp4' });
+        resolve({ buffer, title: title.slice(0, 240), extension: 'mp4' });
       } catch (error) { reject(error); }
     });
   });
 }
 
 export function buildYouTubeDownloadArgs(url: string, cookiesFile?: string) {
-  const args = ['--no-playlist', '--no-warnings', '--format', 'best[ext=mp4][vcodec!=none][acodec!=none]'];
+  const args = ['--no-playlist', '--no-warnings', '--format', 'best[ext=mp4][vcodec!=none][acodec!=none]/best[ext=mp4]/bestaudio[ext=m4a]/best'];
   if (cookiesFile) args.push('--cookies', cookiesFile);
   args.push('--output', '-', url);
   return args;
@@ -109,76 +128,126 @@ export function formatYouTubeDownloadError(stderr: string, cookiesConfigured: bo
   return new Error(`YouTube download failed: ${guidance} ${detail}`);
 }
 
-async function extractAudio(buffer: Buffer, extension: string) {
-  if (['mp3', 'mpga', 'mpeg'].includes(extension)) return buffer;
-  return new Promise<Buffer>((resolve, reject) => {
-    const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
-    const child = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-vn', '-ac', '1', '-b:a', '48k', '-f', 'mp3', 'pipe:1']);
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let stderr = '';
-    const timeout = setTimeout(() => child.kill('SIGKILL'), 120_000);
-    child.stdout.on('data', (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > MAX_AUDIO_BYTES) {
-        child.kill('SIGKILL');
-        reject(new Error('Compressed audio exceeds Whisper’s 24 MB limit. Split this recording into shorter sources.'));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    child.stderr.on('data', (chunk: Buffer) => { stderr = `${stderr}${chunk.toString()}`.slice(-2000); });
-    child.on('error', error => { clearTimeout(timeout); reject(new Error(`FFmpeg could not start. Install FFmpeg on the server or set FFMPEG_PATH. ${error.message}`)); });
-    child.on('close', code => {
-      clearTimeout(timeout);
-      if (code !== 0) return reject(new Error(`Could not extract audio from media: ${stderr || `FFmpeg exited ${code}`}`));
-      if (!chunks.length) return reject(new Error('No audio track was found in the media.'));
-      resolve(Buffer.concat(chunks, size));
-    });
-    child.stdin.on('error', error => reject(error));
-    child.stdin.end(buffer);
-  });
-}
-
-async function extractAudioSegmentsFromBunnyUrl(url: string): Promise<Array<{ buffer: Buffer; offsetSeconds: number }>> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(3 * 60 * 60 * 1000) });
-  if (!response.ok || !response.body) throw new Error(`Could not read Bunny media for MP3 conversion (${response.status}).`);
-  const declaredSize = Number(response.headers.get('content-length') || 0);
-  if (declaredSize > MAX_STREAM_MEDIA_BYTES) throw new Error('Bunny media exceeds the 5 GB processing limit.');
-  const tempDirectory = await mkdtemp(join(tmpdir(), 'mohan-rag-audio-'));
-  const segmentSeconds = 900;
+async function extractAudioSegmentsFromBuffer(buffer: Buffer): Promise<Array<{ buffer: Buffer; offsetSeconds: number }>> {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'mohan-rag-audio-buf-'));
+  const segmentSeconds = 300;
   const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
   const outputPattern = join(tempDirectory, 'speech-%05d.mp3');
-  const child = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k', '-f', 'segment', '-segment_time', String(segmentSeconds), '-reset_timestamps', '1', '-segment_format', 'mp3', outputPattern]);
-  let inputSize = 0;
+  const child = spawn(ffmpeg, [
+    '-hide_banner', '-loglevel', 'error',
+    '-i', 'pipe:0',
+    '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k',
+    '-f', 'segment', '-segment_time', String(segmentSeconds),
+    '-reset_timestamps', '1', '-segment_format', 'mp3',
+    outputPattern,
+  ]);
   let stderr = '';
-  const timer = setTimeout(() => child.kill('SIGKILL'), 3 * 60 * 60 * 1000);
+  const timer = setTimeout(() => child.kill('SIGKILL'), 30 * 60 * 1000);
   try {
     const processExit = new Promise<number>((resolve, reject) => {
       child.stderr.on('data', (chunk: Buffer) => { stderr = `${stderr}${chunk.toString()}`.slice(-2000); });
       child.on('error', error => reject(new Error(`FFmpeg could not start. Install FFmpeg on the server or set FFMPEG_PATH. ${error.message}`)));
       child.on('close', code => resolve(code ?? -1));
     });
-    const input = Readable.fromWeb(response.body as any);
-    const sizeGuard = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        inputSize += chunk.length;
-        if (inputSize > MAX_STREAM_MEDIA_BYTES) callback(new Error('Bunny media exceeds the 5 GB processing limit.'));
-        else callback(null, chunk);
-      },
-    });
-    sizeGuard.on('error', () => child.kill('SIGKILL'));
-    input.on('error', () => child.kill('SIGKILL'));
-    input.pipe(sizeGuard).pipe(child.stdin);
+    child.stdin.on('error', () => { });
+    child.stdin.end(buffer);
     const exitCode = await processExit;
-    if (exitCode !== 0) throw new Error(`Could not convert Bunny media to MP3: ${stderr || `FFmpeg exited ${exitCode}`}`);
+    if (exitCode !== 0) throw new Error(`Could not convert media buffer to MP3: ${stderr || `FFmpeg exited ${exitCode}`}`);
     const files = (await readdir(tempDirectory)).filter(name => name.endsWith('.mp3')).sort();
-    if (!files.length) throw new Error('No audio track was found in the Bunny media.');
+    if (!files.length) throw new Error('No audio track was found in the media.');
     return await Promise.all(files.map(async (name, index) => ({
       buffer: await readFile(join(tempDirectory, name)), offsetSeconds: index * segmentSeconds,
     })));
   } finally {
     clearTimeout(timer);
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+async function extractAudioSegmentsFromBunnyUrl(url: string): Promise<Array<{ buffer: Buffer; offsetSeconds: number }>> {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'mohan-rag-audio-'));
+  const segmentSeconds = 600; // 10-minute segments for optimal Whisper speed & fewer requests
+  const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+  const outputPattern = join(tempDirectory, 'speech-%05d.mp3');
+
+  try {
+    // Attempt 1: Direct URL reading via ffmpeg (fastest, streams directly from CDN)
+    let directSuccess = false;
+    try {
+      const ffmpegArgs = ['-hide_banner', '-loglevel', 'error'];
+      if (url.includes('.b-cdn.net') || url.includes('mediadelivery.net')) {
+        ffmpegArgs.push('-headers', 'Referer: https://player.mediadelivery.net/\r\n');
+      }
+      ffmpegArgs.push(
+        '-i', url,
+        '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k',
+        '-f', 'segment', '-segment_time', String(segmentSeconds),
+        '-reset_timestamps', '1', '-segment_format', 'mp3',
+        outputPattern
+      );
+      const child = spawn(ffmpeg, ffmpegArgs);
+      const exitCode = await new Promise<number>((resolve) => {
+        child.on('close', code => resolve(code ?? -1));
+        child.on('error', () => resolve(-1));
+      });
+      if (exitCode === 0) {
+        const files = (await readdir(tempDirectory)).filter(name => name.endsWith('.mp3')).sort();
+        if (files.length > 0) {
+          directSuccess = true;
+          return await Promise.all(files.map(async (name, index) => ({
+            buffer: await readFile(join(tempDirectory, name)), offsetSeconds: index * segmentSeconds,
+          })));
+        }
+      }
+    } catch {
+      // Fallback to streaming fetch
+    }
+
+    if (!directSuccess) {
+      // Attempt 2: Stream via fetch and pipe to ffmpeg stdin
+      const fetchHeaders: Record<string, string> = {};
+      if (url.includes('.b-cdn.net') || url.includes('mediadelivery.net')) {
+        fetchHeaders['Referer'] = 'https://player.mediadelivery.net/';
+      }
+      const response = await fetch(url, { headers: fetchHeaders, signal: AbortSignal.timeout(3 * 60 * 60 * 1000) });
+      if (!response.ok || !response.body) throw new Error(`Could not read Bunny media for MP3 conversion (${response.status}).`);
+      const declaredSize = Number(response.headers.get('content-length') || 0);
+      if (declaredSize > MAX_STREAM_MEDIA_BYTES) throw new Error('Bunny media exceeds the 5 GB processing limit.');
+
+      const child = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k', '-f', 'segment', '-segment_time', String(segmentSeconds), '-reset_timestamps', '1', '-segment_format', 'mp3', outputPattern]);
+      let inputSize = 0;
+      let stderr = '';
+      const timer = setTimeout(() => child.kill('SIGKILL'), 3 * 60 * 60 * 1000);
+      try {
+        const processExit = new Promise<number>((resolve, reject) => {
+          child.stderr.on('data', (chunk: Buffer) => { stderr = `${stderr}${chunk.toString()}`.slice(-2000); });
+          child.on('error', error => reject(new Error(`FFmpeg could not start. Install FFmpeg on the server or set FFMPEG_PATH. ${error.message}`)));
+          child.on('close', code => resolve(code ?? -1));
+        });
+        const input = Readable.fromWeb(response.body as any);
+        const sizeGuard = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            inputSize += chunk.length;
+            if (inputSize > MAX_STREAM_MEDIA_BYTES) callback(new Error('Bunny media exceeds the 5 GB processing limit.'));
+            else callback(null, chunk);
+          },
+        });
+        sizeGuard.on('error', () => child.kill('SIGKILL'));
+        input.on('error', () => child.kill('SIGKILL'));
+        input.pipe(sizeGuard).pipe(child.stdin);
+        const exitCode = await processExit;
+        if (exitCode !== 0) throw new Error(`Could not convert Bunny media to MP3: ${stderr || `FFmpeg exited ${exitCode}`}`);
+        const files = (await readdir(tempDirectory)).filter(name => name.endsWith('.mp3')).sort();
+        if (!files.length) throw new Error('No audio track was found in the Bunny media.');
+        return await Promise.all(files.map(async (name, index) => ({
+          buffer: await readFile(join(tempDirectory, name)), offsetSeconds: index * segmentSeconds,
+        })));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return [];
+  } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
 }
@@ -191,12 +260,16 @@ function timestamp(seconds: number) {
 function formatTimeline(segments: TimedSpeechSegment[]) {
   const minutes = new Map<number, string[]>();
   for (const segment of segments) {
+    const text = (segment.text || '').trim();
+    if (!text) continue;
     const minute = Math.floor(segment.start / 60);
     const rows = minutes.get(minute) || [];
-    rows.push(`[${timestamp(segment.start)}–${timestamp(segment.end)}] ${segment.text}`);
+    rows.push(`[${timestamp(segment.start)}–${timestamp(segment.end)}] ${text}`);
     minutes.set(minute, rows);
   }
-  return [...minutes.entries()].sort(([a], [b]) => a - b)
+  const entries = [...minutes.entries()].filter(([_, rows]) => rows.length > 0);
+  if (!entries.length) return '';
+  return entries.sort(([a], [b]) => a - b)
     .map(([minute, rows]) => `Minute ${timestamp(minute * 60)}–${timestamp((minute + 1) * 60)}\n${rows.join('\n')}`)
     .join('\n\n');
 }
@@ -229,11 +302,21 @@ async function correctTimedSegments(segments: TimedSpeechSegment[], language: st
   const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
     const response = await generateAIText({
-      providerOrder: ['OpenAI', 'Anthropic'],
+      providerOrder: ['Replicate', 'Gemini', 'OpenAI', 'Anthropic'],
       temperature: 0.1,
       maxOutputTokens: 8192,
       signal: controller.signal,
-      systemPrompt: `Proofread a verbatim Whisper transcript in ${languageName}. Correct only clear speech-recognition, spelling, and punctuation errors. Preserve the speaker's meaning and each segment; do not translate, summarize, add facts, or rewrite their speaking style. Do not remove normal emphasis or intentional repetition. For Hindi and Marathi, write naturally in Devanagari and retain Swar Yoga/Sanskrit terms. Return only a JSON array with the same ordered ids and corrected text fields, for example [{"id":"s1","text":"..."}]. Do not add markdown.`,
+      systemPrompt: `CRITICAL RULE - AI VERBATIM RE-CHECK & WORD-TO-WORD RESTORATION:
+You are the Dedicated AI Audio Re-Checker for classical Swar Yoga Master Mohan Kalburgi.
+Language: ${languageName}.
+1. WORD-FOR-WORD VERBATIM FIDELITY: Preserve every spoken word word-for-word. Catch acoustic slips (e.g. in Marathi: "गले बंद करा" -> "डोळे बंद करा", "शवीर स्थीर" -> "शरीर स्थिर", "सवकाज गले उड़ा" -> "सावकाश डोळे उघडा", "आथ जणा बाहरेणा एक" -> "आत जाणारा बाहेर जाणारा एक").
+2. RESTORE COMPLETE SENTENCES: Never drop words, never chop sentences into broken phrases. Ensure the full spoken thought is coherent and intact.
+3. ZERO VOCABULARY SUBSTITUTION: Never replace spoken nouns with synonyms (e.g. keep "नाकपुडी", never replace with "छिद्र").
+4. GRAMMAR:
+   - In Marathi & Hindi: Change ONLY VERBS (क्रियापद) to agree with gender/number. Objects and sentence layout remain untouched.
+   - In English: Ensure natural native complete sentence flow while delivering identical content and humor.
+5. Retain Swar Yoga/Sanskrit terms verbatim: स्वर योग, स्वरोदय, नाडी, नाकपुडी, इडा, पिंगळा, सुषुम्ना, प्राण.
+6. Return only a JSON array with the same ordered ids and corrected text fields, for example [{"id":"s1","text":"..."}]. Do not add markdown.`,
       message: `Correct these timestamp-ordered transcript segments. Keep the same ids and one output item per input item.\n${JSON.stringify(source)}`,
     });
     const parsed = JSON.parse(response.replace(/^```(?:json)?\s*|\s*```$/g, '').trim());
@@ -270,8 +353,8 @@ async function correctLongTranscript(segments: TimedSpeechSegment[], language: s
 
 export async function analyzeMediaBuffer(input: { buffer: Buffer; title: string; extension: string; language?: string }): Promise<AnalyzedMedia> {
   if (!input.buffer.length || input.buffer.length > MAX_MEDIA_BYTES) throw new Error('Media must be between 1 byte and 350 MB.');
-  const audio = await extractAudio(input.buffer, input.extension);
-  return analyzeAudioParts(input, [{ buffer: audio, offsetSeconds: 0 }]);
+  const audioParts = await extractAudioSegmentsFromBuffer(input.buffer);
+  return analyzeAudioParts(input, audioParts);
 }
 
 export async function analyzeBunnyMediaUrl(input: { url: string; title: string; extension: string; language?: string }): Promise<AnalyzedMedia> {
@@ -283,25 +366,53 @@ async function analyzeAudioParts(input: { title: string; extension: string; lang
   const requestedLanguage = input.language && input.language !== 'auto' ? input.language : undefined;
   const segments: TimedSpeechSegment[] = [];
   let detectedLanguage: string | undefined;
-  for (const part of audioParts) {
+
+  // Process audio segments sequentially with small pause to respect API rate limits
+  for (let i = 0; i < audioParts.length; i++) {
+    const part = audioParts[i];
     if (part.buffer.length > MAX_AUDIO_BYTES) throw new Error('A converted audio segment exceeds Whisper’s 24 MB limit.');
-    const transcription = await transcribeAudioWithTimestamps({ buffer: part.buffer, mimeType: 'audio/mpeg' }, { language: requestedLanguage });
-    detectedLanguage ||= transcription.language;
-    segments.push(...transcription.segments.map(segment => ({ ...segment, start: segment.start + part.offsetSeconds, end: segment.end + part.offsetSeconds })));
+    console.log(`[Audio Transcription] Transcribing segment ${i + 1}/${audioParts.length} (offset: ${part.offsetSeconds}s)...`);
+
+    try {
+      const transcription = await transcribeAudioWithTimestamps({ buffer: part.buffer, mimeType: 'audio/mpeg' }, { language: requestedLanguage });
+      detectedLanguage ||= transcription.language;
+      segments.push(...transcription.segments.map(segment => ({ ...segment, start: segment.start + part.offsetSeconds, end: segment.end + part.offsetSeconds })));
+    } catch (partErr: any) {
+      console.warn(`[Audio Transcription] Segment ${i + 1} transcription error: ${partErr.message}. Continuing with captured speech...`);
+    }
+
+    if (i < audioParts.length - 1) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  if (segments.length === 0) {
+    throw new Error('All audio segments failed transcription.');
   }
   let cleanedSegments = collapseObviousRepeatedSegments(segments);
   let correctionApplied = false;
   let correctionWarning = '';
-  const correctionLanguage = requestedLanguage || detectedLanguage || '';
+
+  // Smart Language Detection Filter: Inspect speech content for actual spoken vocabulary
+  const sampleSpeechText = cleanedSegments.slice(0, 15).map(s => s.text).join(' ');
+  const detectedAnalysis = detectTextLanguage(sampleSpeechText);
+  if (detectedAnalysis.confidence >= 0.7 && (!requestedLanguage || requestedLanguage === 'auto' || detectedAnalysis.isMixed)) {
+    detectedLanguage = detectedAnalysis.detectedLanguage;
+  }
+  const correctionLanguage = detectedLanguage || requestedLanguage || 'mr';
+
   if (cleanedSegments.length) {
     try {
       cleanedSegments = await correctLongTranscript(cleanedSegments, correctionLanguage);
       correctionApplied = true;
     } catch (error) {
-      correctionWarning = error instanceof Error ? error.message : 'Hindi cleanup failed; the raw Whisper transcript was kept.';
+      correctionWarning = error instanceof Error ? error.message : 'Transcript cleanup failed; the raw Whisper transcript was kept.';
     }
   }
   const timeline = formatTimeline(cleanedSegments);
+  if (!timeline || !timeline.trim()) {
+    throw new Error('No spoken speech text could be detected or transcribed from the media audio.');
+  }
   let annotatedTimeline = timeline;
   let emotionSuggestionsAdded = false;
   let cueWarning = '';

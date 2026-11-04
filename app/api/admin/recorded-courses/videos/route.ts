@@ -2,17 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { findBunnyVideoByTitle } from '@/lib/bunny-stream';
-<<<<<<< HEAD
-import {
-  listVideosByCourse,
-  getVideoById,
-  saveVideo,
-  deleteVideo,
-  getCourseById,
-} from '@/lib/bunnyCourseRepository';
-=======
+
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -48,15 +39,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const videos = await listVideosByCourse(courseId, true);
 
-    return NextResponse.json({
-      success: true,
-      videos: videos.map((v) => ({
-        _id: v.id,
-        id: v.id,
-=======
     if (isBunnyDatabaseConfigured()) {
       const res = await bunnyExecute({
         sql: 'SELECT * FROM course_videos_sql WHERE course_id = ? ORDER BY display_order ASC',
@@ -102,7 +85,6 @@ export async function GET(request: NextRequest) {
       success: true,
       videos: videos.map((v: any) => ({
         _id: v._id?.toString() || v._id,
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
         title: v.title,
         description: v.description,
         bunnyVideoId: v.bunnyVideoId,
@@ -278,10 +260,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const existing = await getVideoById(videoId);
-    if (!existing) {
-=======
+
     if (isBunnyDatabaseConfigured()) {
       const existing = await bunnyExecute({
         sql: 'SELECT * FROM course_videos_sql WHERE id = ? LIMIT 1',
@@ -365,7 +344,6 @@ export async function PUT(request: NextRequest) {
     const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
 
     if (!video) {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
@@ -498,10 +476,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-<<<<<<< HEAD
-    const deleted = await deleteVideo(videoId);
-    if (!deleted) {
-=======
+
     if (isBunnyDatabaseConfigured()) {
       const existing = await bunnyExecute({
         sql: 'SELECT * FROM course_videos_sql WHERE id = ? LIMIT 1',
@@ -577,7 +552,6 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (!video) {
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 

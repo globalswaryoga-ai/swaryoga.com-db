@@ -5,7 +5,12 @@ import { spawn } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 
 export function recordingComplete(result) {
-  return Boolean(result.youtubeUrls?.speaker && result.youtubeUrls?.gallery && result.bunny?.speaker && result.bunny?.audio);
+  // Resilient completion check: A recording is complete when Bunny Storage/Stream has
+  // the primary speaker video, OR YouTube has it.
+  // Expired YouTube OAuth or YouTube quota MUST NOT block finalization or crash the pipeline!
+  const hasBunny = Boolean(result.bunny?.speaker);
+  const hasYouTube = Boolean(result.youtubeUrls?.speaker);
+  return hasBunny || hasYouTube;
 }
 
 export async function finalizeRecording(result, persist, cleanup) {

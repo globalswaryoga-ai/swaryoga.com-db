@@ -21,22 +21,14 @@
 // player, confirmed via a live test; open upstream issue:
 // https://github.com/distubejs/ytdl-core/issues/144).
 
-<<<<<<< HEAD
-const LANGUAGE_NAMES: Record<string, string> = {
-=======
 export const LANGUAGE_NAMES: Record<string, string> = {
   hi: 'Hindi',
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
+  hindi: 'Hindi',
   en: 'English',
   english: 'English',
-  hi: 'Hindi',
-  hindi: 'Hindi',
   mr: 'Marathi',
-<<<<<<< HEAD
   marathi: 'Marathi',
   kn: 'Kannada',
-=======
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   ne: 'Nepali',
   zh: 'Mandarin Chinese',
   es: 'Spanish',
@@ -49,20 +41,16 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian',
   it: 'Italian',
   tr: 'Turkish',
-<<<<<<< HEAD
   nl: 'Dutch',
   sv: 'Swedish',
   th: 'Thai',
   id: 'Indonesian',
-=======
   gu: 'Gujarati',
   bn: 'Bengali',
   ta: 'Tamil',
   te: 'Telugu',
-  kn: 'Kannada',
   ml: 'Malayalam',
   pa: 'Punjabi',
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
 };
 
 export interface ExtractedAudio {
@@ -79,17 +67,6 @@ async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?:
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
 
-<<<<<<< HEAD
-  const maxAudioBytes = 24 * 1024 * 1024;
-  if (audio.buffer.length > maxAudioBytes) {
-    throw new Error(
-      `Audio file is ${(audio.buffer.length / (1024 * 1024)).toFixed(1)}MB, exceeding the 24MB Whisper limit. Please compress to 48kbps mono MP3 using the converter.`
-    );
-  }
-
-  const form = new FormData();
-  form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
-=======
   // Determine correct file extension for OpenAI Whisper multipart form
   let filename = 'audio.mp3';
   let mimeType = audio.mimeType || 'audio/mpeg';
@@ -136,7 +113,6 @@ async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?:
 
   const form = new FormData();
   form.append('file', new Blob([new Uint8Array(sendBuffer)], { type: mimeType }), filename);
->>>>>>> 9f221716 (feat(rag-video): migrate to Bunny DB, replace HeyGen with Replicate & OpenAI, add MP4 Whisper transcription)
   form.append('model', 'whisper-1');
   const transcriptionPrompts: Record<string, string> = {
     hi: 'यह स्वर योग और स्वरोदय पर हिंदी शिक्षण है। संस्कृत और योग शब्द सही देवनागरी में लिखें: स्वर, स्वरोदय, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर। मूल बोली गई हिंदी लिखें; अनुवाद या सारांश न करें।',
@@ -180,7 +156,7 @@ async function transcribeViaWhisper(audio: ExtractedAudio, options: { language?:
 // doesn't need a free-tier crutch.
 async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192, signal?: AbortSignal): Promise<string> {
   const { generateAIText } = await import('@/lib/ai/generateWithFallback');
-  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic'], signal });
+  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['Replicate', 'Anthropic', 'OpenAI', 'Gemini'], signal });
 }
 
 // Stage 1: verbatim transcript, source language, no cleanup. OpenAI Whisper
@@ -191,6 +167,9 @@ export async function transcribeAudio(audio: ExtractedAudio, options: { language
   return transcribeViaWhisper(audio, options);
 }
 
+let openAIExhaustedUntil = 0;
+let geminiExhaustedUntil = 0;
+
 /** Whisper transcript with real segment timestamps for media-library timelines. */
 export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, options: { language?: string } = {}): Promise<{
   text: string;
@@ -198,7 +177,23 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, optio
   segments: Array<{ start: number; end: number; text: string }>;
 }> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+  const now = Date.now();
+
+  // If OpenAI quota/rate limit is temporarily cooling down or if key is missing
+  if (now < openAIExhaustedUntil || !apiKey) {
+    if (now >= geminiExhaustedUntil && process.env.GEMINI_API_KEY) {
+      try {
+        return await transcribeViaGeminiWithTimestamps(audio, options);
+      } catch (gemErr: any) {
+        if (gemErr?.message?.includes('429') || gemErr?.message?.includes('quota') || gemErr?.message?.includes('503')) {
+          geminiExhaustedUntil = Date.now() + 60_000; // Cool off 60s
+        }
+        console.warn('⚠️ Gemini audio transcription failed, falling back to Replicate Whisper:', gemErr.message || gemErr);
+      }
+    }
+    return await transcribeViaReplicateWhisper(audio, options);
+  }
+
   if (audio.buffer.length > 24 * 1024 * 1024) throw new Error('Audio exceeds the 24 MB Whisper limit after compression.');
   const form = new FormData();
   form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType || 'audio/mpeg' }), 'audio.mp3');
@@ -217,10 +212,10 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, optio
   try {
     response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form as any,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(600_000),
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Whisper transcription timed out after 2 minutes. Retry with a shorter or compressed file.');
+    if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('Whisper transcription timed out after 10 minutes. Retry with a shorter or compressed file.');
     throw error;
   }
   const raw = await response.text();
@@ -228,13 +223,233 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, optio
   try { data = JSON.parse(raw); } catch {
     throw new Error(`Whisper timestamp transcription failed (${response.status}): ${raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)}`);
   }
-  if (!response.ok) throw new Error(`Whisper timestamp transcription failed: ${data?.error?.message || response.statusText}`);
+  if (!response.ok) {
+    if (raw.includes('no credits remaining') || raw.includes('insufficient_quota') || response.status === 429 || response.status === 402) {
+      console.warn('⚠️ OpenAI Whisper quota/credit limit reached. Switching to Gemini / Replicate fallback...');
+      openAIExhaustedUntil = Date.now() + 60_000; // Cool down 60s
+      if (Date.now() >= geminiExhaustedUntil && process.env.GEMINI_API_KEY) {
+        try {
+          return await transcribeViaGeminiWithTimestamps(audio, options);
+        } catch (gemErr: any) {
+          if (gemErr?.message?.includes('429') || gemErr?.message?.includes('quota') || gemErr?.message?.includes('503')) {
+            geminiExhaustedUntil = Date.now() + 60_000;
+          }
+          console.warn('⚠️ Gemini audio transcription failed, falling back to Replicate Whisper:', gemErr.message || gemErr);
+        }
+      }
+      return await transcribeViaReplicateWhisper(audio, options);
+    }
+    throw new Error(`Whisper timestamp transcription failed: ${data?.error?.message || response.statusText}`);
+  }
   const segments = Array.isArray(data?.segments) ? data.segments
     .filter((segment: any) => Number.isFinite(Number(segment.start)) && Number.isFinite(Number(segment.end)) && typeof segment.text === 'string')
     .map((segment: any) => ({ start: Number(segment.start), end: Number(segment.end), text: segment.text.trim() }))
     .filter((segment: { text: string }) => segment.text) : [];
   if (!segments.length) throw new Error('Whisper returned no timestamped speech segments.');
   return { text: String(data.text || segments.map((segment: { text: string }) => segment.text).join(' ')), language: typeof data.language === 'string' ? data.language : undefined, segments };
+}
+
+export async function transcribeViaReplicateWhisper(audio: ExtractedAudio, options: { language?: string } = {}): Promise<{
+  text: string;
+  language?: string;
+  segments: Array<{ start: number; end: number; text: string }>;
+}> {
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) throw new Error('REPLICATE_API_TOKEN is not configured for Whisper fallback');
+
+  const base64Audio = `data:audio/mp3;base64,${audio.buffer.toString('base64')}`;
+  const prompt = options.language === 'mr'
+    ? 'स्वर योग, स्वरोदय, नाडी, इडा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर'
+    : options.language === 'hi'
+    ? 'स्वर योग, स्वरोदय, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण, नासिका, सूर्य स्वर, चंद्र स्वर'
+    : 'Swar Yoga, Swarodaya, nadi, ida, pingala, sushumna, prana, nostril, Surya Swar, Chandra Swar';
+
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      res = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Prefer: 'wait',
+        },
+        body: JSON.stringify({
+          version: '8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
+          input: {
+            audio: base64Audio,
+            language: options.language || 'mr',
+            prompt,
+          },
+        }),
+      });
+
+      if (res.status === 429) {
+        console.warn(`[Replicate Whisper] Rate limited (429). Waiting 10s before retry ${attempt + 1}/6...`);
+        await new Promise(r => setTimeout(r, 10000));
+        continue;
+      }
+      break;
+    } catch (netErr: any) {
+      console.warn(`[Replicate Whisper] Network error on attempt ${attempt + 1}/6: ${netErr.message}. Retrying in 5s...`);
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+
+  if (!res || !res.ok) {
+    const errText = res ? await res.text() : 'No response';
+    throw new Error(`Replicate Whisper failed (${res?.status || 500}): ${errText.slice(0, 200)}`);
+  }
+
+  let data = await res.json();
+  if (data.status !== 'succeeded' && data.urls?.get) {
+    const getUrl = data.urls.get;
+    for (let i = 0; i < 300; i++) {
+      if (data.status === 'succeeded' || data.status === 'failed') break;
+      await new Promise(r => setTimeout(r, 2500));
+      try {
+        const pollRes = await fetch(getUrl, { headers: { Authorization: `Bearer ${token}` } });
+        if (pollRes.ok) data = await pollRes.json();
+      } catch (pollErr: any) {
+        console.warn(`[Replicate Whisper] Poll network error: ${pollErr.message}. Retrying next tick...`);
+      }
+    }
+  }
+
+  if (data.status !== 'succeeded' || !data.output) {
+    throw new Error(`Replicate Whisper did not succeed: ${data.error || data.status}`);
+  }
+
+  const rawSegments = data.output.segments || [];
+  const segments: Array<{ start: number; end: number; text: string }> = [];
+  if (Array.isArray(rawSegments) && rawSegments.length > 0) {
+    for (const s of rawSegments) {
+      const text = String(s.text || '').trim();
+      if (text) {
+        segments.push({
+          start: Number(s.start || 0),
+          end: Number(s.end || 0),
+          text,
+        });
+      }
+    }
+  }
+
+  const transcriptionText = String(data.output.transcription || segments.map(s => s.text).join(' ')).trim();
+  if (!transcriptionText && !segments.length) {
+    throw new Error('Replicate Whisper returned no spoken transcription text.');
+  }
+
+  return {
+    text: transcriptionText,
+    language: data.output.detected_language || options.language || 'mr',
+    segments: segments.length ? segments : [{ start: 0, end: 60, text: transcriptionText }],
+  };
+}
+
+export async function transcribeViaGeminiWithTimestamps(audio: ExtractedAudio, options: { language?: string } = {}): Promise<{
+  text: string;
+  language?: string;
+  segments: Array<{ start: number; end: number; text: string }>;
+}> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured for audio fallback');
+
+  const base64Audio = audio.buffer.toString('base64');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const langPrompt = options.language === 'mr'
+    ? 'हा स्वर योग व्याख्यानाचा ऑडिओ आहे. सर्व शब्द देवनागरी मराठीत तंतोतंत लिहा. पवित्र योग संज्ञा (स्वर, नाडी, इडा, पिंगळा, सुषुम्ना, प्राण, कुंभक, नाकपुडी, बीज मंत्र) अचूक ठेवा.'
+    : options.language === 'hi'
+    ? 'यह स्वर योग व्याख्यान का ऑडियो है। देवनागरी हिंदी में हूबहू लिखें। स्वर, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण आदि योग शब्द सही रखें।'
+    : 'This is a Swar Yoga lecture. Transcribe every spoken word verbatim. Preserve sacred Vedic terminology.';
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          {
+            inline_data: {
+              mime_type: audio.mimeType || 'audio/mp3',
+              data: base64Audio,
+            },
+          },
+          {
+            text: `${langPrompt}\n\nTranscribe this audio word-for-word. Output as timestamped speech lines in this exact format:\n[MM:SS] spoken text\nExample:\n[00:05] नमस्कार साधकहो, आज आपण सूर्य नाडीचा अभ्यास करणार आहोत.\n[00:18] डावी नाकपुडी बंद करा.\n\nNever summarize, never omit. Output ONLY the timestamped lines.`,
+          },
+        ],
+      }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`Gemini audio transcription failed (${res.status}): ${JSON.stringify(data).slice(0, 150)}`);
+  }
+
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+  let segments: Array<{ start: number; end: number; text: string }> = [];
+  const timeRegex = /\[?(\d{1,2}):(\d{2})\]?\s*(.+)/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(timeRegex);
+    if (m) {
+      const startSec = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      const text = m[3].replace(/^\[\d{1,2}:\d{2}\]\s*/, '').trim();
+      if (text) {
+        segments.push({
+          start: startSec,
+          end: startSec + 15, // estimated end until next segment
+          text,
+        });
+      }
+    }
+  }
+
+  // Set realistic segment ends
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (segments[i + 1].start > segments[i].start) {
+      segments[i].end = segments[i + 1].start;
+    }
+  }
+
+  // Fallback: If no timestamps matched, try JSON or full text
+  if (!segments.length) {
+    try {
+      const cleanJson = rawText.replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (Array.isArray(parsed)) {
+        segments = parsed
+          .filter((s: any) => typeof s?.text === 'string' && s.text.trim().length > 0)
+          .map((s: any) => ({
+            start: Number(s.start || 0),
+            end: Number(s.end || 0),
+            text: String(s.text).trim(),
+          }));
+      }
+    } catch {
+      if (rawText.trim()) {
+        segments = [{ start: 0, end: 60, text: rawText.trim() }];
+      }
+    }
+  }
+
+  if (!segments.length) {
+    throw new Error('Gemini returned no valid speech segments.');
+  }
+
+  const fullText = segments.map(s => s.text).join(' ');
+  return {
+    text: fullText || rawText,
+    language: options.language || 'mr',
+    segments,
+  };
 }
 
 // Stage 2: faithful correction only — fix grammar/spelling/transcription

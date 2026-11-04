@@ -389,22 +389,6 @@ export default function ELearningPage() {
               </button>
             )}
             <Link
-              href="/admin/crm/e-learning/recorder"
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-purple-600/20"
-              title="Record 1080p video or studio voice samples directly on mobile or web"
-            >
-              <Video size={18} />
-              Live Studio
-            </Link>
-            <Link
-              href="/admin/crm/e-learning/rag-video"
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-purple-900/30 ring-1 ring-purple-400/30"
-              title="Mohan Sir AI Studio: RAG, Avatar Presets, Multi-Language Dubbing & E-Books"
-            >
-              <Sparkles size={18} className="text-purple-300" />
-              <span>RAG & Video Studio</span>
-            </Link>
-            <Link
               href="/admin/crm/e-learning/dashboard"
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-lg transition-colors"
               title="View analytics dashboard"

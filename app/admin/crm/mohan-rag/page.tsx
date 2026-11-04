@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Flame,
   Activity,
-  Play
+  Play,
+  Mic
 } from 'lucide-react';
 
 export default function MohanRagHubPage() {
@@ -46,7 +47,29 @@ export default function MohanRagHubPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/podcasts"
+              target="_blank"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-slate-950 font-black shadow-lg shadow-teal-500/20 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              <Mic className="w-5 h-5 text-slate-950" />
+              🎙️ Q&A Podcast Hub
+            </Link>
+            <Link
+              href="/admin/crm/e-learning/creation-hub"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-black font-black shadow-lg shadow-amber-500/20 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              <Sparkles className="w-5 h-5 text-black" />
+              🏭 Creation Hub
+            </Link>
+            <Link
+              href="/admin/crm/mohan-rag/monitor"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold shadow-lg shadow-emerald-500/10 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              <Activity className="w-5 h-5 text-emerald-400" />
+              🩺 Health Monitor
+            </Link>
             <Link
               href="/admin/crm/mohan-rag/management"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 font-semibold transition-colors"

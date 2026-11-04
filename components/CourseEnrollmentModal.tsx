@@ -20,12 +20,16 @@ interface CourseEnrollmentModalProps {
     title: string;
     pricing?: {
       INR?: { price: number };
+      USD?: { price: number };
+      NPR?: { price: number };
     };
     discount?: number;
     promoCode?: string | null;
     promoDiscount?: number;
     promoExpiry?: string | null;
   };
+  language?: string;
+  currencyCode?: string;
   token?: string;
   enrolledStudents?: EnrolledStudent[];
   enrollmentCount?: number;
@@ -35,6 +39,8 @@ export default function CourseEnrollmentModal({
   isOpen,
   onClose,
   course,
+  language = 'en',
+  currencyCode,
   token = '',
   enrolledStudents = [],
   enrollmentCount = 15,
@@ -67,8 +73,14 @@ export default function CourseEnrollmentModal({
     }));
   };
 
-  // Base price
-  const basePrice = course.pricing?.INR?.price || 0;
+  // Base price & currency determination
+  const isIndian = ['hi', 'mr', 'kn'].includes(language || 'en');
+  const isNepali = language === 'ne';
+  const currency = currencyCode || (isNepali ? 'NPR' : (!isIndian && course.pricing?.USD?.price ? 'USD' : 'INR'));
+  const symbol = currency === 'NPR' ? 'रु.' : (currency === 'USD' ? '$' : '₹');
+  const basePrice = currency === 'NPR'
+    ? (course.pricing?.NPR?.price || course.pricing?.INR?.price || 0)
+    : (currency === 'USD' ? (course.pricing?.USD?.price || course.pricing?.INR?.price || 0) : (course.pricing?.INR?.price || 0));
 
   // Way 1: Direct Frontend Discount (%)
   const directDiscountPct = Math.min(100, Math.max(0, Number(course.discount) || 0));
@@ -171,7 +183,7 @@ export default function CourseEnrollmentModal({
               <div className="flex items-center justify-between text-gray-600">
                 <span>Original Price:</span>
                 <span className={directDiscountPct > 0 ? "line-through text-gray-400" : "font-semibold text-gray-900"}>
-                  ₹{basePrice.toLocaleString()}
+                  {symbol}{basePrice.toLocaleString()}
                 </span>
               </div>
 
@@ -183,7 +195,7 @@ export default function CourseEnrollmentModal({
                       {directDiscountPct}% OFF
                     </span>
                   </span>
-                  <span className="text-red-600 font-semibold">-₹{directSavings.toLocaleString()}</span>
+                  <span className="text-red-600 font-semibold">-{symbol}{directSavings.toLocaleString()}</span>
                 </div>
               )}
 
@@ -195,14 +207,14 @@ export default function CourseEnrollmentModal({
                       {appliedPromo.discountPct}% OFF
                     </span>
                   </span>
-                  <span className="text-emerald-800 font-bold">-₹{promoSavings.toLocaleString()}</span>
+                  <span className="text-emerald-800 font-bold">-{symbol}{promoSavings.toLocaleString()}</span>
                 </div>
               )}
 
               <div className="flex items-baseline justify-between pt-2 border-t border-green-200 text-gray-900">
                 <span className="font-bold">Total Payable:</span>
                 <span className="text-2xl font-black text-green-700">
-                  ₹{finalPrice.toLocaleString()}
+                  {symbol}{finalPrice.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -397,7 +409,7 @@ export default function CourseEnrollmentModal({
                 address={formData.address}
                 state={formData.state}
                 zip={formData.zip}
-                currency="INR"
+                currency={currency}
                 token={token}
                 courseId={course._id}
                 className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all"

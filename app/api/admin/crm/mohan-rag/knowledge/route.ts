@@ -27,12 +27,13 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const moduleId = url.searchParams.get('module');
   const status = url.searchParams.get('status');
+  const language = url.searchParams.get('language') || undefined;
   if (moduleId && !isMohanRagModule(moduleId)) return NextResponse.json({ error: 'Unknown knowledge module' }, { status: 400 });
   if (status && !['draft', 'approved', 'rejected'].includes(status)) return NextResponse.json({ error: 'Invalid source status' }, { status: 400 });
 
   try {
     const validModule = moduleId && isMohanRagModule(moduleId) ? moduleId : undefined;
-    const sources = await listKnowledgeSources(validModule, status as KnowledgeStatus | undefined);
+    const sources = await listKnowledgeSources(validModule, status as KnowledgeStatus | undefined, language);
     return NextResponse.json({ success: true, sources });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to list Mohan RAG sources';
