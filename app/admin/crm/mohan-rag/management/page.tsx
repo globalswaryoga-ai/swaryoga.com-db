@@ -32,6 +32,8 @@ import { SixStepPipelineView } from '@/components/admin/crm/mohan-rag/SixStepPip
 import FourWorkersPipelineView from '@/components/admin/crm/mohan-rag/FourWorkersPipelineView';
 import MohanSirAvatarDnaLibrary from '@/components/admin/crm/mohan-rag/MohanSirAvatarDnaLibrary';
 import YouTubeChannelIntake from '@/components/admin/crm/mohan-rag/YouTubeChannelIntake';
+import VoiceMicInputButton from '@/components/admin/crm/mohan-rag/VoiceMicInputButton';
+import { SUPPORTED_27_LANGUAGES } from '@/lib/mohanRag/multiLanguageSynthesisEngine';
 import type { MohanRagModule } from '@/lib/mohanRag/knowledgeRepository';
 
 type SectionId =
@@ -1030,7 +1032,7 @@ function Library({
   const [topic, setTopic] = useState<string | null>(null);
   const [source, setSource] = useState<KnowledgeSourceView | null>(null);
   const [view, setView] = useState<'plain' | 'cues'>('plain');
-  const [langFilter, setLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
+  const [langFilter, setLangFilter] = useState<string>('all');
   const [isFixingLang, setIsFixingLang] = useState(false);
   const [filterMsg, setFilterMsg] = useState('');
   const [isAutoFixing, setIsAutoFixing] = useState(false);
@@ -1291,27 +1293,94 @@ function Library({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500"><span>Library</span>{activeModule && <><ChevronRight className="h-3 w-3" /><button type="button" onClick={() => { setTopic(null); setSource(null); }} className="rounded-md px-2 py-1 text-xs">{activeModule.title}</button></>}{topic && <><ChevronRight className="h-3 w-3" /><button type="button" onClick={clearSource} className="rounded-md px-2 py-1 text-xs">{topic}</button></>}{source && <><ChevronRight className="h-3 w-3" /><span className="font-medium text-slate-700">{source.title}</span></>}</div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-emerald-100/60 pt-3">
-          <span className="text-xs font-bold text-slate-600">Language Filter:</span>
-          {(['all', 'mr', 'hi', 'en'] as const).map(l => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => {
-                setLangFilter(l);
-                setTopic(null);
-                setSource(null);
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-emerald-100/60 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-slate-700">Language Filter:</span>
+            {[
+              { code: 'all', label: '🌐 All Languages' },
+              { code: 'mr', label: '🚩 Marathi (MR)' },
+              { code: 'hi', label: '🕉️ Hindi (HI)' },
+              { code: 'en', label: '🇬🇧 English (EN)' },
+            ].map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => {
+                  setLangFilter(l.code);
+                  setTopic(null);
+                  setSource(null);
+                }}
+                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                  langFilter === l.code
+                    ? 'bg-emerald-800 text-white shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+
+            {/* Selector for the other 24 Global Languages */}
+            <div className="relative inline-flex items-center">
+              <select
+                value={['all', 'mr', 'hi', 'en'].includes(langFilter) ? '' : langFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    setLangFilter(val);
+                    setTopic(null);
+                    setSource(null);
+                  }
+                }}
+                className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition outline-none cursor-pointer ${
+                  !['all', 'mr', 'hi', 'en'].includes(langFilter)
+                    ? 'border-emerald-600 bg-emerald-800 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+                title="Select from 27 global translated languages"
+              >
+                <option value="" disabled>
+                  🌍 More Languages ({SUPPORTED_27_LANGUAGES.length - 3}) ▾
+                </option>
+                {SUPPORTED_27_LANGUAGES.filter((l) => !['mr', 'hi', 'en'].includes(l.code)).map((l) => (
+                  <option key={l.code} value={l.code} className="text-slate-900 bg-white">
+                    {l.native} ({l.name}) — {l.code.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear Filter Pill if non-standard language is active */}
+            {!['all', 'mr', 'hi', 'en'].includes(langFilter) && (
+              <button
+                type="button"
+                onClick={() => setLangFilter('all')}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"
+              >
+                <span>Clear ({langFilter.toUpperCase()})</span>
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Voice Microphone Input on the Language Bar */}
+          <div className="flex items-center gap-2">
+            <VoiceMicInputButton
+              onTranscript={(spokenText) => {
+                // If Mohan Sir speaks a topic or word, search/match it
+                const found = sources.find((s) =>
+                  s.title.toLowerCase().includes(spokenText.toLowerCase()) ||
+                  s.topic.toLowerCase().includes(spokenText.toLowerCase())
+                );
+                if (found) {
+                  setModuleId(found.moduleId);
+                  setTopic(found.topic);
+                  setSource(found);
+                }
               }}
-              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
-                langFilter === l
-                  ? 'bg-emerald-800 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              {l === 'all' ? '🌐 All Languages' : l === 'mr' ? '🚩 Marathi (MR)' : l === 'hi' ? '🕉️ Hindi (HI)' : '🇬🇧 English (EN)'}
-            </button>
-          ))}
-          <span className="text-[11px] text-slate-500">Sources tagged AUTO are unclassified and excluded from specific-language filters.</span>
+              buttonText="माईक (Voice Filter)"
+            />
+          </div>
         </div>
       </section>
 

@@ -31,6 +31,7 @@ import {
   Film,
   Shirt
 } from 'lucide-react';
+import VoiceMicInputButton from './VoiceMicInputButton';
 import type {
   AvatarDnaLook,
   FacialDnaItem,
@@ -1569,60 +1570,122 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {postureDna.map((item) => (
-              <div
-                key={item.id}
-                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition"
-              >
-                <div className="h-44 w-full bg-black relative">
-                  <video
-                    src={item.videoClipUrl || item.video_clip_url}
-                    className="h-full w-full object-cover"
-                    controls
-                    playsInline
-                  />
-                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                    <span className="pointer-events-auto rounded-full bg-black/70 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-md">
-                      {(item.associatedNadi || item.associated_nadi) === 'surya' ? '☀️ Surya Nadi' : (item.associatedNadi || item.associated_nadi) === 'chandra' ? '🌙 Chandra Nadi' : '⚡ Sushumna Nadi'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeletePosture(item.id, item.postureName || item.posture_name || '', e)}
-                      disabled={actionLoading}
-                      className="pointer-events-auto flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-md backdrop-blur-md hover:bg-red-700 active:scale-95 transition cursor-pointer disabled:opacity-50"
-                      title="Delete Yogic Posture & Mudra"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
+            {postureDna.map((item) => {
+              const isPlaying = playingVideoId === `posture_${item.id}`;
+              const posturePosters: Record<string, string> = {
+                posture_dna_gyan_mudra: '/avatar-studio/looks/mohan_studio_white_meditation.jpg',
+                posture_dna_nostril_check: '/avatar-studio/looks/mohan_aqua_mudra.jpg',
+                posture_dna_jatharagni_navel: '/avatar-studio/looks/mohan_lime_green_diet.jpg',
+              };
+              const posterUrl = item.poster_url || posturePosters[item.id] || '/avatar-studio/looks/mohan_studio_white_meditation.jpg';
 
-                <div className="p-5 space-y-2">
-                  <h4 className="text-sm font-extrabold text-slate-900">
-                    {item.postureName || item.posture_name}
-                  </h4>
-                  <div className="text-xs font-semibold text-emerald-800">
-                    {item.sanskritName || item.sanskrit_name}
+              const displayName =
+                item.postureName ||
+                item.posture_name ||
+                (item.id === 'posture_dna_gyan_mudra'
+                  ? 'Gyan Mudra in Sukhasana'
+                  : item.id === 'posture_dna_nostril_check'
+                  ? 'Nostril Airflow Testing Gesture'
+                  : item.id === 'posture_dna_jatharagni_navel'
+                  ? 'Solar Plexus Digestive Demonstration'
+                  : 'Authentic Yogic Posture');
+
+              const displaySanskrit =
+                item.sanskritName ||
+                item.sanskrit_name ||
+                (item.id === 'posture_dna_gyan_mudra'
+                  ? 'ज्ञान मुद्रा (Dhyana Asana)'
+                  : item.id === 'posture_dna_nostril_check'
+                  ? 'नासिका स्वर परीक्षण हस्त मुद्रा'
+                  : item.id === 'posture_dna_jatharagni_navel'
+                  ? 'मणिपूरक चक्र / जठराग्नी संकेत'
+                  : 'योग मुद्रा व आसन');
+
+              return (
+                <div
+                  key={item.id}
+                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm hover:shadow-lg transition"
+                >
+                  <div className="h-48 w-full bg-slate-950 relative overflow-hidden">
+                    <video
+                      ref={(el) => {
+                        videoRefs.current[`posture_${item.id}`] = el;
+                      }}
+                      src={item.videoClipUrl || item.video_clip_url}
+                      poster={posterUrl}
+                      className="h-full w-full object-cover transition group-hover:scale-102"
+                      playsInline
+                      preload="metadata"
+                      loop
+                      muted
+                    />
+
+                    {/* Play/Pause Button Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                      <button
+                        type="button"
+                        onClick={() => togglePlay(`posture_${item.id}`)}
+                        className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-xl backdrop-blur hover:scale-110 active:scale-95 transition"
+                        title={isPlaying ? 'Pause Mudra Video' : 'Play Mohan Sir Mudra Demo'}
+                      >
+                        {isPlaying ? (
+                          <Pause className="h-5 w-5 fill-slate-950" />
+                        ) : (
+                          <Play className="ml-0.5 h-5 w-5 fill-slate-950" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span className="pointer-events-auto rounded-full bg-black/80 px-2.5 py-1 text-[10px] font-black text-white shadow-md backdrop-blur-md">
+                        {(item.associatedNadi || item.associated_nadi) === 'surya'
+                          ? '☀️ Surya Nadi'
+                          : (item.associatedNadi || item.associated_nadi) === 'chandra'
+                          ? '🌙 Chandra Nadi'
+                          : '⚡ Sushumna Nadi'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeletePosture(item.id, displayName, e)}
+                        disabled={actionLoading}
+                        className="pointer-events-auto flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-md backdrop-blur-md hover:bg-red-700 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                        title="Delete Yogic Posture & Mudra"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {item.description}
-                  </p>
-                  <div className="pt-2 border-t border-slate-100 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeletePosture(item.id, item.postureName || item.posture_name || '', e)}
-                      disabled={actionLoading}
-                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700 hover:bg-red-600 hover:text-white transition cursor-pointer disabled:opacity-50"
-                      title="Delete Yogic Posture"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Delete Posture</span>
-                    </button>
+
+                  <div className="p-5 space-y-2">
+                    <h4 className="text-sm font-black text-slate-900 leading-snug">
+                      {displayName}
+                    </h4>
+                    <div className="text-xs font-bold text-emerald-800">
+                      {displaySanskrit}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                      {item.description}
+                    </p>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {item.category || 'Mudra DNA'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeletePosture(item.id, displayName, e)}
+                        disabled={actionLoading}
+                        className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700 hover:bg-red-600 hover:text-white transition cursor-pointer disabled:opacity-50"
+                        title="Delete Yogic Posture"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Delete Posture</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1686,12 +1749,20 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
             </div>
           </div>
 
-          {/* Wardrobe Grid */}
+          {/* Wardrobe Grid - Strictly One Dress Displayed One Time Only */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {wardrobeDna
-              .filter((item) => wardrobeFilter === 'all' || item.category === wardrobeFilter)
-              .map((item) => {
-                const isItemPlaying = playingVideoId === `ward_${item.id}`;
+            {(() => {
+              const seenDressKeys = new Set<string>();
+              return wardrobeDna
+                .filter((item) => wardrobeFilter === 'all' || item.category === wardrobeFilter)
+                .filter((item) => {
+                  const key = (item.clothing_name || item.clothingName || item.category || '').toLowerCase().trim();
+                  if (seenDressKeys.has(key)) return false;
+                  seenDressKeys.add(key);
+                  return true;
+                })
+                .map((item) => {
+                  const isItemPlaying = playingVideoId === `ward_${item.id}`;
                 return (
                   <div
                     key={item.id}
@@ -1818,7 +1889,8 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
       )}
@@ -1842,7 +1914,7 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
             {/* Currently Active Look Highlight */}
             {currentActiveLook && (
               <div className="flex flex-col sm:flex-row items-center gap-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 p-5">
-                <div className="h-32 w-48 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-black shadow-md relative">
+                <div className="aspect-video w-full sm:w-64 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-slate-950 shadow-md relative">
                   {currentActiveLook.video_url?.includes('iframe.mediadelivery.net') ? (
                     <iframe
                       src={currentActiveLook.video_url}
@@ -1854,10 +1926,11 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                   ) : (
                     <video
                       src={currentActiveLook.video_url}
-                      poster={currentActiveLook.thumbnail_url}
+                      poster={currentActiveLook.thumbnail_url || '/api/recorded-courses/thumbnail?videoId=baedb88d-2353-4215-ab33-2ddbbf5cb9d9'}
                       className="h-full w-full object-cover"
                       controls
                       playsInline
+                      preload="metadata"
                     />
                   )}
                 </div>

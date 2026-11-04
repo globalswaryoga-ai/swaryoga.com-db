@@ -1,4 +1,4 @@
-export type LibraryLanguageFilter = 'all' | 'mr' | 'hi' | 'en';
+export type LibraryLanguageFilter = 'all' | string;
 
 type LanguageSource = {
   language?: string | null;
@@ -10,16 +10,20 @@ type ModuleSource = LanguageSource & {
 
 export function filterKnowledgeSourcesByLanguage<T extends LanguageSource>(
   sources: T[],
-  language: LibraryLanguageFilter,
+  language: string,
 ): T[] {
-  if (language === 'all') return sources;
-  return sources.filter(source => source.language?.trim().toLowerCase() === language);
+  if (!language || language === 'all') return sources;
+  const target = language.trim().toLowerCase();
+  return sources.filter(source => {
+    const sLang = source.language?.trim().toLowerCase();
+    return sLang === target;
+  });
 }
 
 export function countKnowledgeSourcesByModule(
   sources: ModuleSource[],
   moduleId: string,
-  language: LibraryLanguageFilter,
+  language: string,
 ): number {
   return filterKnowledgeSourcesByLanguage(sources, language)
     .filter(source => source.moduleId === moduleId)

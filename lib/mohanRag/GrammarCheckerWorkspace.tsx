@@ -24,6 +24,7 @@ import {
   stripToPurePlainText,
 } from './masterLibraryCorpus';
 import { getGrammarConfig } from './dualGrammarEngine';
+import VoiceMicInputButton from '@/components/admin/crm/mohan-rag/VoiceMicInputButton';
 
 interface GrammarCheckerWorkspaceProps {
   token: string | null;
@@ -668,14 +669,31 @@ export default function GrammarCheckerWorkspace({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Left: Source Text (Input) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex flex-col">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                 <span>📝 Source Text</span>
                 <span className="text-[10px] text-slate-400 font-normal">({currentLangObj.name})</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {sourceText.trim() ? sourceText.trim().split(/\s+/).length : 0} words
-              </span>
+              <div className="flex items-center gap-2">
+                <VoiceMicInputButton
+                  onTranscript={(spokenText) => {
+                    const updated = sourceText ? `${sourceText} ${spokenText}` : spokenText;
+                    setSourceText(updated);
+                    onTextChange(updated);
+                  }}
+                  defaultLanguage={
+                    currentLangObj.code === 'hi'
+                      ? 'hi-IN'
+                      : currentLangObj.code === 'en'
+                      ? 'en-IN'
+                      : 'mr-IN'
+                  }
+                  buttonText="माईकवर बोला (Speak)"
+                />
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {sourceText.trim() ? sourceText.trim().split(/\s+/).length : 0} words
+                </span>
+              </div>
             </div>
             <textarea
               rows={16}
