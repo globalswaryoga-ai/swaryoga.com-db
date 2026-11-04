@@ -38,6 +38,7 @@ import type {
   YogicPostureItem,
   WardrobeDnaItem,
 } from '@/lib/mohanRag/avatarDnaRepository';
+import { summarizeFacialExtractionError } from '@/lib/mohanRag/facialExpressionErrors';
 import FaceToChestLiveTalkModal from './FaceToChestLiveTalkModal';
 
 type DnaSubTab = 'looks' | 'facial' | 'vocal' | 'postures' | 'wardrobe' | 'deploy';
@@ -1264,7 +1265,11 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-slate-800">{job.id}</p>
                         <p className="truncate text-slate-500">{job.video_url}</p>
-                        {job.error_message && <p className="mt-1 text-rose-700">{job.error_message}</p>}
+                        {job.error_message && (
+                          <p className="mt-1 max-w-3xl break-words text-rose-700">
+                            {summarizeFacialExtractionError(job.error_message)}
+                          </p>
+                        )}
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 font-bold ${
                         job.status === 'completed' ? 'bg-emerald-100 text-emerald-800'
@@ -1494,11 +1499,11 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {item.pitchHz} Hz • {item.cadenceWordsPerMinute} wpm
+                        {item.pitchHz || item.pitch_hz || 125} Hz • {item.cadenceWordsPerMinute || item.cadence_words_per_minute || 115} wpm
                       </span>
                       <button
                         type="button"
-                        onClick={(e) => handleDeleteVocal(item.id, item.toneName, e)}
+                        onClick={(e) => handleDeleteVocal(item.id, item.toneName || item.tone_name || '', e)}
                         disabled={actionLoading}
                         className="flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 px-2.5 py-1 text-xs font-bold shadow-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
                         title="Delete Vocal Tone"
@@ -1510,7 +1515,7 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                   </div>
 
                   <h4 className="text-sm font-extrabold text-slate-900">
-                    {item.toneName}
+                    {item.toneName || item.tone_name || ''}
                   </h4>
 
                   <p className="text-xs text-slate-600 leading-relaxed">
@@ -1522,13 +1527,13 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                       Sample Phrase
                     </div>
                     <div className="mt-1 text-xs font-medium text-slate-800 italic">
-                      “{item.samplePhrase}”
+                      “{item.samplePhrase || item.sample_phrase || ''}”
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100">
-                  <audio controls className="w-full h-8" src={item.audioSampleUrl}>
+                  <audio controls className="w-full h-8" src={item.audioSampleUrl || item.audio_sample_url}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>

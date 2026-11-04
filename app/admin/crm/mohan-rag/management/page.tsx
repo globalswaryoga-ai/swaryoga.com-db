@@ -20,6 +20,10 @@ import {
   getLibraryCorpusText,
   stripToPurePlainText,
 } from '@/lib/mohanRag/masterLibraryCorpus';
+import {
+  countKnowledgeSourcesByModule,
+  filterKnowledgeSourcesByLanguage,
+} from '@/lib/mohanRag/libraryLanguageFilter';
 import LibraryDashboardView from '@/lib/mohanRag/LibraryDashboardView';
 import GrammarCheckerWorkspace from '@/lib/mohanRag/GrammarCheckerWorkspace';
 import PlainTextWorkspace from '@/lib/mohanRag/PlainTextWorkspace';
@@ -1161,9 +1165,7 @@ function Library({
   }, [token]);
 
   const activeModule = modules.find(item => item.id === moduleId);
-  const filteredSources = langFilter === 'all'
-    ? sources
-    : sources.filter(item => item.language?.toLowerCase() === langFilter);
+  const filteredSources = filterKnowledgeSourcesByLanguage(sources, langFilter);
   const moduleSources = filteredSources.filter(item => item.moduleId === moduleId);
   const topics = Array.from(new Set(moduleSources.map(item => item.topic.trim() || 'Uncategorized'))).sort((a, b) => a.localeCompare(b));
   const topicSources = moduleSources.filter(item => (item.topic.trim() || 'Uncategorized') === topic);
@@ -1260,7 +1262,11 @@ function Library({
             <button
               key={l}
               type="button"
-              onClick={() => setLangFilter(l)}
+              onClick={() => {
+                setLangFilter(l);
+                setTopic(null);
+                setSource(null);
+              }}
               className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                 langFilter === l
                   ? 'bg-emerald-800 text-white shadow-sm'
@@ -1270,6 +1276,7 @@ function Library({
               {l === 'all' ? '🌐 All Languages' : l === 'mr' ? '🚩 Marathi (MR)' : l === 'hi' ? '🕉️ Hindi (HI)' : '🇬🇧 English (EN)'}
             </button>
           ))}
+          <span className="text-[11px] text-slate-500">Sources tagged AUTO are unclassified and excluded from specific-language filters.</span>
         </div>
       </section>
 
@@ -1277,7 +1284,7 @@ function Library({
       {loading && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading library contents…</p>}
 
       {!moduleId && !loading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{modules.map((item, index) => {
-        const count = sources.filter(sourceItem => sourceItem.moduleId === item.id).length;
+        const count = countKnowledgeSourcesByModule(sources, item.id, langFilter);
         return <button key={item.id} type="button" data-tone={toneFor(index)} onClick={() => { setModuleId(item.id); setTopic(null); setSource(null); }} className="mohan-rag-overview-card group min-h-36 rounded-2xl p-5 text-left transition"><div className="flex items-start justify-between gap-2"><h4 className="font-semibold text-slate-900">{item.title}</h4><span className="rounded-full border border-white/80 bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">{count} {count === 1 ? 'source' : 'sources'}</span></div><p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{item.purpose}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800">Browse topics <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span></button>;
       })}</div>}
 
@@ -1328,7 +1335,7 @@ function Library({
             )}
           </div>
         );
-      })}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">No sources have been added to this library yet.</div>}</section>}
+      })}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">{langFilter === 'all' ? 'No sources have been added to this library yet.' : `No sources tagged ${langFilter.toUpperCase()} are in this library. Sources tagged AUTO are not included in language-specific filters.`}</div>}</section>}
 
       {activeModule && topic && !source && !loading && (
         <section className="space-y-3">
@@ -1351,7 +1358,7 @@ function Library({
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {topicSources.map((item, index) => {
+            {topicSources.length ? topicSources.map((item, index) => {
               const cLen = Number(item.contentLength || item.content?.length || 0);
               const isVideo = Boolean(
                 item.originalFileName?.match(/\.(mp4|mov|webm|mp3|m4a|wav)$/i) ||
@@ -1443,7 +1450,7 @@ function Library({
                   </div>
                 </div>
               );
-            })}
+            }) : <p className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">{langFilter === 'all' ? 'No sources have been added to this topic yet.' : `No sources tagged ${langFilter.toUpperCase()} are in this topic. Sources tagged AUTO are not included in language-specific filters.`}</p>}
           </div>
         </section>
       )}

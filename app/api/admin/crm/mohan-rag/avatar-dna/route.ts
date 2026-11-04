@@ -76,11 +76,30 @@ export async function GET(request: NextRequest) {
         id: v.id,
         language: v.language,
         tone_name: v.toneName,
+        toneName: v.toneName,
         pitch_hz: v.pitchHz,
+        pitchHz: v.pitchHz,
         cadence_words_per_minute: v.cadenceWordsPerMinute,
+        cadenceWordsPerMinute: v.cadenceWordsPerMinute,
         characteristic: v.characteristic,
         sample_phrase: v.samplePhrase,
+        samplePhrase: v.samplePhrase,
         audio_sample_url: v.audioSampleUrl,
+        audioSampleUrl: v.audioSampleUrl,
+      }));
+    } else {
+      vocalDna = vocalDna.map(v => ({
+        ...v,
+        toneName: v.tone_name || v.toneName || '',
+        tone_name: v.tone_name || v.toneName || '',
+        pitchHz: Number(v.pitch_hz ?? v.pitchHz ?? 125),
+        pitch_hz: Number(v.pitch_hz ?? v.pitchHz ?? 125),
+        cadenceWordsPerMinute: Number(v.cadence_words_per_minute ?? v.cadenceWordsPerMinute ?? 115),
+        cadence_words_per_minute: Number(v.cadence_words_per_minute ?? v.cadenceWordsPerMinute ?? 115),
+        samplePhrase: v.sample_phrase || v.samplePhrase || '',
+        sample_phrase: v.sample_phrase || v.samplePhrase || '',
+        audioSampleUrl: v.audio_sample_url || v.audioSampleUrl || '',
+        audio_sample_url: v.audio_sample_url || v.audioSampleUrl || '',
       }));
     }
 

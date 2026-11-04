@@ -170,6 +170,18 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Mohan RAG Library Language Filter Repair (Session: November 5, 2026) — Commit `working tree`
+
+- Bunny SQL showed 71 Level 1 sources total but only 3 tagged English; the overview cards were counting from the unfiltered source list, so their totals did not respond to the selected language.
+- The overview now counts only sources tagged with the selected language. Changing language clears any open topic/source so content from a prior selection cannot remain visible. Sources tagged `auto` are explicitly described as unclassified and excluded from specific-language views.
+- Added focused regressions for English/Marathi/Hindi filtering, module counts, and unclassified sources. No Bunny records were changed.
+
+### Mohan RAG Facial Job Error Display Cleanup (Session: November 5, 2026) — Commit `working tree`
+
+- The Avatar DNA screenshot showed a stored yt-dlp command failure rendered as a long raw Python traceback. The underlying YouTube job is still failed with 0 frames; this is not evidence that cookie support is configured.
+- The Facial Jobs list now summarizes old and new YouTube bot-check failures with authorized-cookie setup guidance, shows concise Python runtime errors, and hides subprocess command dumps behind a short server-log hint. The Bunny job record is not rewritten.
+- Added four focused error-summary regressions; the targeted Jest suite passes. UI and helper changes are local and await deployment.
+
 ### Mohan RAG YouTube Facial Extraction Smoke Check (Session: November 4, 2026) — Commit `working tree`, Contabo build `1aUT-w4y8hZAEWK7RQcE2`
 
 - Verified unlisted English speaker-view video `_27tyc20PKk` from the configured Swar Yoga channel (4,355 seconds) using metadata only, then started exactly one 0.1-FPS extraction job: `face_job_1793807839605_11e103`.
