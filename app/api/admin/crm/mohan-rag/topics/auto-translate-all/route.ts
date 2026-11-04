@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireMohanRagAdmin } from '@/lib/mohanRag/auth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { synthesizeTopicAcrossLanguages, SUPPORTED_27_LANGUAGES } from '@/lib/mohanRag/multiLanguageSynthesisEngine';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
+
+function requireMohanRagAdmin(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    const decoded = verifyToken(token);
+    return decoded && isSuperAdmin(decoded, request) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   const admin = requireMohanRagAdmin(request);
