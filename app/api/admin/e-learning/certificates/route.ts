@@ -116,11 +116,6 @@ export async function POST(request: NextRequest) {
 
     const { enrollmentId, certificateUrl, courseId, userId } = body;
 
-    const certId = crypto.randomUUID();
-    const certNum = `CERT-${Date.now()}`;
-    const timestamp = new Date().toISOString();
-
-
     const certId = `cert_${crypto.randomBytes(8).toString('hex')}`;
     const certNum = `SWAR-${Date.now().toString(36).toUpperCase()}`;
     const now = new Date().toISOString();

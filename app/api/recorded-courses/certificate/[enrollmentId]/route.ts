@@ -10,7 +10,6 @@ import crypto from 'crypto';
 import { verifyToken } from '@/lib/auth';
 import { bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
 import { generateCourseCertificate } from '@/lib/course-certificate-generator';
-import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { initCourseSchema, getCourseById } from '@/lib/bunnyCourseRepository';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +17,6 @@ export const dynamic = 'force-dynamic';
 interface RouteParams {
   params: Promise<{ enrollmentId: string }>;
 }
-
-
-export const dynamic = 'force-dynamic';
 
 /**
  * GET - Download certificate PDF
