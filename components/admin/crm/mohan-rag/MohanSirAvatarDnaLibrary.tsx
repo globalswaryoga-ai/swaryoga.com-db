@@ -913,17 +913,27 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                     style={{ minHeight: '220px', maxHeight: '240px' }}
                     onClick={() => togglePlay(look.id)}
                   >
-                    <video
-                      ref={(el) => {
-                        videoRefs.current[look.id] = el;
-                      }}
-                      src={look.video_url}
-                      poster={look.thumbnail_url}
-                      className="h-full w-full object-cover"
-                      playsInline
-                      loop
-                      onEnded={() => setPlayingVideoId(null)}
-                    />
+                    {isPlaying && look.video_url?.includes('iframe.mediadelivery.net') ? (
+                      <iframe
+                        src={`${look.video_url}?autoplay=true&loop=true`}
+                        loading="lazy"
+                        className="h-full w-full border-0 absolute inset-0 z-0"
+                        allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        ref={(el) => {
+                          videoRefs.current[look.id] = el;
+                        }}
+                        src={look.video_url}
+                        poster={look.thumbnail_url}
+                        className="h-full w-full object-cover"
+                        playsInline
+                        loop
+                        onEnded={() => setPlayingVideoId(null)}
+                      />
+                    )}
 
                     {/* Active Look Glowing Badge */}
                     {isSelectedActive && (
@@ -1566,18 +1576,18 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
               >
                 <div className="h-44 w-full bg-black relative">
                   <video
-                    src={item.videoClipUrl}
+                    src={item.videoClipUrl || item.video_clip_url}
                     className="h-full w-full object-cover"
                     controls
                     playsInline
                   />
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
                     <span className="pointer-events-auto rounded-full bg-black/70 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-md">
-                      {item.associatedNadi === 'surya' ? '☀️ Surya Nadi' : item.associatedNadi === 'chandra' ? '🌙 Chandra Nadi' : '⚡ Sushumna Nadi'}
+                      {(item.associatedNadi || item.associated_nadi) === 'surya' ? '☀️ Surya Nadi' : (item.associatedNadi || item.associated_nadi) === 'chandra' ? '🌙 Chandra Nadi' : '⚡ Sushumna Nadi'}
                     </span>
                     <button
                       type="button"
-                      onClick={(e) => handleDeletePosture(item.id, item.postureName, e)}
+                      onClick={(e) => handleDeletePosture(item.id, item.postureName || item.posture_name || '', e)}
                       disabled={actionLoading}
                       className="pointer-events-auto flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-md backdrop-blur-md hover:bg-red-700 active:scale-95 transition cursor-pointer disabled:opacity-50"
                       title="Delete Yogic Posture & Mudra"
@@ -1590,10 +1600,10 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
 
                 <div className="p-5 space-y-2">
                   <h4 className="text-sm font-extrabold text-slate-900">
-                    {item.postureName}
+                    {item.postureName || item.posture_name}
                   </h4>
                   <div className="text-xs font-semibold text-emerald-800">
-                    {item.sanskritName}
+                    {item.sanskritName || item.sanskrit_name}
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
                     {item.description}
@@ -1601,7 +1611,7 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                   <div className="pt-2 border-t border-slate-100 flex justify-end">
                     <button
                       type="button"
-                      onClick={(e) => handleDeletePosture(item.id, item.postureName, e)}
+                      onClick={(e) => handleDeletePosture(item.id, item.postureName || item.posture_name || '', e)}
                       disabled={actionLoading}
                       className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700 hover:bg-red-600 hover:text-white transition cursor-pointer disabled:opacity-50"
                       title="Delete Yogic Posture"
@@ -1697,8 +1707,8 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                         ref={(el) => {
                           videoRefs.current[`ward_${item.id}`] = el;
                         }}
-                        src={item.video_clip_url}
-                        poster={item.front_image_url}
+                        src={item.video_clip_url || item.videoClipUrl}
+                        poster={item.front_image_url || item.frontImageUrl}
                         className="h-full w-full object-cover transition group-hover:scale-102"
                         loop
                         playsInline
@@ -1832,13 +1842,24 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
             {/* Currently Active Look Highlight */}
             {currentActiveLook && (
               <div className="flex flex-col sm:flex-row items-center gap-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 p-5">
-                <div className="h-32 w-48 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-black shadow-md">
-                  <video
-                    src={currentActiveLook.video_url}
-                    className="h-full w-full object-cover"
-                    controls
-                    playsInline
-                  />
+                <div className="h-32 w-48 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-black shadow-md relative">
+                  {currentActiveLook.video_url?.includes('iframe.mediadelivery.net') ? (
+                    <iframe
+                      src={currentActiveLook.video_url}
+                      loading="lazy"
+                      className="h-full w-full border-0"
+                      allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={currentActiveLook.video_url}
+                      poster={currentActiveLook.thumbnail_url}
+                      className="h-full w-full object-cover"
+                      controls
+                      playsInline
+                    />
+                  )}
                 </div>
                 <div className="space-y-2 flex-1">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-sm">

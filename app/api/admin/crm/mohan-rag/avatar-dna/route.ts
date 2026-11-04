@@ -109,7 +109,21 @@ export async function GET(request: NextRequest) {
       const wardrobeRes = await bunnyExecute(`
         SELECT * FROM mohan_avatar_wardrobe_dna_sql ORDER BY created_at DESC
       `);
-      wardrobeDna = wardrobeRes.rows || [];
+      wardrobeDna = (wardrobeRes.rows || []).map((w: any) => ({
+        ...w,
+        clothingName: w.clothing_name || w.clothingName || '',
+        clothing_name: w.clothing_name || w.clothingName || '',
+        colorName: w.color_name || w.colorName || '',
+        color_name: w.color_name || w.colorName || '',
+        colorHex: w.color_hex || w.colorHex || '#10b981',
+        color_hex: w.color_hex || w.colorHex || '#10b981',
+        frontImageUrl: w.front_image_url || w.frontImageUrl || 'https://swaryogacrm.b-cdn.net/materials/1792659900616-Swar_Yoga_Introduction_Thumbnail.png',
+        front_image_url: w.front_image_url || w.frontImageUrl || 'https://swaryogacrm.b-cdn.net/materials/1792659900616-Swar_Yoga_Introduction_Thumbnail.png',
+        videoClipUrl: w.video_clip_url || w.videoClipUrl || '',
+        video_clip_url: w.video_clip_url || w.videoClipUrl || '',
+        wornInVideosCount: Number(w.worn_in_videos_count ?? w.wornInVideosCount ?? 7),
+        worn_in_videos_count: Number(w.worn_in_videos_count ?? w.wornInVideosCount ?? 7),
+      }));
     } catch {}
 
     // 5. Fetch Facial Expression DNA
@@ -118,7 +132,21 @@ export async function GET(request: NextRequest) {
       const facialRes = await bunnyExecute(`
         SELECT * FROM mohan_avatar_facial_dna_sql ORDER BY created_at DESC
       `);
-      facialDna = facialRes.rows || [];
+      facialDna = (facialRes.rows || []).map((f: any) => ({
+        ...f,
+        videoClipUrl: f.video_clip_url || f.videoClipUrl || '',
+        video_clip_url: f.video_clip_url || f.videoClipUrl || '',
+        sampleTimestamp: f.sample_timestamp || f.sampleTimestamp || '01:30',
+        sample_timestamp: f.sample_timestamp || f.sampleTimestamp || '01:30',
+        marathiLabel: f.marathi_label || f.marathiLabel || '',
+        marathi_label: f.marathi_label || f.marathiLabel || '',
+        hindiLabel: f.hindi_label || f.hindiLabel || '',
+        hindi_label: f.hindi_label || f.hindiLabel || '',
+        landmarkPoints: Number(f.landmark_points ?? f.landmarkPoints ?? 468),
+        landmark_points: Number(f.landmark_points ?? f.landmarkPoints ?? 468),
+        detectedInVideosCount: Number(f.detected_in_videos_count ?? f.detectedInVideosCount ?? 12),
+        detected_in_videos_count: Number(f.detected_in_videos_count ?? f.detectedInVideosCount ?? 12),
+      }));
     } catch {}
 
     // 6. Fetch Posture DNA
@@ -127,7 +155,17 @@ export async function GET(request: NextRequest) {
       const postureRes = await bunnyExecute(`
         SELECT * FROM mohan_avatar_posture_dna_sql ORDER BY created_at DESC
       `);
-      postureDna = postureRes.rows || [];
+      postureDna = (postureRes.rows || []).map((p: any) => ({
+        ...p,
+        postureName: p.posture_name || p.postureName || '',
+        posture_name: p.posture_name || p.postureName || '',
+        sanskritName: p.sanskrit_name || p.sanskritName || '',
+        sanskrit_name: p.sanskrit_name || p.sanskritName || '',
+        videoClipUrl: p.video_clip_url || p.videoClipUrl || '',
+        video_clip_url: p.video_clip_url || p.videoClipUrl || '',
+        associatedNadi: p.associated_nadi || p.associatedNadi || 'sushumna',
+        associated_nadi: p.associated_nadi || p.associatedNadi || 'sushumna',
+      }));
     } catch {}
 
     return NextResponse.json({

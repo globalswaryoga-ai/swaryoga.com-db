@@ -1038,6 +1038,41 @@ function Library({
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [synthesisMsg, setSynthesisMsg] = useState('');
+
+  const handleSynthesizeTopic = async (targetTopic: string) => {
+    if (!token || !targetTopic) return;
+    setIsSynthesizing(true);
+    setSynthesisMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/topics/auto-translate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          action: 'synthesize_topic',
+          topic: targetTopic,
+          moduleId: moduleId || 'level1',
+          targetLanguages: ['en', 'hi', 'mr', 'es', 'de', 'fr', 'ja', 'sa'],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to synthesize');
+      setSynthesisMsg(data.message || `Successfully synthesized "${targetTopic}" across all languages!`);
+      const refreshed = await fetch(`/api/admin/crm/mohan-rag/knowledge?module=${moduleId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const refreshedData = await readManagementApiJson(refreshed);
+      if (Array.isArray(refreshedData.sources)) {
+        setSources(prev => {
+          const others = prev.filter(s => s.moduleId !== moduleId);
+          return [...others, ...refreshedData.sources];
+        });
+      }
+    } catch (err: any) {
+      setSynthesisMsg(err.message || 'Synthesis failed');
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
   const [autoFixingId, setAutoFixingId] = useState<string | null>(null);
 
   const handleScanAutoFix = async () => {
@@ -1338,119 +1373,205 @@ function Library({
       })}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">{langFilter === 'all' ? 'No sources have been added to this library yet.' : `No sources tagged ${langFilter.toUpperCase()} are in this library. Sources tagged AUTO are not included in language-specific filters.`}</div>}</section>}
 
       {activeModule && topic && !source && !loading && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Sources · {topic}</h3>
-              <p className="text-sm text-slate-500">Select a source to inspect its full text or forward to grammar.</p>
+        <section className="space-y-4">
+          {/* Master Topic Synthesis Banner Card */}
+          <div className="rounded-2xl border-2 border-emerald-400/80 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md bg-emerald-700 px-2.5 py-0.5 text-xs font-black uppercase text-white shadow-xs">
+                    {activeModule.title}
+                  </span>
+                  <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-bold text-white">
+                    ⏱️ ~{Math.max(5, Math.round(topicSources.reduce((acc, s) => acc + (s.contentLength || 0), 0) / 1000 * 0.75))} mins total
+                  </span>
+                </div>
+                <h3 className="mt-1 text-xl font-black text-slate-900">
+                  Topic: {topic}
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Multi-Source Synthesizer: Combines unique stories and emotional nuances across Marathi, Hindi & English into 27-Language Master Blueprints.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSynthesizing}
+                  onClick={() => handleSynthesizeTopic(topic)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 px-4 py-2.5 text-xs font-black text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title="Synthesize all language sources for this topic and produce verified 27-language scripts"
+                >
+                  {isSynthesizing ? <Loader2 className="h-4 w-4 animate-spin text-yellow-300" /> : <Sparkles className="h-4 w-4 text-yellow-300" />}
+                  <span>{isSynthesizing ? 'Synthesizing 27 Languages...' : '⚡ Synthesize & Auto-Translate into 27 Languages'}</span>
+                </button>
+
+                <button type="button" onClick={() => setTopic(null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+                  All topics
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Language Availability Badges */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-emerald-100">
+              <span className="text-[11px] font-bold text-slate-600">Available In:</span>
+              {Array.from(new Set(topicSources.map(s => s.language?.toLowerCase() || 'auto'))).map(lang => (
+                <span key={lang} className="rounded-md bg-emerald-100 border border-emerald-300 px-2 py-0.5 text-[11px] font-extrabold text-emerald-900">
+                  {lang === 'mr' ? '🚩 Marathi' : lang === 'hi' ? '🕉️ Hindi' : lang === 'en' ? '🇬🇧 English' : lang.toUpperCase()}
+                </span>
+              ))}
+              <span className="text-[11px] text-slate-500">
+                · {topicSources.length} lecture recording(s) cataloged
+              </span>
+            </div>
+
+            {synthesisMsg && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-100/70 p-3 text-xs font-bold text-emerald-950 flex items-center justify-between">
+                <span>{synthesisMsg}</span>
+                <button type="button" onClick={() => setSynthesisMsg('')} className="text-emerald-800 font-black ml-2 hover:underline">Dismiss</button>
+              </div>
+            )}
+          </div>
+
+          {/* Sequential One-by-One Source Cards List */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                Individual Lecture Recordings ({topicSources.length})
+              </h4>
               <button
                 type="button"
                 disabled={isAutoFixing}
                 onClick={() => handleAutoFixBatch(5)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:from-emerald-600 hover:to-teal-700 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-600 transition"
               >
-                {isAutoFixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-300" />}
+                {isAutoFixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-yellow-300" />}
                 <span>Auto-Fix Outline Videos</span>
               </button>
-              <button type="button" onClick={() => setTopic(null)} className="rounded-lg px-3 py-2 text-sm font-semibold">All topics</button>
             </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {topicSources.length ? topicSources.map((item, index) => {
-              const cLen = Number(item.contentLength || item.content?.length || 0);
-              const isVideo = Boolean(
-                item.originalFileName?.match(/\.(mp4|mov|webm|mp3|m4a|wav)$/i) ||
-                item.sourceType === 'bunny_stream' ||
-                item.sourceType === 'youtube' ||
-                item.sourceType === 'mp4'
-              );
-              const isOutline = isVideo && cLen < 900;
 
-              return (
-                <div key={item.id} data-tone={toneFor(index)} className="mohan-rag-overview-card group rounded-2xl p-4 text-left transition flex flex-col justify-between">
-                  <div onClick={() => openSource(item)} className="cursor-pointer">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-semibold text-slate-900">{item.title}</h4>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {isVideo && (
-                          isOutline ? (
-                            <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[10px] font-black uppercase">⚠️ PDF Outline</span>
-                          ) : (
-                            <span className="rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 text-[10px] font-black uppercase">✅ Audio ({(cLen / 1000).toFixed(1)}k)</span>
-                          )
-                        )}
-                        <StatusPill muted>{item.status}</StatusPill>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-600">
-                      {item.originalFileName || 'Text source'} · {item.language.toUpperCase()} · <span className="font-semibold">{cLen.toLocaleString()} chars</span>
-                    </p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => openSource(item)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:underline cursor-pointer"
+            {topicSources.length ? (
+              <div className="flex flex-col gap-3">
+                {topicSources.map((item, index) => {
+                  const cLen = Number(item.contentLength || item.content?.length || 0);
+                  const isVideo = Boolean(
+                    item.originalFileName?.match(/\.(mp4|mov|webm|mp3|m4a|wav)$/i) ||
+                    item.sourceType === 'bunny_stream' ||
+                    item.sourceType === 'youtube' ||
+                    item.sourceType === 'mp4'
+                  );
+                  const isOutline = isVideo && cLen < 900;
+
+                  return (
+                    <div
+                      key={item.id}
+                      data-tone={toneFor(index)}
+                      className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xs hover:border-emerald-300 hover:shadow-md transition flex flex-col md:flex-row md:items-center md:justify-between gap-4"
                     >
-                      View text <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                      {isOutline && (
+                      <div onClick={() => openSource(item)} className="cursor-pointer flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase ${
+                            item.language === 'mr' ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : item.language === 'hi' ? 'bg-orange-100 text-orange-900 border border-orange-300'
+                              : item.language === 'en' ? 'bg-sky-100 text-sky-900 border border-sky-300'
+                              : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          }`}>
+                            {item.language === 'mr' ? '🚩 Marathi' : item.language === 'hi' ? '🕉️ Hindi' : item.language === 'en' ? '🇬🇧 English' : item.language.toUpperCase()}
+                          </span>
+
+                          {isVideo && (
+                            isOutline ? (
+                              <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[10px] font-black uppercase">⚠️ PDF Outline</span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 text-[10px] font-black uppercase">✅ Audio ({(cLen / 1000).toFixed(1)}k chars)</span>
+                            )
+                          )}
+
+                          <StatusPill muted>{item.status}</StatusPill>
+                        </div>
+
+                        <h4 className="text-base font-extrabold text-slate-900 leading-snug group-hover:text-emerald-900 transition">
+                          {item.title}
+                        </h4>
+
+                        <p className="text-xs text-slate-500">
+                          📁 {item.originalFileName || 'Text source'} · ⏱️ ~{Math.max(1, Math.round(cLen / 750))} mins speech · {item.sourceType}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
                         <button
                           type="button"
-                          disabled={isAutoFixing}
+                          onClick={() => openSource(item)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        >
+                          👁️ View Text
+                        </button>
+
+                        {isOutline && (
+                          <button
+                            type="button"
+                            disabled={isAutoFixing}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAutoFixSingle(item.id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                            title="AI Worker: Transcribe real video audio"
+                          >
+                            {isAutoFixing && autoFixingId === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-amber-300" />}
+                            <span>{isAutoFixing && autoFixingId === item.id ? 'Fixing...' : '⚡ Auto-Fix Audio'}</span>
+                          </button>
+                        )}
+
+                        {onForwardToPipeline && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              let textContent = '';
+                              try {
+                                const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${item.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                                const d = await readManagementApiJson(res);
+                                textContent = d.source?.content || '';
+                              } catch {}
+                              const clean = textContent.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                              onForwardToPipeline({
+                                text: clean,
+                                topic: item.topic,
+                                workshop: item.moduleId,
+                                language: item.language === 'auto' ? 'mr' : item.language,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl bg-sky-700 hover:bg-sky-800 px-3 py-1.5 text-xs font-black text-white shadow-xs transition active:scale-95 cursor-pointer"
+                            title="Forward text to Spell Check and Verb-Only Grammar Corrector"
+                          >
+                            🚀 Correct & Grammar
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAutoFixSingle(item.id);
+                            handleDeleteLibrarySource(item.id, item.title);
                           }}
-                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
-                          title="AI Worker: Transcribe real video audio"
+                          className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100 transition cursor-pointer"
+                          title="Delete this source from library"
                         >
-                          {isAutoFixing && autoFixingId === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-amber-300" />}
-                          <span>{isAutoFixing && autoFixingId === item.id ? 'Fixing...' : '⚡ Auto-Fix Video'}</span>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      {onForwardToPipeline && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            let textContent = '';
-                            try {
-                              const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${item.id}`, { headers: { Authorization: `Bearer ${token}` } });
-                              const d = await readManagementApiJson(res);
-                              textContent = d.source?.content || '';
-                            } catch {}
-                            const clean = textContent.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
-                            onForwardToPipeline({
-                              text: clean,
-                              topic: item.topic,
-                              workshop: item.moduleId,
-                              language: item.language === 'auto' ? 'mr' : item.language,
-                            });
-                          }}
-                          className="text-xs font-bold text-sky-700 hover:text-sky-950 underline flex items-center gap-1 cursor-pointer"
-                        >
-                          🚀 Correct →
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteLibrarySource(item.id, item.title);
-                        }}
-                        className="text-xs font-bold text-red-600 hover:text-red-800 underline cursor-pointer"
-                        title="Delete this source from library"
-                      >
-                        🗑️ Delete
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            }) : <p className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">{langFilter === 'all' ? 'No sources have been added to this topic yet.' : `No sources tagged ${langFilter.toUpperCase()} are in this topic. Sources tagged AUTO are not included in language-specific filters.`}</p>}
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                {langFilter === 'all'
+                  ? 'No sources have been added to this topic yet.'
+                  : `No sources tagged ${langFilter.toUpperCase()} are in this topic. Click '⚡ Synthesize & Auto-Translate into 27 Languages' to auto-generate from original Marathi/Hindi recordings.`}
+              </p>
+            )}
           </div>
         </section>
       )}
