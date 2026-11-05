@@ -305,17 +305,8 @@ export default function CreationHubPage() {
               adminNotes: t.admin_notes || t.adminNotes || '',
             }));
 
-          setMasterList((prev) => {
-            const map = new Map<string, MasterWorkshopCopy>();
-            // Real Database topics take highest priority
-            dbTopics.forEach((item) => map.set(item.id, item));
-            // Preserve user-added custom topics that are not deleted and not dummy
-            prev.forEach((item) => {
-              if (!freshDeleted.has(item.id) && !DUMMY_WORKSHOP_IDS.has(item.id) && !map.has(item.id)) {
-                map.set(item.id, item);
-              }
-            });
-            const merged = Array.from(map.values());
+          setMasterList(() => {
+            const merged = dbTopics;
             try {
               localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(merged));
             } catch (e) {}

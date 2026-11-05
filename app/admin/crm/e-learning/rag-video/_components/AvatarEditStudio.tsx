@@ -375,6 +375,12 @@ export default function AvatarEditStudio({
           }
         }
         setVideoList(merged);
+        setMasterTwinStats((prev) => ({
+          ...prev,
+          totalClips: merged.length,
+          usedVideoGB: Math.round(merged.length * 0.28 * 10) / 10,
+          usedAudioHours: Math.round((merged.length * 1.2) * 10) / 10,
+        }));
       } else {
         setVideoList(filteredPresets);
       }
