@@ -1625,13 +1625,17 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                       <button
                         type="button"
                         onClick={() => togglePlay(`posture_${item.id}`)}
-                        className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-xl backdrop-blur hover:scale-110 active:scale-95 transition"
+                        className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 shadow-2xl ${
+                          isPlaying
+                            ? 'bg-black/70 text-white hover:scale-110 ring-2 ring-emerald-400'
+                            : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-110 shadow-emerald-500/40'
+                        }`}
                         title={isPlaying ? 'Pause Mudra Video' : 'Play Mohan Sir Mudra Demo'}
                       >
                         {isPlaying ? (
-                          <Pause className="h-5 w-5 fill-slate-950" />
+                          <Pause className="h-5 w-5 fill-current" />
                         ) : (
-                          <Play className="ml-0.5 h-5 w-5 fill-slate-950" />
+                          <Play className="ml-0.5 h-5 w-5 fill-current" />
                         )}
                       </button>
                     </div>
@@ -1791,13 +1795,17 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                         <button
                           type="button"
                           onClick={() => togglePlay(`ward_${item.id}`)}
-                          className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-slate-950 shadow-xl backdrop-blur hover:scale-110 active:scale-95 transition"
+                          className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 shadow-2xl ${
+                            isItemPlaying
+                              ? 'bg-black/70 text-white hover:scale-110 ring-2 ring-emerald-400'
+                              : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-110 shadow-emerald-500/40'
+                          }`}
                           title={isItemPlaying ? 'Pause Outfit Clip' : 'Play Mohan Sir in This Outfit'}
                         >
                           {isItemPlaying ? (
-                            <Pause className="h-5 w-5 fill-slate-950" />
+                            <Pause className="h-5 w-5 fill-current" />
                           ) : (
-                            <Play className="ml-0.5 h-5 w-5 fill-slate-950" />
+                            <Play className="ml-0.5 h-5 w-5 fill-current" />
                           )}
                         </button>
                       </div>

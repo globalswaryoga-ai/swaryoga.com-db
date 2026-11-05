@@ -225,8 +225,8 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, optio
   }
   if (!response.ok) {
     if (raw.includes('no credits remaining') || raw.includes('insufficient_quota') || response.status === 429 || response.status === 402) {
-      console.warn('⚠️ OpenAI Whisper quota/credit limit reached. Switching to Gemini / Replicate fallback...');
-      openAIExhaustedUntil = Date.now() + 60_000; // Cool down 60s
+      console.warn('⚠️ OpenAI Whisper quota/credit limit reached. Switching to Gemini fallback...');
+      openAIExhaustedUntil = Date.now() + 3600_000; // Cool down 1 hour
       if (Date.now() >= geminiExhaustedUntil && process.env.GEMINI_API_KEY) {
         try {
           return await transcribeViaGeminiWithTimestamps(audio, options);
@@ -355,39 +355,53 @@ export async function transcribeViaGeminiWithTimestamps(audio: ExtractedAudio, o
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured for audio fallback');
 
-  const base64Audio = audio.buffer.toString('base64');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
   const langPrompt = options.language === 'mr'
     ? 'हा स्वर योग व्याख्यानाचा ऑडिओ आहे. सर्व शब्द देवनागरी मराठीत तंतोतंत लिहा. पवित्र योग संज्ञा (स्वर, नाडी, इडा, पिंगळा, सुषुम्ना, प्राण, कुंभक, नाकपुडी, बीज मंत्र) अचूक ठेवा.'
     : options.language === 'hi'
     ? 'यह स्वर योग व्याख्यान का ऑडियो है। देवनागरी हिंदी में हूबहू लिखें। स्वर, नाड़ी, इड़ा, पिंगला, सुषुम्ना, प्राण आदि योग शब्द सही रखें।'
     : 'This is a Swar Yoga lecture. Transcribe every spoken word verbatim. Preserve sacred Vedic terminology.';
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          {
-            inline_data: {
-              mime_type: audio.mimeType || 'audio/mp3',
-              data: base64Audio,
-            },
-          },
-          {
-            text: `${langPrompt}\n\nTranscribe this audio word-for-word. Output as timestamped speech lines in this exact format:\n[MM:SS] spoken text\nExample:\n[00:05] नमस्कार साधकहो, आज आपण सूर्य नाडीचा अभ्यास करणार आहोत.\n[00:18] डावी नाकपुडी बंद करा.\n\nNever summarize, never omit. Output ONLY the timestamped lines.`,
-          },
-        ],
-      }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-    }),
-  });
+  const base64Audio = audio.buffer.toString('base64');
+  const models = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+  let res: Response | null = null;
+  let data: any = null;
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(`Gemini audio transcription failed (${res.status}): ${JSON.stringify(data).slice(0, 150)}`);
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              {
+                inline_data: {
+                  mime_type: audio.mimeType || 'audio/mp3',
+                  data: base64Audio,
+                },
+              },
+              {
+                text: `${langPrompt}\n\nTranscribe this audio word-for-word. Output as timestamped speech lines in this exact format:\n[MM:SS] spoken text\nExample:\n[00:05] नमस्कार साधकहो, आज आपण सूर्य नाडीचा अभ्यास करणार आहोत.\n[00:18] डावी नाकपुडी बंद करा.\n\nNever summarize, never omit. Output ONLY the timestamped lines.`,
+              },
+            ],
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+        }),
+      });
+
+      data = await res.json();
+      if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        break;
+      }
+      console.warn(`[Gemini Audio] ${model} returned ${res.status}, trying fallback model...`);
+    } catch (e: any) {
+      console.warn(`[Gemini Audio] ${model} fetch failed:`, e.message || e);
+    }
+  }
+
+  if (!res || !res.ok || !data) {
+    throw new Error(`Gemini audio transcription failed: ${JSON.stringify(data || {}).slice(0, 150)}`);
   }
 
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
