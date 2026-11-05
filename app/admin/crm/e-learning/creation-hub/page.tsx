@@ -262,7 +262,7 @@ export default function CreationHubPage() {
   useEffect(() => {
     const deletedSet = getDeletedIds();
     try {
-      const saved = localStorage.getItem('swar_creation_hub_master_list');
+      const saved = localStorage.getItem('swar_creation_hub_master_list_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -308,7 +308,7 @@ export default function CreationHubPage() {
           setMasterList(() => {
             const merged = dbTopics;
             try {
-              localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(merged));
+              localStorage.setItem('swar_creation_hub_master_list_v3', JSON.stringify(merged));
             } catch (e) {}
             return merged;
           });
@@ -334,7 +334,7 @@ export default function CreationHubPage() {
   const saveMasterListToStorage = (updated: MasterWorkshopCopy[]) => {
     setMasterList(updated);
     try {
-      localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(updated));
+      localStorage.setItem('swar_creation_hub_master_list_v3', JSON.stringify(updated));
     } catch (e) {}
   };
 

@@ -300,6 +300,7 @@ export default function Module8VideoProductionStudio({
     videoAvatars[0];
 
   const rawOriginalUrl =
+    (selectedAvatarId && matchedVideoAvatar?.originalVideoUrl) ||
     initialVideoUrl ||
     matchedVideoAvatar?.originalVideoUrl ||
     'https://iframe.mediadelivery.net/play/606386/baedb88d-2353-4215-ab33-2ddbbf5cb9d9';
@@ -309,6 +310,10 @@ export default function Module8VideoProductionStudio({
     (rawOriginalUrl.includes('mediadelivery.net') || rawOriginalUrl.includes('606386'))
   );
 
+  const bunnyEmbedUrl = isIframeBunny
+    ? rawOriginalUrl.replace('/play/', '/embed/')
+    : '';
+
   const isDirectVideoFile = Boolean(
     rawOriginalUrl &&
     !isIframeBunny &&
@@ -316,7 +321,7 @@ export default function Module8VideoProductionStudio({
     /\.(mp4|webm|mov|m4v)($|\?)/i.test(rawOriginalUrl)
   );
 
-  const avatarVideoUrl = rawOriginalUrl;
+  const avatarVideoUrl = isIframeBunny ? bunnyEmbedUrl : rawOriginalUrl;
 
   const avatarPosterUrl =
     initialPosterUrl ||
@@ -526,7 +531,7 @@ export default function Module8VideoProductionStudio({
       const utterance = new SpeechSynthesisUtterance(item.text);
       utterance.rate = item.speed || 1.0;
       const langCode = activeAvatar?.defaultLanguage || 'hi';
-      utterance.lang = langCode === 'hi' ? 'hi-IN' : 'en-IN';
+      utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
       utterance.onend = () => {
         setIsSpeaking(false);
@@ -677,10 +682,10 @@ export default function Module8VideoProductionStudio({
               }`}
             >
               {/* If avatar has Bunny Stream iframe, direct MP4 or fallback */}
-              {isIframeBunny ? (
+              {isIframeBunny && bunnyEmbedUrl ? (
                 <div className="relative w-full h-full bg-black">
                   <iframe
-                    src={`${avatarVideoUrl}${avatarVideoUrl.includes('?') ? '&' : '?'}autoplay=${isPlayingAll ? '1' : '0'}&muted=${isMuted ? '1' : '0'}&loop=1`}
+                    src={`${bunnyEmbedUrl}${bunnyEmbedUrl.includes('?') ? '&' : '?'}preload=true&responsive=true`}
                     loading="lazy"
                     className="h-full w-full border-0 absolute inset-0 z-0"
                     allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
