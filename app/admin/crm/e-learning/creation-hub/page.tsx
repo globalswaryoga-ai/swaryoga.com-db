@@ -159,6 +159,8 @@ export default function CreationHubPage() {
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All');
   const [sourceLangFilter, setSourceLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
   const [topicSearchQuery, setTopicSearchQuery] = useState<string>('');
+  const [isSyncingLibrary, setIsSyncingLibrary] = useState<boolean>(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
 
   // View / Edit / Add Master Workshop Modals
   const [viewMaster, setViewMaster] = useState<MasterWorkshopCopy | null>(null);
@@ -244,6 +246,39 @@ export default function CreationHubPage() {
     try {
       localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(updated));
     } catch (e) {}
+  };
+
+  const handleSyncFromLibrary = async () => {
+    setIsSyncingLibrary(true);
+    setSyncStatusMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/e-learning/creation-hub/sync-library', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to sync library');
+      setSyncStatusMsg(`✅ ${data.message || `Synced ${data.syncedCount} lectures successfully!`}`);
+
+      // Refresh list from DB
+      const r = await fetch('/api/admin/crm/e-learning/creation-hub/topics', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json();
+      if (d.success && Array.isArray(d.topics)) {
+        setMasterList(d.topics);
+        try {
+          localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(d.topics));
+        } catch (e) {}
+        if (d.topics.length > 0 && !selectedMasterId) {
+          setSelectedMasterId(d.topics[0].id);
+        }
+      }
+    } catch (err: any) {
+      setSyncStatusMsg(`❌ Sync notice: ${err.message}`);
+    } finally {
+      setIsSyncingLibrary(false);
+    }
   };
 
   const handleOpenViewModal = (item: MasterWorkshopCopy) => {
@@ -967,10 +1002,20 @@ export default function CreationHubPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-950/60 text-purple-300 border border-purple-800">
                       {filteredList.length} of {masterList.length} Topics Showing
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleSyncFromLibrary}
+                      disabled={isSyncingLibrary}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30 border border-emerald-400/30 cursor-pointer disabled:opacity-50"
+                      title="Sync all authentic video lectures from Mohan RAG Library Database"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isSyncingLibrary ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingLibrary ? 'Syncing Library...' : '⚡ Sync RAG Library Lectures'}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleOpenAddModal}
@@ -981,6 +1026,16 @@ export default function CreationHubPage() {
                     </button>
                   </div>
                 </div>
+
+                {syncStatusMsg && (
+                  <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/60 p-3.5 text-xs font-bold text-emerald-200 flex items-center justify-between shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{syncStatusMsg}</span>
+                    </div>
+                    <button type="button" onClick={() => setSyncStatusMsg('')} className="text-slate-400 hover:text-white text-xs">✕</button>
+                  </div>
+                )}
 
                 {/* Two-Column Layout: Small Sidebar on Left + Main Area on Right */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1320,7 +1375,20 @@ export default function CreationHubPage() {
           {/* VIEW 5: AI PPT STUDIO */}
           {/* ===================================================================== */}
           {activeStep === 'ppt' && (
-            <div className="p-4 sm:p-6 flex-1 flex flex-col">
+            <div className="p-4 sm:p-6 flex-1 flex flex-col space-y-4">
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-950/30 p-3.5 text-xs text-amber-200 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <span className="text-base">📌</span>
+                  <span><strong>Phase 2 Roadmap:</strong> Advanced PPT and 3D Animation refinement will be carried out in the next phase as planned. You can continue working on Master Copies and Multilingual Translation.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep('final-video')}
+                  className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-[11px] shrink-0"
+                >
+                  Proceed to Final Video ➔
+                </button>
+              </div>
               <ModulePptStudio
                 token={token}
                 initialScript={currentWorkingScript}
@@ -1335,7 +1403,20 @@ export default function CreationHubPage() {
           {/* VIEW 6: AI ANIMATION CREATOR */}
           {/* ===================================================================== */}
           {activeStep === 'animation' && (
-            <div className="p-4 sm:p-6 flex-1 flex flex-col">
+            <div className="p-4 sm:p-6 flex-1 flex flex-col space-y-4">
+              <div className="rounded-2xl border border-purple-500/30 bg-purple-950/30 p-3.5 text-xs text-purple-200 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <span className="text-base">📌</span>
+                  <span><strong>Phase 2 Roadmap:</strong> 3D Anatomical Breath Animations will be refined in the next phase. You can preview existing animations or proceed to Final Video.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep('final-video')}
+                  className="px-3 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold border border-purple-500/40 text-[11px] shrink-0"
+                >
+                  Proceed to Final Video ➔
+                </button>
+              </div>
               <CustomAnimationStudio />
             </div>
           )}

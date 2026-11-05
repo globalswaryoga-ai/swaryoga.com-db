@@ -86,6 +86,17 @@ export async function POST(request: NextRequest) {
   try {
     await ensureTable();
     const body = await request.json();
+
+    if (body.action === 'sync_library') {
+      const syncUrl = new URL('/api/admin/crm/e-learning/creation-hub/sync-library', request.url);
+      const syncReq = new NextRequest(syncUrl, {
+        method: 'POST',
+        headers: request.headers,
+      });
+      const { POST: syncPost } = await import('../sync-library/route');
+      return syncPost(syncReq);
+    }
+
     const id = body.id || `master-${Date.now()}`;
     const level = body.level || 'L-1';
     const day = body.day || 'Day 1';
