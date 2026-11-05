@@ -160,12 +160,15 @@ async function translateSingleSegment(
     translatedText = protectedText;
   }
 
-  // Restore avatar tags
-  for (const { placeholder, original } of tagPlaceholders) {
-    translatedText = translatedText.replace(new RegExp(placeholder, 'g'), original);
-    const spaced = placeholder.replace('__', '__\\s*').replace('__', '\\s*__');
-    translatedText = translatedText.replace(new RegExp(spaced, 'g'), original);
+  // Restore avatar tags accurately (handling any underscore stripping by translation models)
+  for (let i = 0; i < tagPlaceholders.length; i++) {
+    const { original } = tagPlaceholders[i];
+    const pattern = new RegExp(`(?:_{0,2}\\s*TAG\\s*${i}\\s*_{0,2})`, 'gi');
+    translatedText = translatedText.replace(pattern, original);
   }
+
+  // Clean up any extraneous punctuation inserted next to bracket tags
+  translatedText = translatedText.replace(/\]\s*,\s*\[/g, '] [').replace(/\]\s*,\s*/g, '] ');
 
   return cleanYogicTerms(translatedText);
 }
