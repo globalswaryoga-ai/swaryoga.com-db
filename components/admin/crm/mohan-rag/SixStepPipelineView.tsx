@@ -477,7 +477,7 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
                 <span className="font-semibold">{hubSuccessMsg}</span>
               </div>
               <a
-                href="/admin/crm/e-learning/creation-hub"
+                href="/admin/crm/mohan-rag/creation-hub"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 transition"

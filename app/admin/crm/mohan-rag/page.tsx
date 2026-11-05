@@ -57,11 +57,11 @@ export default function MohanRagHubPage() {
               🎙️ Q&A Podcast Hub
             </Link>
             <Link
-              href="/admin/crm/e-learning/creation-hub"
+              href="/admin/crm/mohan-rag/creation-hub"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-black font-black shadow-lg shadow-amber-500/20 transition-all duration-200 transform hover:-translate-y-0.5"
             >
               <Sparkles className="w-5 h-5 text-black" />
-              🏭 Creation Hub
+              🏭 Creation Hub (Factory)
             </Link>
             <Link
               href="/admin/crm/mohan-rag/monitor"

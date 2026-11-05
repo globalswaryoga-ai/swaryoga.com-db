@@ -429,6 +429,21 @@ export default function MohanRagManagementPage() {
         <div className={showMainSidebar ? "grid min-h-[70vh] grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]" : "min-h-[70vh] w-full"}>
           {showMainSidebar && (
             <aside className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
+              {/* Direct One-Click Navigation to Creation Hub under Mohan RAG */}
+              <div className="mb-4">
+                <Link
+                  href="/admin/crm/mohan-rag/creation-hub"
+                  className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 p-3 text-xs font-black text-white shadow-md hover:from-purple-600 hover:to-indigo-600 transition"
+                  title="Open Creation Hub (Factory Review)"
+                >
+                  <span className="flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-amber-300" />
+                    <span>🏭 Creation Hub (Factory Review)</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-purple-200" />
+                </Link>
+              </div>
+
               {navGroups.map(group => (
                 <div key={group.title} className="mb-5 last:mb-1">
                   <h2 className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 flex items-center justify-between">
