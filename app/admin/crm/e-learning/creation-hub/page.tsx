@@ -144,7 +144,7 @@ const DEFAULT_MASTER_WORKSHOPS: MasterWorkshopCopy[] = [
   },
 ];
 
-const WORKSHOP_FILTER_OPTIONS = [
+const DEFAULT_WORKSHOP_FILTER_OPTIONS = [
   { id: 'all', label: 'All Workshops (सर्व कार्यशाळा)' },
   { id: 'level1', label: 'Level 1: Basic Swar Yoga (स्वर योग L-1 व डेमो)' },
   { id: 'level2', label: 'Level 2: Aham Brahmasmi (स्वर योग L-2 व डेमो)' },
@@ -180,6 +180,44 @@ export default function CreationHubPage() {
   const [isSyncingLibrary, setIsSyncingLibrary] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
 
+  // Custom Workshops state (+ Add Workshop)
+  const [customWorkshops, setCustomWorkshops] = useState<Array<{ id: string; label: string }>>([]);
+  const [showAddWorkshopModal, setShowAddWorkshopModal] = useState<boolean>(false);
+  const [newWorkshopName, setNewWorkshopName] = useState<string>('');
+  const [newWorkshopLevel, setNewWorkshopLevel] = useState<string>('L-1');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('swar_custom_workshops');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setCustomWorkshops(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const allWorkshopOptions = useMemo(() => {
+    return [...DEFAULT_WORKSHOP_FILTER_OPTIONS, ...customWorkshops];
+  }, [customWorkshops]);
+
+  const handleCreateWorkshop = () => {
+    if (!newWorkshopName.trim()) return;
+    const cleanName = newWorkshopName.trim();
+    const id = 'ws_' + cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `ws_${Date.now()}`;
+    const newWs = { id, label: `${cleanName} (${newWorkshopLevel})` };
+    const updated = [...customWorkshops.filter((w) => w.id !== id), newWs];
+    setCustomWorkshops(updated);
+    try {
+      localStorage.setItem('swar_custom_workshops', JSON.stringify(updated));
+    } catch {}
+    setSelectedWorkshopFilter(id);
+    setSelectedLevelFilter(newWorkshopLevel);
+    setShowAddWorkshopModal(false);
+    setNewWorkshopName('');
+  };
+
   // Source language audio counts
   const { allCount, mrCount, hiCount, enCount } = useMemo(() => {
     const all = masterList.length;
@@ -194,6 +232,8 @@ export default function CreationHubPage() {
   const [editMaster, setEditMaster] = useState<MasterWorkshopCopy | null>(null);
   const [isNewMaster, setIsNewMaster] = useState<boolean>(false);
   const [copiedTranscript, setCopiedTranscript] = useState<boolean>(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   // Edit / Add Form Fields
   const [formLevel, setFormLevel] = useState<string>('L-1');
@@ -206,14 +246,28 @@ export default function CreationHubPage() {
   const [formKeyPoints, setFormKeyPoints] = useState<string>('');
   const [formAdminNotes, setFormAdminNotes] = useState<string>('');
 
+  // Helper to read deleted topic IDs from localStorage
+  const getDeletedIds = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem('swar_creation_hub_deleted_ids');
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
   // Load saved master workshops from localStorage & Bunny Database
   useEffect(() => {
+    const deletedSet = getDeletedIds();
     try {
       const saved = localStorage.getItem('swar_creation_hub_master_list');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setMasterList(parsed);
+          const cleaned = parsed.filter((m: any) => !deletedSet.has(m.id));
+          if (cleaned.length > 0) {
+            setMasterList(cleaned);
+          }
         }
       }
     } catch (e) {}
@@ -226,31 +280,36 @@ export default function CreationHubPage() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
-        if (data.success && Array.isArray(data.topics) && data.topics.length > 0 && !cancelled) {
-          const dbTopics: MasterWorkshopCopy[] = data.topics.map((t: any) => ({
-            id: t.id,
-            level: t.level || 'L-1',
-            day: t.day || 'Day 1',
-            title: t.title,
-            sourceLanguage: (t.source_language || t.sourceLanguage || 'hi') as 'hi' | 'mr' | 'en',
-            durationMinutes: Number(t.duration_minutes || t.durationMinutes || 45),
-            sourceVideoUrl: t.source_video_url || t.sourceVideoUrl || undefined,
-            transcript: t.transcript || '',
-            keyPoints: Array.isArray(t.key_points) ? t.key_points : (Array.isArray(t.keyPoints) ? t.keyPoints : []),
-            blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovPlain,
-            blueprintSovHummer: t.blueprint_sov_hummer || t.blueprintSovHummer,
-            blueprintSvoPlain: t.blueprint_svo_plain || t.blueprintSvoPlain,
-            blueprintSvoHummer: t.blueprint_svo_hummer || t.blueprintSvoHummer,
-            adminNotes: t.admin_notes || t.adminNotes || '',
-          }));
+        if (data.success && Array.isArray(data.topics) && !cancelled) {
+          const freshDeleted = getDeletedIds();
+          const dbTopics: MasterWorkshopCopy[] = data.topics
+            .filter((t: any) => !freshDeleted.has(t.id))
+            .map((t: any) => ({
+              id: t.id,
+              level: t.level || 'L-1',
+              day: t.day || 'Day 1',
+              title: t.title,
+              sourceLanguage: (t.source_language || t.sourceLanguage || 'hi') as 'hi' | 'mr' | 'en',
+              durationMinutes: Number(t.duration_minutes || t.durationMinutes || 45),
+              sourceVideoUrl: t.source_video_url || t.sourceVideoUrl || undefined,
+              transcript: t.transcript || '',
+              keyPoints: Array.isArray(t.key_points) ? t.key_points : (Array.isArray(t.keyPoints) ? t.keyPoints : []),
+              blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovPlain,
+              blueprintSovHummer: t.blueprint_sov_hummer || t.blueprintSovHummer,
+              blueprintSvoPlain: t.blueprint_svo_plain || t.blueprintSvoPlain,
+              blueprintSvoHummer: t.blueprint_svo_hummer || t.blueprintSvoHummer,
+              adminNotes: t.admin_notes || t.adminNotes || '',
+            }));
 
           setMasterList((prev) => {
             const map = new Map<string, MasterWorkshopCopy>();
             // Database topics take priority
             dbTopics.forEach((item) => map.set(item.id, item));
-            // Preserve local topics
+            // Preserve local topics unless deleted
             prev.forEach((item) => {
-              if (!map.has(item.id)) map.set(item.id, item);
+              if (!freshDeleted.has(item.id) && !map.has(item.id)) {
+                map.set(item.id, item);
+              }
             });
             const merged = Array.from(map.values());
             try {
@@ -308,11 +367,20 @@ export default function CreationHubPage() {
     }
   };
 
-  const handleOpenViewModal = (item: MasterWorkshopCopy) => {
+  const handleOpenViewModal = async (item: MasterWorkshopCopy) => {
     setViewMaster(item);
+    try {
+      const res = await fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(item.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.topic) {
+        setViewMaster(data.topic);
+      }
+    } catch (e) {}
   };
 
-  const handleOpenEditModal = (item: MasterWorkshopCopy) => {
+  const handleOpenEditModal = async (item: MasterWorkshopCopy) => {
     setEditMaster(item);
     setIsNewMaster(false);
     setFormLevel(item.level);
@@ -324,6 +392,19 @@ export default function CreationHubPage() {
     setFormTranscript(item.transcript);
     setFormKeyPoints((item.keyPoints || []).join('\n'));
     setFormAdminNotes(item.adminNotes || '');
+
+    try {
+      const res = await fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(item.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.topic) {
+        setEditMaster(data.topic);
+        if (data.topic.transcript) {
+          setFormTranscript(data.topic.transcript);
+        }
+      }
+    } catch (e) {}
   };
 
   const handleOpenAddModal = () => {
@@ -409,35 +490,62 @@ export default function CreationHubPage() {
   };
 
   const handleDeleteMaster = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this master workshop copy?')) return;
-    const updated = masterList.filter((m) => m.id !== id);
-    saveMasterListToStorage(updated.length ? updated : DEFAULT_MASTER_WORKSHOPS);
-    if (selectedMasterId === id) {
-      setSelectedMasterId(updated[0]?.id || DEFAULT_MASTER_WORKSHOPS[0].id);
-    }
-    setEditMaster(null);
-    setViewMaster(null);
-
-    // Delete from Bunny Edge SQL
+    setIsDeletingId(id);
     try {
+      // 1. Immediately record in deleted set
+      try {
+        const deletedRaw = localStorage.getItem('swar_creation_hub_deleted_ids');
+        const deletedArr: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+        if (!deletedArr.includes(id)) {
+          deletedArr.push(id);
+          localStorage.setItem('swar_creation_hub_deleted_ids', JSON.stringify(deletedArr));
+        }
+      } catch (e) {}
+
+      // 2. Remove from state and localStorage immediately
+      const updated = masterList.filter((m) => m.id !== id);
+      setMasterList(updated);
+      try {
+        localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(updated));
+      } catch (e) {}
+
+      if (selectedMasterId === id) {
+        setSelectedMasterId(updated[0]?.id || '');
+      }
+      if (editMaster?.id === id) setEditMaster(null);
+      if (viewMaster?.id === id) setViewMaster(null);
+      setConfirmDeleteId(null);
+
+      // 3. Delete from Bunny Edge SQL
       await fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
     } catch (e) {
       console.warn('Could not delete topic from DB:', e);
+    } finally {
+      setIsDeletingId(null);
     }
   };
 
-  const handleSubmitMaster = (item: MasterWorkshopCopy) => {
+  const handleSubmitMaster = async (item: MasterWorkshopCopy) => {
     setSelectedMasterId(item.id);
     setActiveStep('languages');
+    try {
+      const res = await fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(item.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.topic) {
+        setMasterList((prev) => prev.map((m) => (m.id === item.id ? { ...m, ...data.topic } : m)));
+      }
+    } catch (e) {}
   };
 
   // Working Scripts & Synthesis
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [translatedScripts, setTranslatedScripts] = useState<Record<string, string>>({});
-  const [productionAvatarId, setProductionAvatarId] = useState<string>('avatar-vedic-mohan');
+  const [productionAvatarId, setProductionAvatarId] = useState<string>('final_avatar_vedic_ashram');
 
   // Active Master Workshop
   const activeMaster = useMemo(() => {
@@ -1124,19 +1232,27 @@ export default function CreationHubPage() {
                       )}
                     </div>
 
-                    {/* 2. Select Workshop Dropdown */}
-                    <div className="md:col-span-4 relative">
+                    {/* 2. Select Workshop Dropdown with + Add Button */}
+                    <div className="md:col-span-4 flex items-center gap-1.5">
                       <select
                         value={selectedWorkshopFilter}
                         onChange={(e) => setSelectedWorkshopFilter(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700/80 text-xs text-white font-bold rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                        className="flex-1 bg-slate-950 border border-slate-700/80 text-xs text-white font-bold rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer truncate"
                       >
-                        {WORKSHOP_FILTER_OPTIONS.map((w) => (
+                        {allWorkshopOptions.map((w) => (
                           <option key={w.id} value={w.id} className="bg-slate-900 text-white py-1">
                             {w.label}
                           </option>
                         ))}
                       </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddWorkshopModal(true)}
+                        className="p-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md shadow-purple-900/30 border border-purple-400/30 transition hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Add New Workshop"
+                      >
+                        <Plus size={16} />
+                      </button>
                     </div>
 
                     {/* 3. Course Level Dropdown */}
@@ -1326,17 +1442,46 @@ export default function CreationHubPage() {
                                     <span>Edit</span>
                                   </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteMaster(item.id);
-                                    }}
-                                    className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition border border-slate-700/60"
-                                    title="Delete this topic"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
+                                  {confirmDeleteId === item.id ? (
+                                    <div className="flex items-center gap-1 bg-rose-950/90 border border-rose-500/70 rounded-xl px-2 py-1 shadow-lg shadow-rose-950/50">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteMaster(item.id);
+                                        }}
+                                        disabled={isDeletingId === item.id}
+                                        className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1 shadow-md transition cursor-pointer disabled:opacity-50"
+                                        title="Confirm: permanently remove this topic"
+                                      >
+                                        <Trash2 size={12} className={isDeletingId === item.id ? 'animate-spin' : ''} />
+                                        <span>{isDeletingId === item.id ? 'Deleting...' : 'Delete?'}</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setConfirmDeleteId(null);
+                                        }}
+                                        className="p-1 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                                        title="Cancel deletion"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmDeleteId(item.id);
+                                      }}
+                                      className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition border border-slate-700/60 cursor-pointer"
+                                      title="Delete this topic"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
                                 </div>
 
                                 <button
@@ -1836,14 +1981,35 @@ export default function CreationHubPage() {
             <div className="p-4 border-t border-slate-800 bg-slate-900/80 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 {!isNewMaster && editMaster && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMaster(editMaster.id)}
-                    className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-rose-500/10 transition"
-                  >
-                    <Trash2 size={13} />
-                    <span>Delete</span>
-                  </button>
+                  confirmDeleteId === editMaster.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMaster(editMaster.id)}
+                        disabled={isDeletingId === editMaster.id}
+                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1 shadow transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 size={12} className={isDeletingId === editMaster.id ? 'animate-spin' : ''} />
+                        <span>{isDeletingId === editMaster.id ? 'Deleting...' : 'Confirm Delete'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-2 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(editMaster.id)}
+                      className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-rose-500/10 transition cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete Topic</span>
+                    </button>
+                  )
                 )}
               </div>
 
@@ -1874,6 +2040,82 @@ export default function CreationHubPage() {
                   <span>Save & Submit ➔</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+      {/* MODAL: ADD NEW WORKSHOP */}
+      {/* ========================================================================= */}
+      {showAddWorkshopModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-purple-500/50 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-600/30 text-purple-300 flex items-center justify-center font-bold">
+                  <Plus size={18} />
+                </div>
+                <h3 className="text-base font-black text-white">Add New Workshop</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddWorkshopModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Workshop Name (कार्यशाळेचे नाव)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Kundalini Awakening, Pranayama Intensive..."
+                  value={newWorkshopName}
+                  onChange={(e) => setNewWorkshopName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:border-purple-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Default Course Level (पातळी)
+                </label>
+                <select
+                  value={newWorkshopLevel}
+                  onChange={(e) => setNewWorkshopLevel(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs font-bold focus:border-purple-500 focus:outline-none"
+                >
+                  <option value="L-1">Level 1 (L-1)</option>
+                  <option value="L-2">Level 2 (L-2)</option>
+                  <option value="L-3">Level 3 (L-3)</option>
+                  <option value="L-4">Level 4 (L-4)</option>
+                  <option value="Special">Special Workshop (विशेष कार्यशाळा)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowAddWorkshopModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateWorkshop}
+                disabled={!newWorkshopName.trim()}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center gap-1.5 shadow-md shadow-purple-900/30 disabled:opacity-50 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Add Workshop</span>
+              </button>
             </div>
           </div>
         </div>

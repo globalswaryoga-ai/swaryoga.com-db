@@ -2413,9 +2413,44 @@ function SpellCheckerModule({
     if (onTextChange) onTextChange(newVal);
   };
 
-  const workshopOptions = WORKSHOP_OPTIONS;
+  const [customWorkshops, setCustomWorkshops] = useState<Array<{ id: string; label: string }>>([]);
+  const [showAddWorkshopModal, setShowAddWorkshopModal] = useState<boolean>(false);
+  const [newWorkshopName, setNewWorkshopName] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('swar_custom_workshops');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCustomWorkshops(parsed);
+      }
+    } catch {}
+  }, []);
+
+  const allWorkshopOptions = useMemo(() => {
+    return [...WORKSHOP_OPTIONS, ...customWorkshops];
+  }, [customWorkshops]);
+
+  const workshopOptions = allWorkshopOptions;
   const dayOptions = DAY_OPTIONS;
   const topicOptions = TOPIC_OPTIONS;
+
+  const handleCreateWorkshop = () => {
+    if (!newWorkshopName.trim()) return;
+    const cleanName = newWorkshopName.trim();
+    const id = 'ws_' + cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `ws_${Date.now()}`;
+    const newWs = { id, label: cleanName };
+    const updated = [...customWorkshops.filter((w) => w.id !== id), newWs];
+    setCustomWorkshops(updated);
+    try {
+      localStorage.setItem('swar_custom_workshops', JSON.stringify(updated));
+    } catch {}
+    setSelectedWorkshop(id);
+    setActiveWorkshop(id);
+    if (onWorkshopChange) onWorkshopChange(id);
+    setShowAddWorkshopModal(false);
+    setNewWorkshopName('');
+  };
 
   const filteredLanguages = ELEARNING_LANGUAGES.filter(lang => {
     if (!langSearch.trim()) return true;
@@ -2748,23 +2783,33 @@ function SpellCheckerModule({
         {/* 2nd Header Navigation: Workshop, Day, Topic & Submit */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs">
           <div className="flex flex-wrap items-center gap-3">
-            {/* Workshop Dropdown */}
-            <div className="flex flex-col gap-1 min-w-[150px] flex-1 sm:flex-initial">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <span>📚</span> Workshop Name
+            {/* Workshop Dropdown with + Add Workshop */}
+            <div className="flex flex-col gap-1 min-w-[200px] flex-1 sm:flex-initial">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                <span className="flex items-center gap-1"><span>📚</span> Workshop Name</span>
               </label>
-              <select
-                value={selectedWorkshop}
-                onChange={e => {
-                  setSelectedWorkshop(e.target.value);
-                  setSelectedTopic('all');
-                }}
-                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-              >
-                {workshopOptions.map(w => (
-                  <option key={w.id} value={w.id}>{w.label}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedWorkshop}
+                  onChange={e => {
+                    setSelectedWorkshop(e.target.value);
+                    setSelectedTopic('all');
+                  }}
+                  className="flex-1 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  {workshopOptions.map(w => (
+                    <option key={w.id} value={w.id}>{w.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddWorkshopModal(true)}
+                  className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs transition hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Add New Workshop"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
             </div>
 
             {/* Day Dropdown */}
@@ -3044,6 +3089,67 @@ function SpellCheckerModule({
           </div>
         </div>
       </div>
+
+      {/* Add New Workshop Modal in RAG Management */}
+      {showAddWorkshopModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <Plus size={18} />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Add New Workshop</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddWorkshopModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Workshop Name (कार्यशाळेचे नाव)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Kundalini Awakening, Pranayama Intensive..."
+                  value={newWorkshopName}
+                  onChange={(e) => setNewWorkshopName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:border-emerald-500 focus:outline-hidden"
+                  autoFocus
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                This workshop will be available across both RAG Management and Creation Hub Factory Review.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddWorkshopModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateWorkshop}
+                disabled={!newWorkshopName.trim()}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Add Workshop</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

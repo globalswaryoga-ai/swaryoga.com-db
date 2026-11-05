@@ -105,8 +105,13 @@ export default function Module8VideoProductionStudio({
 
         if (dataFinal.success && dataFinal.items) {
           setFinalAvatars(dataFinal.items);
-          if (!selectedAvatarId && dataFinal.items[0]) {
-            setSelectedAvatarId(dataFinal.items[0].id);
+          const preferred =
+            dataFinal.items.find((a: any) => a.id === selectedAvatarId) ||
+            dataFinal.items.find((a: any) => a.id === 'final_avatar_vedic_ashram' || a.id.includes('vedic') || a.id.includes('mohan')) ||
+            dataFinal.items.find((a: any) => a.videoAvatarId === 'v_avatar_mohan_sir') ||
+            dataFinal.items[0];
+          if (preferred) {
+            setSelectedAvatarId(preferred.id);
           }
         }
         if (dataVideo.success && dataVideo.items) {
@@ -117,7 +122,9 @@ export default function Module8VideoProductionStudio({
       }
     }
     load();
-  }, []);
+  }, [selectedAvatarId]);
+
+  const [timelineFilterQuery, setTimelineFilterQuery] = useState('');
 
   // Parse script into timeline sentences
   useEffect(() => {
@@ -270,11 +277,69 @@ export default function Module8VideoProductionStudio({
     }, 500);
   };
 
-  const activeAvatar = finalAvatars.find((a) => a.id === selectedAvatarId) || finalAvatars[0];
-  const matchedVideoAvatar = videoAvatars.find((v) => v.id === activeAvatar?.videoAvatarId) || videoAvatars[0];
-  const avatarVideoUrl =
-    matchedVideoAvatar?.originalVideoUrl ||
-    'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+  const activeAvatar =
+    finalAvatars.find((a) => a.id === selectedAvatarId) ||
+    finalAvatars.find((a) => a.id === 'final_avatar_vedic_ashram' || a.id.includes('vedic')) ||
+    finalAvatars.find((a) => a.videoAvatarId === 'v_avatar_mohan_sir') ||
+    finalAvatars[0];
+
+  const matchedVideoAvatar =
+    videoAvatars.find((v) => v.id === activeAvatar?.videoAvatarId) ||
+    videoAvatars.find((v) => v.id === 'v_avatar_mohan_sir') ||
+    videoAvatars[0];
+
+  const rawOriginalUrl = matchedVideoAvatar?.originalVideoUrl || '';
+  const isDirectVideoFile = Boolean(rawOriginalUrl && /\.(mp4|webm|mov|m4v)($|\?)/i.test(rawOriginalUrl));
+  const avatarVideoUrl = isDirectVideoFile
+    ? rawOriginalUrl
+    : 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+
+  const avatarPosterUrl =
+    matchedVideoAvatar?.thumbnailUrl ||
+    matchedVideoAvatar?.cutoutUrl ||
+    activeAvatar?.previewImageUrl ||
+    'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg';
+
+  const parseTimeToSeconds = (str: string = '00:00'): number => {
+    const parts = str.split(':').map((p) => Number(p) || 0);
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return 0;
+  };
+
+  const handleVideoTimeUpdate = () => {
+    if (!canvasVideoRef.current || !isPlayingAll) return;
+    const currentSec = canvasVideoRef.current.currentTime;
+    if (timelineSentences.length === 0) return;
+
+    // Find active sentence by current video time
+    const foundIdx = timelineSentences.findIndex((s) => {
+      const sStart = parseTimeToSeconds(s.start);
+      const sEnd = parseTimeToSeconds(s.end);
+      return currentSec >= sStart && currentSec <= sEnd;
+    });
+
+    if (foundIdx !== -1 && foundIdx !== activeSentenceIndex) {
+      setActiveSentenceIndex(foundIdx);
+      setIsSpeaking(true);
+    }
+  };
+
+  const handleVideoEnded = () => {
+    setIsPlayingAll(false);
+    setIsSpeaking(false);
+    setActiveSentenceIndex(null);
+  };
+
+  // Auto-scroll active sentence in timeline
+  useEffect(() => {
+    if (activeSentenceIndex !== null) {
+      const el = document.getElementById(`timeline-sent-${activeSentenceIndex}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [activeSentenceIndex]);
 
   // Cleanup speech synthesis on unmount
   useEffect(() => {
@@ -303,7 +368,14 @@ export default function Module8VideoProductionStudio({
     setIsSpeaking(true);
 
     if (canvasVideoRef.current) {
-      canvasVideoRef.current.currentTime = 0;
+      const startSec = parseTimeToSeconds(item.start || '00:00');
+      if (
+        canvasVideoRef.current.duration &&
+        startSec < canvasVideoRef.current.duration &&
+        Math.abs(canvasVideoRef.current.currentTime - startSec) > 3
+      ) {
+        canvasVideoRef.current.currentTime = startSec;
+      }
       canvasVideoRef.current.play().catch(() => {});
     }
 
@@ -358,6 +430,13 @@ export default function Module8VideoProductionStudio({
     } else {
       // Start Playback
       setIsPlayingAll(true);
+      setIsSpeaking(true);
+      if (canvasVideoRef.current) {
+        if (canvasVideoRef.current.ended || canvasVideoRef.current.currentTime >= (canvasVideoRef.current.duration || 1000)) {
+          canvasVideoRef.current.currentTime = 0;
+        }
+        canvasVideoRef.current.play().catch(() => {});
+      }
       const startIdx = activeSentenceIndex !== null ? activeSentenceIndex : 0;
       playSentenceSequence(startIdx);
     }
@@ -576,11 +655,22 @@ export default function Module8VideoProductionStudio({
                 <video
                   ref={canvasVideoRef}
                   src={avatarVideoUrl}
+                  poster={avatarPosterUrl}
                   playsInline
+                  preload="auto"
                   loop
                   muted={isMuted}
+                  onTimeUpdate={handleVideoTimeUpdate}
+                  onEnded={handleVideoEnded}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4') {
+                      target.src = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+                      target.load();
+                    }
+                  }}
                   className={`w-full h-full object-cover transition-all ${
-                    isSpeaking ? 'scale-105 brightness-105' : 'brightness-90'
+                    isSpeaking ? 'scale-[1.02] brightness-105' : 'brightness-95'
                   }`}
                 />
               ) : (
@@ -891,13 +981,32 @@ export default function Module8VideoProductionStudio({
               </div>
             </div>
 
+            {/* Quick Sentence Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Search sentences in timeline..."
+                value={timelineFilterQuery}
+                onChange={(e) => setTimelineFilterQuery(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
             {/* Timeline Rows */}
             <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-              {timelineSentences.map((sent, idx) => {
+              {timelineSentences
+                .map((sent, idx) => ({ sent, originalIndex: idx }))
+                .filter(({ sent }) => {
+                  if (!timelineFilterQuery.trim()) return true;
+                  const q = timelineFilterQuery.toLowerCase().trim();
+                  return sent.text.toLowerCase().includes(q) || sent.start.includes(q) || sent.emotion.toLowerCase().includes(q);
+                })
+                .map(({ sent, originalIndex: idx }) => {
                 const isPlaying = activeSentenceIndex === idx;
                 return (
                   <div
                     key={sent.id}
+                    id={`timeline-sent-${idx}`}
                     className={`p-3 rounded-xl border transition-all text-xs space-y-2 ${
                       isPlaying
                         ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/30'

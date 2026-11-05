@@ -42,8 +42,41 @@ export async function GET(request: NextRequest) {
   try {
     await ensureTable();
     const url = new URL(request.url);
+    const id = url.searchParams.get('id');
     const lang = url.searchParams.get('language');
 
+    // Single topic full fetch (includes full transcript & blueprints)
+    if (id) {
+      const res = await bunnyExecute({
+        sql: `SELECT * FROM mohan_creation_hub_topics_sql WHERE id = ? LIMIT 1`,
+        args: [id],
+      });
+      if (!res.rows || res.rows.length === 0) {
+        return NextResponse.json({ error: 'Topic not found' }, { status: 404 });
+      }
+      const r: any = res.rows[0];
+      const topic = {
+        id: String(r.id),
+        level: String(r.level || 'L-1'),
+        day: String(r.day || 'Day 1'),
+        title: String(r.title || ''),
+        sourceLanguage: String(r.source_language || 'hi'),
+        durationMinutes: Number(r.duration_minutes || 45),
+        sourceVideoUrl: r.source_video_url ? String(r.source_video_url) : undefined,
+        transcript: String(r.transcript || ''),
+        blueprintSovPlain: r.blueprint_sov_plain ? String(r.blueprint_sov_plain) : undefined,
+        blueprintSovHummer: r.blueprint_sov_hummer ? String(r.blueprint_sov_hummer) : undefined,
+        blueprintSvoPlain: r.blueprint_svo_plain ? String(r.blueprint_svo_plain) : undefined,
+        blueprintSvoHummer: r.blueprint_svo_hummer ? String(r.blueprint_svo_hummer) : undefined,
+        keyPoints: r.key_points_json ? JSON.parse(r.key_points_json) : [],
+        adminNotes: r.admin_notes ? String(r.admin_notes) : '',
+        createdAt: String(r.created_at || ''),
+        updatedAt: String(r.updated_at || ''),
+      };
+      return NextResponse.json({ success: true, topic });
+    }
+
+    // List view: fetch lightweight summary to prevent RESPONSE_TOO_LARGE on 100+ records
     let whereClause = '';
     const args: any[] = [];
     if (lang && lang !== 'all') {
@@ -52,7 +85,12 @@ export async function GET(request: NextRequest) {
     }
 
     const res = await bunnyExecute({
-      sql: `SELECT * FROM mohan_creation_hub_topics_sql ${whereClause} ORDER BY updated_at DESC, created_at DESC`,
+      sql: `SELECT id, level, day, title, source_language, duration_minutes, source_video_url,
+                   SUBSTR(transcript, 1, 600) AS transcript,
+                   key_points_json, admin_notes, created_at, updated_at
+            FROM mohan_creation_hub_topics_sql
+            ${whereClause}
+            ORDER BY updated_at DESC, created_at DESC`,
       args,
     });
 
@@ -65,10 +103,6 @@ export async function GET(request: NextRequest) {
       durationMinutes: Number(r.duration_minutes || 45),
       sourceVideoUrl: r.source_video_url ? String(r.source_video_url) : undefined,
       transcript: String(r.transcript || ''),
-      blueprintSovPlain: r.blueprint_sov_plain ? String(r.blueprint_sov_plain) : undefined,
-      blueprintSovHummer: r.blueprint_sov_hummer ? String(r.blueprint_sov_hummer) : undefined,
-      blueprintSvoPlain: r.blueprint_svo_plain ? String(r.blueprint_svo_plain) : undefined,
-      blueprintSvoHummer: r.blueprint_svo_hummer ? String(r.blueprint_svo_hummer) : undefined,
       keyPoints: r.key_points_json ? JSON.parse(r.key_points_json) : [],
       adminNotes: r.admin_notes ? String(r.admin_notes) : '',
       createdAt: String(r.created_at || ''),
