@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   const cookiesPath = await resolveYouTubeCookiesPath();
   return NextResponse.json({
     success: true,
+    configured: Boolean(cookiesPath),
     hasCookies: Boolean(cookiesPath),
     cookiesPath: cookiesPath || null,
   });

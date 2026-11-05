@@ -126,9 +126,19 @@ export default function GrammarCheckerWorkspace({
           const isOutline = !currentText || currentText.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || currentText.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)');
 
           if (sources.length > 0 && (selectedTopic === 'all' || isMismatch) && (isOutline || isMismatch)) {
-            const realSources = sourcesList.filter(s => s.charCount > 500 && (s.language === selectedLang || !s.language));
+            const isTargetLang = (s: any) => {
+              if (selectedLang === 'mr') {
+                return s.language === 'mr' || s.title?.toLowerCase().includes('marathi') || s.title?.includes('मराठी');
+              }
+              if (selectedLang === 'hi') {
+                return s.language === 'hi' || s.title?.toLowerCase().includes('hindi') || s.title?.includes('हिंदी');
+              }
+              return s.language === selectedLang;
+            };
+
+            const realSources = sourcesList.filter(s => s.charCount > 500 && isTargetLang(s));
             realSources.sort((a, b) => b.charCount - a.charCount);
-            const topSource = realSources[0] || sourcesList[0];
+            const topSource = realSources[0] || sourcesList.find(isTargetLang);
             if (topSource) {
               try {
                 const sRes = await fetch(`/api/admin/crm/mohan-rag/knowledge/${topSource.id}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -142,6 +152,11 @@ export default function GrammarCheckerWorkspace({
                   setStatusMsg(`✅ Loaded authentic ${selectedLang === 'mr' ? 'Marathi' : 'Hindi'} lecture "${topSource.title}" (${clean.length.toLocaleString()} characters) from Library Database.`);
                 }
               } catch {}
+            } else if (isMismatch) {
+              const fallbackCorpus = getLibraryCorpusText(selectedLang, selectedWorkshop, selectedDay, selectedTopic);
+              setSourceText(fallbackCorpus);
+              onTextChange(fallbackCorpus);
+              setStatusMsg(`✅ Loaded ${selectedLang === 'mr' ? 'Marathi' : selectedLang} master library corpus.`);
             }
           }
         }
@@ -202,9 +217,14 @@ export default function GrammarCheckerWorkspace({
       });
       const d = await res.json();
       const list = Array.isArray(d.sources) ? d.sources : [];
-      const real = list.filter((s: any) => (s.contentLength || 0) > 2000 && !s.title?.toLowerCase().includes('syllabus'));
+      const isTarget = (s: any) => {
+        if (code === 'mr') return s.language === 'mr' || s.title?.toLowerCase().includes('marathi') || s.title?.includes('मराठी');
+        if (code === 'hi') return s.language === 'hi' || s.title?.toLowerCase().includes('hindi') || s.title?.includes('हिंदी');
+        return s.language === code;
+      };
+      const real = list.filter((s: any) => (s.contentLength || 0) > 2000 && !s.title?.toLowerCase().includes('syllabus') && isTarget(s));
       real.sort((a: any, b: any) => (b.contentLength || 0) - (a.contentLength || 0));
-      const top = real[0];
+      const top = real[0] || list.find(isTarget);
       if (top) {
         const sr = await fetch(`/api/admin/crm/mohan-rag/knowledge/${top.id}`, { headers: { Authorization: `Bearer ${token}` } });
         const sd = await sr.json();
@@ -286,9 +306,14 @@ export default function GrammarCheckerWorkspace({
 
     // If 'all' or no specific source was selected, prioritize the real video lecture data from dbSources matching selectedLang!
     if (dbSources.length > 0) {
-      const realSources = dbSources.filter(s => s.charCount > 500 && (s.language === selectedLang || !s.language));
+      const isTargetLang = (s: any) => {
+        if (selectedLang === 'mr') return s.language === 'mr' || s.title?.toLowerCase().includes('marathi') || s.title?.includes('मराठी');
+        if (selectedLang === 'hi') return s.language === 'hi' || s.title?.toLowerCase().includes('hindi') || s.title?.includes('हिंदी');
+        return s.language === selectedLang;
+      };
+      const realSources = dbSources.filter(s => s.charCount > 500 && isTargetLang(s));
       realSources.sort((a, b) => b.charCount - a.charCount);
-      const topSource = realSources[0] || dbSources.find(s => s.language === selectedLang) || dbSources[0];
+      const topSource = realSources[0] || dbSources.find(isTargetLang);
       if (topSource) {
         try {
           setStatusMsg(`Loading real lecture "${topSource.title}" from Library Database...`);

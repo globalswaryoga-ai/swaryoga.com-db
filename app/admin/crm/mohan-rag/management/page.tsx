@@ -304,13 +304,18 @@ export default function MohanRagManagementPage() {
         .then(r => r.json())
         .then(d => {
           const list = Array.isArray(d.sources) ? d.sources : [];
+          const isTarget = (s: any) => {
+            if (lang === 'mr') return s.language === 'mr' || s.title?.toLowerCase().includes('marathi') || s.title?.includes('मराठी');
+            if (lang === 'hi') return s.language === 'hi' || s.title?.toLowerCase().includes('hindi') || s.title?.includes('हिंदी');
+            return s.language === lang;
+          };
           const realSources = list.filter((s: any) => 
             (s.contentLength || s.content?.length || 0) > 3000 && 
             !s.title?.toLowerCase().includes('syllabus') &&
-            (s.language === lang || !s.language)
+            isTarget(s)
           );
           realSources.sort((a: any, b: any) => (b.contentLength || b.content?.length || 0) - (a.contentLength || a.content?.length || 0));
-          const top = realSources[0];
+          const top = realSources[0] || list.find(isTarget);
           if (top) {
             fetch(`/api/admin/crm/mohan-rag/knowledge/${top.id}`, { headers: { Authorization: `Bearer ${authToken}` } })
               .then(sr => sr.json())
@@ -738,8 +743,16 @@ export default function MohanRagManagementPage() {
               <KnowledgeModulePanel
                 module={currentModule}
                 token={authToken}
-                onOpenInSpellCheck={(source) => {
-                  const clean = (source.content || '').replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                onOpenInSpellCheck={async (source) => {
+                  let rawText = source.content || '';
+                  if (!rawText && authToken) {
+                    try {
+                      const res = await fetch(`/api/admin/crm/mohan-rag/knowledge/${source.id}`, { headers: { Authorization: `Bearer ${authToken}` } });
+                      const d = await readManagementApiJson(res);
+                      if (d.source?.content) rawText = d.source.content;
+                    } catch {}
+                  }
+                  const clean = rawText.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
                   setPipelineText(clean);
                   setPipelineTopic(`src_${source.id}`);
                   setPipelineWorkshop(source.moduleId);
@@ -748,7 +761,7 @@ export default function MohanRagManagementPage() {
                     setPipelineLang(normLang);
                   }
                   setActive('library');
-                  setLibraryTab('spellcheck');
+                  setLibraryTab('grammar');
                 }}
               />
             )}
@@ -3954,7 +3967,7 @@ function IngestionDetails({ token }: { token: string | null }) {
       });
       const data = await res.json();
       if (res.ok) {
-        setHasAuthorizedCookies(Boolean(data.configured));
+        setHasAuthorizedCookies(Boolean(data.configured ?? data.hasCookies));
       }
     } catch {}
   };
