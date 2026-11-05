@@ -569,6 +569,30 @@ export default function CreationHubPage() {
     );
   }, [masterList, selectedMasterId]);
 
+  // Ensure full verbatim transcript is loaded for the active master topic
+  useEffect(() => {
+    if (!activeMaster || !activeMaster.id || DUMMY_WORKSHOP_IDS.has(activeMaster.id)) return;
+    if (activeMaster.transcript && activeMaster.transcript.length > 600) return;
+    let isCancelled = false;
+    fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(activeMaster.id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isCancelled && data.success && data.topic?.transcript) {
+          setMasterList((prev) =>
+            prev.map((m) =>
+              m.id === activeMaster.id ? { ...m, ...data.topic, transcript: data.topic.transcript } : m
+            )
+          );
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeMaster?.id, token]);
+
   // Active Target Language
   const activeLanguage = useMemo(() => {
     return (
@@ -1590,7 +1614,7 @@ export default function CreationHubPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveStep('languages')}
+                        onClick={() => handleSubmitMaster(activeMaster)}
                         className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-purple-600/30 cursor-pointer"
                       >
                         <span>Proceed to 27 Languages</span>

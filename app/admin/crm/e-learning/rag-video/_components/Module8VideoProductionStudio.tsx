@@ -73,6 +73,13 @@ export default function Module8VideoProductionStudio({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [timelineSentences, setTimelineSentences] = useState<any[]>([]);
 
+  // Keep script in sync with incoming initialScript prop from Creation Hub / Module 7
+  useEffect(() => {
+    if (initialScript && initialScript.trim() && initialScript !== scriptText) {
+      setScriptText(initialScript);
+    }
+  }, [initialScript]);
+
   // Speech & Playback
   const [isPlayingAll, setIsPlayingAll] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
