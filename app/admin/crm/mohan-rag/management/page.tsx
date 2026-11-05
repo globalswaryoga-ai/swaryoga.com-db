@@ -2978,7 +2978,7 @@ function SpellCheckerModule({
               rows={8}
               value={text}
               onChange={e => setText(e.target.value)}
-              className={`w-full text-sm text-slate-800 bg-white border border-slate-200 rounded-xl p-4 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-emerald-500 shadow-inner ${devanagariFontClass(text, targetLang)}`}
+              className={`w-full text-sm text-slate-800 bg-white border border-slate-200 rounded-xl p-4 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-emerald-500 shadow-inner ${devanagariFontClass(text, selectedLang)}`}
               placeholder="Paste or edit lecture transcript here..."
             />
           </div>
@@ -3012,7 +3012,7 @@ function SpellCheckerModule({
           <p className="text-xs text-slate-500 mb-3">
             Whenever you filter, submit, translate, or correct, the previous text automatically archives here so work is never lost.
           </p>
-          <div className={`rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-600 leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap select-all ${devanagariFontClass(oldText, targetLang)}`}>
+          <div className={`rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-600 leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap select-all ${devanagariFontClass(oldText, selectedLang)}`}>
             {oldText || 'No prior version yet. As soon as you filter, submit, or apply spell/grammar check, the previous text will be displayed here for instant comparison.'}
           </div>
         </div>
