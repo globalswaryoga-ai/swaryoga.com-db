@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&display=swap');
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
@@ -9,15 +8,32 @@
 
 /* 1. Global Font Stack with Fallbacks */
 * {
-  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', 'Noto Sans Gujarati', 'Noto Sans Bengali', 'Noto Sans Kannada', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Malayalam', 'Noto Sans Gurmukhi', 'Noto Sans Arabic', 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) */
+/* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) - Modern, crisp sans-serif matching native typography */
 :lang(hi), :lang(mr), :lang(sa), :lang(ne),
 [lang="hi"], [lang="mr"], [lang="sa"], [lang="ne"],
 [lang^="hi-"], [lang^="mr-"],
-.font-devanagari, .devanagari, .hindi, .marathi {
-  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', system-ui, sans-serif !important;
+.font-devanagari, .devanagari, .hindi, .marathi,
+pre.font-devanagari, textarea.font-devanagari,
+code.font-devanagari,
+[data-font="devanagari"] {
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.005em;
+}
+
+/* Pre & Textarea handling: prevent fallback to monospace for Indic & Devanagari text */
+pre, textarea {
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif;
+}
+
+pre:lang(hi), pre:lang(mr),
+textarea:lang(hi), textarea:lang(mr) {
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
 }
 
 /* 3. Gujarati */

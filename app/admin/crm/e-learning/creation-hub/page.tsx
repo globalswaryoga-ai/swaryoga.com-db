@@ -1622,7 +1622,7 @@ export default function CreationHubPage() {
                   placeholder="Type or paste the complete spoken workshop text here in Hindi, Marathi, or English. You can add as much text as you want..."
                   value={formTranscript}
                   onChange={(e) => setFormTranscript(e.target.value)}
-                  className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-white text-xs sm:text-sm leading-relaxed focus:border-purple-500 focus:outline-none font-sans"
+                  className={`w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-white text-xs sm:text-sm leading-relaxed focus:border-purple-500 focus:outline-none ${/[\u0900-\u097f]/.test(formTranscript) ? 'font-devanagari' : ''}`}
                 />
 
                 {/* Quick Helper to append more text */}

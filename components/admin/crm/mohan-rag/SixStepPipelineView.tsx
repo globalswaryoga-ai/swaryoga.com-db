@@ -272,7 +272,7 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
               rows={6}
               value={step1Text}
               onChange={e => setStep1Text(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              className={`mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none ${/[\u0900-\u097f]/.test(step1Text) ? 'font-devanagari font-medium' : ''}`}
             />
             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
               <button
@@ -331,7 +331,7 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
               value={step3Text}
               onChange={e => setStep3Text(e.target.value)}
               placeholder="Run pipeline to generate spell-checked text..."
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              className={`mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none ${/[\u0900-\u097f]/.test(step3Text) ? 'font-devanagari font-medium' : ''}`}
             />
           </div>
         </div>
@@ -373,7 +373,7 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
               value={step5Text}
               onChange={e => setStep5Text(e.target.value)}
               placeholder="Run pipeline to apply SOV/SVO grammar rules..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              className={`w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none ${/[\u0900-\u097f]/.test(step5Text) ? 'font-devanagari font-medium' : ''}`}
             />
           </div>
         </div>
@@ -436,7 +436,13 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
                 else setStep6SvoHummer(val);
               }}
               placeholder="Run pipeline to view Master Blueprint..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none font-mono"
+              className={`w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none ${
+                /[\u0900-\u097f]/.test(
+                  blueprintTab === 'sov_plain' ? step6SovPlain :
+                  blueprintTab === 'sov_hummer' ? step6SovHummer :
+                  blueprintTab === 'svo_plain' ? step6SvoPlain : step6SvoHummer
+                ) ? 'font-devanagari font-medium' : ''
+              }`}
             />
           </div>
 
