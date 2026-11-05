@@ -42,7 +42,7 @@ export async function annotateTranscriptForAvatar(transcript: string): Promise<s
         message: `Add optional delivery cues to this exact transcript. Its spoken language must remain unchanged.\n\n${chunk}`,
         maxOutputTokens: 8192,
         temperature: 0.1,
-        providerOrder: ['OpenAI', 'Anthropic'],
+        providerOrder: ['Gemini', 'Anthropic', 'OpenAI'],
         signal: controller.signal,
       });
     } catch (error) {

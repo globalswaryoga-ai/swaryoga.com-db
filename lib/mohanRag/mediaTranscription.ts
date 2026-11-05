@@ -42,14 +42,63 @@ async function streamToBuffer(stream: Readable, maxBytes: number) {
   return Buffer.concat(chunks, size);
 }
 
+export function resolveBunnyStreamDirectMedia(url: string): {
+  directUrl: string;
+  isStream: boolean;
+  referer: string;
+  guid?: string;
+} {
+  const trimmed = (url || '').trim();
+  const playMatch = trimmed.match(/(?:mediadelivery\.net|bunnycdn\.com)\/play\/(\d+)\/([0-9a-fA-F-]+)/i);
+  if (playMatch) {
+    const guid = playMatch[2];
+    return {
+      directUrl: `https://vz-d0769ece-079.b-cdn.net/${guid}/play_240p.mp4`,
+      isStream: true,
+      referer: 'https://iframe.mediadelivery.net/',
+      guid,
+    };
+  }
+
+  const guidMatch = trimmed.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i);
+  if (trimmed.includes('mediadelivery.net') && guidMatch) {
+    const guid = guidMatch[1];
+    return {
+      directUrl: `https://vz-d0769ece-079.b-cdn.net/${guid}/play_240p.mp4`,
+      isStream: true,
+      referer: 'https://iframe.mediadelivery.net/',
+      guid,
+    };
+  }
+
+  if (trimmed.includes('.b-cdn.net')) {
+    return {
+      directUrl: trimmed,
+      isStream: true,
+      referer: 'https://iframe.mediadelivery.net/',
+      guid: guidMatch ? guidMatch[1] : undefined,
+    };
+  }
+
+  return {
+    directUrl: trimmed,
+    isStream: false,
+    referer: 'https://iframe.mediadelivery.net/',
+  };
+}
+
 export async function fetchBunnyMedia(url: string) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(5 * 60 * 1000) });
+  const { directUrl, referer } = resolveBunnyStreamDirectMedia(url);
+  const response = await fetch(directUrl, {
+    headers: { Referer: referer },
+    signal: AbortSignal.timeout(5 * 60 * 1000),
+  });
   if (!response.ok || !response.body) throw new Error(`Could not read the Bunny media URL (${response.status}). Check that its CDN link is public and active.`);
   const length = Number(response.headers.get('content-length') || 0);
   if (length > MAX_MEDIA_BYTES) throw new Error('Bunny media exceeds the 350 MB processing limit.');
   const buffer = await streamToBuffer(Readable.fromWeb(response.body as any), MAX_MEDIA_BYTES);
-  const pathname = new URL(url).pathname;
-  const extension = pathname.split('.').pop()?.toLowerCase() || '';
+  const pathname = new URL(directUrl).pathname;
+  const extension = pathname.split('.').pop()?.toLowerCase() || 'mp4';
   if (!['mp3', 'mp4', 'm4a', 'mpga', 'mpeg', 'wav', 'webm', 'mov'].includes(extension)) throw new Error('Use a direct Bunny CDN media URL or Bunny Stream player URL.');
   let title = pathname.split('/').pop() || 'Bunny media';
   try { title = decodeURIComponent(title); } catch { /* Keep URL-safe title. */ }
@@ -170,16 +219,18 @@ async function extractAudioSegmentsFromBunnyUrl(url: string): Promise<Array<{ bu
   const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
   const outputPattern = join(tempDirectory, 'speech-%05d.mp3');
 
+  const { directUrl, referer } = resolveBunnyStreamDirectMedia(url);
+
   try {
     // Attempt 1: Direct URL reading via ffmpeg (fastest, streams directly from CDN)
     let directSuccess = false;
     try {
       const ffmpegArgs = ['-hide_banner', '-loglevel', 'error'];
-      if (url.includes('.b-cdn.net') || url.includes('mediadelivery.net')) {
-        ffmpegArgs.push('-headers', 'Referer: https://player.mediadelivery.net/\r\n');
+      if (referer) {
+        ffmpegArgs.push('-headers', `Referer: ${referer}\r\n`);
       }
       ffmpegArgs.push(
-        '-i', url,
+        '-i', directUrl,
         '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k',
         '-f', 'segment', '-segment_time', String(segmentSeconds),
         '-reset_timestamps', '1', '-segment_format', 'mp3',
@@ -206,10 +257,10 @@ async function extractAudioSegmentsFromBunnyUrl(url: string): Promise<Array<{ bu
     if (!directSuccess) {
       // Attempt 2: Stream via fetch and pipe to ffmpeg stdin
       const fetchHeaders: Record<string, string> = {};
-      if (url.includes('.b-cdn.net') || url.includes('mediadelivery.net')) {
-        fetchHeaders['Referer'] = 'https://player.mediadelivery.net/';
+      if (referer) {
+        fetchHeaders['Referer'] = referer;
       }
-      const response = await fetch(url, { headers: fetchHeaders, signal: AbortSignal.timeout(3 * 60 * 60 * 1000) });
+      const response = await fetch(directUrl, { headers: fetchHeaders, signal: AbortSignal.timeout(3 * 60 * 60 * 1000) });
       if (!response.ok || !response.body) throw new Error(`Could not read Bunny media for MP3 conversion (${response.status}).`);
       const declaredSize = Number(response.headers.get('content-length') || 0);
       if (declaredSize > MAX_STREAM_MEDIA_BYTES) throw new Error('Bunny media exceeds the 5 GB processing limit.');
@@ -302,7 +353,7 @@ async function correctTimedSegments(segments: TimedSpeechSegment[], language: st
   const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
     const response = await generateAIText({
-      providerOrder: ['Replicate', 'Gemini', 'OpenAI', 'Anthropic'],
+      providerOrder: ['Gemini', 'Anthropic', 'OpenAI'],
       temperature: 0.1,
       maxOutputTokens: 8192,
       signal: controller.signal,

@@ -167,7 +167,7 @@ export async function transcribeAudio(audio: ExtractedAudio, options: { language
   return transcribeViaWhisper(audio, options);
 }
 
-let openAIExhaustedUntil = 0;
+let openAIExhaustedUntil = Date.now() + 86400_000; // OpenAI credits exhausted; default to Gemini
 let geminiExhaustedUntil = 0;
 
 /** Whisper transcript with real segment timestamps for media-library timelines. */
@@ -181,13 +181,10 @@ export async function transcribeAudioWithTimestamps(audio: ExtractedAudio, optio
 
   // If OpenAI quota/rate limit is temporarily cooling down or if key is missing
   if (now < openAIExhaustedUntil || !apiKey) {
-    if (now >= geminiExhaustedUntil && process.env.GEMINI_API_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       try {
         return await transcribeViaGeminiWithTimestamps(audio, options);
       } catch (gemErr: any) {
-        if (gemErr?.message?.includes('429') || gemErr?.message?.includes('quota') || gemErr?.message?.includes('503')) {
-          geminiExhaustedUntil = Date.now() + 60_000; // Cool off 60s
-        }
         console.warn('⚠️ Gemini audio transcription failed, falling back to Replicate Whisper:', gemErr.message || gemErr);
       }
     }
@@ -362,41 +359,60 @@ export async function transcribeViaGeminiWithTimestamps(audio: ExtractedAudio, o
     : 'This is a Swar Yoga lecture. Transcribe every spoken word verbatim. Preserve sacred Vedic terminology.';
 
   const base64Audio = audio.buffer.toString('base64');
-  const models = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+  const models = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
+  ];
   let res: Response | null = null;
   let data: any = null;
 
   for (const model of models) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                inline_data: {
-                  mime_type: audio.mimeType || 'audio/mp3',
-                  data: base64Audio,
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  inline_data: {
+                    mime_type: audio.mimeType || 'audio/mp3',
+                    data: base64Audio,
+                  },
                 },
-              },
-              {
-                text: `${langPrompt}\n\nTranscribe this audio word-for-word. Output as timestamped speech lines in this exact format:\n[MM:SS] spoken text\nExample:\n[00:05] नमस्कार साधकहो, आज आपण सूर्य नाडीचा अभ्यास करणार आहोत.\n[00:18] डावी नाकपुडी बंद करा.\n\nNever summarize, never omit. Output ONLY the timestamped lines.`,
-              },
-            ],
-          }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-        }),
-      });
+                {
+                  text: `${langPrompt}\n\nTranscribe this audio word-for-word. Output as timestamped speech lines in this exact format:\n[MM:SS] spoken text\nExample:\n[00:05] नमस्कार साधकहो, आज आपण सूर्य नाडीचा अभ्यास करणार आहोत.\n[00:18] डावी नाकपुडी बंद करा.\n\nNever summarize, never omit. Output ONLY the timestamped lines.`,
+                },
+              ],
+            }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+          }),
+        });
 
-      data = await res.json();
-      if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        if (res.status === 503 || res.status === 429) {
+          console.warn(`[Gemini Audio] ${model} returned ${res.status} (attempt ${attempt}/3). Retrying in 2.5s...`);
+          await new Promise(r => setTimeout(r, 2500));
+          continue;
+        }
+
+        data = await res.json();
+        if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          break;
+        }
+        console.warn(`[Gemini Audio] ${model} returned ${res.status}, trying fallback model...`);
         break;
+      } catch (e: any) {
+        console.warn(`[Gemini Audio] ${model} fetch failed (attempt ${attempt}/3):`, e.message || e);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
       }
-      console.warn(`[Gemini Audio] ${model} returned ${res.status}, trying fallback model...`);
-    } catch (e: any) {
-      console.warn(`[Gemini Audio] ${model} fetch failed:`, e.message || e);
+    }
+    if (res?.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      break;
     }
   }
 
