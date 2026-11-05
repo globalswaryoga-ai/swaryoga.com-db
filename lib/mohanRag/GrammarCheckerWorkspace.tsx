@@ -24,6 +24,7 @@ import {
   stripToPurePlainText,
 } from './masterLibraryCorpus';
 import { getGrammarConfig } from './dualGrammarEngine';
+import { detectTextLanguageClient } from './languageDetectionClient';
 import VoiceMicInputButton from '@/components/admin/crm/mohan-rag/VoiceMicInputButton';
 
 interface GrammarCheckerWorkspaceProps {
@@ -65,7 +66,7 @@ export default function GrammarCheckerWorkspace({
   const [statusMsg, setStatusMsg] = useState('');
   const [syntaxOverride, setSyntaxOverride] = useState<'SOV' | 'SVO' | null>(null);
   const [dbLibraryTopics, setDbLibraryTopics] = useState<Array<{ id: string; label: string; count: number; sourceId?: string }>>([]);
-  const [dbSources, setDbSources] = useState<Array<{ id: string; title: string; topic: string; charCount: number; originalFileName?: string }>>([]);
+  const [dbSources, setDbSources] = useState<Array<{ id: string; title: string; topic: string; charCount: number; originalFileName?: string; language?: string }>>([]);
 
   // Dynamically load actual topics and sources from the Library Database
   React.useEffect(() => {
@@ -118,9 +119,14 @@ export default function GrammarCheckerWorkspace({
           setDbSources(sourcesList);
           setDbLibraryTopics(topicsList);
 
-          // AUTO-LOAD REAL VIDEO LECTURE DATA IF CURRENT TEXT IS STATIC PDF SYLLABUS
-          if (sources.length > 0 && selectedTopic === 'all' && (!text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || text.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'))) {
-            const realSources = sourcesList.filter(s => s.charCount > 500);
+          // AUTO-LOAD REAL VIDEO LECTURE DATA IF CURRENT TEXT IS STATIC PDF SYLLABUS OR MISMATCHED LANGUAGE
+          const currentText = sourceText || text || '';
+          const detected = detectTextLanguageClient(currentText);
+          const isMismatch = (selectedLang === 'mr' && detected.detectedLanguage === 'hi') || (selectedLang === 'hi' && detected.detectedLanguage === 'mr');
+          const isOutline = !currentText || currentText.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || currentText.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)');
+
+          if (sources.length > 0 && (selectedTopic === 'all' || isMismatch) && (isOutline || isMismatch)) {
+            const realSources = sourcesList.filter(s => s.charCount > 500 && (s.language === selectedLang || !s.language));
             realSources.sort((a, b) => b.charCount - a.charCount);
             const topSource = realSources[0] || sourcesList[0];
             if (topSource) {
@@ -133,7 +139,7 @@ export default function GrammarCheckerWorkspace({
                   setSourceText(clean);
                   onTextChange(clean);
                   onTopicChange(`src_${topSource.id}`);
-                  setStatusMsg(`✅ Loaded real lecture "${topSource.title}" (${clean.length.toLocaleString()} characters) from Library Database.`);
+                  setStatusMsg(`✅ Loaded authentic ${selectedLang === 'mr' ? 'Marathi' : 'Hindi'} lecture "${topSource.title}" (${clean.length.toLocaleString()} characters) from Library Database.`);
                 }
               } catch {}
             }
@@ -178,15 +184,53 @@ export default function GrammarCheckerWorkspace({
     );
   });
 
-  const handleLanguageClick = (code: string) => {
+  const handleLanguageClick = async (code: string) => {
     onLanguageSelect(code);
-    const newCorpus = getLibraryCorpusText(code, selectedWorkshop, selectedDay, selectedTopic);
-    setSourceText(newCorpus);
-    setCorrectedText('');
-    setCorrectionsList([]);
-    onTextChange(newCorpus);
     const langObj = ELEARNING_LANGUAGES.find(l => l.code === code);
-    setStatusMsg(`Loaded ${langObj?.name || code} master knowledge script.`);
+    setStatusMsg(`Loading ${langObj?.name || code} master knowledge lecture...`);
+
+    let foundContent = '';
+    let foundTitle = '';
+    let foundId = '';
+
+    try {
+      const q = new URLSearchParams();
+      if (selectedWorkshop !== 'all') q.set('module', selectedWorkshop);
+      q.set('language', code);
+      const res = await fetch(`/api/admin/crm/mohan-rag/knowledge?${q.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const d = await res.json();
+      const list = Array.isArray(d.sources) ? d.sources : [];
+      const real = list.filter((s: any) => (s.contentLength || 0) > 2000 && !s.title?.toLowerCase().includes('syllabus'));
+      real.sort((a: any, b: any) => (b.contentLength || 0) - (a.contentLength || 0));
+      const top = real[0];
+      if (top) {
+        const sr = await fetch(`/api/admin/crm/mohan-rag/knowledge/${top.id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const sd = await sr.json();
+        if (sd.source?.content) {
+          foundContent = sd.source.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+          foundTitle = top.title;
+          foundId = top.id;
+        }
+      }
+    } catch {}
+
+    if (foundContent) {
+      setSourceText(foundContent);
+      setCorrectedText('');
+      setCorrectionsList([]);
+      onTextChange(foundContent);
+      onTopicChange(`src_${foundId}`);
+      setStatusMsg(`✅ Loaded authentic ${langObj?.name || code} lecture "${foundTitle}" (${foundContent.length.toLocaleString()} characters).`);
+    } else {
+      const newCorpus = getLibraryCorpusText(code, selectedWorkshop, selectedDay, selectedTopic);
+      setSourceText(newCorpus);
+      setCorrectedText('');
+      setCorrectionsList([]);
+      onTextChange(newCorpus);
+      setStatusMsg(`Loaded ${langObj?.name || code} master knowledge script.`);
+    }
   };
 
   const handleSelectTopic = async (topicId: string) => {
@@ -240,11 +284,11 @@ export default function GrammarCheckerWorkspace({
       }
     }
 
-    // If 'all' or no specific source was selected, prioritize the real video lecture data from dbSources!
+    // If 'all' or no specific source was selected, prioritize the real video lecture data from dbSources matching selectedLang!
     if (dbSources.length > 0) {
-      const realSources = dbSources.filter(s => s.charCount > 500);
+      const realSources = dbSources.filter(s => s.charCount > 500 && (s.language === selectedLang || !s.language));
       realSources.sort((a, b) => b.charCount - a.charCount);
-      const topSource = realSources[0] || dbSources[0];
+      const topSource = realSources[0] || dbSources.find(s => s.language === selectedLang) || dbSources[0];
       if (topSource) {
         try {
           setStatusMsg(`Loading real lecture "${topSource.title}" from Library Database...`);

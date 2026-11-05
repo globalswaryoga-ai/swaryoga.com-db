@@ -22,6 +22,7 @@ import {
   getLibraryCorpusText,
   stripToPurePlainText,
 } from './masterLibraryCorpus';
+import { detectTextLanguageClient } from './languageDetectionClient';
 
 interface PlainTextWorkspaceProps {
   token: string | null;
@@ -113,11 +114,15 @@ export default function PlainTextWorkspace({
           setDbLibraryTopics(topicsList);
 
           // AUTO-LOAD REAL VIDEO LECTURE DATA IN THE MATCHING LANGUAGE ONLY
-          if (sources.length > 0 && selectedTopic === 'all' && (!text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || text.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'))) {
+          const detected = detectTextLanguageClient(text || '');
+          const isMismatch = Boolean(text && ((selectedLang === 'mr' && detected.detectedLanguage === 'hi') || (selectedLang === 'hi' && detected.detectedLanguage === 'mr')));
+          const isOutline = !text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || text.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)');
+
+          if (sources.length > 0 && (selectedTopic === 'all' || isMismatch) && (isOutline || isMismatch)) {
             // Find real video lecture matching this language
-            const realSources = sourcesList.filter(s => s.charCount > 2000 && !s.title.toLowerCase().includes('syllabus'));
+            const realSources = sourcesList.filter(s => s.charCount > 2000 && !s.title.toLowerCase().includes('syllabus') && (s.language === selectedLang || !s.language));
             realSources.sort((a, b) => b.charCount - a.charCount);
-            const topSource = realSources[0] || sourcesList.find(s => s.charCount > 600) || sourcesList[0];
+            const topSource = realSources[0] || sourcesList.find(s => s.charCount > 600 && (s.language === selectedLang || !s.language)) || sourcesList[0];
             if (topSource && topSource.charCount > 600) {
               try {
                 const sRes = await fetch(`/api/admin/crm/mohan-rag/knowledge/${topSource.id}`, { headers: { Authorization: `Bearer ${token}` } });

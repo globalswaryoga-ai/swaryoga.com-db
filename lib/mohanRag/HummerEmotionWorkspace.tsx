@@ -29,6 +29,7 @@ import {
   hasHummerAnnotations,
   generateDefaultHummerText,
 } from './masterLibraryCorpus';
+import { detectTextLanguageClient } from './languageDetectionClient';
 
 interface HummerEmotionWorkspaceProps {
   token: string | null;
@@ -123,9 +124,13 @@ export default function HummerEmotionWorkspace({
           setDbSources(sourcesList);
           setDbLibraryTopics(topicsList);
 
-          // AUTO-LOAD REAL VIDEO LECTURE DATA IF CURRENT TEXT IS STATIC PDF SYLLABUS
-          if (sources.length > 0 && selectedTopic === 'all' && (!text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम'))) {
-            const realSources = sources.filter((s: any) => (s.content || '').length > 500);
+          // AUTO-LOAD REAL VIDEO LECTURE DATA IF CURRENT TEXT IS STATIC PDF SYLLABUS OR MISMATCHED
+          const detected = detectTextLanguageClient(text || '');
+          const isMismatch = Boolean(text && ((selectedLang === 'mr' && detected.detectedLanguage === 'hi') || (selectedLang === 'hi' && detected.detectedLanguage === 'mr')));
+          const isOutline = !text || text.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम');
+
+          if (sources.length > 0 && (selectedTopic === 'all' || isMismatch) && (isOutline || isMismatch)) {
+            const realSources = sources.filter((s: any) => (s.content || '').length > 500 && (s.language === selectedLang || !s.language));
             realSources.sort((a: any, b: any) => ((b.content || '').length) - ((a.content || '').length));
             const primarySource = realSources[0] || sources[0];
             if (primarySource && primarySource.content) {
@@ -136,7 +141,7 @@ export default function HummerEmotionWorkspace({
               setHummerText(initialHummer);
               onTextChange(initialHummer);
               onTopicChange(`src_${primarySource.id}`);
-              setStatusMsg(`✅ Loaded real lecture "${primarySource.title}" (${raw.length.toLocaleString()} characters) with emotion cues.`);
+              setStatusMsg(`✅ Loaded real ${selectedLang === 'mr' ? 'Marathi' : 'Hindi'} lecture "${primarySource.title}" (${raw.length.toLocaleString()} characters) with emotion cues.`);
             }
           }
         }

@@ -287,15 +287,28 @@ export default function MohanRagManagementPage() {
   const [pipelineTopic, setPipelineTopic] = useState('all');
   const [pipelineText, setPipelineText] = useState(() => getLibraryCorpusText('mr', 'all', 'all', 'all'));
 
-  // Auto-populate pipeline text with authentic spoken video lecture from database instead of static PDF outline
+  // Auto-populate pipeline text with authentic spoken video lecture from database matching the chosen language
   useEffect(() => {
     if (!authToken) return;
-    if (pipelineText && (pipelineText.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || pipelineText.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'))) {
-      fetch('/api/admin/crm/mohan-rag/knowledge?module=level1', { headers: { Authorization: `Bearer ${authToken}` } })
+    const lang = pipelineLang || 'mr';
+    const isSyllabus = pipelineText && (pipelineText.includes('सर्व कार्यशाळा व १६ दिवसांचा संपूर्ण अभ्यासक्रम') || pipelineText.includes('मार्गदर्शक: मोहन काळबुर्गी (Mohan Kalburgi Sir)'));
+    const detected = detectTextLanguageClient(pipelineText);
+    const isLangMismatch = Boolean(pipelineText && detected.detectedLanguage !== 'other' && detected.detectedLanguage !== lang && (lang === 'mr' || lang === 'hi'));
+
+    if (!pipelineText || isSyllabus || isLangMismatch) {
+      const q = new URLSearchParams();
+      if (pipelineWorkshop && pipelineWorkshop !== 'all') q.set('module', pipelineWorkshop);
+      q.set('language', lang);
+
+      fetch(`/api/admin/crm/mohan-rag/knowledge?${q.toString()}`, { headers: { Authorization: `Bearer ${authToken}` } })
         .then(r => r.json())
         .then(d => {
           const list = Array.isArray(d.sources) ? d.sources : [];
-          const realSources = list.filter((s: any) => (s.contentLength || s.content?.length || 0) > 5000 && !s.title?.toLowerCase().includes('syllabus'));
+          const realSources = list.filter((s: any) => 
+            (s.contentLength || s.content?.length || 0) > 3000 && 
+            !s.title?.toLowerCase().includes('syllabus') &&
+            (s.language === lang || !s.language)
+          );
           realSources.sort((a: any, b: any) => (b.contentLength || b.content?.length || 0) - (a.contentLength || a.content?.length || 0));
           const top = realSources[0];
           if (top) {
@@ -303,7 +316,8 @@ export default function MohanRagManagementPage() {
               .then(sr => sr.json())
               .then(sd => {
                 if (sd.source?.content) {
-                  setPipelineText(sd.source.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim());
+                  const cleaned = sd.source.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '').trim();
+                  setPipelineText(cleaned);
                 }
               })
               .catch(() => {});
@@ -311,7 +325,7 @@ export default function MohanRagManagementPage() {
         })
         .catch(() => {});
     }
-  }, [authToken]);
+  }, [authToken, pipelineLang, pipelineWorkshop]);
 
   const isSpellMode = active === 'library' && !['library', 'dashboard'].includes(libraryTab);
   const showMainSidebar = !isSpellMode;
