@@ -160,6 +160,8 @@ const DEFAULT_WORKSHOP_FILTER_OPTIONS = [
   { id: 'research', label: 'Research & Evidence (वैज्ञानिक संशोधन)' },
 ];
 
+const DUMMY_WORKSHOP_IDS = new Set(['master-l1-d1', 'master-l1-d2', 'master-l1-d3', 'master-l2-d1']);
+
 export default function CreationHubPage() {
   const router = useRouter();
   const token = useAuth();
@@ -171,8 +173,8 @@ export default function CreationHubPage() {
   const [languageRegionFilter, setLanguageRegionFilter] = useState<'all' | 'indian' | 'global'>('all');
 
   // Master Workshop Data State
-  const [masterList, setMasterList] = useState<MasterWorkshopCopy[]>(DEFAULT_MASTER_WORKSHOPS);
-  const [selectedMasterId, setSelectedMasterId] = useState<string>('master-l1-d1');
+  const [masterList, setMasterList] = useState<MasterWorkshopCopy[]>([]);
+  const [selectedMasterId, setSelectedMasterId] = useState<string>('');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All');
   const [selectedWorkshopFilter, setSelectedWorkshopFilter] = useState<string>('all');
   const [sourceLangFilter, setSourceLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
@@ -264,26 +266,28 @@ export default function CreationHubPage() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const cleaned = parsed.filter((m: any) => !deletedSet.has(m.id));
+          const cleaned = parsed.filter(
+            (m: any) => !deletedSet.has(m.id) && !DUMMY_WORKSHOP_IDS.has(m.id)
+          );
           if (cleaned.length > 0) {
             setMasterList(cleaned);
+            if (!selectedMasterId) setSelectedMasterId(cleaned[0].id);
           }
         }
       }
     } catch (e) {}
 
-    // Also fetch topics saved from Mohan RAG 6-Step Pipeline in Bunny Edge SQL
-    let cancelled = false;
+    // Fetch topics from Bunny Edge SQL
     const fetchDbTopics = async () => {
       try {
         const res = await fetch('/api/admin/crm/e-learning/creation-hub/topics', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
-        if (data.success && Array.isArray(data.topics) && !cancelled) {
+        if (data.success && Array.isArray(data.topics) && data.topics.length > 0) {
           const freshDeleted = getDeletedIds();
           const dbTopics: MasterWorkshopCopy[] = data.topics
-            .filter((t: any) => !freshDeleted.has(t.id))
+            .filter((t: any) => !freshDeleted.has(t.id) && !DUMMY_WORKSHOP_IDS.has(t.id))
             .map((t: any) => ({
               id: t.id,
               level: t.level || 'L-1',
@@ -294,20 +298,20 @@ export default function CreationHubPage() {
               sourceVideoUrl: t.source_video_url || t.sourceVideoUrl || undefined,
               transcript: t.transcript || '',
               keyPoints: Array.isArray(t.key_points) ? t.key_points : (Array.isArray(t.keyPoints) ? t.keyPoints : []),
-              blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovPlain,
-              blueprintSovHummer: t.blueprint_sov_hummer || t.blueprintSovHummer,
-              blueprintSvoPlain: t.blueprint_svo_plain || t.blueprintSvoPlain,
-              blueprintSvoHummer: t.blueprint_svo_hummer || t.blueprintSvoHummer,
+              blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovHummer || undefined,
+              blueprintSovHummer: t.blueprint_sov_hummer || undefined,
+              blueprintSvoPlain: t.blueprint_svo_plain || undefined,
+              blueprintSvoHummer: t.blueprint_svo_hummer || undefined,
               adminNotes: t.admin_notes || t.adminNotes || '',
             }));
 
           setMasterList((prev) => {
             const map = new Map<string, MasterWorkshopCopy>();
-            // Database topics take priority
+            // Real Database topics take highest priority
             dbTopics.forEach((item) => map.set(item.id, item));
-            // Preserve local topics unless deleted
+            // Preserve user-added custom topics that are not deleted and not dummy
             prev.forEach((item) => {
-              if (!freshDeleted.has(item.id) && !map.has(item.id)) {
+              if (!freshDeleted.has(item.id) && !DUMMY_WORKSHOP_IDS.has(item.id) && !map.has(item.id)) {
                 map.set(item.id, item);
               }
             });
@@ -317,6 +321,16 @@ export default function CreationHubPage() {
             } catch (e) {}
             return merged;
           });
+
+          setSelectedMasterId((currentId) => {
+            if (currentId && !DUMMY_WORKSHOP_IDS.has(currentId) && dbTopics.some((d) => d.id === currentId)) {
+              return currentId;
+            }
+            return dbTopics[0]?.id || '';
+          });
+        } else if (data.success && (!data.topics || data.topics.length === 0)) {
+          // If DB is genuinely empty, fall back to default seeds
+          setMasterList((prev) => (prev.length > 0 ? prev : DEFAULT_MASTER_WORKSHOPS));
         }
       } catch (err) {
         console.warn('Could not fetch Creation Hub topics from DB:', err);
@@ -324,7 +338,6 @@ export default function CreationHubPage() {
     };
 
     fetchDbTopics();
-    return () => { cancelled = true; };
   }, [token]);
 
   const saveMasterListToStorage = (updated: MasterWorkshopCopy[]) => {
@@ -549,7 +562,11 @@ export default function CreationHubPage() {
 
   // Active Master Workshop
   const activeMaster = useMemo(() => {
-    return masterList.find((m) => m.id === selectedMasterId) || masterList[0];
+    return (
+      masterList.find((m) => m.id === selectedMasterId) ||
+      masterList[0] ||
+      DEFAULT_MASTER_WORKSHOPS[0]
+    );
   }, [masterList, selectedMasterId]);
 
   // Active Target Language
@@ -829,7 +846,17 @@ export default function CreationHubPage() {
                   key={lang.code}
                   onClick={() => {
                     setSelectedLanguageCode(lang.code);
-                    if (activeStep === 'pipeline') {
+                    if (isSourceLang) {
+                      setSourceLangFilter(lang.code as 'en' | 'hi' | 'mr');
+                      setSelectedWorkshopFilter('all');
+                      setSelectedLevelFilter('All');
+                      setTopicSearchQuery('');
+                      const firstMatching = masterList.find((m) => m.sourceLanguage === lang.code);
+                      if (firstMatching) {
+                        setSelectedMasterId(firstMatching.id);
+                      }
+                      setActiveStep('master-copy');
+                    } else {
                       setActiveStep('languages');
                     }
                   }}
@@ -870,7 +897,7 @@ export default function CreationHubPage() {
                     {isSourceLang ? (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-xs">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>Source ({sourceCount || (lang.code === 'en' ? 22 : 51)})</span>
+                        <span>Source ({sourceCount})</span>
                       </span>
                     ) : (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700/50">
@@ -1333,9 +1360,9 @@ export default function CreationHubPage() {
                   {filteredList.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
                       <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
-                      <h3 className="text-base font-bold text-white">No topics match your current filters</h3>
+                      <h3 className="text-base font-bold text-white">No topics match your current filter selection</h3>
                       <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        Try resetting filters, choosing a different workshop, or click &quot;⚡ Sync RAG Library Lectures&quot; to refresh from the library.
+                        Active filters: {sourceLangFilter !== 'all' ? `Language: ${sourceLangFilter.toUpperCase()}` : 'All Languages'} • Level: {selectedLevelFilter} • Workshop: {selectedWorkshopFilter}.
                       </p>
                       <button
                         type="button"
@@ -1345,9 +1372,9 @@ export default function CreationHubPage() {
                           setSelectedWorkshopFilter('all');
                           setTopicSearchQuery('');
                         }}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition cursor-pointer"
+                        className="px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white transition-all shadow-lg shadow-emerald-900/40 cursor-pointer"
                       >
-                        Reset Filters
+                        ⚡ Show All {masterList.length} Lectures (Reset Filters)
                       </button>
                     </div>
                   ) : (
@@ -1537,6 +1564,8 @@ export default function CreationHubPage() {
               <Module7MultilingualText
                 token={token}
                 initialSourceText={activeMaster.transcript}
+                targetLang={selectedLanguageCode}
+                sourceLangCode={activeMaster.sourceLanguage}
                 onSendToPptStudio={(script) => {
                   setTranslatedScripts((prev) => ({
                     ...prev,

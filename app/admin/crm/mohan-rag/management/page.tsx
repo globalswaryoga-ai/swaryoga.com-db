@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode, type ElementType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type ElementType } from 'react';
 import Link from 'next/link';
 import {
   Activity, AlertCircle, ArrowLeft, ArrowRight, BookOpen, Brain,
   ChevronRight, CircleHelp, Dna, FileSearch, FileText, FlaskConical, Globe2,
   HardDrive, Languages, LayoutDashboard, ListChecks, LockKeyhole, Mic2, Network,
   Search, Settings2, ShieldCheck, Sparkles, Upload, UserRoundCog, Users, Video, FileAudio, SpellCheck,
-  Heart, Flame, RefreshCw, CheckCircle2, Loader2, X, Trash2, Cpu, Key,
+  Heart, Flame, RefreshCw, CheckCircle2, Loader2, X, Trash2, Cpu, Key, Plus,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
@@ -1221,7 +1221,7 @@ function Library({
       setLangScanResult(data);
       setShowLangScanModal(true);
     } catch (err: any) {
-      setNotice(err.message || 'Language scan failed');
+      setBatchCleanMsg(err.message || 'Language scan failed');
     } finally {
       setIsScanningLang(false);
     }

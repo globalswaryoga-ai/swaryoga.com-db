@@ -289,7 +289,11 @@ export default function Module8VideoProductionStudio({
     videoAvatars[0];
 
   const rawOriginalUrl = matchedVideoAvatar?.originalVideoUrl || '';
-  const isDirectVideoFile = Boolean(rawOriginalUrl && /\.(mp4|webm|mov|m4v)($|\?)/i.test(rawOriginalUrl));
+  const isDirectVideoFile = Boolean(
+    rawOriginalUrl &&
+    !rawOriginalUrl.includes('images.unsplash.com') &&
+    /\.(mp4|webm|mov|m4v)($|\?)/i.test(rawOriginalUrl)
+  );
   const avatarVideoUrl = isDirectVideoFile
     ? rawOriginalUrl
     : 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';

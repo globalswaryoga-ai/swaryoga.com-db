@@ -26,6 +26,8 @@ const SUPPORTED_LANGS = ELEARNING_LANGUAGES.map((l) => ({
 interface Module7Props {
   token?: string | null;
   initialSourceText?: string;
+  targetLang?: string;
+  sourceLangCode?: string;
   onSendToVideoStudio?: (scriptsByLang: Record<string, string>) => void;
   onSendToPptStudio?: (script: string) => void;
 }
@@ -33,6 +35,8 @@ interface Module7Props {
 export default function Module7MultilingualText({
   token,
   initialSourceText = '',
+  targetLang = 'es',
+  sourceLangCode = 'hi',
   onSendToVideoStudio,
   onSendToPptStudio,
 }: Module7Props) {
@@ -45,16 +49,40 @@ export default function Module7MultilingualText({
 [big_smile:85] आइए, इस वैदिक साधना को अपने दैनिक जीवन में अपनाएं!`
   );
 
-  const [sourceLang, setSourceLang] = useState('hi');
+  const [sourceLang, setSourceLang] = useState(sourceLangCode || 'hi');
   const [targetLangs, setTargetLangs] = useState<string[]>(['mr', 'en', 'kn', 'gu', 'ta', 'te']);
   const [mode, setMode] = useState<'strict_exact' | 'expand_detail' | 'ebook_chapter'>('strict_exact');
-  const [activeTab, setActiveTab] = useState<string>('hi');
+  const [activeTab, setActiveTab] = useState<string>(targetLang || 'es');
   const [translations, setTranslations] = useState<Record<string, string>>({
-    hi: sourceText,
+    [sourceLang]: sourceText,
+    ...(targetLang ? { [targetLang]: sourceText } : {}),
   });
   const [translatingLangs, setTranslatingLangs] = useState<Record<string, boolean>>({});
   const [playingLang, setPlayingLang] = useState<string | null>(null);
   const [copiedLang, setCopiedLang] = useState<string | null>(null);
+
+  // Sync with incoming source text & language props
+  React.useEffect(() => {
+    if (initialSourceText && initialSourceText !== sourceText) {
+      setSourceText(initialSourceText);
+      setTranslations((prev) => ({
+        ...prev,
+        [sourceLang]: initialSourceText,
+      }));
+    }
+  }, [initialSourceText, sourceLang]);
+
+  React.useEffect(() => {
+    if (targetLang && targetLang !== activeTab) {
+      setActiveTab(targetLang);
+    }
+  }, [targetLang]);
+
+  React.useEffect(() => {
+    if (sourceLangCode && sourceLangCode !== sourceLang) {
+      setSourceLang(sourceLangCode);
+    }
+  }, [sourceLangCode]);
 
   const handleTranslateAll = async () => {
     if (!sourceText.trim()) return;

@@ -208,7 +208,7 @@ export async function initStudioSchema(): Promise<void> {
         args: [
           'v_avatar_chef_mohan',
           'Mohan Sir (Ayurvedic Chef & Kitchen Studio)',
-          'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=1200&auto=format&fit=crop&q=80',
+          'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
           'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=600&auto=format&fit=crop&q=80',
           JSON.stringify(['hi', 'mr', 'en', 'gu']),
           'ready',
