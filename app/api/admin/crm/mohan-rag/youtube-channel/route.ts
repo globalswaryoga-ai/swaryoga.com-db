@@ -104,6 +104,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Topic screening completed. The transcript remains a draft for review.' });
     }
 
+    if (isRecord(requestBody) && requestBody.action === 'requeue_failed') {
+      const inventory = await listYouTubeChannelInventory(1000);
+      const failedCandidates = inventory.filter(video => video.screeningStatus === 'ingestion_failed');
+      if (!failedCandidates.length) {
+        return NextResponse.json({ success: true, message: 'No failed videos found to requeue.' });
+      }
+      const userId = getViewerUserId(admin) || 'admin';
+      await enqueueVideoSources({
+        urls: failedCandidates.map(video => video.videoUrl),
+        titles: failedCandidates.map(video => video.title),
+        moduleId: 'general',
+        topic: 'YouTube channel transcript screening',
+        language: 'auto',
+        createdBy: userId,
+      });
+      for (const video of failedCandidates) {
+        await updateYouTubeChannelScreening(video.videoId, { status: 'queued', errorMessage: null });
+      }
+      return NextResponse.json({
+        success: true,
+        message: `Successfully requeued ${failedCandidates.length} failed video(s) for authorized transcription.`,
+      });
+    }
+
     if (isRecord(requestBody) && requestBody.action === 'queue') {
       if (!Array.isArray(requestBody.videoIds) || requestBody.videoIds.length === 0) {
         return NextResponse.json({ error: 'Select at least one discovered video to queue.' }, { status: 400 });

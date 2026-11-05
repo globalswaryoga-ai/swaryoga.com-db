@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { access, stat } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { resolveYouTubeCookiesPath } from './youtubeCookiesHelper';
 
 export const MOHAN_RAG_YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@Swar-Yoga/videos';
 const MAX_PLAYLIST_JSON_BYTES = 30 * 1024 * 1024;
@@ -180,16 +181,7 @@ export async function updateYouTubeChannelScreening(videoId: string, values: {
 }
 
 async function getCookiesFile(): Promise<string | undefined> {
-  const file = process.env.YOUTUBE_COOKIES_FILE?.trim();
-  if (!file) return undefined;
-  try {
-    const details = await stat(file);
-    if (!details.isFile()) throw new Error('Not a file');
-    await access(file, fsConstants.R_OK);
-  } catch {
-    throw new Error('YOUTUBE_COOKIES_FILE must point to a readable authorized Netscape cookies file on the server.');
-  }
-  return file;
+  return await resolveYouTubeCookiesPath();
 }
 
 export async function hasAuthorizedYouTubeCookiesConfigured() {

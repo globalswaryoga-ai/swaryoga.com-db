@@ -8,6 +8,7 @@ import { transcribeAudioWithTimestamps } from '@/lib/aiVideo/transcribeAndConden
 import { generateAIText } from '@/lib/ai/generateWithFallback';
 import { annotateTranscriptForAvatar } from './avatarCueAnnotator';
 import { detectTextLanguage } from './languageFilterEngine';
+import { resolveYouTubeCookiesPath } from './youtubeCookiesHelper';
 
 export const MAX_MEDIA_BYTES = 350 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
@@ -107,7 +108,7 @@ export async function fetchBunnyMedia(url: string) {
 
 export async function fetchYouTubeMedia(url: string) {
   const binary = process.env.YT_DLP_PATH || 'yt-dlp';
-  const cookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim();
+  const cookiesFile = await resolveYouTubeCookiesPath();
   if (cookiesFile) await assertReadableYouTubeCookiesFile(cookiesFile);
   const videoId = new URL(url).searchParams.get('v') || new URL(url).pathname.split('/').filter(Boolean).pop() || 'video';
 
@@ -216,9 +217,10 @@ export async function fetchYouTubeSubtitlesAnalysis(input: {
   const outPattern = join(tempDir, 'sub');
 
   try {
-    const cookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim();
+    const cookiesFile = await resolveYouTubeCookiesPath();
     const args = [
       '--skip-download',
+      '--extractor-args', 'youtube:player_client=android_creator,ios,mweb',
       '--write-auto-subs',
       '--write-subs',
       '--sub-lang', 'hi,hi-orig,mr,en,en-US',
