@@ -5,6 +5,7 @@ import {
   CheckCircle2, AlertCircle, ArrowRight, Sparkles, BookOpen,
   Languages, FileText, Smile, Sliders, RefreshCw, Save, Send, ExternalLink
 } from 'lucide-react';
+import { formatTranscriptLines } from '@/lib/mohanRag/transcriptFormatter';
 
 interface SixStepPipelineProps {
   token: string | null;
@@ -43,7 +44,7 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
 
   React.useEffect(() => {
     if (initialTopic) setTopic(initialTopic);
-    if (initialText) setStep1Text(initialText);
+    if (initialText) setStep1Text(formatTranscriptLines(initialText));
     if (initialLanguage) setSourceLanguage(initialLanguage);
   }, [initialTopic, initialText, initialLanguage]);
 
@@ -62,12 +63,12 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
           try {
             setStep2Detection(bp.step2_language_details ? JSON.parse(bp.step2_language_details) : null);
           } catch { setStep2Detection(null); }
-          setStep3Text(bp.step3_spellchecked_text || '');
+          setStep3Text(formatTranscriptLines(bp.step3_spellchecked_text || ''));
           setStep4Family(bp.step4_grammar_family || '');
-          setStep5Text(bp.step5_grammar_approved_text || '');
-          setStep6SovPlain(bp.step6_sov_plain || '');
-          setStep6SovHummer(bp.step6_sov_hummer || '');
-          setStep6SvoPlain(bp.step6_svo_plain || '');
+          setStep5Text(formatTranscriptLines(bp.step5_grammar_approved_text || ''));
+          setStep6SovPlain(formatTranscriptLines(bp.step6_sov_plain || ''));
+          setStep6SovHummer(formatTranscriptLines(bp.step6_sov_hummer || ''));
+          setStep6SvoPlain(formatTranscriptLines(bp.step6_svo_plain || ''));
           setStep6SvoHummer(bp.step6_svo_hummer || '');
         }
       } catch (e) {

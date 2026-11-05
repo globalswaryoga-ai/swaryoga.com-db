@@ -33,6 +33,7 @@ import { SixStepPipelineView } from '@/components/admin/crm/mohan-rag/SixStepPip
 import FourWorkersPipelineView from '@/components/admin/crm/mohan-rag/FourWorkersPipelineView';
 import MohanSirAvatarDnaLibrary from '@/components/admin/crm/mohan-rag/MohanSirAvatarDnaLibrary';
 import YouTubeChannelIntake from '@/components/admin/crm/mohan-rag/YouTubeChannelIntake';
+import { formatTranscriptLines } from '@/lib/mohanRag/transcriptFormatter';
 import VoiceMicInputButton from '@/components/admin/crm/mohan-rag/VoiceMicInputButton';
 import { detectTextLanguageClient } from '@/lib/mohanRag/languageDetectionClient';
 import { SUPPORTED_27_LANGUAGES } from '@/lib/mohanRag/multiLanguageSynthesisEngine';
@@ -1277,7 +1278,9 @@ function Library({
     ? (hasCues ? detailedSource.content : annotateYogicAvatarCues(detailedSource.content))
     : '';
   const parsed = detailedSource ? parseAvatarScript(effectiveCueContent) : null;
-  const plainText = detailedSource?.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '') || '';
+  const plainText = formatTranscriptLines(
+    detailedSource?.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '') || ''
+  );
   const [isAnnotatingCues, setIsAnnotatingCues] = useState(false);
 
   const handleAnnotateCues = async () => {
@@ -3187,7 +3190,7 @@ function KnowledgeModulePanel({
       const response = await fetch(`/api/admin/crm/mohan-rag/knowledge/${source.id}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await readManagementApiJson(response);
       if (!response.ok) throw new Error(data.error || 'Could not load extracted text');
-      setPreviewId(source.id); setPreviewText(data.source.content || 'No extracted text is stored for this source.');
+      setPreviewId(source.id); setPreviewText(formatTranscriptLines(data.source.content || 'No extracted text is stored for this source.'));
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load extracted text'); }
   };
 
@@ -3281,7 +3284,7 @@ function KnowledgeModulePanel({
       if (!response.ok) throw new Error(data.error || 'Failed to run 4-worker pipeline');
       setNotice(`✅ 4-Worker Pipeline successfully transcribed and distributed "${source.title}" everywhere! (${data.report?.worker1_conversion?.charCount || 0} characters)`);
       if (data.report?.worker1_conversion?.text) {
-        setPreviewText(data.report.worker1_conversion.text);
+        setPreviewText(formatTranscriptLines(data.report.worker1_conversion.text));
       }
       await loadSources();
     } catch (err: any) {
@@ -3474,7 +3477,7 @@ function KnowledgeModulePanel({
                 </div>
               </div>
               <pre lang={source.language === 'auto' ? undefined : source.language} className={`max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-200 bg-emerald-50 p-4 text-xs leading-6 text-slate-700 ${devanagariFontClass(previewText, source.language)}`}>
-                {previewText}
+                {formatTranscriptLines(previewText)}
               </pre>
             </div>
           )}

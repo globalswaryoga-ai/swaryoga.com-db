@@ -9,6 +9,7 @@ import { transcribeAudioWithTimestamps } from '@/lib/aiVideo/transcribeAndConden
 import { chunkText } from '@/lib/ragRetrieval';
 import { cleanVerbatimTranscript, detectExactSourceLanguage } from './verbatimSpellAndLanguageWorker';
 import { resolveBunnyStreamMediaUrl } from './bunnyStreamMedia';
+import { formatTranscriptLines } from './transcriptFormatter';
 
 export interface WorkerReport {
   sourceId: string;
@@ -164,6 +165,9 @@ export async function runWorker1_ConvertSource(sourceId: string): Promise<{
   if (!convertedText || convertedText.length < 200) {
     throw new Error(`Worker 1 could not extract speech for "${title}". Extracted length was only ${convertedText.length} characters.`);
   }
+
+  // Ensure timestamps and minutes sit on their own individual lines
+  convertedText = formatTranscriptLines(convertedText);
 
   // Update source record with Worker 1 output
   await saveKnowledgeSource({

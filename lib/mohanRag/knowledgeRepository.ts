@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { bunnyBatch, bunnyExecute, isBunnyDatabaseConfigured } from '@/lib/bunnyDatabase';
 import { chunkText } from '@/lib/ragRetrieval';
+import { formatTranscriptLines } from './transcriptFormatter';
 
 export const MOHAN_RAG_MODULES = [
   'why',
@@ -196,7 +197,8 @@ export async function saveKnowledgeSource(input: {
   const previous = input.id ? knownPrevious || await getKnowledgeSource(input.id) : null;
   if (input.id && !previous) throw new Error('Knowledge source not found.');
   const timestamp = now();
-  const chunks = chunkText(input.content, 1800, 220);
+  const formattedContent = formatTranscriptLines(input.content.trim());
+  const chunks = chunkText(formattedContent, 1800, 220);
   if (!chunks.length) throw new Error('Source text is empty.');
   if (chunks.length > 300) throw new Error('This text source is too large for the current synchronous editor. Split it into smaller sources or use the background ingestion flow.');
   const status = input.status || 'approved';
@@ -210,7 +212,7 @@ export async function saveKnowledgeSource(input: {
         source_reference=excluded.source_reference, original_file_name=excluded.original_file_name,
         original_file_url=excluded.original_file_url, original_mime_type=excluded.original_mime_type,
         extraction_type=excluded.extraction_type, status=excluded.status, reviewed_by='', reviewed_at=NULL, updated_at=excluded.updated_at`,
-      args: [id, input.moduleId, input.title.trim(), input.content.trim(), input.topic?.trim() || '', input.language || 'auto', input.sourceType || 'text', input.sourceReference?.trim() || '', input.originalFileName ?? previous?.originalFileName ?? '', input.originalFileUrl ?? previous?.originalFileUrl ?? '', input.originalMimeType ?? previous?.originalMimeType ?? '', input.extractionType ?? previous?.extractionType ?? 'text', status, previous?.createdBy || userId, previous?.createdAt || timestamp, timestamp],
+      args: [id, input.moduleId, input.title.trim(), formattedContent, input.topic?.trim() || '', input.language || 'auto', input.sourceType || 'text', input.sourceReference?.trim() || '', input.originalFileName ?? previous?.originalFileName ?? '', input.originalFileUrl ?? previous?.originalFileUrl ?? '', input.originalMimeType ?? previous?.originalMimeType ?? '', input.extractionType ?? previous?.extractionType ?? 'text', status, previous?.createdBy || userId, previous?.createdAt || timestamp, timestamp],
     },
     { sql: 'DELETE FROM mohan_rag_chunks_sql WHERE source_id = ?', args: [id] },
     ...chunks.map((content, index) => ({
@@ -226,7 +228,7 @@ export async function saveKnowledgeSource(input: {
     id,
     moduleId: input.moduleId,
     title: input.title.trim(),
-    content: input.content.trim(),
+    content: formattedContent,
     topic: input.topic?.trim() || '',
     language: input.language || 'auto',
     sourceType: input.sourceType || 'text',

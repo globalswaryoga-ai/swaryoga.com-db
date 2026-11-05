@@ -16,6 +16,7 @@
  */
 
 import { generateAIText } from '@/lib/ai/generateWithFallback';
+import { formatTranscriptLines } from './transcriptFormatter';
 import { detectTextLanguageClient } from './languageDetectionClient';
 
 export { detectTextLanguageClient as detectTextLanguage } from './languageDetectionClient';
@@ -103,7 +104,7 @@ MANDATORY RULES:
   );
 
   return {
-    cleanedText: processedBatches.join('\n\n'),
+    cleanedText: formatTranscriptLines(processedBatches.join('\n\n')),
     originalLanguageDetected: detection.detectedLanguage,
     targetLanguage,
   };
