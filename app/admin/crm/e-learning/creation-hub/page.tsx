@@ -1473,12 +1473,18 @@ export default function CreationHubPage() {
                                 </div>
 
                                 {/* Title / Heading */}
-                                <h3 className="text-base sm:text-lg font-black text-white mb-2 leading-snug">
+                                <h3
+                                  className="text-base sm:text-lg font-black text-white mb-2 leading-snug font-devanagari"
+                                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                                >
                                   {item.title}
                                 </h3>
 
                                 {/* Small Description / Transcript Excerpt */}
-                                <p className="text-xs text-slate-300/90 line-clamp-3 mb-3 leading-relaxed italic bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                                <p
+                                  className="text-xs text-slate-300/90 line-clamp-3 mb-3 leading-relaxed italic bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80 font-devanagari"
+                                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                                >
                                   &ldquo;{item.transcript}&rdquo;
                                 </p>
 
@@ -1487,16 +1493,26 @@ export default function CreationHubPage() {
                                   {(item.keyPoints || []).slice(0, 4).map((kp, idx) => (
                                     <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                      <span className="truncate">{kp}</span>
+                                      <span
+                                        className="truncate font-devanagari"
+                                        style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                                      >
+                                        {kp}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
 
                                 {/* Custom Additions / Admin Notes badge */}
                                 {item.adminNotes && (
-                                  <div className="mb-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-1.5">
+                                  <div className="mb-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-1.5 font-devanagari">
                                     <span className="shrink-0 font-bold">📝</span>
-                                    <span className="line-clamp-2">{item.adminNotes}</span>
+                                    <span
+                                      className="line-clamp-2"
+                                      style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                                    >
+                                      {item.adminNotes}
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -1599,7 +1615,10 @@ export default function CreationHubPage() {
                     <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div>
                         <span className="text-xs text-slate-400">Selected Master Topic:</span>
-                        <p className="text-sm font-bold text-white">
+                        <p
+                          className="text-sm font-bold text-white font-devanagari"
+                          style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                        >
                           {activeMaster.level} • {activeMaster.day} — {activeMaster.title}
                         </p>
                       </div>
@@ -1757,7 +1776,12 @@ export default function CreationHubPage() {
             {/* Body */}
             <div className="p-6 overflow-y-auto space-y-5 flex-1">
               <div>
-                <h3 className="text-xl font-extrabold text-white mb-2">{viewMaster.title}</h3>
+                <h3
+                  className="text-xl font-extrabold text-white mb-2 font-devanagari"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                >
+                  {viewMaster.title}
+                </h3>
                 {viewMaster.sourceVideoUrl && (
                   <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs text-slate-300">
                     <span className="truncate">📹 Source Media: {viewMaster.sourceVideoUrl}</span>
@@ -1793,7 +1817,10 @@ export default function CreationHubPage() {
                     <span>{copiedTranscript ? 'Copied!' : 'Copy Transcript'}</span>
                   </button>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-slate-200 text-sm leading-relaxed whitespace-pre-wrap font-sans max-h-72 overflow-y-auto select-text">
+                <div
+                  className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-slate-100 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-devanagari max-h-80 overflow-y-auto select-text tracking-wide shadow-inner"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                >
                   {viewMaster.transcript}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
@@ -1808,7 +1835,11 @@ export default function CreationHubPage() {
                 </span>
                 <div className="space-y-1.5">
                   {viewMaster.keyPoints.map((kp, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs text-slate-200 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2 text-xs sm:text-sm text-slate-200 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 font-devanagari"
+                      style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                    >
                       <CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />
                       <span>{kp}</span>
                     </div>
@@ -1818,9 +1849,12 @@ export default function CreationHubPage() {
 
               {/* Custom Additions / Admin Notes */}
               {viewMaster.adminNotes && (
-                <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-900/40 text-xs text-amber-200 space-y-1">
-                  <span className="font-bold text-amber-400 block">📝 Custom Notes / Added Instructions:</span>
-                  <p className="leading-relaxed whitespace-pre-wrap">{viewMaster.adminNotes}</p>
+                <div
+                  className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-xs sm:text-sm text-amber-100 space-y-1 font-devanagari shadow-inner"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                >
+                  <span className="font-bold text-amber-300 block text-xs flex items-center gap-1.5">📝 Custom Notes / Added Instructions:</span>
+                  <p className="leading-relaxed whitespace-pre-wrap text-amber-100 font-medium">{viewMaster.adminNotes}</p>
                 </div>
               )}
             </div>
@@ -1954,7 +1988,8 @@ export default function CreationHubPage() {
                   placeholder="e.g. Introduction to Swara & Five Elements (पंचतत्व विज्ञान)"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:border-purple-500 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:border-purple-500 focus:outline-none font-devanagari"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                 />
               </div>
 
@@ -1989,7 +2024,8 @@ export default function CreationHubPage() {
                   placeholder="Type or paste the complete spoken workshop text here in Hindi, Marathi, or English. You can add as much text as you want..."
                   value={formTranscript}
                   onChange={(e) => setFormTranscript(e.target.value)}
-                  className={`w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-white text-xs sm:text-sm leading-relaxed focus:border-purple-500 focus:outline-none ${/[\u0900-\u097f]/.test(formTranscript) ? 'font-devanagari' : ''}`}
+                  className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-white text-xs sm:text-sm leading-relaxed focus:border-purple-500 focus:outline-none font-devanagari tracking-wide"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                 />
 
                 {/* Quick Helper to append more text */}
@@ -2004,7 +2040,8 @@ export default function CreationHubPage() {
                           : '[सूर्य नाड़ी अभ्यास]: दाहिनी नासिका से गहरा श्वास लें...'
                       );
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-devanagari"
+                    style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                   >
                     + सूर्य नाड़ी अभ्यास
                   </button>
@@ -2017,7 +2054,8 @@ export default function CreationHubPage() {
                           : '[चंद्र नाड़ी अभ्यास]: बाईं नासिका से शांत...'
                       );
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-devanagari"
+                    style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                   >
                     + चंद्र नाड़ी अभ्यास
                   </button>
@@ -2030,7 +2068,8 @@ export default function CreationHubPage() {
                           : '[सुषुम्ना ध्यान]: दोनों स्वर समान रूप से...'
                       );
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-devanagari"
+                    style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                   >
                     + सुषुम्ना ध्यान
                   </button>
@@ -2047,7 +2086,8 @@ export default function CreationHubPage() {
                   placeholder="सूर्य नाड़ी (Pingala) और चंद्र नाड़ी (Ida) का मूल सिद्धांत&#10;दाहिनी नासिका - पित्त, अग्नि और क्रियाशीलता"
                   value={formKeyPoints}
                   onChange={(e) => setFormKeyPoints(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:border-purple-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:border-purple-500 focus:outline-none font-devanagari"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                 />
               </div>
 
@@ -2062,7 +2102,8 @@ export default function CreationHubPage() {
                   placeholder="Add any extra teaching notes, personal examples, wardrobe suggestions, or background cue for this topic..."
                   value={formAdminNotes}
                   onChange={(e) => setFormAdminNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-amber-900/40 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-900 border border-amber-900/40 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none font-devanagari"
+                  style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
                 />
               </div>
             </div>

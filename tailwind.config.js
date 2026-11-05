@@ -8,8 +8,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        poppins: ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'Noto Sans Devanagari', 'Segoe UI', 'Roboto', 'sans-serif'],
-        devanagari: ['-apple-system', 'BlinkMacSystemFont', 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', 'Roboto', 'system-ui', 'sans-serif'],
+        poppins: ['Poppins', 'Noto Sans Devanagari', 'Mukta', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        devanagari: ['Noto Sans Devanagari', 'Mukta', 'Poppins', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       colors: {
         // ===== SWAR YOGA DESIGN SYSTEM - LOCKED COLOR PALETTE =====

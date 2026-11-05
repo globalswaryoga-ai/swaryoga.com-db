@@ -765,7 +765,10 @@ export default function Module8VideoProductionStudio({
               {/* Subtitle / Teleprompter Overlay */}
               {showSubtitles && (
                 <div className="absolute bottom-3 inset-x-3 text-center z-10 pointer-events-none">
-                  <span className="inline-block px-3.5 py-2 rounded-xl bg-black/90 backdrop-blur-md text-white font-bold text-xs sm:text-sm shadow-2xl border border-amber-500/40 leading-relaxed max-w-[95%]">
+                  <span
+                    className="inline-block px-3.5 py-2 rounded-xl bg-black/90 backdrop-blur-md text-white font-bold text-xs sm:text-sm shadow-2xl border border-amber-500/40 leading-relaxed max-w-[95%] font-devanagari tracking-wide"
+                    style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                  >
                     {activeSentenceIndex !== null
                       ? timelineSentences[activeSentenceIndex]?.text
                       : timelineSentences[0]?.text || 'Swar Yoga Masterclass'}
@@ -1053,7 +1056,10 @@ export default function Module8VideoProductionStudio({
                       </button>
                     </div>
 
-                    <p className="text-slate-100 text-xs sm:text-sm font-sans leading-relaxed">
+                    <p
+                      className="text-slate-100 text-xs sm:text-sm font-devanagari leading-relaxed tracking-wide"
+                      style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', sans-serif" }}
+                    >
                       {sent.text}
                     </p>
                   </div>

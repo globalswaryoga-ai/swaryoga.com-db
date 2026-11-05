@@ -480,7 +480,8 @@ export default function Module7MultilingualText({
               if (activeTab === sourceLang) setSourceText(val);
             }}
             rows={10}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-teal-400 font-mono leading-relaxed"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-teal-400 font-devanagari leading-relaxed tracking-wide"
+            style={{ fontFamily: "'Noto Sans Devanagari', 'Mukta', 'Poppins', monospace" }}
             placeholder="Script with preserved emotion tags will appear here..."
           />
         </div>
