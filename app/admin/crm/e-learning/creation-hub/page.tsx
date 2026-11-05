@@ -600,30 +600,76 @@ export default function CreationHubPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          query: `${activeMaster.title} - ${activeMaster.keyPoints.join(', ')}`,
+          topic: activeMaster.title,
+          query: `${activeMaster.title} - ${(activeMaster.keyPoints || []).join(', ')}`,
+          targetLanguage: selectedLanguageCode,
           language: selectedLanguageCode,
+          duration: 'lesson_3m',
           durationFormat: 'lesson_3m',
+          script: activeMaster.transcript,
         }),
       });
 
       const data = await res.json();
-      if (data.success && data.synthesized) {
+      const outputScript =
+        data.synthesized?.script || data.script || data.translatedScript || data.translatedText;
+
+      if (data.success && outputScript) {
         setTranslatedScripts((prev) => ({
           ...prev,
-          [selectedLanguageCode]: data.synthesized.script,
+          [selectedLanguageCode]: outputScript,
         }));
+        setActiveStep('languages');
       } else {
-        // Fallback simulation for seamless preview
+        // Also try direct translation endpoint as seamless fallback
+        const transRes = await fetch('/api/avatar/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            script: activeMaster.transcript || activeMaster.title,
+            targetLang: selectedLanguageCode,
+            sourceLang: activeMaster.sourceLanguage,
+            mode: 'strict_exact',
+          }),
+        });
+        const transData = await transRes.json();
+        const fallbackScript =
+          transData.translatedScript ||
+          transData.translatedText ||
+          `[${activeLanguage.name} Master Class] ${activeMaster.title}\n\n${activeMaster.transcript}`;
+
         setTranslatedScripts((prev) => ({
           ...prev,
-          [selectedLanguageCode]: `[${activeLanguage.name} Master Class] ${activeMaster.title}\n\n${activeMaster.transcript}`,
+          [selectedLanguageCode]: fallbackScript,
         }));
+        setActiveStep('languages');
       }
     } catch (e) {
       console.error('Synthesis error:', e);
+      try {
+        const transRes = await fetch('/api/avatar/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            script: activeMaster.transcript || activeMaster.title,
+            targetLang: selectedLanguageCode,
+            sourceLang: activeMaster.sourceLanguage,
+            mode: 'strict_exact',
+          }),
+        });
+        const transData = await transRes.json();
+        if (transData.translatedScript || transData.translatedText) {
+          setTranslatedScripts((prev) => ({
+            ...prev,
+            [selectedLanguageCode]: transData.translatedScript || transData.translatedText,
+          }));
+          setActiveStep('languages');
+          return;
+        }
+      } catch {}
       setTranslatedScripts((prev) => ({
         ...prev,
         [selectedLanguageCode]: `[${activeLanguage.name} Master Class] ${activeMaster.title}\n\n${activeMaster.transcript}`,

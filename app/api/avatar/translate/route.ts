@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
 import { parseAvatarScript } from '@/lib/avatarEmotionParser';
 import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
+import { translateWithFreeEngine } from '@/lib/freeTranslationService';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,41 +87,50 @@ CORE TRANSLATION MANDATES:
 
     // Handle long scripts via chunking to avoid context truncation
     let resultText = '';
-    if (script.length <= 8000) {
-      const translated = await generateAIText({
-        systemPrompt,
-        message: script,
-        maxOutputTokens: mode === 'ebook_chapter' ? 4000 : mode === 'expand_detail' ? 2000 : 4000,
-        temperature: mode === 'strict_exact' ? 0.15 : 0.3,
-        providerOrder: ['OpenAI', 'Anthropic', 'Groq', 'Gemini'],
-      });
-      resultText = translated.replace(/^```(?:text)?\s*|\s*```$/g, '').trim();
-    } else {
-      const paragraphs = script.split(/\n\n+/);
-      const chunks: string[] = [];
-      let current = '';
-      for (const para of paragraphs) {
-        if (current.length + para.length > 7000) {
-          if (current) chunks.push(current.trim());
-          current = para;
-        } else {
-          current = current ? `${current}\n\n${para}` : para;
-        }
-      }
-      if (current.trim()) chunks.push(current.trim());
-
-      const translatedChunks: string[] = [];
-      for (const chunk of chunks) {
-        const trans = await generateAIText({
+    try {
+      if (script.length <= 8000) {
+        const translated = await generateAIText({
           systemPrompt,
-          message: chunk,
-          maxOutputTokens: 4000,
-          temperature: 0.2,
+          message: script,
+          maxOutputTokens: mode === 'ebook_chapter' ? 4000 : mode === 'expand_detail' ? 2000 : 4000,
+          temperature: mode === 'strict_exact' ? 0.15 : 0.3,
           providerOrder: ['OpenAI', 'Anthropic', 'Groq', 'Gemini'],
         });
-        translatedChunks.push(trans.replace(/^```(?:text)?\s*|\s*```$/g, '').trim());
+        resultText = translated.replace(/^```(?:text)?\s*|\s*```$/g, '').trim();
+      } else {
+        const paragraphs = script.split(/\n\n+/);
+        const chunks: string[] = [];
+        let current = '';
+        for (const para of paragraphs) {
+          if (current.length + para.length > 7000) {
+            if (current) chunks.push(current.trim());
+            current = para;
+          } else {
+            current = current ? `${current}\n\n${para}` : para;
+          }
+        }
+        if (current.trim()) chunks.push(current.trim());
+
+        const translatedChunks: string[] = [];
+        for (const chunk of chunks) {
+          const trans = await generateAIText({
+            systemPrompt,
+            message: chunk,
+            maxOutputTokens: 4000,
+            temperature: 0.2,
+            providerOrder: ['OpenAI', 'Anthropic', 'Groq', 'Gemini'],
+          });
+          translatedChunks.push(trans.replace(/^```(?:text)?\s*|\s*```$/g, '').trim());
+        }
+        resultText = translatedChunks.join('\n\n');
       }
-      resultText = translatedChunks.join('\n\n');
+    } catch (aiError) {
+      console.warn('AI provider generation failed, using Free Neural Translation fallback:', aiError);
+      resultText = await translateWithFreeEngine(
+        script,
+        targetLang,
+        String(body.sourceLang || 'auto')
+      );
     }
 
     const parsed = parseAvatarScript(resultText);
