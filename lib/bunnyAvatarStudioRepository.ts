@@ -181,41 +181,11 @@ export async function initStudioSchema(): Promise<void> {
     },
   ]);
 
-  // Seed default Mohan Sir Digital Twin Video Avatar & Voice if empty
-  const videoCount = await bunnyExecute({ sql: 'SELECT COUNT(*) as cnt FROM studio_video_avatars_sql' });
-  if (Number(videoCount.rows[0]?.cnt || 0) === 0) {
+  // Seed default voice avatars if empty
+  const voiceCount = await bunnyExecute({ sql: 'SELECT COUNT(*) as cnt FROM studio_voice_avatars_sql' });
+  if (Number(voiceCount.rows[0]?.cnt || 0) === 0) {
     const now = new Date().toISOString();
     await bunnyBatch([
-      {
-        sql: `INSERT OR REPLACE INTO studio_video_avatars_sql (
-          id, name, original_video_url, thumbnail_url, language_capabilities_json, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          'v_avatar_mohan_sir',
-          'Mohan Sir (Swar Yoga Founder - Vedic Twin)',
-          'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=1200&auto=format&fit=crop&q=80',
-          'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80',
-          JSON.stringify(['hi', 'mr', 'en', 'gu', 'kn', 'ta', 'te', 'bn']),
-          'ready',
-          now,
-          now,
-        ],
-      },
-      {
-        sql: `INSERT OR REPLACE INTO studio_video_avatars_sql (
-          id, name, original_video_url, thumbnail_url, language_capabilities_json, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          'v_avatar_chef_mohan',
-          'Mohan Sir (Ayurvedic Chef & Kitchen Studio)',
-          'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-          'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=600&auto=format&fit=crop&q=80',
-          JSON.stringify(['hi', 'mr', 'en', 'gu']),
-          'ready',
-          now,
-          now,
-        ],
-      },
       {
         sql: `INSERT OR REPLACE INTO studio_voice_avatars_sql (
           id, name, gender, supported_languages_json, speaking_style, pitch, speed, tone, quality, created_at, updated_at
@@ -248,44 +218,6 @@ export async function initStudioSchema(): Promise<void> {
           1.05,
           'warm_approachable',
           '24bit_96khz_neural',
-          now,
-          now,
-        ],
-      },
-      {
-        sql: `INSERT OR REPLACE INTO studio_final_avatars_sql (
-          id, name, video_avatar_id, voice_avatar_id, background_id, clothing_id, default_speaking_style, default_emotion, default_language, preview_image_url, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          'final_avatar_kitchen_guru',
-          'Swar Yoga Kitchen Master (सत्त्विक रसोई)',
-          'v_avatar_chef_mohan',
-          'voice_mohan_sir_conversational',
-          'bg_kitchen',
-          'cloth_chef_apron',
-          'conversational',
-          'smile:80',
-          'hi',
-          'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600&auto=format&fit=crop&q=80',
-          now,
-          now,
-        ],
-      },
-      {
-        sql: `INSERT OR REPLACE INTO studio_final_avatars_sql (
-          id, name, video_avatar_id, voice_avatar_id, background_id, clothing_id, default_speaking_style, default_emotion, default_language, preview_image_url, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          'final_avatar_vedic_ashram',
-          'Swar Yoga Breath Master (वैदिक साधना)',
-          'v_avatar_mohan_sir',
-          'voice_mohan_sir_authoritative',
-          'bg_meditation_room',
-          'cloth_white_kurta',
-          'teaching',
-          'spiritual:95',
-          'hi',
-          'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&auto=format&fit=crop&q=80',
           now,
           now,
         ],
@@ -493,7 +425,16 @@ export async function saveFinalAvatar(data: Partial<FinalAvatar>): Promise<Final
 
 export async function deleteFinalAvatar(id: string): Promise<boolean> {
   await initStudioSchema();
-  await bunnyExecute({ sql: 'DELETE FROM studio_final_avatars_sql WHERE id = ?', args: [id] });
+  try {
+    const row = await bunnyExecute({ sql: 'SELECT video_avatar_id FROM studio_final_avatars_sql WHERE id = ?', args: [id] });
+    const videoAvatarId = row.rows[0]?.video_avatar_id;
+    await bunnyExecute({ sql: 'DELETE FROM studio_final_avatars_sql WHERE id = ?', args: [id] });
+    if (videoAvatarId) {
+      await bunnyExecute({ sql: 'DELETE FROM studio_video_avatars_sql WHERE id = ?', args: [videoAvatarId] });
+    }
+  } catch (err) {
+    await bunnyExecute({ sql: 'DELETE FROM studio_final_avatars_sql WHERE id = ?', args: [id] });
+  }
   return true;
 }
 

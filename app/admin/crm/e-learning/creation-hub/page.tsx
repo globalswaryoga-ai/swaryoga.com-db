@@ -262,12 +262,16 @@ export default function CreationHubPage() {
   useEffect(() => {
     const deletedSet = getDeletedIds();
     try {
-      const saved = localStorage.getItem('swar_creation_hub_master_list_v3');
+      const saved = localStorage.getItem('swar_creation_hub_master_list_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const cleaned = parsed.filter(
-            (m: any) => !deletedSet.has(m.id) && !DUMMY_WORKSHOP_IDS.has(m.id)
+            (m: any) =>
+              !deletedSet.has(m.id) &&
+              !DUMMY_WORKSHOP_IDS.has(m.id) &&
+              !String(m.transcript || '').includes('खास फिर दोबारा शुरू करते हैं') &&
+              !String(m.transcript || '').includes('लोग ज्वाइन हो जाएं')
           );
           if (cleaned.length > 0) {
             setMasterList(cleaned);
@@ -287,7 +291,13 @@ export default function CreationHubPage() {
         if (data.success && Array.isArray(data.topics) && data.topics.length > 0) {
           const freshDeleted = getDeletedIds();
           const dbTopics: MasterWorkshopCopy[] = data.topics
-            .filter((t: any) => !freshDeleted.has(t.id) && !DUMMY_WORKSHOP_IDS.has(t.id))
+            .filter(
+              (t: any) =>
+                !freshDeleted.has(t.id) &&
+                !DUMMY_WORKSHOP_IDS.has(t.id) &&
+                !String(t.transcript || '').includes('खास फिर दोबारा शुरू करते हैं') &&
+                !String(t.transcript || '').includes('लोग ज्वाइन हो जाएं')
+            )
             .map((t: any) => ({
               id: t.id,
               level: t.level || 'L-1',
@@ -308,7 +318,7 @@ export default function CreationHubPage() {
           setMasterList(() => {
             const merged = dbTopics;
             try {
-              localStorage.setItem('swar_creation_hub_master_list_v3', JSON.stringify(merged));
+              localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(merged));
             } catch (e) {}
             return merged;
           });
@@ -334,7 +344,7 @@ export default function CreationHubPage() {
   const saveMasterListToStorage = (updated: MasterWorkshopCopy[]) => {
     setMasterList(updated);
     try {
-      localStorage.setItem('swar_creation_hub_master_list_v3', JSON.stringify(updated));
+      localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(updated));
     } catch (e) {}
   };
 
@@ -358,7 +368,7 @@ export default function CreationHubPage() {
       if (d.success && Array.isArray(d.topics)) {
         setMasterList(d.topics);
         try {
-          localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(d.topics));
+          localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(d.topics));
         } catch (e) {}
         if (d.topics.length > 0 && !selectedMasterId) {
           setSelectedMasterId(d.topics[0].id);
@@ -510,7 +520,7 @@ export default function CreationHubPage() {
       const updated = masterList.filter((m) => m.id !== id);
       setMasterList(updated);
       try {
-        localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(updated));
+        localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(updated));
       } catch (e) {}
 
       if (selectedMasterId === id) {
@@ -549,7 +559,7 @@ export default function CreationHubPage() {
   // Working Scripts & Synthesis
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [translatedScripts, setTranslatedScripts] = useState<Record<string, string>>({});
-  const [productionAvatarId, setProductionAvatarId] = useState<string>('final_avatar_vedic_ashram');
+  const [productionAvatarId, setProductionAvatarId] = useState<string>('');
 
   // Active Master Workshop
   const activeMaster = useMemo(() => {

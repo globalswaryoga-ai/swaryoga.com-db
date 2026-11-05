@@ -32,6 +32,7 @@ import {
   Subtitles,
   Copy,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import { FinalAvatar, VideoAvatar } from '@/lib/bunnyAvatarStudioRepository';
 import { MASTER_EMOTION_PRESETS, EmotionPreset } from '@/lib/avatarStudioMasterConfig';
@@ -59,7 +60,14 @@ export default function Module8VideoProductionStudio({
   // Avatars & Project
   const [finalAvatars, setFinalAvatars] = useState<FinalAvatar[]>([]);
   const [videoAvatars, setVideoAvatars] = useState<VideoAvatar[]>([]);
-  const [selectedAvatarId, setSelectedAvatarId] = useState<string>(initialFinalAvatarId);
+  const [selectedAvatarId, setSelectedAvatarId] = useState<string>(
+    initialFinalAvatarId && initialFinalAvatarId !== 'final_avatar_vedic_ashram' && initialFinalAvatarId !== 'final_avatar_kitchen_guru'
+      ? initialFinalAvatarId
+      : ''
+  );
+  const [confirmDeleteAvatarId, setConfirmDeleteAvatarId] = useState<string | null>(null);
+  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+  const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState('Swar Yoga Master Video');
 
   // Script & Timeline
@@ -114,18 +122,31 @@ export default function Module8VideoProductionStudio({
         const dataFinal = await resFinal.json();
         const dataVideo = await resVideo.json();
 
-        if (dataFinal.success && dataFinal.items) {
-          setFinalAvatars(dataFinal.items);
-          const preferred =
-            dataFinal.items.find((a: any) => a.id === selectedAvatarId) ||
-            dataFinal.items.find((a: any) => a.id === 'final_avatar_vedic_ashram' || a.id.includes('vedic') || a.id.includes('mohan')) ||
-            dataFinal.items.find((a: any) => a.videoAvatarId === 'v_avatar_mohan_sir') ||
-            dataFinal.items[0];
-          if (preferred) {
-            setSelectedAvatarId(preferred.id);
-          }
+        let deletedIds: string[] = [];
+        try {
+          const raw = localStorage.getItem('swar_deleted_final_avatar_ids');
+          if (raw) deletedIds = JSON.parse(raw);
+        } catch {}
+
+        if (dataFinal.success && Array.isArray(dataFinal.items)) {
+          const validItems = dataFinal.items.filter(
+            (a: any) =>
+              !deletedIds.includes(a.id) &&
+              a.id !== 'final_avatar_vedic_ashram' &&
+              a.id !== 'final_avatar_kitchen_guru'
+          );
+          setFinalAvatars(validItems);
+
+          setSelectedAvatarId((prev) => {
+            if (prev && validItems.some((a: any) => a.id === prev)) return prev;
+            if (initialFinalAvatarId && validItems.some((a: any) => a.id === initialFinalAvatarId)) {
+              return initialFinalAvatarId;
+            }
+            const dna = validItems.find((a: any) => a.id.startsWith('final_avatar_dna_'));
+            return dna ? dna.id : (validItems[0]?.id || '');
+          });
         }
-        if (dataVideo.success && dataVideo.items) {
+        if (dataVideo.success && Array.isArray(dataVideo.items)) {
           setVideoAvatars(dataVideo.items);
         }
       } catch (err) {
@@ -133,7 +154,51 @@ export default function Module8VideoProductionStudio({
       }
     }
     load();
-  }, [selectedAvatarId]);
+  }, [initialFinalAvatarId]);
+
+  // Permanently delete an avatar look
+  const handleDeleteAvatar = async (avatarId: string) => {
+    if (!avatarId) return;
+    setIsDeletingAvatar(true);
+    try {
+      // 1. Instantly remove from state
+      const remaining = finalAvatars.filter((a) => a.id !== avatarId);
+      setFinalAvatars(remaining);
+      setConfirmDeleteAvatarId(null);
+      if (remaining.length > 0) {
+        setSelectedAvatarId(remaining[0].id);
+      } else {
+        setSelectedAvatarId('');
+      }
+
+      // 2. Persist deleted ID in localStorage
+      try {
+        const deletedRaw = localStorage.getItem('swar_deleted_final_avatar_ids');
+        const deletedArr: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+        if (!deletedArr.includes(avatarId)) {
+          deletedArr.push(avatarId);
+          localStorage.setItem('swar_deleted_final_avatar_ids', JSON.stringify(deletedArr));
+        }
+      } catch {}
+
+      // 3. Delete from backend Bunny Edge SQL
+      await fetch('/api/avatar/studio-hub', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_final_avatar',
+          payload: { id: avatarId },
+        }),
+      });
+
+      setAvatarNotice('Avatar look deleted permanently.');
+      setTimeout(() => setAvatarNotice(null), 3500);
+    } catch (err) {
+      console.error('Failed to delete avatar profile:', err);
+    } finally {
+      setIsDeletingAvatar(false);
+    }
+  };
 
   const [timelineFilterQuery, setTimelineFilterQuery] = useState('');
 
@@ -290,13 +355,11 @@ export default function Module8VideoProductionStudio({
 
   const activeAvatar =
     finalAvatars.find((a) => a.id === selectedAvatarId) ||
-    finalAvatars.find((a) => a.id === 'final_avatar_vedic_ashram' || a.id.includes('vedic')) ||
-    finalAvatars.find((a) => a.videoAvatarId === 'v_avatar_mohan_sir') ||
+    finalAvatars.find((a) => a.id.startsWith('final_avatar_dna_')) ||
     finalAvatars[0];
 
   const matchedVideoAvatar =
     videoAvatars.find((v) => v.id === activeAvatar?.videoAvatarId) ||
-    videoAvatars.find((v) => v.id === 'v_avatar_mohan_sir') ||
     videoAvatars[0];
 
   const rawOriginalUrl =
@@ -902,20 +965,84 @@ export default function Module8VideoProductionStudio({
               </div>
             </div>
 
-            {/* Choose Final Avatar Picker */}
+            {/* Choose Final Avatar Picker with Permanent Delete Button */}
             <div className="pt-2">
-              <label className="block text-xs font-bold text-slate-300 mb-1">Active Final Avatar Profile</label>
-              <select
-                value={selectedAvatarId}
-                onChange={(e) => setSelectedAvatarId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer font-bold"
-              >
-                {finalAvatars.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.defaultSpeakingStyle} • {a.defaultLanguage.toUpperCase()})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-300">Active Final Avatar Profile</label>
+                {activeAvatar && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirmDeleteAvatarId === activeAvatar.id) {
+                        handleDeleteAvatar(activeAvatar.id);
+                      } else {
+                        setConfirmDeleteAvatarId(activeAvatar.id);
+                      }
+                    }}
+                    disabled={isDeletingAvatar}
+                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50"
+                    title="Permanently delete this avatar profile"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-400" />
+                    <span>{confirmDeleteAvatarId === activeAvatar.id ? 'Confirm Delete?' : 'Delete Avatar'}</span>
+                  </button>
+                )}
+              </div>
+
+              {avatarNotice && (
+                <div className="mb-2 p-2 rounded-xl bg-rose-950/70 border border-rose-800/60 text-[11px] text-rose-200 font-bold flex items-center justify-between">
+                  <span>🗑️ {avatarNotice}</span>
+                  <button type="button" onClick={() => setAvatarNotice(null)} className="text-slate-400 hover:text-white text-xs">✕</button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedAvatarId}
+                  onChange={(e) => {
+                    setSelectedAvatarId(e.target.value);
+                    setConfirmDeleteAvatarId(null);
+                  }}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer font-bold truncate"
+                >
+                  {finalAvatars.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.defaultSpeakingStyle} • {a.defaultLanguage.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+
+                {activeAvatar && confirmDeleteAvatarId !== activeAvatar.id && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteAvatarId(activeAvatar.id)}
+                    className="p-2.5 rounded-xl bg-slate-900 border border-rose-900/50 hover:bg-rose-950/80 text-rose-400 hover:text-rose-200 transition-colors cursor-pointer shrink-0"
+                    title="Permanently remove this avatar look"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                  </button>
+                )}
+
+                {activeAvatar && confirmDeleteAvatarId === activeAvatar.id && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAvatar(activeAvatar.id)}
+                      disabled={isDeletingAvatar}
+                      className="px-2.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-900/40 cursor-pointer disabled:opacity-50"
+                    >
+                      {isDeletingAvatar ? 'Deleting...' : 'Yes, Delete'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteAvatarId(null)}
+                      className="px-2 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
