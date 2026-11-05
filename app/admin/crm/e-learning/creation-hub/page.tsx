@@ -71,6 +71,11 @@ interface MasterWorkshopCopy {
   sourceVideoUrl?: string;
   transcript: string;
   keyPoints: string[];
+  blueprintSovPlain?: string;
+  blueprintSovHummer?: string;
+  blueprintSvoPlain?: string;
+  blueprintSvoHummer?: string;
+  adminNotes?: string;
 }
 
 const DEFAULT_MASTER_WORKSHOPS: MasterWorkshopCopy[] = [
@@ -152,6 +157,8 @@ export default function CreationHubPage() {
   const [masterList, setMasterList] = useState<MasterWorkshopCopy[]>(DEFAULT_MASTER_WORKSHOPS);
   const [selectedMasterId, setSelectedMasterId] = useState<string>('master-l1-d1');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All');
+  const [sourceLangFilter, setSourceLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
+  const [topicSearchQuery, setTopicSearchQuery] = useState<string>('');
 
   // View / Edit / Add Master Workshop Modals
   const [viewMaster, setViewMaster] = useState<MasterWorkshopCopy | null>(null);
@@ -168,8 +175,9 @@ export default function CreationHubPage() {
   const [formVideoUrl, setFormVideoUrl] = useState<string>('');
   const [formTranscript, setFormTranscript] = useState<string>('');
   const [formKeyPoints, setFormKeyPoints] = useState<string>('');
+  const [formAdminNotes, setFormAdminNotes] = useState<string>('');
 
-  // Load saved master workshops from localStorage
+  // Load saved master workshops from localStorage & Bunny Database
   useEffect(() => {
     try {
       const saved = localStorage.getItem('swar_creation_hub_master_list');
@@ -180,7 +188,56 @@ export default function CreationHubPage() {
         }
       }
     } catch (e) {}
-  }, []);
+
+    // Also fetch topics saved from Mohan RAG 6-Step Pipeline in Bunny Edge SQL
+    let cancelled = false;
+    const fetchDbTopics = async () => {
+      try {
+        const res = await fetch('/api/admin/crm/e-learning/creation-hub/topics', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.topics) && data.topics.length > 0 && !cancelled) {
+          const dbTopics: MasterWorkshopCopy[] = data.topics.map((t: any) => ({
+            id: t.id,
+            level: t.level || 'L-1',
+            day: t.day || 'Day 1',
+            title: t.title,
+            sourceLanguage: (t.source_language || t.sourceLanguage || 'hi') as 'hi' | 'mr' | 'en',
+            durationMinutes: Number(t.duration_minutes || t.durationMinutes || 45),
+            sourceVideoUrl: t.source_video_url || t.sourceVideoUrl || undefined,
+            transcript: t.transcript || '',
+            keyPoints: Array.isArray(t.key_points) ? t.key_points : (Array.isArray(t.keyPoints) ? t.keyPoints : []),
+            blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovPlain,
+            blueprintSovHummer: t.blueprint_sov_hummer || t.blueprintSovHummer,
+            blueprintSvoPlain: t.blueprint_svo_plain || t.blueprintSvoPlain,
+            blueprintSvoHummer: t.blueprint_svo_hummer || t.blueprintSvoHummer,
+            adminNotes: t.admin_notes || t.adminNotes || '',
+          }));
+
+          setMasterList((prev) => {
+            const map = new Map<string, MasterWorkshopCopy>();
+            // Database topics take priority
+            dbTopics.forEach((item) => map.set(item.id, item));
+            // Preserve local topics
+            prev.forEach((item) => {
+              if (!map.has(item.id)) map.set(item.id, item);
+            });
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.warn('Could not fetch Creation Hub topics from DB:', err);
+      }
+    };
+
+    fetchDbTopics();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const saveMasterListToStorage = (updated: MasterWorkshopCopy[]) => {
     setMasterList(updated);
@@ -204,6 +261,7 @@ export default function CreationHubPage() {
     setFormVideoUrl(item.sourceVideoUrl || '');
     setFormTranscript(item.transcript);
     setFormKeyPoints((item.keyPoints || []).join('\n'));
+    setFormAdminNotes(item.adminNotes || '');
   };
 
   const handleOpenAddModal = () => {
@@ -212,14 +270,15 @@ export default function CreationHubPage() {
     setFormLevel(selectedLevelFilter !== 'All' ? selectedLevelFilter : 'L-1');
     setFormDay('Day ' + (masterList.length + 1));
     setFormTitle('');
-    setFormSourceLang('hi');
+    setFormSourceLang(sourceLangFilter !== 'all' ? sourceLangFilter : 'hi');
     setFormDuration(45);
     setFormVideoUrl('');
     setFormTranscript('');
     setFormKeyPoints('');
+    setFormAdminNotes('');
   };
 
-  const handleSaveMasterForm = (andSubmit = false) => {
+  const handleSaveMasterForm = async (andSubmit = false) => {
     if (!formTitle.trim()) {
       alert('Please enter a workshop title.');
       return;
@@ -231,11 +290,11 @@ export default function CreationHubPage() {
       .filter(Boolean);
 
     let updatedList: MasterWorkshopCopy[];
-    let targetId: string;
+    let targetItem: MasterWorkshopCopy;
 
     if (isNewMaster || !editMaster) {
-      targetId = 'master-' + Date.now();
-      const newEntry: MasterWorkshopCopy = {
+      const targetId = 'master-' + Date.now();
+      targetItem = {
         id: targetId,
         level: formLevel,
         day: formDay,
@@ -247,37 +306,47 @@ export default function CreationHubPage() {
         keyPoints: keyPointsArray.length
           ? keyPointsArray
           : ['सूर्य-चंद्र नाड़ी मूल सिद्धांत', 'प्राणायाम व स्वर चक्र साधना'],
+        adminNotes: formAdminNotes.trim(),
       };
-      updatedList = [newEntry, ...masterList];
+      updatedList = [targetItem, ...masterList];
     } else {
-      targetId = editMaster.id;
-      updatedList = masterList.map((m) => {
-        if (m.id !== editMaster.id) return m;
-        return {
-          ...m,
-          level: formLevel,
-          day: formDay,
-          title: formTitle.trim(),
-          sourceLanguage: formSourceLang,
-          durationMinutes: formDuration || 45,
-          sourceVideoUrl: formVideoUrl.trim() || undefined,
-          transcript: formTranscript.trim(),
-          keyPoints: keyPointsArray,
-        };
-      });
+      targetItem = {
+        ...editMaster,
+        level: formLevel,
+        day: formDay,
+        title: formTitle.trim(),
+        sourceLanguage: formSourceLang,
+        durationMinutes: formDuration || 45,
+        sourceVideoUrl: formVideoUrl.trim() || undefined,
+        transcript: formTranscript.trim(),
+        keyPoints: keyPointsArray,
+        adminNotes: formAdminNotes.trim(),
+      };
+      updatedList = masterList.map((m) => (m.id === editMaster.id ? targetItem : m));
     }
 
     saveMasterListToStorage(updatedList);
-    setSelectedMasterId(targetId);
+    setSelectedMasterId(targetItem.id);
     setEditMaster(null);
     setIsNewMaster(false);
+
+    // Save to Bunny Edge SQL
+    try {
+      await fetch('/api/admin/crm/e-learning/creation-hub/topics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(targetItem),
+      });
+    } catch (e) {
+      console.warn('Could not persist topic to DB:', e);
+    }
 
     if (andSubmit) {
       setActiveStep('languages');
     }
   };
 
-  const handleDeleteMaster = (id: string) => {
+  const handleDeleteMaster = async (id: string) => {
     if (!confirm('Are you sure you want to remove this master workshop copy?')) return;
     const updated = masterList.filter((m) => m.id !== id);
     saveMasterListToStorage(updated.length ? updated : DEFAULT_MASTER_WORKSHOPS);
@@ -286,6 +355,16 @@ export default function CreationHubPage() {
     }
     setEditMaster(null);
     setViewMaster(null);
+
+    // Delete from Bunny Edge SQL
+    try {
+      await fetch(`/api/admin/crm/e-learning/creation-hub/topics?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (e) {
+      console.warn('Could not delete topic from DB:', e);
+    }
   };
 
   const handleSubmitMaster = (item: MasterWorkshopCopy) => {
@@ -424,7 +503,7 @@ export default function CreationHubPage() {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-            <span>1. Master Class ({activeMaster.level})</span>
+            <span>1. Factory Review ({activeMaster.level})</span>
           </button>
 
           <button
@@ -852,174 +931,352 @@ export default function CreationHubPage() {
           )}
 
           {/* ===================================================================== */}
-          {/* VIEW 2: MASTER WORKSHOP COPY SELECTOR (L-1, 2, 3, 4 / Day 1, 2, 3...) */}
+          {/* VIEW 2: FACTORY REVIEW - TOPICS & MASTER WORKSHOPS */}
           {/* ===================================================================== */}
-          {activeStep === 'master-copy' && (
-            <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-                <div>
-                  <h2 className="text-xl font-black text-white flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-purple-400" />
-                    <span>Master Workshop Copies (Level 1–4, Day 1–14)</span>
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Select a master talk. The entire factory will use this copy to generate all 27 languages.
-                  </p>
-                </div>
+          {activeStep === 'master-copy' && (() => {
+            const allCount = masterList.length;
+            const mrCount = masterList.filter((m) => m.sourceLanguage === 'mr').length;
+            const hiCount = masterList.filter((m) => m.sourceLanguage === 'hi').length;
+            const enCount = masterList.filter((m) => m.sourceLanguage === 'en').length;
 
-                {/* Level Filter Chips & Add Master Button */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                    {['All', 'L-1', 'L-2', 'L-3', 'L-4'].map((lvl) => (
-                      <button
-                        key={lvl}
-                        onClick={() => setSelectedLevelFilter(lvl)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                          selectedLevelFilter === lvl
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {lvl}
-                      </button>
-                    ))}
+            const filteredList = masterList.filter((m) => {
+              if (sourceLangFilter !== 'all' && m.sourceLanguage !== sourceLangFilter) return false;
+              if (selectedLevelFilter !== 'All' && m.level !== selectedLevelFilter) return false;
+              if (topicSearchQuery.trim()) {
+                const q = topicSearchQuery.toLowerCase().trim();
+                const matchTitle = m.title.toLowerCase().includes(q);
+                const matchTranscript = (m.transcript || '').toLowerCase().includes(q);
+                const matchKeyPoints = (m.keyPoints || []).some((k) => k.toLowerCase().includes(q));
+                const matchNotes = (m.adminNotes || '').toLowerCase().includes(q);
+                if (!matchTitle && !matchTranscript && !matchKeyPoints && !matchNotes) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
+                {/* Top Banner Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <h2 className="text-xl font-black text-white flex items-center gap-2">
+                      <BookOpen className="w-5 h-5 text-purple-400" />
+                      <span>Factory Review: Added Topics & Master Blueprints</span>
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Filter topics by Source Language, edit transcripts or add custom notes, and submit to 27-language production.
+                    </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleOpenAddModal}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-purple-900/30 border border-purple-400/30"
-                    title="Add a new Day or Level master workshop"
-                  >
-                    <Plus size={14} />
-                    <span>Add Master Copy</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-950/60 text-purple-300 border border-purple-800">
+                      {filteredList.length} of {masterList.length} Topics Showing
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddModal}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-purple-900/30 border border-purple-400/30 cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      <span>+ Add Topic</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Master Workshops Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {masterList
-                  .filter((m) =>
-                    selectedLevelFilter === 'All' ? true : m.level === selectedLevelFilter
-                  )
-                  .map((item) => {
-                    const isSelected = item.id === selectedMasterId;
-                    return (
-                      <div
-                        key={item.id}
-                        onClick={() => setSelectedMasterId(item.id)}
-                        className={`p-5 rounded-2xl cursor-pointer transition-all border flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-purple-950/30 border-purple-500 shadow-xl shadow-purple-900/20 ring-1 ring-purple-400'
-                            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                {item.level}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-300">
-                                {item.day}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                                {item.sourceLanguage === 'mr' ? 'मराठी' : item.sourceLanguage === 'hi' ? 'हिन्दी' : 'English'}
-                              </span>
-                            </div>
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {item.durationMinutes}m
-                            </span>
-                          </div>
+                {/* Two-Column Layout: Small Sidebar on Left + Main Area on Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* ───────────────────────────────────────────────────────────── */}
+                  {/* ── LEFT SIDEBAR: SOURCE LANGUAGE & LEVEL FILTER ──────────── */}
+                  {/* ───────────────────────────────────────────────────────────── */}
+                  <aside className="lg:col-span-3 space-y-5">
+                    {/* Source Language Filter Card */}
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                          <Globe2 className="w-3.5 h-3.5 text-purple-400" />
+                          Source Language
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                          4 Modes
+                        </span>
+                      </div>
 
-                          <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
-
-                          <p className="text-xs text-slate-400 line-clamp-3 mb-3 leading-relaxed">
-                            "{item.transcript}"
-                          </p>
-
-                          <div className="space-y-1 pt-2 border-t border-slate-800/80 mb-4">
-                            {item.keyPoints.slice(0, 2).map((kp, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="truncate">{kp}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Card Action Buttons: View, Edit, Submit */}
-                        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5">
+                      <div className="space-y-1.5">
+                        {[
+                          { id: 'all' as const, label: 'All Languages', count: allCount, icon: '🌐' },
+                          { id: 'mr' as const, label: 'मराठी (Marathi)', count: mrCount, icon: '🚩' },
+                          { id: 'hi' as const, label: 'हिन्दी (Hindi)', count: hiCount, icon: '🕉️' },
+                          { id: 'en' as const, label: 'English', count: enCount, icon: '🇬🇧' },
+                        ].map((lang) => {
+                          const isActive = sourceLangFilter === lang.id;
+                          return (
                             <button
+                              key={lang.id}
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenViewModal(item);
-                              }}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 transition-all border border-slate-700/60 shadow-sm"
-                              title="View full transcript & workshop details"
+                              onClick={() => setSourceLangFilter(lang.id)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                                isActive
+                                  ? 'bg-purple-600 text-white shadow-md shadow-purple-900/30 ring-1 ring-purple-400'
+                                  : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+                              }`}
                             >
-                              <Eye size={13} className="text-sky-400" />
-                              <span>View</span>
+                              <span className="flex items-center gap-2">
+                                <span>{lang.icon}</span>
+                                <span>{lang.label}</span>
+                              </span>
+                              <span
+                                className={`text-[11px] font-mono px-2 py-0.5 rounded-md ${
+                                  isActive ? 'bg-purple-800 text-white' : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {lang.count}
+                              </span>
                             </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
+                    {/* Course Level Filter Card */}
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-amber-400" />
+                          Course Level
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {['All', 'L-1', 'L-2', 'L-3', 'L-4'].map((lvl) => {
+                          const isActive = selectedLevelFilter === lvl;
+                          return (
                             <button
+                              key={lvl}
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditModal(item);
-                              }}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 transition-all border border-slate-700/60 shadow-sm"
-                              title="Edit transcript and add more text"
+                              onClick={() => setSelectedLevelFilter(lvl)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all text-center ${
+                                isActive
+                                  ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                                  : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+                              }`}
                             >
-                              <Edit3 size={13} className="text-amber-400" />
-                              <span>Edit</span>
+                              {lvl === 'All' ? 'All Levels' : lvl}
                             </button>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
 
+                    {/* Topic Search Box */}
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                        <Search className="w-3.5 h-3.5 text-sky-400" />
+                        Search Topics
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={topicSearchQuery}
+                          onChange={(e) => setTopicSearchQuery(e.target.value)}
+                          placeholder="Search title, keywords..."
+                          className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                        />
+                        {topicSearchQuery && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSubmitMaster(item);
-                            }}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md ${
-                              isSelected
-                                ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
-                                : 'bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-emerald-900/30'
-                            }`}
-                            title="Submit this master copy into the 27-language factory pipeline"
+                            onClick={() => setTopicSearchQuery('')}
+                            className="absolute right-2.5 top-2 text-slate-400 hover:text-white"
                           >
-                            <Send size={12} />
-                            <span>{isSelected ? 'Submit ➔' : 'Select & Submit'}</span>
+                            <X size={13} />
                           </button>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-              </div>
+                    </div>
 
-              {/* Action Bar */}
-              <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-400">Selected Master:</span>
-                  <p className="text-sm font-bold text-white">
-                    {activeMaster.level} • {activeMaster.day} — {activeMaster.title}
-                  </p>
+                    {/* RAG Pipeline Integration Note */}
+                    <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-3.5 text-xs text-emerald-300 space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                        <Sparkles size={14} />
+                        <span>Mohan RAG Sync</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 leading-relaxed">
+                        When you click &quot;Finalize &amp; Send to Creation Hub&quot; in Step 6 of the RAG Blueprint Pipeline, topics appear here automatically.
+                      </p>
+                    </div>
+                  </aside>
+
+                  {/* ───────────────────────────────────────────────────────────── */}
+                  {/* ── MAIN AREA: ALL ADDED TOPICS CARDS ─────────────────────── */}
+                  {/* ───────────────────────────────────────────────────────────── */}
+                  <main className="lg:col-span-9 space-y-4">
+                    {filteredList.length === 0 ? (
+                      <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
+                        <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
+                        <h3 className="text-base font-bold text-white">No topics match your current filters</h3>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          Try switching source language, selecting &quot;All Levels&quot;, or click &quot;+ Add Topic&quot; to create a new master copy.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSourceLangFilter('all');
+                            setSelectedLevelFilter('All');
+                            setTopicSearchQuery('');
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition"
+                        >
+                          Reset Filters
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filteredList.map((item) => {
+                          const isSelected = item.id === selectedMasterId;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => setSelectedMasterId(item.id)}
+                              className={`p-5 rounded-3xl cursor-pointer transition-all border flex flex-col justify-between ${
+                                isSelected
+                                  ? 'bg-purple-950/30 border-purple-500 shadow-xl shadow-purple-900/20 ring-1 ring-purple-400'
+                                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div>
+                                {/* Card Header Badges */}
+                                <div className="flex items-center justify-between mb-2.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                      {item.level}
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300">
+                                      {item.day}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                      {item.sourceLanguage === 'mr' ? '🚩 मराठी' : item.sourceLanguage === 'hi' ? '🕉️ हिन्दी' : '🇬🇧 English'}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                                    <Clock className="w-3 h-3 text-purple-400" />
+                                    {item.durationMinutes}m
+                                  </span>
+                                </div>
+
+                                {/* Title / Heading */}
+                                <h3 className="text-base font-black text-white mb-2 leading-snug">
+                                  {item.title}
+                                </h3>
+
+                                {/* Small Description / Transcript Excerpt */}
+                                <p className="text-xs text-slate-300/90 line-clamp-3 mb-3 leading-relaxed italic bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
+                                  &ldquo;{item.transcript}&rdquo;
+                                </p>
+
+                                {/* Key Points */}
+                                <div className="space-y-1.5 pt-2 border-t border-slate-800/80 mb-3">
+                                  {(item.keyPoints || []).slice(0, 2).map((kp, idx) => (
+                                    <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                      <span className="truncate">{kp}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Custom Additions / Admin Notes badge */}
+                                {item.adminNotes && (
+                                  <div className="mb-3 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-1.5">
+                                    <span className="shrink-0 font-bold">📝</span>
+                                    <span className="line-clamp-2">{item.adminNotes}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Card Action Buttons: View, Edit, Delete, Submit */}
+                              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenViewModal(item);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white flex items-center gap-1 transition-all border border-slate-700/60 shadow-sm"
+                                    title="View full transcript & workshop details"
+                                  >
+                                    <Eye size={13} className="text-sky-400" />
+                                    <span>View</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenEditModal(item);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white flex items-center gap-1 transition-all border border-slate-700/60 shadow-sm"
+                                    title="Edit transcript and add custom notes"
+                                  >
+                                    <Edit3 size={13} className="text-amber-400" />
+                                    <span>Edit</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteMaster(item.id);
+                                    }}
+                                    className="p-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition border border-slate-700/60"
+                                    title="Delete this topic"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSubmitMaster(item);
+                                  }}
+                                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md ${
+                                    isSelected
+                                      ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+                                      : 'bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-emerald-900/30'
+                                  }`}
+                                  title="Submit this master copy into the 27-language factory pipeline"
+                                >
+                                  <Send size={12} />
+                                  <span>{isSelected ? 'Submit ➔' : 'Select & Submit'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Bottom Action Bar */}
+                    <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs text-slate-400">Selected Master Topic:</span>
+                        <p className="text-sm font-bold text-white">
+                          {activeMaster.level} • {activeMaster.day} — {activeMaster.title}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStep('languages')}
+                        className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-purple-600/30 cursor-pointer"
+                      >
+                        <span>Proceed to 27 Languages</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </main>
                 </div>
-                <button
-                  onClick={() => setActiveStep('languages')}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-purple-600/30"
-                >
-                  <span>Proceed to 27 Languages</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ===================================================================== */}
           {/* VIEW 3: 27+ MULTILINGUAL TEXT ENGINE */}
@@ -1191,6 +1448,14 @@ export default function CreationHubPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Custom Additions / Admin Notes */}
+              {viewMaster.adminNotes && (
+                <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-900/40 text-xs text-amber-200 space-y-1">
+                  <span className="font-bold text-amber-400 block">📝 Custom Notes / Added Instructions:</span>
+                  <p className="leading-relaxed whitespace-pre-wrap">{viewMaster.adminNotes}</p>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -1416,6 +1681,21 @@ export default function CreationHubPage() {
                   value={formKeyPoints}
                   onChange={(e) => setFormKeyPoints(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Add Something / Custom Notes */}
+              <div>
+                <label className="text-xs font-bold text-amber-300 block mb-1 flex items-center gap-1.5">
+                  <span>📝 Add Custom Additions / Teacher Notes</span>
+                  <span className="text-slate-500 font-normal text-[11px]">(Specific examples, avatar emotions, punchlines)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Add any extra teaching notes, personal examples, wardrobe suggestions, or background cue for this topic..."
+                  value={formAdminNotes}
+                  onChange={(e) => setFormAdminNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-amber-900/40 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none"
                 />
               </div>
             </div>

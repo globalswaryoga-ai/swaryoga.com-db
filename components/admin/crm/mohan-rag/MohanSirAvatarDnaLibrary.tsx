@@ -1604,9 +1604,12 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
               return (
                 <div
                   key={item.id}
-                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm hover:shadow-lg transition"
+                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm hover:shadow-lg transition flex flex-col justify-between"
                 >
-                  <div className="h-48 w-full bg-slate-950 relative overflow-hidden">
+                  <div
+                    onClick={() => togglePlay(`posture_${item.id}`)}
+                    className="h-48 w-full bg-slate-950 relative overflow-hidden cursor-pointer"
+                  >
                     <video
                       ref={(el) => {
                         videoRefs.current[`posture_${item.id}`] = el;
@@ -1618,13 +1621,17 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                       preload="metadata"
                       loop
                       muted
+                      onEnded={() => setPlayingVideoId(null)}
                     />
 
                     {/* Play/Pause Button Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                       <button
                         type="button"
-                        onClick={() => togglePlay(`posture_${item.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePlay(`posture_${item.id}`);
+                        }}
                         className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 shadow-2xl ${
                           isPlaying
                             ? 'bg-black/70 text-white hover:scale-110 ring-2 ring-emerald-400'
@@ -1777,7 +1784,10 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                     }`}
                   >
                     {/* Top 50% Video Playback with Play/Pause Button */}
-                    <div className="relative aspect-video w-full overflow-hidden bg-slate-950">
+                    <div
+                      onClick={() => togglePlay(`ward_${item.id}`)}
+                      className="relative aspect-video w-full overflow-hidden bg-slate-950 cursor-pointer"
+                    >
                       <video
                         ref={(el) => {
                           videoRefs.current[`ward_${item.id}`] = el;
@@ -1788,13 +1798,17 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                         loop
                         playsInline
                         muted
+                        onEnded={() => setPlayingVideoId(null)}
                       />
 
                       {/* Play/Pause Button Overlay */}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                         <button
                           type="button"
-                          onClick={() => togglePlay(`ward_${item.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePlay(`ward_${item.id}`);
+                          }}
                           className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 shadow-2xl ${
                             isItemPlaying
                               ? 'bg-black/70 text-white hover:scale-110 ring-2 ring-emerald-400'
@@ -1922,10 +1936,10 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
             {/* Currently Active Look Highlight */}
             {currentActiveLook && (
               <div className="flex flex-col sm:flex-row items-center gap-6 rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 p-5">
-                <div className="aspect-video w-full sm:w-64 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-slate-950 shadow-md relative">
+                <div className="aspect-video w-full sm:w-72 shrink-0 overflow-hidden rounded-xl border border-emerald-300 bg-slate-950 shadow-md relative">
                   {currentActiveLook.video_url?.includes('iframe.mediadelivery.net') ? (
                     <iframe
-                      src={currentActiveLook.video_url}
+                      src={currentActiveLook.video_url.replace('/play/', '/embed/')}
                       loading="lazy"
                       className="h-full w-full border-0"
                       allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import {
   CheckCircle2, AlertCircle, ArrowRight, Sparkles, BookOpen,
-  Languages, FileText, Smile, Sliders, RefreshCw, Save
+  Languages, FileText, Smile, Sliders, RefreshCw, Save, Send, ExternalLink
 } from 'lucide-react';
 
 interface SixStepPipelineProps {
@@ -38,6 +38,76 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
   const [recheckStats, setRecheckStats] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSendingToHub, setIsSendingToHub] = useState(false);
+  const [hubSuccessMsg, setHubSuccessMsg] = useState('');
+
+  const handleSendToCreationHub = async () => {
+    setIsSendingToHub(true);
+    setStatusMsg('');
+    setErrorMsg('');
+    try {
+      const targetId = blueprintId || `topic-${Date.now()}`;
+      const levelCode = moduleId === 'level-1' ? 'L-1' : moduleId === 'level-2' ? 'L-2' : moduleId === 'level-3' ? 'L-3' : 'L-4';
+      const langCode = step2Detection?.detectedLanguage || sourceLanguage || 'hi';
+
+      const payload = {
+        id: targetId,
+        title: topic,
+        level: levelCode,
+        day: 'Day 1',
+        sourceLanguage: langCode,
+        durationMinutes: 45,
+        transcript: step6SovPlain || step5Text || step3Text || step1Text,
+        blueprintSovPlain: step6SovPlain || step5Text || step1Text,
+        blueprintSovHummer: step6SovHummer || step6SovPlain || step5Text,
+        blueprintSvoPlain: step6SvoPlain || '',
+        blueprintSvoHummer: step6SvoHummer || '',
+        keyPoints: [
+          'Verbatim Speech Blueprint (SOV / SVO)',
+          'Verified Yoga Terminology (स्वर, नाडी, प्राणायाम, जठराग्नी)',
+          'Preserved Mohan Sir Authentic Expressions & Punchlines',
+        ],
+        adminNotes: 'Finalized from Mohan RAG 6-Step Blueprint Pipeline.',
+      };
+
+      // 1. Save to Bunny Database API
+      const res = await fetch('/api/admin/crm/e-learning/creation-hub/topics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send topic to Creation Hub');
+
+      // 2. Also push into localStorage for instant multi-tab sync
+      try {
+        const existingRaw = localStorage.getItem('swar_creation_hub_master_list');
+        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+        const filtered = Array.isArray(existing) ? existing.filter((m: any) => m.id !== targetId) : [];
+        const updated = [
+          {
+            id: targetId,
+            level: levelCode,
+            day: 'Day 1',
+            title: topic,
+            sourceLanguage: langCode,
+            durationMinutes: 45,
+            transcript: payload.transcript,
+            keyPoints: payload.keyPoints,
+          },
+          ...filtered,
+        ];
+        localStorage.setItem('swar_creation_hub_master_list', JSON.stringify(updated));
+      } catch (e) {}
+
+      setHubSuccessMsg(`✓ Topic "${topic}" successfully pushed into Creation Hub Factory Review!`);
+      setStatusMsg(`🎉 Finalized! "${topic}" is now ready in Creation Hub Factory Review.`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Could not send topic to Creation Hub');
+    } finally {
+      setIsSendingToHub(false);
+    }
+  };
 
   const runVerbatimRecheck = async () => {
     if (!token || !step1Text.trim()) return;
@@ -378,6 +448,45 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
               <li><strong>43 Languages Conversion</strong> (SOV languages inherit the SOV blueprint; SVO languages inherit the SVO blueprint).</li>
             </ul>
           </div>
+
+          {/* Action to Finalize & Send to Creation Hub (Factory Review) */}
+          <div className="pt-3 border-t border-emerald-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-slate-800">Factory Pipeline Handoff:</span>
+              <p className="text-[11px] text-slate-500">
+                When you finalize this topic blueprint, send it directly to Creation Hub (Factory Review) for 27-language video production.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSendToCreationHub}
+              disabled={isSendingToHub || (!step6SovPlain && !step5Text && !step1Text)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-700 via-indigo-700 to-emerald-700 hover:from-purple-600 hover:to-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-md hover:scale-102 active:scale-95 transition cursor-pointer disabled:opacity-50 shrink-0"
+              title="Finalize blueprint and send to Creation Hub Factory Review"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{isSendingToHub ? 'Sending to Factory...' : '🚀 Finalize & Send to Creation Hub (Factory Review)'}</span>
+            </button>
+          </div>
+
+          {hubSuccessMsg && (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span className="font-semibold">{hubSuccessMsg}</span>
+              </div>
+              <a
+                href="/admin/crm/e-learning/creation-hub"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 transition"
+              >
+                <span>Open in Creation Hub</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>
