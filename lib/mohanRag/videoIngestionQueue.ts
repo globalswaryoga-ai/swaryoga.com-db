@@ -163,6 +163,25 @@ export async function retryFailedVideoIngestionJob(id: string) {
   return Number(result.rowsAffected || 0) > 0;
 }
 
+export async function retryAllFailedVideoIngestionJobs() {
+  await ensureVideoIngestionSchema();
+  const result = await bunnyExecute({
+    sql: `UPDATE mohan_rag_video_ingestion_sql
+      SET status='queued', error_message=NULL, updated_at=?
+      WHERE status='failed'`,
+    args: [new Date().toISOString()],
+  });
+  return Number(result.rowsAffected || 0);
+}
+
+export async function clearFailedVideoIngestionJobs() {
+  await ensureVideoIngestionSchema();
+  const result = await bunnyExecute({
+    sql: `DELETE FROM mohan_rag_video_ingestion_sql WHERE status='failed'`,
+  });
+  return Number(result.rowsAffected || 0);
+}
+
 export async function finishVideoIngestionJob(id: string, values: {
   status: 'completed' | 'failed'; sourceId?: string | null; originalFileUrl?: string | null; errorMessage?: string | null; title?: string | null;
 }) {

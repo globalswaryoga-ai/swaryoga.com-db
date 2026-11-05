@@ -7,7 +7,7 @@ import {
   ChevronRight, CircleHelp, Dna, FileSearch, FileText, FlaskConical, Globe2,
   HardDrive, Languages, LayoutDashboard, ListChecks, LockKeyhole, Mic2, Network,
   Search, Settings2, ShieldCheck, Sparkles, Upload, UserRoundCog, Users, Video, FileAudio, SpellCheck,
-  Heart, Flame, RefreshCw, CheckCircle2, Loader2, X, Trash2, Cpu,
+  Heart, Flame, RefreshCw, CheckCircle2, Loader2, X, Trash2, Cpu, Key,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
@@ -3916,8 +3916,56 @@ function IngestionDetails({ token }: { token: string | null }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [startingWorker, setStartingWorker] = useState(false);
+  const [retryingAll, setRetryingAll] = useState(false);
+  const [clearingFailed, setClearingFailed] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // YouTube Cookies State
+  const [hasAuthorizedCookies, setHasAuthorizedCookies] = useState<boolean | null>(null);
+  const [cookiesModalOpen, setCookiesModalOpen] = useState(false);
+  const [cookieInput, setCookieInput] = useState('');
+  const [savingCookies, setSavingCookies] = useState(false);
+  const [cookiesMessage, setCookiesMessage] = useState('');
+
+  const checkCookiesStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/youtube-cookies', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHasAuthorizedCookies(Boolean(data.configured));
+      }
+    } catch {}
+  };
+
+  const handleSaveCookies = async () => {
+    if (!token || !cookieInput.trim()) return;
+    setSavingCookies(true);
+    setCookiesMessage('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/youtube-cookies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ cookies: cookieInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save cookies');
+      setCookiesMessage('✅ YouTube cookies saved successfully! Authorized session is now active.');
+      setHasAuthorizedCookies(true);
+      setTimeout(() => {
+        setCookiesModalOpen(false);
+        loadJobs();
+      }, 1500);
+    } catch (err: any) {
+      setCookiesMessage(`❌ Error: ${err.message || 'Could not save cookies'}`);
+    } finally {
+      setSavingCookies(false);
+    }
+  };
 
   const loadJobs = async () => {
     if (!token) return;
@@ -3932,7 +3980,11 @@ function IngestionDetails({ token }: { token: string | null }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadJobs(); }, [token]);
+  useEffect(() => {
+    loadJobs();
+    checkCookiesStatus();
+  }, [token]);
+
   useEffect(() => {
     if (!token || !jobs.some(job => ['queued', 'processing'].includes(job.status))) return;
     const timer = window.setInterval(loadJobs, 15000);
@@ -4023,9 +4075,99 @@ function IngestionDetails({ token }: { token: string | null }) {
     } finally { setSaving(false); }
   };
 
+  const retryAllFailed = async () => {
+    if (!token) return;
+    setRetryingAll(true); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/admin/crm/mohan-rag/ingestion', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry_all' }),
+      });
+      const data = await readManagementApiJson(response);
+      if (!response.ok) throw new Error(data.error || 'Could not retry failed jobs');
+      setNotice(data.message || 'All failed jobs requeued for retry.');
+      await loadJobs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not retry failed jobs');
+    } finally { setRetryingAll(false); }
+  };
+
+  const clearFailed = async () => {
+    if (!token) return;
+    if (!confirm('Are you sure you want to remove all failed jobs from the queue?')) return;
+    setClearingFailed(true); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/admin/crm/mohan-rag/ingestion', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_failed' }),
+      });
+      const data = await readManagementApiJson(response);
+      if (!response.ok) throw new Error(data.error || 'Could not clear failed jobs');
+      setNotice(data.message || 'Failed jobs cleared.');
+      await loadJobs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not clear failed jobs');
+    } finally {
+      setClearingFailed(false);
+    }
+  };
+
+  const failedJobsCount = jobs.filter(j => j.status === 'failed').length;
+  const queuedJobsCount = jobs.filter(j => j.status === 'queued').length;
+  const processingJobsCount = jobs.filter(j => j.status === 'processing').length;
+  const completedJobsCount = jobs.filter(j => j.status === 'completed').length;
+
   const statusStyle: Record<string, string> = { queued: 'border-amber-200 bg-amber-50 text-amber-800', processing: 'border-blue-200 bg-blue-50 text-blue-800', completed: 'border-emerald-200 bg-emerald-50 text-emerald-800', failed: 'border-rose-200 bg-rose-50 text-rose-800' };
   return <div className="space-y-5">
-    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Bunny media transcription queue</p><h3 className="mt-1 text-lg font-semibold text-slate-900">MP4/MP3 to timestamped text</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Uploaded media is stored in Bunny and transcribed by the background worker. Completed transcripts appear in Library (All Sources) as drafts to review; they do not appear in the separate Master Teaching Corpus automatically.</p></div><span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">Automatic: 10 PM–6 AM · Asia/Kolkata</span></div>
+    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-violet-50 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Bunny media transcription queue</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">MP4/MP3 to timestamped text</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Uploaded media is stored in Bunny and transcribed by the background worker. Completed transcripts appear in Library (All Sources) as drafts to review; they do not appear in the separate Master Teaching Corpus automatically.</p>
+        </div>
+        <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">Automatic: 10 PM–6 AM · Asia/Kolkata</span>
+      </div>
+
+      {/* YouTube Authorized Session Banner */}
+      <div className={`mt-4 rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 ${
+        hasAuthorizedCookies
+          ? 'border-emerald-300 bg-emerald-50/80 text-emerald-950'
+          : 'border-amber-300 bg-amber-50/90 text-amber-950'
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 rounded-lg p-2 ${hasAuthorizedCookies ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-200 text-amber-800'}`}>
+            <LockKeyhole className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold">
+                {hasAuthorizedCookies ? 'YouTube Authorized Session Active' : 'YouTube Session Cookies Needed for Private/Unlisted Videos'}
+              </h4>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                hasAuthorizedCookies ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+              }`}>
+                {hasAuthorizedCookies ? 'Authorized' : 'Public Only'}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-700">
+              {hasAuthorizedCookies
+                ? 'yt-dlp is using your authorized cookies.txt to transcribe unlisted and private channel recordings without bot blocks.'
+                : 'Unlisted or private YouTube recordings fail with "Sign in to confirm you’re not a bot" without cookies.txt. Export cookies from your browser to unlock all videos.'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setCookiesMessage(''); setCookiesModalOpen(true); }}
+          className="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 shadow-xs transition"
+        >
+          {hasAuthorizedCookies ? '⚙️ Update Cookies.txt' : '🔑 Configure YouTube Cookies.txt'}
+        </button>
+      </div>
+
       <div className="mt-4 grid gap-3 md:grid-cols-3"><label className="text-xs font-medium text-slate-600">Knowledge library<select value={moduleId} onChange={event => setModuleId(event.target.value as MohanRagModule)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900">{modules.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><label className="text-xs font-medium text-slate-600">Topic (optional)<input value={topic} onChange={event => setTopic(event.target.value)} maxLength={300} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900" placeholder="e.g. Swar Yoga basics" /></label><label className="text-xs font-medium text-slate-600">Language<select value={language} onChange={event => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-slate-900"><option value="auto">Auto detect</option><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option></select></label></div>
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <div className="rounded-xl border border-sky-200 bg-white p-4"><div className="flex items-center gap-2"><Upload className="h-4 w-4 text-sky-700"/><h4 className="text-sm font-semibold text-slate-900">Upload from this device</h4></div><p className="mt-1 text-xs text-slate-600">MP4, WebM, MOV, MP3, M4A, or WAV · up to 5 GB. Large files stream directly to Bunny; long audio is split into MP3 segments for transcription and word-level correction.</p><input type="file" accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/wav,.mp4,.webm,.mov,.mp3,.m4a,.wav" onChange={event => setUploadFile(event.target.files?.[0] || null)} className="mt-3 block w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-900 hover:file:bg-sky-200"/><div className="mt-3 flex items-center justify-between gap-2"><span className="min-w-0 truncate text-xs text-slate-500">{uploadFile ? `${uploadFile.name} · ${(uploadFile.size / 1024 / 1024).toFixed(1)} MB` : 'Choose a media file'}</span><button type="button" disabled={saving || !uploadFile} onClick={uploadMedia} className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{saving ? 'Uploading…' : 'Upload & queue'}</button></div></div>
@@ -4037,14 +4179,45 @@ function IngestionDetails({ token }: { token: string | null }) {
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-slate-900">Recent video jobs</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-slate-900">Recent video jobs</h3>
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+              {jobs.length} total
+            </span>
+            {queuedJobsCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{queuedJobsCount} queued</span>}
+            {processingJobsCount > 0 && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">{processingJobsCount} processing</span>}
+            {failedJobsCount > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">{failedJobsCount} failed</span>}
+            {completedJobsCount > 0 && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">{completedJobsCount} completed</span>}
+          </div>
           <p className="mt-1 text-xs text-slate-500">Completed items create transcript sources in the selected library. Refresh to see updates; click Run queued jobs to start processing now.</p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={loadJobs} disabled={loading || startingWorker} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2">
+          {failedJobsCount > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={retryAllFailed}
+                disabled={retryingAll || loading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-2 text-xs font-bold text-white shadow-xs transition disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${retryingAll ? 'animate-spin' : ''}`} />
+                <span>{retryingAll ? 'Requeueing…' : `Retry All Failed (${failedJobsCount})`}</span>
+              </button>
+              <button
+                type="button"
+                onClick={clearFailed}
+                disabled={clearingFailed || loading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-800 transition disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{clearingFailed ? 'Clearing…' : 'Clear Failed'}</span>
+              </button>
+            </>
+          )}
+          <button type="button" onClick={loadJobs} disabled={loading || startingWorker} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold hover:bg-slate-50">
             {loading ? 'Refreshing…' : 'Refresh queue'}
           </button>
-          <button type="button" onClick={processQueuedJobs} disabled={startingWorker || loading || saving || !jobs.some(job => job.status === 'queued')} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+          <button type="button" onClick={processQueuedJobs} disabled={startingWorker || loading || saving || !jobs.some(job => job.status === 'queued')} className="rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 shadow-xs">
             {startingWorker ? 'Starting…' : 'Run queued jobs now'}
           </button>
         </div>
@@ -4092,6 +4265,88 @@ function IngestionDetails({ token }: { token: string | null }) {
       )}
     </section>
     <div className="grid gap-4 xl:grid-cols-2"><DetailCard title="Bunny links" icon={HardDrive}>Direct Bunny CDN MP3/MP4 URLs are read from Bunny and are not copied or re-uploaded. Bunny Stream player links are converted to their Bunny CDN video URL. Bunny media is streamed through FFmpeg and can be up to 5 GB.</DetailCard><DetailCard title="YouTube links" icon={Video}>Public videos are downloaded with yt-dlp. Private videos need an authorized cookies file configured as YOUTUBE_COOKIES_FILE on the server. YouTube downloads remain capped at 350 MB; audio is converted to compact MP3 before transcription.</DetailCard></div>
+
+    {/* Cookies Upload / Config Modal */}
+    {cookiesModalOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-amber-600" />
+              <h3 className="font-bold text-slate-900">Configure YouTube Cookies.txt</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCookiesModalOpen(false)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs text-amber-950 space-y-2">
+            <p className="font-bold">How to export YouTube cookies in 1 minute:</p>
+            <ol className="list-decimal list-inside space-y-1 text-amber-900">
+              <li>Install the free Chrome extension: <strong>&quot;Get cookies.txt LOCALLY&quot;</strong>.</li>
+              <li>Go to <strong>youtube.com</strong> in Chrome (ensure you are logged in to the Swar Yoga channel).</li>
+              <li>Click the extension icon and click <strong>&quot;Export&quot;</strong> to download <code className="bg-amber-100 px-1 py-0.5 rounded">youtube.com_cookies.txt</code>.</li>
+              <li>Upload that file below or paste its text content.</li>
+            </ol>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <label className="font-semibold">Upload or paste cookies.txt</label>
+              <input
+                type="file"
+                accept=".txt"
+                className="text-xs file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-semibold hover:file:bg-slate-200 cursor-pointer"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const r = new FileReader();
+                  r.onload = ev => setCookieInput(String(ev.target?.result || ''));
+                  r.readAsText(f);
+                }}
+              />
+            </div>
+            <textarea
+              rows={8}
+              value={cookieInput}
+              onChange={e => setCookieInput(e.target.value)}
+              placeholder="# Netscape HTTP Cookie File&#10;# https://curl.se/docs/http-cookies.html&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;1789999999&#9;SID&#9;..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          {cookiesMessage && (
+            <p className={`p-2.5 rounded-xl text-xs font-bold ${
+              cookiesMessage.startsWith('✅') ? 'bg-emerald-50 text-emerald-900 border border-emerald-300' : 'bg-rose-50 text-rose-900 border border-rose-300'
+            }`}>
+              {cookiesMessage}
+            </p>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setCookiesModalOpen(false)}
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveCookies}
+              disabled={savingCookies || !cookieInput.trim()}
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
+            >
+              {savingCookies ? 'Saving...' : 'Save & Activate Cookies'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>;
 }
 

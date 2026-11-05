@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Job queued for retry.' });
     }
 
+    if (body?.action === 'retry_all') {
+      const { retryAllFailedVideoIngestionJobs } = await import('@/lib/mohanRag/videoIngestionQueue');
+      const count = await retryAllFailedVideoIngestionJobs();
+      return NextResponse.json({ success: true, count, message: `Successfully requeued ${count} failed job(s) for retry.` });
+    }
+
+    if (body?.action === 'clear_failed') {
+      const { clearFailedVideoIngestionJobs } = await import('@/lib/mohanRag/videoIngestionQueue');
+      const count = await clearFailedVideoIngestionJobs();
+      return NextResponse.json({ success: true, count, message: `Cleared ${count} failed job(s) from queue.` });
+    }
+
     const moduleId = String(body?.moduleId || '');
     const urls = typeof body?.urls === 'string' ? body.urls.split(/[\r\n,\t ]+/).filter(Boolean) : body?.urls;
     const language = String(body?.language || 'auto');

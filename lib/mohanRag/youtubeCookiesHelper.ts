@@ -42,3 +42,4 @@ export async function removeYouTubeCookies(): Promise<void> {
     } catch {}
   }
 }
+

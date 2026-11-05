@@ -61,3 +61,4 @@ export async function DELETE(request: NextRequest) {
     message: 'YouTube cookies file removed. Worker will operate in public mode.',
   });
 }
+
