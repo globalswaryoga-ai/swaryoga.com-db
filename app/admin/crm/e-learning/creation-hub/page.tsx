@@ -1735,6 +1735,12 @@ export default function CreationHubPage() {
                 token={token}
                 initialScript={currentWorkingScript}
                 initialFinalAvatarId={productionAvatarId}
+                initialVideoUrl={activeMaster?.sourceVideoUrl}
+                initialPosterUrl={
+                  activeMaster?.sourceVideoUrl
+                    ? `/api/recorded-courses/thumbnail?videoId=${activeMaster.sourceVideoUrl.split('/').pop() || ''}`
+                    : ''
+                }
               />
             </div>
           )}

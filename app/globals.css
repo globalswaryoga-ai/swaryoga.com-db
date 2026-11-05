@@ -18,7 +18,7 @@
 pre.font-devanagari, textarea.font-devanagari,
 code.font-devanagari,
 [data-font="devanagari"] {
-  font-family: 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
+  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', 'Poppins', sans-serif !important;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

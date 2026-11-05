@@ -40,12 +40,16 @@ interface Module8Props {
   token?: string | null;
   initialScript?: string;
   initialFinalAvatarId?: string;
+  initialVideoUrl?: string;
+  initialPosterUrl?: string;
 }
 
 export default function Module8VideoProductionStudio({
   token,
   initialScript = '',
   initialFinalAvatarId = '',
+  initialVideoUrl = '',
+  initialPosterUrl = '',
 }: Module8Props) {
   // Content Type
   const [contentType, setContentType] = useState<'full_video' | 'shorts' | 'live_avatar'>('full_video');
@@ -295,20 +299,31 @@ export default function Module8VideoProductionStudio({
     videoAvatars.find((v) => v.id === 'v_avatar_mohan_sir') ||
     videoAvatars[0];
 
-  const rawOriginalUrl = matchedVideoAvatar?.originalVideoUrl || '';
+  const rawOriginalUrl =
+    initialVideoUrl ||
+    matchedVideoAvatar?.originalVideoUrl ||
+    'https://iframe.mediadelivery.net/play/606386/baedb88d-2353-4215-ab33-2ddbbf5cb9d9';
+
+  const isIframeBunny = Boolean(
+    rawOriginalUrl &&
+    (rawOriginalUrl.includes('mediadelivery.net') || rawOriginalUrl.includes('606386'))
+  );
+
   const isDirectVideoFile = Boolean(
     rawOriginalUrl &&
+    !isIframeBunny &&
     !rawOriginalUrl.includes('images.unsplash.com') &&
     /\.(mp4|webm|mov|m4v)($|\?)/i.test(rawOriginalUrl)
   );
-  const avatarVideoUrl = isDirectVideoFile
-    ? rawOriginalUrl
-    : 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+
+  const avatarVideoUrl = rawOriginalUrl;
 
   const avatarPosterUrl =
+    initialPosterUrl ||
     matchedVideoAvatar?.thumbnailUrl ||
     matchedVideoAvatar?.cutoutUrl ||
     activeAvatar?.previewImageUrl ||
+    (rawOriginalUrl.includes('606386') ? `/api/recorded-courses/thumbnail?videoId=${rawOriginalUrl.split('/').pop() || ''}` : '') ||
     'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg';
 
   const parseTimeToSeconds = (str: string = '00:00'): number => {
@@ -661,8 +676,18 @@ export default function Module8VideoProductionStudio({
                   : 'aspect-video w-full'
               }`}
             >
-              {/* If avatar has video stream or user plays, render video */}
-              {avatarVideoUrl ? (
+              {/* If avatar has Bunny Stream iframe, direct MP4 or fallback */}
+              {isIframeBunny ? (
+                <div className="relative w-full h-full bg-black">
+                  <iframe
+                    src={`${avatarVideoUrl}${avatarVideoUrl.includes('?') ? '&' : '?'}autoplay=${isPlayingAll ? '1' : '0'}&muted=${isMuted ? '1' : '0'}&loop=1`}
+                    loading="lazy"
+                    className="h-full w-full border-0 absolute inset-0 z-0"
+                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                    allowFullScreen
+                  />
+                </div>
+              ) : avatarVideoUrl ? (
                 <video
                   ref={canvasVideoRef}
                   src={avatarVideoUrl}
@@ -673,13 +698,6 @@ export default function Module8VideoProductionStudio({
                   muted={isMuted}
                   onTimeUpdate={handleVideoTimeUpdate}
                   onEnded={handleVideoEnded}
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    if (target.src !== 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4') {
-                      target.src = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
-                      target.load();
-                    }
-                  }}
                   className={`w-full h-full object-cover transition-all ${
                     isSpeaking ? 'scale-[1.02] brightness-105' : 'brightness-95'
                   }`}
