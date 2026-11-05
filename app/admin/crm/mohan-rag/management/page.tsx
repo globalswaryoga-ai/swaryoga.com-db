@@ -33,6 +33,7 @@ import FourWorkersPipelineView from '@/components/admin/crm/mohan-rag/FourWorker
 import MohanSirAvatarDnaLibrary from '@/components/admin/crm/mohan-rag/MohanSirAvatarDnaLibrary';
 import YouTubeChannelIntake from '@/components/admin/crm/mohan-rag/YouTubeChannelIntake';
 import VoiceMicInputButton from '@/components/admin/crm/mohan-rag/VoiceMicInputButton';
+import { detectTextLanguageClient } from '@/lib/mohanRag/languageDetectionClient';
 import { SUPPORTED_27_LANGUAGES } from '@/lib/mohanRag/multiLanguageSynthesisEngine';
 import type { MohanRagModule } from '@/lib/mohanRag/knowledgeRepository';
 
@@ -1055,6 +1056,11 @@ function Library({
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [showLangScanModal, setShowLangScanModal] = useState(false);
+  const [langScanResult, setLangScanResult] = useState<any>(null);
+  const [isScanningLang, setIsScanningLang] = useState(false);
+  const [isBatchCleaningLang, setIsBatchCleaningLang] = useState(false);
+  const [batchCleanMsg, setBatchCleanMsg] = useState('');
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisMsg, setSynthesisMsg] = useState('');
 
@@ -1173,6 +1179,49 @@ function Library({
     }
   };
 
+  const handleScanLanguage = async () => {
+    if (!token) return;
+    setIsScanningLang(true);
+    setBatchCleanMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/sources/language-filter', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Scan failed');
+      setLangScanResult(data);
+      setShowLangScanModal(true);
+    } catch (err: any) {
+      setNotice(err.message || 'Language scan failed');
+    } finally {
+      setIsScanningLang(false);
+    }
+  };
+
+  const handleBatchCleanLanguages = async (sourceIds?: string[]) => {
+    if (!token) return;
+    setIsBatchCleaningLang(true);
+    setBatchCleanMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/sources/language-filter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'batch_standardize', sourceIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Batch clean failed');
+      setBatchCleanMsg(data.message || 'Batch clean complete!');
+      await handleScanLanguage();
+      if (source) {
+        await openSource(source);
+      }
+    } catch (err: any) {
+      setBatchCleanMsg(err.message || 'Batch clean failed');
+    } finally {
+      setIsBatchCleaningLang(false);
+    }
+  };
+
   const handleDeleteLibrarySource = async (sourceId: string, title: string) => {
     if (!token) return;
     if (!window.confirm(`Are you sure you want to permanently delete "${title}"?`)) return;
@@ -1246,6 +1295,9 @@ function Library({
     )
   );
 
+  const langCheck = detailedSource ? detectTextLanguageClient(plainText) : null;
+  const isAlreadyStandardized = detailedSource?.extractionType === 'language_separated_proofread';
+
   const handleLanguageAction = async (targetLang: 'hi' | 'mr' | 'en', action: 'reassign' | 'standardize') => {
     if (!token || !detailedSource) return;
     setIsFixingLang(true);
@@ -1295,6 +1347,16 @@ function Library({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Knowledge Library</p><h3 className="mt-1 text-lg font-semibold text-slate-900">Browse your source material</h3><p className="mt-1 text-sm text-slate-600">Choose a library, open a topic, then inspect the saved text or avatar cues.</p></div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleScanLanguage}
+              disabled={isScanningLang}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 px-3.5 py-2 text-xs font-black text-white shadow-md hover:from-emerald-600 hover:to-teal-600 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Scan all library sources for mixed Marathi-Hindi speech and Whisper speech recognition garble"
+            >
+              {isScanningLang ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>🛡️</span>}
+              <span>{isScanningLang ? 'Scanning Languages...' : '🛡️ Language & Speech Quality Scanner'}</span>
+            </button>
             <button
               type="button"
               onClick={handleScanAutoFix}
@@ -1714,47 +1776,120 @@ function Library({
           {autoFixMsg && (
             <p className="mt-2 rounded-lg bg-emerald-100 p-2.5 text-xs font-bold text-emerald-900 border border-emerald-300">{autoFixMsg}</p>
           )}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/90 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-amber-950">Active Language:</span>
-              <span className="rounded-full bg-amber-200 border border-amber-300 px-3 py-0.5 text-xs font-extrabold text-amber-950 uppercase">{detailedSource.language}</span>
-              <span className="text-xs text-amber-800">(If lecture is in Hindi or mixed, standardize below):</span>
+          {isAlreadyStandardized ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300 bg-emerald-50/90 p-4 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white font-black shadow-xs">✓</div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950">Verified Pure Spoken Text · शुद्ध अस्खलित वाणी</h4>
+                    <span className="rounded-full bg-emerald-200 border border-emerald-400 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-900 uppercase">{detailedSource.language}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-emerald-800">
+                    This transcript has been cleaned and standardized into authentic {detailedSource.language === 'mr' ? 'Marathi' : detailedSource.language === 'hi' ? 'Hindi' : 'English'} verbatim. Speech recognition garble has been removed.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-emerald-800 font-semibold">Re-standardize if needed:</span>
+                <button
+                  type="button"
+                  disabled={isFixingLang}
+                  onClick={() => handleLanguageAction('mr', 'standardize')}
+                  className="rounded-lg border border-emerald-400 bg-white px-2.5 py-1 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition cursor-pointer"
+                >
+                  🚩 Pure Marathi
+                </button>
+                <button
+                  type="button"
+                  disabled={isFixingLang}
+                  onClick={() => handleLanguageAction('hi', 'standardize')}
+                  className="rounded-lg border border-emerald-400 bg-white px-2.5 py-1 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition cursor-pointer"
+                >
+                  ✨ Pure Hindi
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={isFixingLang}
-                onClick={() => handleLanguageAction('hi', 'standardize')}
-                className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {isFixingLang ? 'Processing...' : '✨ Clean & Standardize to Hindi'}
-              </button>
-              <button
-                type="button"
-                disabled={isFixingLang}
-                onClick={() => handleLanguageAction('mr', 'standardize')}
-                className="rounded-lg bg-orange-700 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-orange-600 disabled:opacity-50"
-              >
-                {isFixingLang ? 'Processing...' : '🚩 Clean & Standardize to Marathi'}
-              </button>
-              <button
-                type="button"
-                disabled={isFixingLang}
-                onClick={() => handleLanguageAction('hi', 'reassign')}
-                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Tag HI
-              </button>
-              <button
-                type="button"
-                disabled={isFixingLang}
-                onClick={() => handleLanguageAction('mr', 'reassign')}
-                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Tag MR
-              </button>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-100/70 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white font-black text-lg shadow-xs">⚠️</div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-950">
+                      {langCheck?.hasWhisperAcousticGarble 
+                        ? 'Whisper Speech-to-Text Corruption Detected (ध्वनी उच्चार दोष)' 
+                        : langCheck?.isMixed 
+                        ? 'Mixed Marathi-Hindi Speech Detected (मिश्र भाषा)' 
+                        : 'Unverified Raw Speech Transcript'}
+                    </h4>
+                    <span className="rounded-full bg-amber-200 border border-amber-300 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-950 uppercase">Tag: {detailedSource.language}</span>
+                    {langCheck && (
+                      <span className="rounded-full bg-orange-100 border border-orange-300 px-2 py-0.5 text-[10px] font-bold text-orange-900">
+                        Detected: {langCheck.detectedLanguage.toUpperCase()} ({Math.round(langCheck.confidence * 100)}%)
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-amber-900 leading-relaxed max-w-2xl">
+                    {langCheck?.hasWhisperAcousticGarble
+                      ? 'Whisper speech recognition made acoustic mishearings (उदा. "श्वस्णाच गती", "कामक्रोत", "मद मनजे", "सेक्सी रेलेटेड"). Standardize into pure verbatim speech before downstream translation.'
+                      : langCheck?.isMixed
+                      ? 'Speech contains mixed words from both Marathi and Hindi. Choose pure target language to standardize.'
+                      : 'Raw audio speech-to-text. Standardize into pure verbatim Marathi, Hindi, or English to prepare for the 6-Step Pipeline.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isFixingLang}
+                  onClick={() => handleLanguageAction('mr', 'standardize')}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-orange-700 hover:bg-orange-600 px-3.5 py-2 text-xs font-black text-white shadow-md hover:shadow-lg transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <span>🚩</span>
+                  <span>{isFixingLang ? 'Cleaning speech...' : 'Clean into Pure Marathi (अस्खलित शुद्ध मराठी)'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isFixingLang}
+                  onClick={() => handleLanguageAction('hi', 'standardize')}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 px-3.5 py-2 text-xs font-black text-white shadow-md hover:shadow-lg transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <span>✨</span>
+                  <span>{isFixingLang ? 'Cleaning speech...' : 'Clean into Pure Hindi (शुद्ध हिंदी)'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isFixingLang}
+                  onClick={() => handleLanguageAction('en', 'standardize')}
+                  className="rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 px-3 py-2 text-xs font-bold text-blue-900 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  🇬🇧 Pure English
+                </button>
+                <div className="flex items-center gap-1 border-l border-amber-300 pl-2">
+                  <button
+                    type="button"
+                    disabled={isFixingLang}
+                    onClick={() => handleLanguageAction('mr', 'reassign')}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Only change language tag to MR without rewriting"
+                  >
+                    Tag MR
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isFixingLang}
+                    onClick={() => handleLanguageAction('hi', 'reassign')}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Only change language tag to HI without rewriting"
+                  >
+                    Tag HI
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
           {filterMsg && (
             <p className="mt-2 rounded-lg bg-emerald-100 p-2.5 text-xs font-semibold text-emerald-900 border border-emerald-200">{filterMsg}</p>
           )}
@@ -1861,6 +1996,127 @@ function Library({
               <button
                 type="button"
                 onClick={() => setShowScanModal(false)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Language & Speech Quality Scanner Modal */}
+      {showLangScanModal && langScanResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-emerald-800 via-teal-700 to-emerald-900 p-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white font-bold text-xl">🛡️</div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight">Library Language &amp; Speech Quality Scanner</h3>
+                  <p className="text-xs text-emerald-100">Scans all lecture transcripts for Whisper recognition errors, mixed Marathi-Hindi, and verbatim fidelity</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLangScanModal(false)}
+                className="rounded-xl p-2 hover:bg-white/20 text-white transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 border-b border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 text-center">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Scanned Sources</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{langScanResult.totalSources}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-300 bg-emerald-50/70 p-3 text-center">
+                <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Verified Pure Spoken Speech</p>
+                <p className="mt-1 text-2xl font-black text-emerald-700">{langScanResult.cleanCount}</p>
+              </div>
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-center">
+                <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Needs Speech Cleanup</p>
+                <p className="mt-1 text-2xl font-black text-amber-700">{langScanResult.needsCleanupCount}</p>
+              </div>
+            </div>
+
+            {batchCleanMsg && (
+              <div className="p-3 bg-emerald-100 border-b border-emerald-300 text-xs font-bold text-emerald-950 flex items-center justify-between">
+                <span>{batchCleanMsg}</span>
+                <button type="button" onClick={() => setBatchCleanMsg('')} className="text-xs underline">Dismiss</button>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">All Library Sources Language Quality</h4>
+                {langScanResult.needsCleanupCount > 0 && (
+                  <button
+                    type="button"
+                    disabled={isBatchCleaningLang}
+                    onClick={() => handleBatchCleanLanguages()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-700 to-amber-700 px-4 py-2 text-xs font-black text-white shadow hover:from-orange-600 hover:to-amber-600 transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {isBatchCleaningLang ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>⚡</span>}
+                    <span>{isBatchCleaningLang ? 'Standardizing in Parallel...' : `⚡ Auto-Clean All Flagged Sources (${langScanResult.needsCleanupCount})`}</span>
+                  </button>
+                )}
+              </div>
+
+              {langScanResult.sources.map((s: any) => (
+                <div
+                  key={s.id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 transition ${
+                    s.needsCleanup
+                      ? 'border-amber-300 bg-amber-50/60'
+                      : 'border-slate-200 bg-white hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex-1 min-w-[280px]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                        s.isAlreadyStandardized
+                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          : s.needsCleanup
+                          ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                          : 'bg-slate-100 text-slate-800'
+                      }`}>
+                        {s.isAlreadyStandardized
+                          ? '✓ Verified Pure Spoken Speech'
+                          : s.hasWhisperAcousticGarble
+                          ? '⚠️ Whisper Acoustic Corruption'
+                          : s.isMixed
+                          ? '⚠️ Mixed Marathi-Hindi Speech'
+                          : 'Raw Speech'}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase">Tagged: {s.taggedLanguage}</span>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase">Detected: {s.detectedLanguage} ({Math.round(s.confidence * 100)}%)</span>
+                      <span className="text-[10px] text-slate-400">({s.contentLength} chars)</span>
+                    </div>
+                    <h5 className="mt-1 text-sm font-bold text-slate-900">{s.title}</h5>
+                    <p className="mt-0.5 text-xs text-slate-600">{s.explanation}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isBatchCleaningLang}
+                      onClick={() => handleBatchCleanLanguages([s.id])}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 px-3 py-1.5 text-xs font-black text-white shadow-sm transition disabled:opacity-50 cursor-pointer active:scale-95"
+                    >
+                      {isBatchCleaningLang ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>⚡</span>}
+                      <span>Clean to Pure {s.taggedLanguage.toUpperCase()}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-200 bg-slate-50 p-4 flex items-center justify-between">
+              <p className="text-xs text-slate-500">Restores verbatim speech and eliminates speech recognizer phonetic garble without altering yogic terminology.</p>
+              <button
+                type="button"
+                onClick={() => setShowLangScanModal(false)}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 Close

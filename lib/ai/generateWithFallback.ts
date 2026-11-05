@@ -42,8 +42,7 @@ function sleep(ms: number): Promise<void> {
 function getGeminiModels(): string[] {
   const configured = process.env.GEMINI_MODEL;
   if (configured) return [configured];
-  // gemini-2.5-flash has a 20 req/day free-tier cap — skip it; use higher-limit models first
-  return ['gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+  return ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
 }
 
 async function callGemini(params: GenerateTextParams, attempt = 1): Promise<string> {
