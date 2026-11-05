@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Mukta:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&display=swap');
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
@@ -8,7 +7,7 @@
 
 /* 1. Global Font Stack with Fallbacks */
 * {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) - Modern, crisp sans-serif matching native typography */
@@ -19,7 +18,7 @@
 pre.font-devanagari, textarea.font-devanagari,
 code.font-devanagari,
 [data-font="devanagari"] {
-  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
+  font-family: 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -28,12 +27,12 @@ code.font-devanagari,
 
 /* Pre & Textarea handling: prevent fallback to monospace for Indic & Devanagari text */
 pre, textarea {
-  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif;
+  font-family: 'Noto Sans Devanagari', 'Mukta', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
 }
 
 pre:lang(hi), pre:lang(mr),
 textarea:lang(hi), textarea:lang(mr) {
-  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans Devanagari', 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
+  font-family: 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
 }
 
 /* 3. Gujarati */

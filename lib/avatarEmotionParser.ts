@@ -276,9 +276,17 @@ export const FACIAL_EXPRESSION_LIBRARY: Record<string, { blendshapes: Record<str
   neutral: { blendshapes: {} },
   gentle_smile: { blendshapes: { mouthSmileLeft: 0.45, mouthSmileRight: 0.45, cheekSquint: 0.2 } },
   warm_smile: { blendshapes: { mouthSmileLeft: 0.65, mouthSmileRight: 0.65, cheekSquint: 0.35 } },
+  smile_warm: { blendshapes: { mouthSmileLeft: 0.7, mouthSmileRight: 0.7, cheekSquint: 0.4 } },
   serene: { blendshapes: { eyesRelaxed: 0.65, mouthSmileLeft: 0.2 } },
+  focus_meditation: { blendshapes: { eyesRelaxed: 0.85, browDownLeft: 0.2, browDownRight: 0.2 } },
+  meditative_focus: { blendshapes: { eyesRelaxed: 0.85, browDownLeft: 0.2, browDownRight: 0.2 } },
   focused_brow: { blendshapes: { browDownLeft: 0.45, browDownRight: 0.45, eyesRelaxed: 0.15 } },
+  eyebrow_wonder: { blendshapes: { browInnerUp: 0.7, eyeWideLeft: 0.35, eyeWideRight: 0.35 } },
+  inquisitive_eyebrow: { blendshapes: { browInnerUp: 0.7, eyeWideLeft: 0.35, eyeWideRight: 0.35 } },
   inquiring: { blendshapes: { browInnerUp: 0.55, eyeWideLeft: 0.25, headTilt: 0.2 } },
+  humor_laugh: { blendshapes: { mouthSmileLeft: 0.9, mouthSmileRight: 0.9, jawOpen: 0.4, cheekSquint: 0.6 } },
+  punchline_humor: { blendshapes: { mouthSmileLeft: 0.9, mouthSmileRight: 0.9, jawOpen: 0.4, cheekSquint: 0.6 } },
+  teaching_authority: { blendshapes: { browDownLeft: 0.3, browDownRight: 0.3, headSteady: 0.9 } },
   compassionate: { blendshapes: { browInnerUp: 0.35, mouthSmileLeft: 0.35, eyesRelaxed: 0.25 } },
   joyful: { blendshapes: { mouthSmileLeft: 0.75, mouthSmileRight: 0.75, cheekSquint: 0.45 } },
   concerned: { blendshapes: { browInnerUp: 0.35, browDownLeft: 0.2, eyesRelaxed: 0.15 } },
@@ -362,7 +370,7 @@ export function parseAvatarScript(scriptText: string): ParsedScriptResult {
     }
 
     const faceMatch = trimmedChunk.match(/\[face:([a-z_]+)\]/i);
-    const facialExpression = faceMatch && FACIAL_EXPRESSION_LIBRARY[faceMatch[1].toLowerCase()]
+    const facialExpression = faceMatch
       ? faceMatch[1].toLowerCase()
       : undefined;
 

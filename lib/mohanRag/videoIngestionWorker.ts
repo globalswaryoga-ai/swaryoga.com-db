@@ -1,7 +1,7 @@
 import { uploadToBunnyStorage } from '@/lib/bunny-storage';
 import { saveKnowledgeSource } from './knowledgeRepository';
 import { claimNextVideoIngestionJob, finishVideoIngestionJob } from './videoIngestionQueue';
-import { analyzeBunnyMediaUrl, analyzeMediaBuffer, fetchYouTubeMedia } from './mediaTranscription';
+import { analyzeBunnyMediaUrl, analyzeMediaBuffer, fetchYouTubeMedia, fetchYouTubeSubtitlesAnalysis, type AnalyzedMedia } from './mediaTranscription';
 import { getYouTubeChannelInventoryVideos, updateYouTubeChannelScreening } from './youtubeChannelDiscovery';
 import { screenTranscriptTopic } from './transcriptTopicScreening';
 import { getBunnyStreamIdentity, resolveBunnyStreamMediaUrl } from './bunnyStreamMedia';
@@ -21,14 +21,45 @@ export async function processNextMohanRagVideo(): Promise<{ processed: boolean; 
     const isBunnyStream = job.provider === 'bunny' && getBunnyStreamIdentity(job.sourceUrl) !== null;
     const mediaUrl = isBunnyStream ? await resolveBunnyStreamMediaUrl(job.sourceUrl) : job.sourceUrl;
     const bunnyExtension = isBunnyStream ? 'mp4' : new URL(job.sourceUrl).pathname.split('.').pop()?.toLowerCase() || 'mp4';
-    const media = job.provider === 'youtube' ? await fetchYouTubeMedia(job.sourceUrl) : null;
-    let bunnyTitle = new URL(job.sourceUrl).pathname.split('/').pop() || 'Bunny media';
-    try { bunnyTitle = decodeURIComponent(bunnyTitle); } catch { /* Preserve the URL-encoded fallback title. */ }
-    const title = job.title || (media?.title ?? bunnyTitle.replace(/\.[^.]+$/, ''));
-    const extension = media?.extension || bunnyExtension;
-    const analysis = media
-      ? await analyzeMediaBuffer({ ...media, language: job.language })
-      : await analyzeBunnyMediaUrl({ url: mediaUrl, title, extension, language: job.language });
+    
+    let analysis: AnalyzedMedia | null = null;
+    let originalFileUrl = job.sourceUrl;
+    let title = job.title;
+    let extension = bunnyExtension;
+
+    if (job.provider === 'youtube') {
+      // 1. Try direct subtitle extraction first (bypasses bot challenges, fast & accurate)
+      try {
+        analysis = await fetchYouTubeSubtitlesAnalysis({
+          url: job.sourceUrl,
+          title: job.title,
+          language: job.language,
+        });
+      } catch (subErr) {
+        console.warn(`[Mohan RAG ingestion] YouTube subtitle fetch note:`, subErr);
+      }
+
+      // 2. Fall back to audio/video download if no subtitles found
+      if (!analysis) {
+        const media = await fetchYouTubeMedia(job.sourceUrl);
+        title = title || media.title;
+        extension = media.extension;
+        analysis = await analyzeMediaBuffer({ ...media, language: job.language });
+        originalFileUrl = await uploadToBunnyStorage(media.buffer, `${job.id}.mp4`, { contentType: 'video/mp4' });
+      } else {
+        title = title || analysis.title;
+        extension = 'mp4';
+      }
+    } else {
+      let bunnyTitle = new URL(job.sourceUrl).pathname.split('/').pop() || 'Bunny media';
+      try { bunnyTitle = decodeURIComponent(bunnyTitle); } catch { /* Preserve the URL-encoded fallback title. */ }
+      title = job.title || bunnyTitle.replace(/\.[^.]+$/, '');
+      analysis = await analyzeBunnyMediaUrl({ url: mediaUrl, title, extension, language: job.language });
+    }
+
+    if (!analysis) {
+      throw new Error('Unable to extract transcript analysis from media.');
+    }
     const inventoryVideo = channelVideoId
       ? (await getYouTubeChannelInventoryVideos([channelVideoId]))[0]
       : null;
@@ -45,9 +76,6 @@ export async function processNextMohanRagVideo(): Promise<{ processed: boolean; 
         screeningError = error instanceof Error ? error.message : 'Transcript topic screening failed.';
       }
     }
-    const originalFileUrl = job.provider === 'youtube'
-      ? await uploadToBunnyStorage(media!.buffer, `${job.id}.mp4`, { contentType: 'video/mp4' })
-      : job.sourceUrl;
     const source = await saveKnowledgeSource({
       moduleId: job.moduleId,
       title: title || analysis.title,

@@ -41,6 +41,43 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
   const [isSendingToHub, setIsSendingToHub] = useState(false);
   const [hubSuccessMsg, setHubSuccessMsg] = useState('');
 
+  React.useEffect(() => {
+    if (initialTopic) setTopic(initialTopic);
+    if (initialText) setStep1Text(initialText);
+    if (initialLanguage) setSourceLanguage(initialLanguage);
+  }, [initialTopic, initialText, initialLanguage]);
+
+  React.useEffect(() => {
+    if (!token || !topic) return;
+    let isCancelled = false;
+    const fetchExistingBlueprint = async () => {
+      try {
+        const res = await fetch(`/api/admin/crm/mohan-rag/pipeline?topic=${encodeURIComponent(topic)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data?.blueprint && !isCancelled) {
+          const bp = data.blueprint;
+          setBlueprintId(bp.id);
+          try {
+            setStep2Detection(bp.step2_language_details ? JSON.parse(bp.step2_language_details) : null);
+          } catch { setStep2Detection(null); }
+          setStep3Text(bp.step3_spellchecked_text || '');
+          setStep4Family(bp.step4_grammar_family || '');
+          setStep5Text(bp.step5_grammar_approved_text || '');
+          setStep6SovPlain(bp.step6_sov_plain || '');
+          setStep6SovHummer(bp.step6_sov_hummer || '');
+          setStep6SvoPlain(bp.step6_svo_plain || '');
+          setStep6SvoHummer(bp.step6_svo_hummer || '');
+        }
+      } catch (e) {
+        // Ignore blueprint load error
+      }
+    };
+    fetchExistingBlueprint();
+    return () => { isCancelled = true; };
+  }, [token, topic]);
+
   const handleSendToCreationHub = async () => {
     setIsSendingToHub(true);
     setStatusMsg('');
@@ -421,6 +458,20 @@ export function SixStepPipelineView({ token, initialTopic = 'Swar Yoga Day-1 Bho
           </div>
 
           <div>
+            {!step6SovPlain && (
+              <div className="mb-2 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <span className="text-xs font-semibold text-amber-900">Blueprint not generated yet.</span>
+                <button
+                  type="button"
+                  disabled={running || !step1Text.trim()}
+                  onClick={runAllSteps}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 transition disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>⚡ Generate Master Blueprints Now (SOV & SVO)</span>
+                </button>
+              </div>
+            )}
             <textarea
               rows={8}
               value={

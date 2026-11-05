@@ -150,10 +150,140 @@ export async function fetchYouTubeMedia(url: string) {
 }
 
 export function buildYouTubeDownloadArgs(url: string, cookiesFile?: string) {
-  const args = ['--no-playlist', '--no-warnings', '--format', 'best[ext=mp4][vcodec!=none][acodec!=none]/best[ext=mp4]/bestaudio[ext=m4a]/best'];
+  const args = [
+    '--no-playlist',
+    '--no-warnings',
+    '--extractor-args', 'youtube:player_client=android_creator,ios,mweb',
+    '--format', 'ba/b[ext=m4a]/bestaudio/best',
+  ];
   if (cookiesFile) args.push('--cookies', cookiesFile);
   args.push('--output', '-', url);
   return args;
+}
+
+export function parseVttToSpeechSegments(vttContent: string): TimedSpeechSegment[] {
+  const lines = vttContent.split('\n');
+  const segments: TimedSpeechSegment[] = [];
+  let currentStart: number | null = null;
+  let currentEnd: number | null = null;
+  let currentText: string[] = [];
+
+  const timeRegex = /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const match = line.match(timeRegex);
+    if (match) {
+      if (currentStart !== null && currentText.length > 0) {
+        const text = currentText.join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (text) segments.push({ start: currentStart, end: currentEnd ?? currentStart + 5, text });
+      }
+      const startSec = parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]) + parseInt(match[4]) / 1000;
+      const endSec = parseInt(match[5]) * 3600 + parseInt(match[6]) * 60 + parseInt(match[7]) + parseInt(match[8]) / 1000;
+      currentStart = startSec;
+      currentEnd = endSec;
+      currentText = [];
+    } else if (line && !line.startsWith('WEBVTT') && !line.startsWith('Kind:') && !line.startsWith('Language:') && !line.startsWith('NOTE')) {
+      currentText.push(line);
+    }
+  }
+  if (currentStart !== null && currentText.length > 0) {
+    const text = currentText.join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (text) segments.push({ start: currentStart, end: currentEnd ?? currentStart + 5, text });
+  }
+
+  // Deduplicate rolling captions
+  const deduped: TimedSpeechSegment[] = [];
+  for (const s of segments) {
+    if (deduped.length > 0 && deduped[deduped.length - 1].text === s.text) continue;
+    if (deduped.length > 0 && s.text.startsWith(deduped[deduped.length - 1].text)) {
+      deduped[deduped.length - 1].text = s.text;
+      deduped[deduped.length - 1].end = s.end;
+      continue;
+    }
+    deduped.push(s);
+  }
+  return deduped;
+}
+
+export async function fetchYouTubeSubtitlesAnalysis(input: {
+  url: string;
+  title?: string;
+  language?: string;
+}): Promise<AnalyzedMedia | null> {
+  const binary = process.env.YT_DLP_PATH || 'yt-dlp';
+  const tempDir = await mkdtemp(join(tmpdir(), 'yt-sub-'));
+  const outPattern = join(tempDir, 'sub');
+
+  try {
+    const cookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim();
+    const args = [
+      '--skip-download',
+      '--write-auto-subs',
+      '--write-subs',
+      '--sub-lang', 'hi,hi-orig,mr,en,en-US',
+      '--sub-format', 'vtt',
+      '--ignore-errors',
+      '--no-warnings',
+      '--output', outPattern,
+    ];
+    if (cookiesFile) args.push('--cookies', cookiesFile);
+    args.push(input.url);
+
+    await new Promise((resolve) => {
+      const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} resolve(null); }, 45_000);
+      child.on('close', () => { clearTimeout(timer); resolve(null); });
+    });
+
+    const files = (await readdir(tempDir)).filter(f => f.endsWith('.vtt'));
+    if (!files.length) return null;
+
+    // Pick best subtitle file
+    const lang = input.language || 'hi';
+    const targetFile = files.find(f => f.includes(`.${lang}.`))
+      || files.find(f => f.includes('.hi.'))
+      || files.find(f => f.includes('.mr.'))
+      || files[0];
+
+    const content = await readFile(join(tempDir, targetFile), 'utf-8');
+    const rawSegments = parseVttToSpeechSegments(content);
+    if (!rawSegments.length) return null;
+
+    let cleanedSegments = collapseObviousRepeatedSegments(rawSegments);
+    let detectedLanguage = targetFile.includes('.hi.') ? 'hi' : targetFile.includes('.mr.') ? 'mr' : 'en';
+
+    const timeline = formatTimeline(cleanedSegments);
+    let annotatedTimeline = timeline;
+    let emotionSuggestionsAdded = false;
+
+    try {
+      const cues = await annotateTranscriptForAvatar(timeline);
+      if (cues && cues.length <= 500_000) {
+        annotatedTimeline = cues;
+        emotionSuggestionsAdded = true;
+      }
+    } catch {
+      // Keep plain timeline
+    }
+
+    const title = input.title || `YouTube ${new URL(input.url).searchParams.get('v') || 'video'}`;
+
+    return {
+      title,
+      extension: 'mp4',
+      language: detectedLanguage,
+      segments: cleanedSegments,
+      timeline,
+      annotatedTimeline,
+      emotionSuggestionsAdded,
+      cueWarning: '',
+      correctionApplied: true,
+      correctionWarning: '',
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 export async function assertReadableYouTubeCookiesFile(cookiesFile: string) {

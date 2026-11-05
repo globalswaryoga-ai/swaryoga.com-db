@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { compressAudioForWhisper } from '@/lib/clientAudioCompressor';
 import { parseAvatarScript } from '@/lib/avatarEmotionParser';
+import { annotateYogicAvatarCues } from '@/lib/mohanRag/avatarCueLogic';
 import { ELEARNING_LANGUAGES } from '@/lib/elearningLanguages';
 import {
   WORKSHOP_OPTIONS,
@@ -1271,9 +1272,37 @@ function Library({
   const topics = Array.from(new Set(moduleSources.map(item => item.topic.trim() || 'Uncategorized'))).sort((a, b) => a.localeCompare(b));
   const topicSources = moduleSources.filter(item => (item.topic.trim() || 'Uncategorized') === topic);
   const detailedSource = source ? { ...source, content: source.content || '' } : null;
-  const parsed = detailedSource ? parseAvatarScript(detailedSource.content) : null;
-  const plainText = detailedSource?.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '') || '';
   const hasCues = Boolean(detailedSource?.content.match(/\[(?:[a-z_]+:\d{1,3}|face:[a-z_]+)\]/i));
+  const effectiveCueContent = detailedSource
+    ? (hasCues ? detailedSource.content : annotateYogicAvatarCues(detailedSource.content))
+    : '';
+  const parsed = detailedSource ? parseAvatarScript(effectiveCueContent) : null;
+  const plainText = detailedSource?.content.replace(/\[face:[a-z_]+\]/gi, '').replace(/\[[a-z_]+:\d{1,3}\]/gi, '') || '';
+  const [isAnnotatingCues, setIsAnnotatingCues] = useState(false);
+
+  const handleAnnotateCues = async () => {
+    if (!token || !detailedSource) return;
+    setIsAnnotatingCues(true);
+    setFilterMsg('');
+    try {
+      const res = await fetch('/api/admin/crm/mohan-rag/annotate-cues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sourceId: detailedSource.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to annotate cues');
+      setFilterMsg(data.message || 'Avatar cues added successfully!');
+      if (data.source) {
+        setSource(data.source);
+        setSources(prev => prev.map(s => s.id === data.source.id ? data.source : s));
+      }
+    } catch (err: any) {
+      setFilterMsg(err.message || 'Could not annotate cues');
+    } finally {
+      setIsAnnotatingCues(false);
+    }
+  };
 
   const isVideoSource = Boolean(
     detailedSource && (
@@ -1894,7 +1923,63 @@ function Library({
             <p className="mt-2 rounded-lg bg-emerald-100 p-2.5 text-xs font-semibold text-emerald-900 border border-emerald-200">{filterMsg}</p>
           )}
           <div className="mt-4 flex flex-wrap gap-2"><button type="button" aria-pressed={view === 'plain'} onClick={() => setView('plain')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'plain' ? 'ring-2 ring-emerald-300' : ''}`}>Plain text</button><button type="button" aria-pressed={view === 'cues'} onClick={() => setView('cues')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${view === 'cues' ? 'ring-2 ring-violet-300' : ''}`}>Emotion & face cues</button></div></div>
-          {view === 'plain' ? <pre lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`max-h-[65vh] overflow-auto whitespace-pre-wrap p-5 text-sm leading-7 text-slate-800 ${devanagariFontClass(plainText, detailedSource.language)}`}>{plainText || 'Loading source text…'}</pre> : <div className="space-y-3 p-5">{hasCues ? <><p className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-900">Cue tags are suggestions inferred from transcript wording. They do not represent measured facial observations from video frames.</p>{parsed?.segments.map(segment => <article key={`${segment.index}-${segment.rawText.slice(0, 24)}`} className="rounded-xl border border-slate-200 bg-white p-4"><div className="mb-2 flex flex-wrap gap-2">{segment.emotions.filter(cue => cue.tag !== 'face').map((cue, index) => <span key={`${cue.tag}-${index}`} className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">{cue.name} · {cue.intensity}%</span>)}{segment.facialExpression && <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-900">Face · {segment.facialExpression.replace(/_/g, ' ')}</span>}</div><p lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`whitespace-pre-wrap text-sm leading-6 text-slate-800 ${devanagariFontClass(segment.cleanText, detailedSource.language)}`}>{segment.cleanText}</p></article>)}</> : <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50/60 p-8 text-center"><p className="font-semibold text-slate-800">No emotion or face tags in this source</p><p className="mt-1 text-sm text-slate-600">Tags are added to MP3/MP4 transcripts when annotation succeeds. Plain text sources remain untagged unless cues are added manually.</p></div>}</div>}
+          {view === 'plain' ? (
+            <pre lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`max-h-[65vh] overflow-auto whitespace-pre-wrap p-5 text-sm leading-7 text-slate-800 ${devanagariFontClass(plainText, detailedSource.language)}`}>{plainText || 'Loading source text…'}</pre>
+          ) : (
+            <div className="space-y-3 p-5">
+              {!hasCues && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-indigo-50 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="h-5 w-5 text-violet-600 animate-pulse" />
+                    <div>
+                      <p className="text-xs font-bold text-violet-950">Active Avatar Delivery Dynamic Cues (Live Preview)</p>
+                      <p className="text-[11px] text-violet-700">Inferred from Mohan Sir’s verbatim spoken speech, questions, and yogic breathing cues.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isAnnotatingCues}
+                    onClick={handleAnnotateCues}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-violet-800 transition disabled:opacity-50"
+                  >
+                    <Sparkles className={`h-3.5 w-3.5 text-yellow-300 ${isAnnotatingCues ? 'animate-spin' : ''}`} />
+                    <span>{isAnnotatingCues ? 'Saving Cues to Library…' : 'Save Cues Permanently'}</span>
+                  </button>
+                </div>
+              )}
+              {hasCues && (
+                <p className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-900">
+                  Cue tags are suggestions inferred from transcript wording and Mohan Sir’s Avatar DNA.
+                </p>
+              )}
+              {parsed?.segments && parsed.segments.length > 0 ? (
+                parsed.segments.map(segment => (
+                  <article key={`${segment.index}-${segment.rawText.slice(0, 24)}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-violet-300 transition">
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {segment.emotions.filter(cue => cue.tag !== 'face').map((cue, index) => (
+                        <span key={`${cue.tag}-${index}`} className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                          {cue.name} · {cue.intensity}%
+                        </span>
+                      ))}
+                      {segment.facialExpression && (
+                        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-900">
+                          Face · {segment.facialExpression.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <p lang={detailedSource.language === 'auto' ? undefined : detailedSource.language} className={`whitespace-pre-wrap text-sm leading-6 text-slate-800 ${devanagariFontClass(segment.cleanText, detailedSource.language)}`}>
+                      {segment.cleanText}
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50/60 p-8 text-center">
+                  <p className="font-semibold text-slate-800">No transcript segments found to generate cues</p>
+                  <p className="mt-1 text-sm text-slate-600">Ensure the transcript has spoken content.</p>
+                </div>
+              )}
+            </div>
+          )}
         </section>}
 
       {showScanModal && scanResult && (

@@ -167,7 +167,7 @@ export async function transcribeAudio(audio: ExtractedAudio, options: { language
   return transcribeViaWhisper(audio, options);
 }
 
-let openAIExhaustedUntil = Date.now() + 86400_000; // OpenAI credits exhausted; default to Gemini
+let openAIExhaustedUntil = 0; // Default to active; will cool down only on real 429/402
 let geminiExhaustedUntil = 0;
 
 /** Whisper transcript with real segment timestamps for media-library timelines. */
