@@ -18,15 +18,15 @@ export interface ElearningLanguage {
  * 5. Purpose: Master lectures recorded in Hindi / Marathi / Kannada can be dubbed into all world languages.
  */
 export const ELEARNING_LANGUAGES: ElearningLanguage[] = [
-  // Primary Indian Source Languages (Only Hindi, Marathi, Kannada)
-  { code: 'hi', name: 'Hindi', nativeName: 'हिंदी', flag: '🇮🇳', region: 'indian', direction: 'ltr' },
+  // 3 Primary Master Source Languages (Original Spoken Video Lectures from Mohan Sir)
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', region: 'bridge', direction: 'ltr' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिंदी', flag: '🕉️', region: 'indian', direction: 'ltr' },
   { code: 'mr', name: 'Marathi', nativeName: 'मराठी', flag: '🚩', region: 'indian', direction: 'ltr' },
+
+  // Indian Regional Target Language
   { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳', region: 'indian', direction: 'ltr' },
 
-  // Global Bridge Language
-  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', region: 'bridge', direction: 'ltr' },
-
-  // Foreign Languages (All Major Global Markets - Americas, Europe, Asia, Middle East, Africa)
+  // Foreign Target Languages (All Major Global Markets - Americas, Europe, Asia, Middle East, Africa)
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', region: 'global', direction: 'ltr' },
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', region: 'global', direction: 'ltr' },
   { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', region: 'global', direction: 'ltr' },

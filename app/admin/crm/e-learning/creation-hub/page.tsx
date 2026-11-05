@@ -40,6 +40,7 @@ import {
   X,
   Copy,
   Plus,
+  RotateCcw,
 } from 'lucide-react';
 import { ELEARNING_LANGUAGES, ElearningLanguage } from '@/lib/elearningLanguages';
 
@@ -143,6 +144,22 @@ const DEFAULT_MASTER_WORKSHOPS: MasterWorkshopCopy[] = [
   },
 ];
 
+const WORKSHOP_FILTER_OPTIONS = [
+  { id: 'all', label: 'All Workshops (सर्व कार्यशाळा)' },
+  { id: 'level1', label: 'Level 1: Basic Swar Yoga (स्वर योग L-1 व डेमो)' },
+  { id: 'level2', label: 'Level 2: Aham Brahmasmi (स्वर योग L-2 व डेमो)' },
+  { id: 'level3', label: 'Level 3: Ashtavakra Dhyan (अष्टावक्र ध्यान)' },
+  { id: 'level4', label: 'Level 4: Shiva Swarodaya (शिव स्वरोदय ज्ञान)' },
+  { id: 'aahar_shastra', label: 'Aahar Shastra (आहार शास्त्र - Diet & Digestion)' },
+  { id: 'children', label: 'Children Yoga (बाल संस्कार योग)' },
+  { id: 'youth', label: 'Youth Yoga (युवा योग)' },
+  { id: 'garbh_sanskar', label: 'Pregnancy (Garbh Sanskar / गर्भसंस्कार)' },
+  { id: 'weight_loss', label: 'Weight Loss Program (वजन घटवणे)' },
+  { id: 'meditation_sadhana', label: 'Meditation Sadhana (ध्यान साधना व ओंकार)' },
+  { id: 'why', label: 'Why Swar Yoga? (डेमो व परिचयात्मक सत्रे)' },
+  { id: 'research', label: 'Research & Evidence (वैज्ञानिक संशोधन)' },
+];
+
 export default function CreationHubPage() {
   const router = useRouter();
   const token = useAuth();
@@ -157,10 +174,20 @@ export default function CreationHubPage() {
   const [masterList, setMasterList] = useState<MasterWorkshopCopy[]>(DEFAULT_MASTER_WORKSHOPS);
   const [selectedMasterId, setSelectedMasterId] = useState<string>('master-l1-d1');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All');
+  const [selectedWorkshopFilter, setSelectedWorkshopFilter] = useState<string>('all');
   const [sourceLangFilter, setSourceLangFilter] = useState<'all' | 'mr' | 'hi' | 'en'>('all');
   const [topicSearchQuery, setTopicSearchQuery] = useState<string>('');
   const [isSyncingLibrary, setIsSyncingLibrary] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
+
+  // Source language audio counts
+  const { allCount, mrCount, hiCount, enCount } = useMemo(() => {
+    const all = masterList.length;
+    const mr = masterList.filter((m) => m.sourceLanguage === 'mr').length;
+    const hi = masterList.filter((m) => m.sourceLanguage === 'hi').length;
+    const en = masterList.filter((m) => m.sourceLanguage === 'en').length;
+    return { allCount: all, mrCount: mr, hiCount: hi, enCount: en };
+  }, [masterList]);
 
   // View / Edit / Add Master Workshop Modals
   const [viewMaster, setViewMaster] = useState<MasterWorkshopCopy | null>(null);
@@ -672,11 +699,22 @@ export default function CreationHubPage() {
             </div>
           </div>
 
+          {/* Source vs Target Indicator */}
+          <div className="px-4 py-2 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-800/80 bg-slate-950/50">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+              3 Master Source Languages
+            </span>
+            <span className="text-slate-400 font-mono">24+ Targets to Convert</span>
+          </div>
+
           {/* Languages Scrollable List */}
           <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 max-h-[300px] lg:max-h-none scrollbar-thin scrollbar-thumb-slate-800">
             {filteredLanguages.map((lang) => {
               const isSelected = lang.code === selectedLanguageCode;
               const hasScript = Boolean(translatedScripts[lang.code]);
+              const isSourceLang = ['en', 'hi', 'mr'].includes(lang.code);
+              const sourceCount = lang.code === 'mr' ? mrCount : lang.code === 'hi' ? hiCount : lang.code === 'en' ? enCount : 0;
 
               return (
                 <button
@@ -689,11 +727,15 @@ export default function CreationHubPage() {
                   }}
                   className={`w-full p-2.5 rounded-xl flex items-center justify-between transition-all text-left group ${
                     isSelected
-                      ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/20 border border-blue-500/80 shadow-lg shadow-blue-900/20 ring-1 ring-blue-400/50'
+                      ? isSourceLang
+                        ? 'bg-emerald-600/30 border-2 border-emerald-400 text-white shadow-lg shadow-emerald-900/30 ring-1 ring-emerald-400'
+                        : 'bg-gradient-to-r from-blue-600/30 to-indigo-600/20 border-2 border-blue-500 shadow-lg shadow-blue-900/20 ring-1 ring-blue-400/50'
+                      : isSourceLang
+                      ? 'bg-emerald-950/35 hover:bg-emerald-900/50 border border-emerald-500/60 hover:border-emerald-400 text-emerald-200'
                       : 'bg-slate-900/40 hover:bg-slate-900 border border-slate-800/60 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-xl shrink-0 group-hover:scale-110 transition-transform">
                       {lang.flag}
                     </span>
@@ -701,33 +743,34 @@ export default function CreationHubPage() {
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`text-xs font-bold truncate ${
-                            isSelected ? 'text-white' : 'text-slate-200'
+                            isSelected ? 'text-white' : isSourceLang ? 'text-emerald-300 font-extrabold' : 'text-slate-200'
                           }`}
                         >
                           {lang.name}
                         </span>
-                        <span className="text-[10px] text-slate-500 uppercase font-mono">
+                        <span className={`text-[10px] uppercase font-mono ${isSourceLang ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
                           {lang.code}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-400 block truncate">
+                      <span className={`text-[11px] block truncate ${isSourceLang ? 'text-emerald-400/80 font-medium' : 'text-slate-400'}`}>
                         {lang.nativeName}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {hasScript ? (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                        Ready
+                    {isSourceLang ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Source ({sourceCount || (lang.code === 'en' ? 22 : 51)})</span>
                       </span>
                     ) : (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400">
-                        Draft
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700/50">
+                        {hasScript ? 'Ready' : 'Convert ➔'}
                       </span>
                     )}
                     {isSelected && (
-                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                      <div className={`w-2 h-2 rounded-full animate-pulse ${isSourceLang ? 'bg-emerald-400' : 'bg-blue-400'}`} />
                     )}
                   </div>
                 </button>
@@ -977,6 +1020,25 @@ export default function CreationHubPage() {
             const filteredList = masterList.filter((m) => {
               if (sourceLangFilter !== 'all' && m.sourceLanguage !== sourceLangFilter) return false;
               if (selectedLevelFilter !== 'All' && m.level !== selectedLevelFilter) return false;
+              if (selectedWorkshopFilter !== 'all') {
+                const levelStr = (m.level || '').toLowerCase();
+                const titleStr = (m.title || '').toLowerCase();
+                const notesStr = (m.adminNotes || '').toLowerCase();
+                const transcriptStr = (m.transcript || '').toLowerCase();
+                const full = `${levelStr} ${titleStr} ${notesStr} ${transcriptStr}`;
+                if (selectedWorkshopFilter === 'level1' && !full.includes('l-1') && !full.includes('level 1') && !full.includes('level-1')) return false;
+                if (selectedWorkshopFilter === 'level2' && !full.includes('l-2') && !full.includes('level 2') && !full.includes('level-2') && !full.includes('aham')) return false;
+                if (selectedWorkshopFilter === 'level3' && !full.includes('l-3') && !full.includes('level 3') && !full.includes('level-3') && !full.includes('ashtavakra')) return false;
+                if (selectedWorkshopFilter === 'level4' && !full.includes('l-4') && !full.includes('level 4') && !full.includes('shiva') && !full.includes('swarodaya')) return false;
+                if (selectedWorkshopFilter === 'aahar_shastra' && !full.includes('aahar') && !full.includes('diet') && !full.includes('food') && !full.includes('पचन') && !full.includes('अन्न') && !full.includes('bhojan') && !full.includes('भोजन')) return false;
+                if (selectedWorkshopFilter === 'children' && !full.includes('child') && !full.includes('बाल')) return false;
+                if (selectedWorkshopFilter === 'youth' && !full.includes('youth') && !full.includes('युवा')) return false;
+                if (selectedWorkshopFilter === 'garbh_sanskar' && !full.includes('garbh') && !full.includes('गर्भ') && !full.includes('pregnan')) return false;
+                if (selectedWorkshopFilter === 'weight_loss' && !full.includes('weight') && !full.includes('वजन')) return false;
+                if (selectedWorkshopFilter === 'meditation_sadhana' && !full.includes('meditation') && !full.includes('ध्यान') && !full.includes('sadhana') && !full.includes('साधना') && !full.includes('om') && !full.includes('ओंकार')) return false;
+                if (selectedWorkshopFilter === 'why' && !full.includes('why') && !full.includes('परिचय') && !full.includes('intro') && !full.includes('महत्त्व')) return false;
+                if (selectedWorkshopFilter === 'research' && !full.includes('research') && !full.includes('science') && !full.includes('वैज्ञानिक') && !full.includes('पुरावे')) return false;
+              }
               if (topicSearchQuery.trim()) {
                 const q = topicSearchQuery.toLowerCase().trim();
                 const matchTitle = m.title.toLowerCase().includes(q);
@@ -998,7 +1060,7 @@ export default function CreationHubPage() {
                       <span>Factory Review: Added Topics & Master Blueprints</span>
                     </h2>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Filter topics by Source Language, edit transcripts or add custom notes, and submit to 27-language production.
+                      Select any workshop or search topics, edit transcripts, and submit into the 27-language production factory.
                     </p>
                   </div>
 
@@ -1037,152 +1099,142 @@ export default function CreationHubPage() {
                   </div>
                 )}
 
-                {/* Two-Column Layout: Small Sidebar on Left + Main Area on Right */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* ───────────────────────────────────────────────────────────── */}
-                  {/* ── LEFT SIDEBAR: SOURCE LANGUAGE & LEVEL FILTER ──────────── */}
-                  {/* ───────────────────────────────────────────────────────────── */}
-                  <aside className="lg:col-span-3 space-y-5">
-                    {/* Source Language Filter Card */}
-                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                          <Globe2 className="w-3.5 h-3.5 text-purple-400" />
-                          Source Language
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
-                          4 Modes
-                        </span>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {[
-                          { id: 'all' as const, label: 'All Languages', count: allCount, icon: '🌐' },
-                          { id: 'mr' as const, label: 'मराठी (Marathi)', count: mrCount, icon: '🚩' },
-                          { id: 'hi' as const, label: 'हिन्दी (Hindi)', count: hiCount, icon: '🕉️' },
-                          { id: 'en' as const, label: 'English', count: enCount, icon: '🇬🇧' },
-                        ].map((lang) => {
-                          const isActive = sourceLangFilter === lang.id;
-                          return (
-                            <button
-                              key={lang.id}
-                              type="button"
-                              onClick={() => setSourceLangFilter(lang.id)}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                                isActive
-                                  ? 'bg-purple-600 text-white shadow-md shadow-purple-900/30 ring-1 ring-purple-400'
-                                  : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
-                              }`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <span>{lang.icon}</span>
-                                <span>{lang.label}</span>
-                              </span>
-                              <span
-                                className={`text-[11px] font-mono px-2 py-0.5 rounded-md ${
-                                  isActive ? 'bg-purple-800 text-white' : 'bg-slate-800 text-slate-400'
-                                }`}
-                              >
-                                {lang.count}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Course Level Filter Card */}
-                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5 text-amber-400" />
-                          Course Level
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {['All', 'L-1', 'L-2', 'L-3', 'L-4'].map((lvl) => {
-                          const isActive = selectedLevelFilter === lvl;
-                          return (
-                            <button
-                              key={lvl}
-                              type="button"
-                              onClick={() => setSelectedLevelFilter(lvl)}
-                              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all text-center ${
-                                isActive
-                                  ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                                  : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
-                              }`}
-                            >
-                              {lvl === 'All' ? 'All Levels' : lvl}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Topic Search Box */}
-                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
-                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                        <Search className="w-3.5 h-3.5 text-sky-400" />
-                        Search Topics
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={topicSearchQuery}
-                          onChange={(e) => setTopicSearchQuery(e.target.value)}
-                          placeholder="Search title, keywords..."
-                          className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
-                        />
-                        {topicSearchQuery && (
-                          <button
-                            type="button"
-                            onClick={() => setTopicSearchQuery('')}
-                            className="absolute right-2.5 top-2 text-slate-400 hover:text-white"
-                          >
-                            <X size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* RAG Pipeline Integration Note */}
-                    <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-3.5 text-xs text-emerald-300 space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                        <Sparkles size={14} />
-                        <span>Mohan RAG Sync</span>
-                      </div>
-                      <p className="text-[11px] text-emerald-200/80 leading-relaxed">
-                        When you click &quot;Finalize &amp; Send to Creation Hub&quot; in Step 6 of the RAG Blueprint Pipeline, topics appear here automatically.
-                      </p>
-                    </div>
-                  </aside>
-
-                  {/* ───────────────────────────────────────────────────────────── */}
-                  {/* ── MAIN AREA: ALL ADDED TOPICS CARDS ─────────────────────── */}
-                  {/* ───────────────────────────────────────────────────────────── */}
-                  <main className="lg:col-span-9 space-y-4">
-                    {filteredList.length === 0 ? (
-                      <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
-                        <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
-                        <h3 className="text-base font-bold text-white">No topics match your current filters</h3>
-                        <p className="text-xs text-slate-400 max-w-md mx-auto">
-                          Try switching source language, selecting &quot;All Levels&quot;, or click &quot;+ Add Topic&quot; to create a new master copy.
-                        </p>
+                {/* Header Control Toolbar: Search Engine + Select Workshop Dropdown + Level + Language Pills */}
+                <div className="p-4 sm:p-5 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-4">
+                  {/* Top Row: Search Engine + Select Workshop + Course Level */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                    {/* 1. Search Engine */}
+                    <div className="md:col-span-5 relative">
+                      <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={topicSearchQuery}
+                        onChange={(e) => setTopicSearchQuery(e.target.value)}
+                        placeholder="🔍 Search topics, sutras, transcripts, keywords..."
+                        className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-950 border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                      {topicSearchQuery && (
                         <button
                           type="button"
-                          onClick={() => {
-                            setSourceLangFilter('all');
-                            setSelectedLevelFilter('All');
-                            setTopicSearchQuery('');
-                          }}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition"
+                          onClick={() => setTopicSearchQuery('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
                         >
-                          Reset Filters
+                          <X size={14} />
                         </button>
-                      </div>
-                    ) : (
+                      )}
+                    </div>
+
+                    {/* 2. Select Workshop Dropdown */}
+                    <div className="md:col-span-4 relative">
+                      <select
+                        value={selectedWorkshopFilter}
+                        onChange={(e) => setSelectedWorkshopFilter(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700/80 text-xs text-white font-bold rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                      >
+                        {WORKSHOP_FILTER_OPTIONS.map((w) => (
+                          <option key={w.id} value={w.id} className="bg-slate-900 text-white py-1">
+                            {w.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 3. Course Level Dropdown */}
+                    <div className="md:col-span-3 relative">
+                      <select
+                        value={selectedLevelFilter}
+                        onChange={(e) => setSelectedLevelFilter(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700/80 text-xs text-amber-300 font-extrabold rounded-2xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                      >
+                        <option value="All" className="bg-slate-900 text-white">All Course Levels</option>
+                        <option value="L-1" className="bg-slate-900 text-white">Level 1 (L-1)</option>
+                        <option value="L-2" className="bg-slate-900 text-white">Level 2 (L-2)</option>
+                        <option value="L-3" className="bg-slate-900 text-white">Level 3 (L-3)</option>
+                        <option value="L-4" className="bg-slate-900 text-white">Level 4 (L-4)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Source Language Filter Pills with Real Video Counts */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mr-1">
+                        <Globe2 className="w-3.5 h-3.5 text-emerald-400" />
+                        Source Language:
+                      </span>
+                      {[
+                        { id: 'all' as const, label: 'All Source Videos', count: allCount, icon: '🌐' },
+                        { id: 'en' as const, label: 'English', count: enCount, icon: '🇬🇧' },
+                        { id: 'hi' as const, label: 'हिन्दी (Hindi)', count: hiCount, icon: '🕉️' },
+                        { id: 'mr' as const, label: 'मराठी (Marathi)', count: mrCount, icon: '🚩' },
+                      ].map((lang) => {
+                        const isActive = sourceLangFilter === lang.id;
+                        return (
+                          <button
+                            key={lang.id}
+                            type="button"
+                            onClick={() => setSourceLangFilter(lang.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                              isActive
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/40 ring-1 ring-emerald-300'
+                                : 'bg-slate-950/80 text-emerald-300 hover:text-white hover:bg-slate-800 border border-emerald-900/50'
+                            }`}
+                          >
+                            <span>{lang.icon}</span>
+                            <span>{lang.label}</span>
+                            <span
+                              className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md ${
+                                isActive ? 'bg-emerald-800 text-white' : 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                              }`}
+                            >
+                              {lang.count} videos
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {(sourceLangFilter !== 'all' || selectedLevelFilter !== 'All' || selectedWorkshopFilter !== 'all' || topicSearchQuery) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSourceLangFilter('all');
+                          setSelectedLevelFilter('All');
+                          setSelectedWorkshopFilter('all');
+                          setTopicSearchQuery('');
+                        }}
+                        className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <RotateCcw size={12} />
+                        <span>Reset Filters</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Content Area: Full-Width Single-Column Row Cards */}
+                <div className="w-full space-y-4">
+                  {filteredList.length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
+                      <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
+                      <h3 className="text-base font-bold text-white">No topics match your current filters</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        Try resetting filters, choosing a different workshop, or click &quot;⚡ Sync RAG Library Lectures&quot; to refresh from the library.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSourceLangFilter('all');
+                          setSelectedLevelFilter('All');
+                          setSelectedWorkshopFilter('all');
+                          setTopicSearchQuery('');
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white transition cursor-pointer"
+                      >
+                        Reset Filters
+                      </button>
+                    </div>
+                  ) : (
                       <div className="grid grid-cols-1 gap-4">
                         {filteredList.map((item) => {
                           const isSelected = item.id === selectedMasterId;
@@ -1327,7 +1379,6 @@ export default function CreationHubPage() {
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
-                  </main>
                 </div>
               </div>
             );
