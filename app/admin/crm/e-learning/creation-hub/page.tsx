@@ -1183,14 +1183,14 @@ export default function CreationHubPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         {filteredList.map((item) => {
                           const isSelected = item.id === selectedMasterId;
                           return (
                             <div
                               key={item.id}
                               onClick={() => setSelectedMasterId(item.id)}
-                              className={`p-5 rounded-3xl cursor-pointer transition-all border flex flex-col justify-between ${
+                              className={`p-5 sm:p-6 rounded-3xl cursor-pointer transition-all border flex flex-col justify-between ${
                                 isSelected
                                   ? 'bg-purple-950/30 border-purple-500 shadow-xl shadow-purple-900/20 ring-1 ring-purple-400'
                                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
@@ -1199,7 +1199,7 @@ export default function CreationHubPage() {
                               <div>
                                 {/* Card Header Badges */}
                                 <div className="flex items-center justify-between mb-2.5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
                                       {item.level}
                                     </span>
@@ -1211,24 +1211,24 @@ export default function CreationHubPage() {
                                     </span>
                                   </div>
                                   <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-                                    <Clock className="w-3 h-3 text-purple-400" />
+                                    <Clock className="w-3.5 h-3.5 text-purple-400" />
                                     {item.durationMinutes}m
                                   </span>
                                 </div>
 
                                 {/* Title / Heading */}
-                                <h3 className="text-base font-black text-white mb-2 leading-snug">
+                                <h3 className="text-base sm:text-lg font-black text-white mb-2 leading-snug">
                                   {item.title}
                                 </h3>
 
                                 {/* Small Description / Transcript Excerpt */}
-                                <p className="text-xs text-slate-300/90 line-clamp-3 mb-3 leading-relaxed italic bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
+                                <p className="text-xs text-slate-300/90 line-clamp-3 mb-3 leading-relaxed italic bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
                                   &ldquo;{item.transcript}&rdquo;
                                 </p>
 
                                 {/* Key Points */}
-                                <div className="space-y-1.5 pt-2 border-t border-slate-800/80 mb-3">
-                                  {(item.keyPoints || []).slice(0, 2).map((kp, idx) => (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 mb-3">
+                                  {(item.keyPoints || []).slice(0, 4).map((kp, idx) => (
                                     <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-300">
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                                       <span className="truncate">{kp}</span>
@@ -1238,7 +1238,7 @@ export default function CreationHubPage() {
 
                                 {/* Custom Additions / Admin Notes badge */}
                                 {item.adminNotes && (
-                                  <div className="mb-3 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-1.5">
+                                  <div className="mb-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-1.5">
                                     <span className="shrink-0 font-bold">📝</span>
                                     <span className="line-clamp-2">{item.adminNotes}</span>
                                   </div>
