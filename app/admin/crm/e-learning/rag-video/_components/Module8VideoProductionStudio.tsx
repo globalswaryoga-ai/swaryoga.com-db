@@ -98,6 +98,7 @@ export default function Module8VideoProductionStudio({
   const [activeSentenceIndex, setActiveSentenceIndex] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
+  const [audioMode, setAudioMode] = useState<'original' | 'tts'>('original');
 
   // Export & Publishing
   const [activePublishTab, setActivePublishTab] = useState<'media' | 'community' | 'social'>('media');
@@ -452,6 +453,9 @@ export default function Module8VideoProductionStudio({
       setIsSpeaking(false);
       setActiveSentenceIndex(null);
       if (canvasVideoRef.current) canvasVideoRef.current.pause();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       return;
     }
 
@@ -461,8 +465,12 @@ export default function Module8VideoProductionStudio({
     setActiveSentenceIndex(index);
     setIsSpeaking(true);
 
+    const startSec = parseTimeToSeconds(item.start || '00:00');
+    const endSec = parseTimeToSeconds(item.end || '00:00');
+    const durSec = item.durationSeconds || Math.max(3, endSec - startSec);
+
+    // 1. Video Playback
     if (canvasVideoRef.current) {
-      const startSec = parseTimeToSeconds(item.start || '00:00');
       if (
         canvasVideoRef.current.duration &&
         startSec < canvasVideoRef.current.duration &&
@@ -470,44 +478,66 @@ export default function Module8VideoProductionStudio({
       ) {
         canvasVideoRef.current.currentTime = startSec;
       }
+      // CRITICAL: In TTS mode, MUTE video so Mohan Sir's real voice NEVER mixes with TTS lady voice!
+      // In Original mode, UNMUTE video so Mohan Sir's authentic voice plays.
+      canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
       canvasVideoRef.current.play().catch(() => {});
     }
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && !isMuted) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(item.text);
-      utterance.rate = item.speed || 1.0;
+    // 2. Audio Playback - strictly EITHER Original Video Voice OR AI TTS (NEVER BOTH!)
+    if (audioMode === 'tts') {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && !isMuted) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(item.text);
+        utterance.rate = item.speed || 1.0;
 
-      const langCode = activeAvatar?.defaultLanguage || 'hi';
-      utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
+        const langCode = activeAvatar?.defaultLanguage || 'hi';
+        utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
-      const voices = window.speechSynthesis.getVoices();
-      const matchedVoice = voices.find(
-        (v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')
-      );
-      if (matchedVoice) utterance.voice = matchedVoice;
+        const voices = window.speechSynthesis.getVoices();
+        const maleVoice = voices.find(
+          (v) =>
+            (v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) &&
+            (v.name.toLowerCase().includes('male') ||
+              v.name.toLowerCase().includes('man') ||
+              v.name.toLowerCase().includes('rishi') ||
+              v.name.toLowerCase().includes('madhur') ||
+              v.name.toLowerCase().includes('pradeep'))
+        );
+        utterance.voice =
+          maleVoice ||
+          voices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          null;
 
-      utterance.onend = () => {
-        const pauseMatch = item.rawText.match(/\[pause:(\d+(?:\.\d+)?)s?\]/);
-        const pauseMs = pauseMatch ? Number(pauseMatch[1]) * 1000 : 500;
+        utterance.onend = () => {
+          const pauseMatch = item.rawText.match(/\[pause:(\d+(?:\.\d+)?)s?\]/);
+          const pauseMs = pauseMatch ? Number(pauseMatch[1]) * 1000 : 500;
 
+          playTimerRef.current = setTimeout(() => {
+            playSentenceSequence(index + 1);
+          }, pauseMs);
+        };
+
+        utterance.onerror = () => {
+          playTimerRef.current = setTimeout(() => {
+            playSentenceSequence(index + 1);
+          }, 600);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } else {
         playTimerRef.current = setTimeout(() => {
           playSentenceSequence(index + 1);
-        }, pauseMs);
-      };
-
-      utterance.onerror = () => {
-        playTimerRef.current = setTimeout(() => {
-          playSentenceSequence(index + 1);
-        }, 600);
-      };
-
-      window.speechSynthesis.speak(utterance);
+        }, durSec * 1000);
+      }
     } else {
-      // If muted or speech not available, advance by calculated duration
+      // Original mode: ZERO TTS! Only Mohan Sir speaks from video
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       playTimerRef.current = setTimeout(() => {
         playSentenceSequence(index + 1);
-      }, (item.durationSeconds || 3) * 1000);
+      }, durSec * 1000);
     }
   };
 
@@ -525,10 +555,14 @@ export default function Module8VideoProductionStudio({
       // Start Playback
       setIsPlayingAll(true);
       setIsSpeaking(true);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       if (canvasVideoRef.current) {
         if (canvasVideoRef.current.ended || canvasVideoRef.current.currentTime >= (canvasVideoRef.current.duration || 1000)) {
           canvasVideoRef.current.currentTime = 0;
         }
+        canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
         canvasVideoRef.current.play().catch(() => {});
       }
       const startIdx = activeSentenceIndex !== null ? activeSentenceIndex : 0;
@@ -579,35 +613,72 @@ export default function Module8VideoProductionStudio({
       return;
     }
 
+    if (playTimerRef.current) clearTimeout(playTimerRef.current);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     setIsPlayingAll(false);
     setActiveSentenceIndex(idx);
     setIsSpeaking(true);
 
+    const item = timelineSentences[idx];
+    if (!item) return;
+
+    const startSec = parseTimeToSeconds(item.start || '00:00');
+    const endSec = parseTimeToSeconds(item.end || '00:00');
+    const durSec = item.durationSeconds || Math.max(3, endSec - startSec);
+
     if (canvasVideoRef.current) {
-      canvasVideoRef.current.currentTime = 0;
+      if (canvasVideoRef.current.duration && startSec < canvasVideoRef.current.duration) {
+        canvasVideoRef.current.currentTime = startSec;
+      }
+      canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
       canvasVideoRef.current.play().catch(() => {});
     }
 
-    const item = timelineSentences[idx];
-    if (item && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(item.text);
-      utterance.rate = item.speed || 1.0;
-      const langCode = activeAvatar?.defaultLanguage || 'hi';
-      utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
+    if (audioMode === 'tts') {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(item.text);
+        utterance.rate = item.speed || 1.0;
+        const langCode = activeAvatar?.defaultLanguage || 'hi';
+        utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
-      utterance.onend = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const maleVoice = voices.find(
+          (v) =>
+            (v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) &&
+            (v.name.toLowerCase().includes('male') ||
+              v.name.toLowerCase().includes('man') ||
+              v.name.toLowerCase().includes('rishi') ||
+              v.name.toLowerCase().includes('madhur') ||
+              v.name.toLowerCase().includes('pradeep'))
+        );
+        utterance.voice =
+          maleVoice ||
+          voices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          null;
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          setActiveSentenceIndex(null);
+          if (canvasVideoRef.current) canvasVideoRef.current.pause();
+        };
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+          setActiveSentenceIndex(null);
+          if (canvasVideoRef.current) canvasVideoRef.current.pause();
+        };
+
+        window.speechSynthesis.speak(utterance);
+      }
+    } else {
+      // Mohan Sir Original Voice Mode: ONLY Mohan Sir speaks from video, NO TTS lady voice!
+      playTimerRef.current = setTimeout(() => {
         setIsSpeaking(false);
         setActiveSentenceIndex(null);
         if (canvasVideoRef.current) canvasVideoRef.current.pause();
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        setActiveSentenceIndex(null);
-        if (canvasVideoRef.current) canvasVideoRef.current.pause();
-      };
-
-      window.speechSynthesis.speak(utterance);
+      }, durSec * 1000);
     }
   };
 
@@ -1111,6 +1182,53 @@ export default function Module8VideoProductionStudio({
               </button>
             </div>
 
+            {/* Audio Voice Output Selector - Prevents Lady & Mohan Sir Sound Mixing */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Volume2 size={14} className="text-emerald-400" />
+                <span>Audio Voice Output:</span>
+              </span>
+              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioMode('original');
+                    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                      window.speechSynthesis.cancel();
+                    }
+                    if (canvasVideoRef.current) {
+                      canvasVideoRef.current.muted = isMuted;
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    audioMode === 'original'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Plays authentic recorded audio from Mohan Sir (No lady TTS)"
+                >
+                  <span>🎙️ Mohan Sir Original Voice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioMode('tts');
+                    if (canvasVideoRef.current) {
+                      canvasVideoRef.current.muted = true;
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    audioMode === 'tts'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Uses AI speech synthesis (video is muted so voices never mix)"
+                >
+                  <span>🤖 AI TTS Voice</span>
+                </button>
+              </div>
+            </div>
+
             {/* Emotion / Prosody Mode Selector */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300">Emotion Generation Mode:</span>
@@ -1202,7 +1320,7 @@ export default function Module8VideoProductionStudio({
                         }`}
                       >
                         {isPlaying ? <Pause size={12} /> : <Play size={12} className="fill-amber-300" />}
-                        <span>{isPlaying ? 'Stop' : 'Listen'}</span>
+                        <span>{isPlaying ? 'Stop' : audioMode === 'original' ? 'Listen (Mohan Sir)' : 'Listen (TTS)'}</span>
                       </button>
                     </div>
 
