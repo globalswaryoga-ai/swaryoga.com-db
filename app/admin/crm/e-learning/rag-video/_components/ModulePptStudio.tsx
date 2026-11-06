@@ -26,6 +26,7 @@ import {
   Eye,
   Sliders,
   Play,
+  ExternalLink,
 } from 'lucide-react';
 import { PPT_THEME_PRESETS, PptThemePreset } from '@/app/api/avatar/ppt-generate/route';
 
@@ -261,6 +262,17 @@ export default function ModulePptStudio({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`https://www.canva.com/design/create?width=1920&height=1080&unit=px&title=${encodeURIComponent('Swar Yoga Presentation Deck - ' + (slides[0]?.heading || 'Master Class'))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white text-xs font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+            title="Create full 16:9 Presentation in Canva (1920x1080)"
+          >
+            <span>🎨 Open Deck in Canva (16:9)</span>
+            <ExternalLink size={13} />
+          </a>
+
           <button
             onClick={handleExportMarkdown}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer"
@@ -682,6 +694,17 @@ export default function ModulePptStudio({
                 </span>
 
                 <div className="flex items-center gap-2">
+                  <a
+                    href={`https://www.canva.com/design/create?width=1920&height=1080&unit=px&title=${encodeURIComponent('Swar Yoga - Slide ' + activeSlide.slideNumber + ' - ' + activeSlide.heading)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all hover:scale-105"
+                    title="Opens Canva 16:9 presentation slide (1920x1080)"
+                  >
+                    <span>🎨 Design Slide in Canva (16:9)</span>
+                    <ExternalLink size={12} />
+                  </a>
+
                   <button
                     onClick={() => setIsImagePickerOpen(!isImagePickerOpen)}
                     className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow"

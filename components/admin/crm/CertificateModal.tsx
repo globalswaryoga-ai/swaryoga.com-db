@@ -203,6 +203,17 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
               <Share2 className="w-4 h-4" />
             </button>
 
+            <a
+              href={`https://www.canva.com/design/create?width=297&height=210&unit=mm&title=${encodeURIComponent('Swar Yoga Certificate - ' + (certificateData.studentName || 'Student'))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white font-semibold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              title="Customize Certificate in Canva (A4 Landscape: 297x210mm)"
+            >
+              <span>🎨 Canva (A4)</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
             <button
               onClick={() => router.push(`/admin/crm/sales/${sale._id}/certificate`)}
               className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition text-xs flex items-center gap-1"

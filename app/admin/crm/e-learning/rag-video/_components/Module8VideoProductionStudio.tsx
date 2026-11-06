@@ -283,26 +283,81 @@ export default function Module8VideoProductionStudio({
   // Parse script into timeline sentences with verbatim timestamps and natural cadence
   useEffect(() => {
     if (!scriptText) return;
-    const rawSentences = scriptText
-      .split(/(?<=[.!?।॥\n])\s+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+
+    // 1. Remove non-spoken trailing metadata sections (from RAG & workshop transcript views)
+    const cleanedScript = scriptText
+      .replace(/KEY LEARNING POINTS:[\s\S]*/gi, '')
+      .replace(/Custom Notes\s*\/[\s\S]*/gi, '')
+      .replace(/Length:\s*\d+\s*characters[\s\S]*/gi, '')
+      .trim();
+
+    // 2. Break into candidate lines/sentences, filtering out Minute chunk headers
+    const rawLines = cleanedScript.split('\n').map((l) => l.trim()).filter(Boolean);
+    const candidateSegments: string[] = [];
+
+    for (const line of rawLines) {
+      // Strip Minute block headers anywhere in the line e.g. "Minute 00:00-01:00"
+      const l = line.replace(/Minute\s+\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}[:\s-]*/gi, '').trim();
+      if (!l) continue;
+
+      // Check if line has multiple timestamped entries e.g. [00:00-00:08] text [00:08-00:12] text
+      const tsRegex = /(?:\[)?(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*(\d{1,2}:\d{2}(?::\d{2})?)(?:\])?/g;
+      const matches = Array.from(l.matchAll(tsRegex));
+
+      if (matches.length > 0) {
+        if (matches.length === 1 && l.startsWith(matches[0][0])) {
+          candidateSegments.push(l);
+        } else {
+          let lastIdx = 0;
+          let lastMatch: RegExpExecArray | null = null;
+          for (const m of matches) {
+            if (lastMatch && m.index !== undefined) {
+              const seg = l.slice(lastIdx, m.index).trim();
+              if (seg) candidateSegments.push(seg);
+            }
+            if (m.index !== undefined) {
+              lastIdx = m.index;
+              lastMatch = m;
+            }
+          }
+          if (lastIdx < l.length) {
+            const seg = l.slice(lastIdx).trim();
+            if (seg) candidateSegments.push(seg);
+          }
+        }
+      } else {
+        // No timestamps: split by standard Hindi / Sanskrit / English sentence endings
+        const sub = l.split(/(?<=[.!?।॥])\s+/).map((s) => s.trim()).filter(Boolean);
+        candidateSegments.push(...sub);
+      }
+    }
 
     let curTime = 0;
-    const built = rawSentences.map((s, idx) => {
-      // Check for explicit timestamp pattern e.g. [00:03 - 00:12], 00:03 - 00:12, [00:03-00:12], [00:00:03 - 00:00:12]
+    const built: any[] = [];
+
+    for (let idx = 0; idx < candidateSegments.length; idx++) {
+      const s = candidateSegments[idx];
+
+      // Check for explicit timestamp pattern e.g. [00:03 - 00:12], 00:03 - 00:12, [00:03-00:12]
       const tsMatch = s.match(/(?:\[)?(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*(\d{1,2}:\d{2}(?::\d{2})?)(?:\])?/);
 
       const matchEmotion = s.match(/\[([a-z_]+)(?::(\d+))?\]/);
       const tag = matchEmotion ? matchEmotion[1] : 'smile';
       const intensity = matchEmotion && matchEmotion[2] ? Number(matchEmotion[2]) : 80;
 
-      // Clean text by stripping timestamps and emotion tags
+      // Clean text by stripping Minute headers, timestamps, orphan brackets, and emotion tags
       const clean = s
+        .replace(/Minute\s+\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}[:\s-]*/gi, '')
         .replace(/(?:\[)?\d{1,2}:\d{2}(?::\d{2})?\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?(?:\])?/g, '')
-        .replace(/^Minute\s+\d{1,2}:\d{2}[-–]\d{1,2}:\d{2}/gi, '')
+        .replace(/\[\d{1,2}:\d{2}[^\]]*\]?/g, '') // orphan timestamp fragments like [01:00-01:08
         .replace(/\[[^\]]+\]/g, '')
+        .replace(/^[-–—:\s]+/, '')
         .trim();
+
+      // Skip non-speech noise or empty sentences
+      if (!clean || clean.length < 2 || /^[\d\s:–\-\[\]\(\)\.\,\?।॥]+$/.test(clean)) {
+        continue;
+      }
 
       let startTime: string;
       let endTime: string;
@@ -324,12 +379,12 @@ export default function Module8VideoProductionStudio({
         curTime += duration;
       }
 
-      return {
+      built.push({
         id: `sent_${idx}`,
         start: startTime,
         end: endTime,
         durationSeconds: duration,
-        text: clean || s,
+        text: clean,
         rawText: s,
         emotion: tag,
         intensity,
@@ -341,8 +396,8 @@ export default function Module8VideoProductionStudio({
           ? 'pointing_finger'
           : 'none',
         speed: 1.0,
-      };
-    });
+      });
+    }
 
     setTimelineSentences(built);
   }, [scriptText]);
