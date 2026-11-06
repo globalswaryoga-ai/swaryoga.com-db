@@ -92,22 +92,46 @@ async function handleDownload(req: NextRequest) {
       );
     }
 
+    const requestedType = req.nextUrl.searchParams.get('type') || req.nextUrl.searchParams.get('file') || '';
+
+    // If user requested only the .env file
+    if (requestedType === 'env' || requestedType === 'env.local') {
+      const cwd = process.cwd();
+      const envPath = path.join(cwd, '.env.local');
+      const fallbackEnv = path.join(cwd, '.env');
+      const targetEnv = fs.existsSync(envPath) ? envPath : fallbackEnv;
+
+      if (!fs.existsSync(targetEnv)) {
+        return NextResponse.json({ error: '.env.local file not found on server.' }, { status: 404 });
+      }
+
+      const envContent = fs.readFileSync(targetEnv, 'utf-8');
+      return new Response(envContent, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': 'attachment; filename=".env.local"',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      });
+    }
+
     const archivePath = '/tmp/swaryoga-project-full.tar.gz';
     const cwd = process.cwd();
 
-    // Check if a recently cached archive (< 20 mins old) exists to serve instantly
+    // Check if a recently cached archive (< 24 hours old) exists to serve instantly
     let needsRebuild = true;
     if (fs.existsSync(archivePath)) {
       const stat = fs.statSync(archivePath);
-      const ageMinutes = (Date.now() - stat.mtimeMs) / (1000 * 60);
-      if (ageMinutes < 20 && stat.size > 10 * 1024 * 1024) {
+      const ageHours = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60);
+      if (ageHours < 24 && stat.size > 10 * 1024 * 1024) {
         needsRebuild = false;
       }
     }
 
     if (needsRebuild) {
       // Build clean archive excluding node_modules, .next, .git, etc.
-      // Retains all source code, .env.local, configs, scripts, and media.
+      // Explicitly retains all source code, .env files, configs, scripts, and media.
       const tarCmd = `tar --exclude="*node_modules*" --exclude=".next*" --exclude=".git" --exclude=".wwebjs_auth*" --exclude=".venv*" -czf "${archivePath}" .`;
       await execPromise(tarCmd, { cwd, maxBuffer: 100 * 1024 * 1024 });
     }
@@ -151,3 +175,4 @@ async function handleDownload(req: NextRequest) {
     );
   }
 }
+

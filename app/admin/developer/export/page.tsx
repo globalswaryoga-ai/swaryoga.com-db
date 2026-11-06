@@ -42,26 +42,33 @@ export default function DeveloperExportPage() {
     setTimeout(() => setCopiedSection(null), 2500);
   };
 
-  const handleDownload = (useToken = false) => {
+  const handleDownload = (useToken = false, isEnvOnly = false) => {
     setErrorMsg(null);
 
     let url = '/api/admin/developer/download-project';
+    const params = new URLSearchParams();
+
+    if (isEnvOnly) {
+      params.append('type', 'env');
+    }
+
     if (useToken && activeToken) {
-      url += `?token=${encodeURIComponent(activeToken)}`;
+      params.append('token', activeToken);
     } else {
       if (!password.trim()) {
         setErrorMsg('Please enter your admin login password to proceed.');
         return;
       }
-      url += `?password=${encodeURIComponent(password.trim())}`;
+      params.append('password', password.trim());
     }
 
+    url += `?${params.toString()}`;
     setIsDownloading(true);
 
     // Trigger direct browser download
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'swaryoga-project-full.tar.gz');
+    link.setAttribute('download', isEnvOnly ? '.env.local' : 'swaryoga-project-full.tar.gz');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -137,15 +144,27 @@ export default function DeveloperExportPage() {
                   <p className="text-[11px] text-emerald-400/80">You are logged into Admin CRM on this browser.</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDownload(true)}
-                disabled={isDownloading}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer transition active:scale-95 disabled:opacity-50"
-              >
-                <Download size={14} />
-                <span>{isDownloading ? 'Downloading...' : '1-Click Instant Download'}</span>
-              </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleDownload(true, true)}
+                  disabled={isDownloading}
+                  className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 disabled:opacity-50"
+                  title="Download standalone .env.local configuration file"
+                >
+                  <KeyRound size={13} />
+                  <span>Download .env.local</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(true, false)}
+                  disabled={isDownloading}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer transition active:scale-95 disabled:opacity-50"
+                >
+                  <Download size={14} />
+                  <span>{isDownloading ? 'Downloading...' : '1-Click Full Project'}</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -161,23 +180,43 @@ export default function DeveloperExportPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleDownload(false);
+                  if (e.key === 'Enter') handleDownload(false, false);
                 }}
                 className="flex-1 px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none transition shadow-inner font-mono"
               />
               <button
                 type="button"
-                onClick={() => handleDownload(false)}
+                onClick={() => handleDownload(false, true)}
+                disabled={isDownloading}
+                className="px-4 py-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 disabled:opacity-50 shrink-0"
+                title="Download standalone .env.local file"
+              >
+                <KeyRound size={14} />
+                <span>Download .env.local</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(false, false)}
                 disabled={isDownloading}
                 className="px-6 py-3 rounded-xl text-xs font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer transition active:scale-95 disabled:opacity-50 shrink-0"
               >
                 <FileArchive size={15} />
-                <span>{isDownloading ? 'Building & Downloading...' : 'Download Project (.tar.gz)'}</span>
+                <span>{isDownloading ? 'Downloading...' : 'Download Full Project (.tar.gz)'}</span>
               </button>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Direct API URL for curl / scripts: <code className="text-amber-300/80">https://swaryoga.com/api/admin/developer/download-project?password=YOUR_PASSWORD</code>
-            </p>
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <p className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <CheckCircle size={13} />
+                <span>All .env and .env.local credentials are ALREADY bundled inside the full .tar.gz archive.</span>
+              </p>
+              <p>
+                Direct API URLs:
+                <br />
+                • Full Codebase: <code className="text-amber-300">https://swaryoga.com/api/admin/developer/download-project?password=YOUR_PASSWORD</code>
+                <br />
+                • .env.local only: <code className="text-emerald-300">https://swaryoga.com/api/admin/developer/download-project?password=YOUR_PASSWORD&type=env</code>
+              </p>
+            </div>
           </div>
         </div>
 
@@ -280,3 +319,4 @@ git clone git@github.com:globalswaryoga-ai/swaryoga.com-db.git
     </div>
   );
 }
+
