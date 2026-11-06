@@ -68,7 +68,7 @@ export default function DeveloperExportPage() {
     // Trigger direct browser download
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', isEnvOnly ? '.env.local' : 'swaryoga-project-full.tar.gz');
+    link.setAttribute('download', isEnvOnly ? 'Dell-Mohan-db-web-env.local' : 'Dell-Mohan-db-web.tar.gz');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

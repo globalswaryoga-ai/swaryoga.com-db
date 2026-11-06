@@ -110,19 +110,21 @@ async function handleDownload(req: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
-          'Content-Disposition': 'attachment; filename=".env.local"',
+          'Content-Disposition': 'attachment; filename="Dell-Mohan-db-web-env.local"',
           'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       });
     }
 
-    const archivePath = '/tmp/swaryoga-project-full.tar.gz';
+    const archivePath = '/tmp/Dell-Mohan-db-web.tar.gz';
+    const fallbackPath = '/tmp/swaryoga-project-full.tar.gz';
+    const actualPath = fs.existsSync(archivePath) ? archivePath : fallbackPath;
     const cwd = process.cwd();
 
     // Check if a recently cached archive (< 24 hours old) exists to serve instantly
     let needsRebuild = true;
-    if (fs.existsSync(archivePath)) {
-      const stat = fs.statSync(archivePath);
+    if (fs.existsSync(actualPath)) {
+      const stat = fs.statSync(actualPath);
       const ageHours = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60);
       if (ageHours < 24 && stat.size > 10 * 1024 * 1024) {
         needsRebuild = false;
@@ -136,12 +138,13 @@ async function handleDownload(req: NextRequest) {
       await execPromise(tarCmd, { cwd, maxBuffer: 100 * 1024 * 1024 });
     }
 
-    if (!fs.existsSync(archivePath)) {
+    const finalPath = fs.existsSync(archivePath) ? archivePath : fallbackPath;
+    if (!fs.existsSync(finalPath)) {
       return NextResponse.json({ error: 'Failed to build codebase archive.' }, { status: 500 });
     }
 
-    const stat = fs.statSync(archivePath);
-    const fileStream = fs.createReadStream(archivePath);
+    const stat = fs.statSync(finalPath);
+    const fileStream = fs.createReadStream(finalPath);
 
     // Convert Node ReadStream to Web ReadableStream
     const readableStream = new ReadableStream({
@@ -155,8 +158,7 @@ async function handleDownload(req: NextRequest) {
       },
     });
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `swaryoga-project-full-${timestamp}.tar.gz`;
+    const filename = `Dell-Mohan-db-web.tar.gz`;
 
     return new Response(readableStream, {
       status: 200,
