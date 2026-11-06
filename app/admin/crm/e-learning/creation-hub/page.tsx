@@ -265,7 +265,7 @@ export default function CreationHubPage() {
       const saved = localStorage.getItem('swar_creation_hub_master_list_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed) && parsed.length >= 10) {
           const cleaned = parsed.filter(
             (m: any) =>
               !deletedSet.has(m.id) &&
@@ -303,16 +303,16 @@ export default function CreationHubPage() {
               level: t.level || 'L-1',
               day: t.day || 'Day 1',
               title: t.title,
-              sourceLanguage: (t.source_language || t.sourceLanguage || 'hi') as 'hi' | 'mr' | 'en',
-              durationMinutes: Number(t.duration_minutes || t.durationMinutes || 45),
-              sourceVideoUrl: t.source_video_url || t.sourceVideoUrl || undefined,
+              sourceLanguage: (t.sourceLanguage || t.source_language || 'hi') as 'hi' | 'mr' | 'en',
+              durationMinutes: Number(t.durationMinutes || t.duration_minutes || 45),
+              sourceVideoUrl: t.sourceVideoUrl || t.source_video_url || undefined,
               transcript: t.transcript || '',
-              keyPoints: Array.isArray(t.key_points) ? t.key_points : (Array.isArray(t.keyPoints) ? t.keyPoints : []),
-              blueprintSovPlain: t.blueprint_sov_plain || t.blueprintSovHummer || undefined,
-              blueprintSovHummer: t.blueprint_sov_hummer || undefined,
-              blueprintSvoPlain: t.blueprint_svo_plain || undefined,
-              blueprintSvoHummer: t.blueprint_svo_hummer || undefined,
-              adminNotes: t.admin_notes || t.adminNotes || '',
+              keyPoints: Array.isArray(t.keyPoints) ? t.keyPoints : (Array.isArray(t.key_points) ? t.key_points : []),
+              blueprintSovPlain: t.blueprintSovPlain || t.blueprint_sov_plain || t.blueprintSovHummer || undefined,
+              blueprintSovHummer: t.blueprintSovHummer || t.blueprint_sov_hummer || undefined,
+              blueprintSvoPlain: t.blueprintSvoPlain || t.blueprint_svo_plain || undefined,
+              blueprintSvoHummer: t.blueprintSvoHummer || t.blueprint_svo_hummer || undefined,
+              adminNotes: t.adminNotes || t.admin_notes || '',
             }));
 
           setMasterList(() => {
@@ -366,13 +366,37 @@ export default function CreationHubPage() {
       });
       const d = await r.json();
       if (d.success && Array.isArray(d.topics)) {
-        setMasterList(d.topics);
+        const freshDeleted = getDeletedIds();
+        const mapped = d.topics
+          .filter((t: any) => !freshDeleted.has(t.id) && !DUMMY_WORKSHOP_IDS.has(t.id))
+          .map((t: any) => ({
+            id: t.id,
+            level: t.level || 'L-1',
+            day: t.day || 'Day 1',
+            title: t.title,
+            sourceLanguage: (t.sourceLanguage || t.source_language || 'hi') as 'hi' | 'mr' | 'en',
+            durationMinutes: Number(t.durationMinutes || t.duration_minutes || 45),
+            sourceVideoUrl: t.sourceVideoUrl || t.source_video_url || undefined,
+            transcript: t.transcript || '',
+            keyPoints: Array.isArray(t.keyPoints) ? t.keyPoints : (Array.isArray(t.key_points) ? t.key_points : []),
+            blueprintSovPlain: t.blueprintSovPlain || t.blueprint_sov_plain || undefined,
+            blueprintSovHummer: t.blueprintSovHummer || t.blueprint_sov_hummer || undefined,
+            blueprintSvoPlain: t.blueprintSvoPlain || t.blueprint_svo_plain || undefined,
+            blueprintSvoHummer: t.blueprintSvoHummer || t.blueprint_svo_hummer || undefined,
+            adminNotes: t.adminNotes || t.admin_notes || '',
+          }));
+
+        setMasterList(mapped);
         try {
-          localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(d.topics));
+          localStorage.setItem('swar_creation_hub_master_list_v4', JSON.stringify(mapped));
         } catch (e) {}
-        if (d.topics.length > 0 && !selectedMasterId) {
-          setSelectedMasterId(d.topics[0].id);
+        if (mapped.length > 0) {
+          setSelectedMasterId(mapped[0].id);
         }
+        // Reset filters so all new topics appear immediately
+        setSelectedWorkshopFilter('all');
+        setSelectedLevelFilter('All');
+        setTopicSearchQuery('');
       }
     } catch (err: any) {
       setSyncStatusMsg(`❌ Sync notice: ${err.message}`);

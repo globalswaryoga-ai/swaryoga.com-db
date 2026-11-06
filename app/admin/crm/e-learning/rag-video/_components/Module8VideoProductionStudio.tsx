@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Film,
   Play,
@@ -33,6 +33,14 @@ import {
   Copy,
   ExternalLink,
   Trash2,
+  Search,
+  Grid,
+  X,
+  ChevronRight,
+  Eye,
+  RefreshCw,
+  Flame,
+  BookOpen,
 } from 'lucide-react';
 import { FinalAvatar, VideoAvatar } from '@/lib/bunnyAvatarStudioRepository';
 import { MASTER_EMOTION_PRESETS, EmotionPreset } from '@/lib/avatarStudioMasterConfig';
@@ -69,6 +77,11 @@ export default function Module8VideoProductionStudio({
   const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState('Swar Yoga Master Video');
+
+  // 39 DNA Looks Gallery Modal & Search
+  const [showAllDnaModal, setShowAllDnaModal] = useState(false);
+  const [dnaSearchQuery, setDnaSearchQuery] = useState('');
+  const [dnaLangFilter, setDnaLangFilter] = useState<'all' | 'hi' | 'mr' | 'en'>('all');
 
   // Script & Timeline
   const [scriptText, setScriptText] = useState(
@@ -110,7 +123,71 @@ export default function Module8VideoProductionStudio({
   const [renderFinished, setRenderFinished] = useState(false);
 
   const canvasVideoRef = useRef<HTMLVideoElement>(null);
+  const canvasIframeRef = useRef<HTMLIFrameElement>(null);
   const playTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Send Player.js command to Bunny Stream iframe
+  const postBunnyCommand = useCallback((method: string, value?: any) => {
+    if (!canvasIframeRef.current || !canvasIframeRef.current.contentWindow) return;
+    try {
+      const msg = JSON.stringify({
+        context: 'player.js',
+        version: '0.0.11',
+        event: 'command',
+        method,
+        value,
+      });
+      canvasIframeRef.current.contentWindow.postMessage(msg, '*');
+      canvasIframeRef.current.contentWindow.postMessage(JSON.stringify({ method, value }), '*');
+    } catch {}
+  }, []);
+
+  // Listen to Bunny Stream Player.js messages for synchronized playback
+  useEffect(() => {
+    const handleBunnyMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      try {
+        let payload = event.data;
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            return;
+          }
+        }
+        if (typeof payload !== 'object' || !payload) return;
+
+        const eventName = payload.event || payload.type;
+        const val = payload.value ?? payload.data;
+
+        if (eventName === 'play') {
+          setIsSpeaking(true);
+        } else if (eventName === 'pause') {
+          setIsSpeaking(false);
+        } else if (eventName === 'ended') {
+          setIsSpeaking(false);
+          setIsPlayingAll(false);
+          setActiveSentenceIndex(null);
+        } else if (eventName === 'timeupdate') {
+          const sec = typeof val === 'number' ? val : (val?.seconds ?? val?.currentTime);
+          if (typeof sec === 'number' && !isNaN(sec) && timelineSentences.length > 0) {
+            const foundIdx = timelineSentences.findIndex((s) => {
+              const sStart = parseTimeToSeconds(s.start);
+              const sEnd = parseTimeToSeconds(s.end);
+              return sec >= sStart && sec <= sEnd;
+            });
+            if (foundIdx !== -1 && foundIdx !== activeSentenceIndex) {
+              setActiveSentenceIndex(foundIdx);
+              setIsSpeaking(true);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleBunnyMessage);
+    return () => window.removeEventListener('message', handleBunnyMessage);
+  }, [timelineSentences, activeSentenceIndex]);
 
   // Load Final Avatars and Video Avatars
   useEffect(() => {
@@ -203,7 +280,7 @@ export default function Module8VideoProductionStudio({
 
   const [timelineFilterQuery, setTimelineFilterQuery] = useState('');
 
-  // Parse script into timeline sentences
+  // Parse script into timeline sentences with verbatim timestamps and natural cadence
   useEffect(() => {
     if (!scriptText) return;
     const rawSentences = scriptText
@@ -213,22 +290,46 @@ export default function Module8VideoProductionStudio({
 
     let curTime = 0;
     const built = rawSentences.map((s, idx) => {
+      // Check for explicit timestamp pattern e.g. [00:03 - 00:12], 00:03 - 00:12, [00:03-00:12], [00:00:03 - 00:00:12]
+      const tsMatch = s.match(/(?:\[)?(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*(\d{1,2}:\d{2}(?::\d{2})?)(?:\])?/);
+
       const matchEmotion = s.match(/\[([a-z_]+)(?::(\d+))?\]/);
       const tag = matchEmotion ? matchEmotion[1] : 'smile';
       const intensity = matchEmotion && matchEmotion[2] ? Number(matchEmotion[2]) : 80;
-      const clean = s.replace(/\[[^\]]+\]/g, '').trim();
-      const duration = Math.max(3, Math.round(clean.split(' ').length * 0.45));
 
-      const startTime = formatSeconds(curTime);
-      const endTime = formatSeconds(curTime + duration);
-      curTime += duration;
+      // Clean text by stripping timestamps and emotion tags
+      const clean = s
+        .replace(/(?:\[)?\d{1,2}:\d{2}(?::\d{2})?\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?(?:\])?/g, '')
+        .replace(/^Minute\s+\d{1,2}:\d{2}[-–]\d{1,2}:\d{2}/gi, '')
+        .replace(/\[[^\]]+\]/g, '')
+        .trim();
+
+      let startTime: string;
+      let endTime: string;
+      let duration: number;
+
+      if (tsMatch) {
+        startTime = tsMatch[1];
+        endTime = tsMatch[2];
+        const sSec = parseTimeToSeconds(startTime);
+        const eSec = parseTimeToSeconds(endTime);
+        duration = Math.max(3, eSec - sSec);
+        curTime = eSec;
+      } else {
+        // Natural spoken Hindi/Marathi/English pace (~0.75s per word + natural pause)
+        const wordCount = clean.split(/\s+/).filter(Boolean).length;
+        duration = Math.max(4, Math.round(wordCount * 0.75) + 1);
+        startTime = formatSeconds(curTime);
+        endTime = formatSeconds(curTime + duration);
+        curTime += duration;
+      }
 
       return {
         id: `sent_${idx}`,
         start: startTime,
         end: endTime,
         durationSeconds: duration,
-        text: clean,
+        text: clean || s,
         rawText: s,
         emotion: tag,
         intensity,
@@ -453,6 +554,7 @@ export default function Module8VideoProductionStudio({
       setIsSpeaking(false);
       setActiveSentenceIndex(null);
       if (canvasVideoRef.current) canvasVideoRef.current.pause();
+      postBunnyCommand('pause');
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -467,29 +569,35 @@ export default function Module8VideoProductionStudio({
 
     const startSec = parseTimeToSeconds(item.start || '00:00');
     const endSec = parseTimeToSeconds(item.end || '00:00');
-    const durSec = item.durationSeconds || Math.max(3, endSec - startSec);
+    const wordCount = (item.text || '').split(/\s+/).filter(Boolean).length;
+    const durSec = endSec > startSec
+      ? (endSec - startSec) + 0.8
+      : Math.max(5, Math.ceil(wordCount * 0.75) + 1.5);
 
-    // 1. Video Playback
-    if (canvasVideoRef.current) {
-      if (
-        canvasVideoRef.current.duration &&
-        startSec < canvasVideoRef.current.duration &&
-        Math.abs(canvasVideoRef.current.currentTime - startSec) > 3
-      ) {
-        canvasVideoRef.current.currentTime = startSec;
-      }
-      // CRITICAL: In TTS mode, MUTE video so Mohan Sir's real voice NEVER mixes with TTS lady voice!
-      // In Original mode, UNMUTE video so Mohan Sir's authentic voice plays.
-      canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
-      canvasVideoRef.current.play().catch(() => {});
-    }
-
-    // 2. Audio Playback - strictly EITHER Original Video Voice OR AI TTS (NEVER BOTH!)
+    // 1. Video Playback (HTML5 Video & Bunny Stream iframe)
     if (audioMode === 'tts') {
+      // In TTS mode, MUTE video so Mohan Sir's real voice NEVER mixes with TTS voice!
+      if (canvasVideoRef.current) {
+        canvasVideoRef.current.muted = true;
+        if (
+          canvasVideoRef.current.duration &&
+          startSec < canvasVideoRef.current.duration &&
+          Math.abs(canvasVideoRef.current.currentTime - startSec) > 2
+        ) {
+          canvasVideoRef.current.currentTime = startSec;
+        }
+        canvasVideoRef.current.play().catch(() => {});
+      }
+      postBunnyCommand('mute');
+      postBunnyCommand('setCurrentTime', startSec);
+      postBunnyCommand('play');
+
+      // 2. Audio Playback - strictly AI TTS
       if (typeof window !== 'undefined' && 'speechSynthesis' in window && !isMuted) {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(item.text);
-        utterance.rate = item.speed || 1.0;
+        const cleanText = item.text.replace(/\[[^\]]+\]/g, '').trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = item.speed || 0.95;
 
         const langCode = activeAvatar?.defaultLanguage || 'hi';
         utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
@@ -535,6 +643,21 @@ export default function Module8VideoProductionStudio({
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
+      if (canvasVideoRef.current) {
+        canvasVideoRef.current.muted = isMuted;
+        if (
+          canvasVideoRef.current.duration &&
+          startSec < canvasVideoRef.current.duration &&
+          Math.abs(canvasVideoRef.current.currentTime - startSec) > 2
+        ) {
+          canvasVideoRef.current.currentTime = startSec;
+        }
+        canvasVideoRef.current.play().catch(() => {});
+      }
+      postBunnyCommand(isMuted ? 'mute' : 'unmute');
+      postBunnyCommand('setCurrentTime', startSec);
+      postBunnyCommand('play');
+
       playTimerRef.current = setTimeout(() => {
         playSentenceSequence(index + 1);
       }, durSec * 1000);
@@ -550,6 +673,7 @@ export default function Module8VideoProductionStudio({
         window.speechSynthesis.cancel();
       }
       if (canvasVideoRef.current) canvasVideoRef.current.pause();
+      postBunnyCommand('pause');
       if (playTimerRef.current) clearTimeout(playTimerRef.current);
     } else {
       // Start Playback
@@ -565,6 +689,8 @@ export default function Module8VideoProductionStudio({
         canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
         canvasVideoRef.current.play().catch(() => {});
       }
+      postBunnyCommand(audioMode === 'tts' || isMuted ? 'mute' : 'unmute');
+      postBunnyCommand('play');
       const startIdx = activeSentenceIndex !== null ? activeSentenceIndex : 0;
       playSentenceSequence(startIdx);
     }
@@ -610,6 +736,8 @@ export default function Module8VideoProductionStudio({
         window.speechSynthesis.cancel();
       }
       if (canvasVideoRef.current) canvasVideoRef.current.pause();
+      postBunnyCommand('pause');
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
       return;
     }
 
@@ -627,20 +755,29 @@ export default function Module8VideoProductionStudio({
 
     const startSec = parseTimeToSeconds(item.start || '00:00');
     const endSec = parseTimeToSeconds(item.end || '00:00');
-    const durSec = item.durationSeconds || Math.max(3, endSec - startSec);
-
-    if (canvasVideoRef.current) {
-      if (canvasVideoRef.current.duration && startSec < canvasVideoRef.current.duration) {
-        canvasVideoRef.current.currentTime = startSec;
-      }
-      canvasVideoRef.current.muted = audioMode === 'tts' ? true : isMuted;
-      canvasVideoRef.current.play().catch(() => {});
-    }
+    const wordCount = (item.text || '').split(/\s+/).filter(Boolean).length;
+    // Generous duration so Mohan Sir finishes reading the complete sentence without cutting off
+    const durSec = endSec > startSec
+      ? (endSec - startSec) + 1.2
+      : Math.max(6, Math.ceil(wordCount * 0.8) + 2);
 
     if (audioMode === 'tts') {
+      // In TTS Mode, mute video and speak via TTS cleanly
+      if (canvasVideoRef.current) {
+        canvasVideoRef.current.muted = true;
+        if (canvasVideoRef.current.duration && startSec < canvasVideoRef.current.duration) {
+          canvasVideoRef.current.currentTime = startSec;
+        }
+        canvasVideoRef.current.play().catch(() => {});
+      }
+      postBunnyCommand('mute');
+      postBunnyCommand('setCurrentTime', startSec);
+      postBunnyCommand('play');
+
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(item.text);
-        utterance.rate = item.speed || 1.0;
+        const cleanText = item.text.replace(/\[[^\]]+\]/g, '').trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = item.speed || 0.95;
         const langCode = activeAvatar?.defaultLanguage || 'hi';
         utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
@@ -663,21 +800,38 @@ export default function Module8VideoProductionStudio({
           setIsSpeaking(false);
           setActiveSentenceIndex(null);
           if (canvasVideoRef.current) canvasVideoRef.current.pause();
+          postBunnyCommand('pause');
         };
         utterance.onerror = () => {
           setIsSpeaking(false);
           setActiveSentenceIndex(null);
           if (canvasVideoRef.current) canvasVideoRef.current.pause();
+          postBunnyCommand('pause');
         };
 
         window.speechSynthesis.speak(utterance);
       }
     } else {
-      // Mohan Sir Original Voice Mode: ONLY Mohan Sir speaks from video, NO TTS lady voice!
+      // Mohan Sir Original Voice Mode: ONLY Mohan Sir speaks from video, NO TTS!
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (canvasVideoRef.current) {
+        canvasVideoRef.current.muted = isMuted;
+        if (canvasVideoRef.current.duration && startSec < canvasVideoRef.current.duration) {
+          canvasVideoRef.current.currentTime = startSec;
+        }
+        canvasVideoRef.current.play().catch(() => {});
+      }
+      postBunnyCommand(isMuted ? 'mute' : 'unmute');
+      postBunnyCommand('setCurrentTime', startSec);
+      postBunnyCommand('play');
+
       playTimerRef.current = setTimeout(() => {
         setIsSpeaking(false);
         setActiveSentenceIndex(null);
         if (canvasVideoRef.current) canvasVideoRef.current.pause();
+        postBunnyCommand('pause');
       }, durSec * 1000);
     }
   };
@@ -715,6 +869,29 @@ export default function Module8VideoProductionStudio({
       : MASTER_EMOTION_PRESETS.filter((e) => e.category === selectedCategory);
 
   const totalDuration = timelineSentences.reduce((acc, s) => acc + s.durationSeconds, 0);
+
+  const dnaCounts = useMemo(() => {
+    const all = finalAvatars.length;
+    const hi = finalAvatars.filter((a) => (a.defaultLanguage || 'hi') === 'hi').length;
+    const mr = finalAvatars.filter((a) => (a.defaultLanguage || 'hi') === 'mr').length;
+    const en = finalAvatars.filter((a) => (a.defaultLanguage || 'hi') === 'en').length;
+    return { all, hi, mr, en };
+  }, [finalAvatars]);
+
+  const filteredDnaAvatars = useMemo(() => {
+    return finalAvatars.filter((a) => {
+      if (dnaLangFilter !== 'all' && (a.defaultLanguage || 'hi') !== dnaLangFilter) return false;
+      if (dnaSearchQuery.trim()) {
+        const q = dnaSearchQuery.toLowerCase().trim();
+        return (
+          a.name.toLowerCase().includes(q) ||
+          (a.defaultSpeakingStyle || '').toLowerCase().includes(q) ||
+          (a.defaultEmotion || '').toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [finalAvatars, dnaLangFilter, dnaSearchQuery]);
 
   return (
     <div className="space-y-6">
@@ -819,11 +996,19 @@ export default function Module8VideoProductionStudio({
               {isIframeBunny && bunnyEmbedUrl ? (
                 <div className="relative w-full h-full bg-black">
                   <iframe
-                    src={`${bunnyEmbedUrl}${bunnyEmbedUrl.includes('?') ? '&' : '?'}preload=true&responsive=true`}
+                    ref={canvasIframeRef}
+                    id="bunny-avatar-iframe"
+                    src={`${bunnyEmbedUrl}${bunnyEmbedUrl.includes('?') ? '&' : '?'}preload=true&responsive=true&autoplay=false`}
                     loading="lazy"
                     className="h-full w-full border-0 absolute inset-0 z-0"
                     allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                     allowFullScreen
+                    onLoad={() => {
+                      postBunnyCommand('addEventListener', 'timeupdate');
+                      postBunnyCommand('addEventListener', 'play');
+                      postBunnyCommand('addEventListener', 'pause');
+                      postBunnyCommand('addEventListener', 'ended');
+                    }}
                   />
                 </div>
               ) : avatarVideoUrl ? (
@@ -1036,37 +1221,100 @@ export default function Module8VideoProductionStudio({
               </div>
             </div>
 
-            {/* Choose Final Avatar Picker with Permanent Delete Button */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-300">Active Final Avatar Profile</label>
-                {activeAvatar && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirmDeleteAvatarId === activeAvatar.id) {
-                        handleDeleteAvatar(activeAvatar.id);
-                      } else {
-                        setConfirmDeleteAvatarId(activeAvatar.id);
-                      }
-                    }}
-                    disabled={isDeletingAvatar}
-                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50"
-                    title="Permanently delete this avatar profile"
-                  >
-                    <Trash2 className="w-3 h-3 text-rose-400" />
-                    <span>{confirmDeleteAvatarId === activeAvatar.id ? 'Confirm Delete?' : 'Delete Avatar'}</span>
-                  </button>
-                )}
+            {/* Choose Final Avatar Picker with 39 DNA Looks Gallery & Permanent Delete Button */}
+            <div className="pt-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <label className="block text-xs font-bold text-slate-200">Active Final Avatar Profile</label>
+                  <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded">
+                    {finalAvatars.length} DNA Looks
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAllDnaModal(true)}
+                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105"
+                  title="Open full-screen visual grid with all 39 DNA Avatar looks"
+                >
+                  <Grid size={13} className="text-amber-400" />
+                  <span>Browse 39 DNA Looks</span>
+                </button>
+              </div>
+
+              {/* 39 DNA Looks Horizontal Thumbnail Strip (1-Click Switcher) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Sparkles size={11} className="text-amber-400" />
+                    <span>Quick Select Look (Click Any Thumbnail):</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Scroll ➔
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-slate-800">
+                  {finalAvatars.map((avatar) => {
+                    const isSelected = avatar.id === selectedAvatarId;
+                    const lang = (avatar.defaultLanguage || 'hi').toUpperCase();
+                    return (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAvatarId(avatar.id);
+                          setConfirmDeleteAvatarId(null);
+                        }}
+                        className={`group relative shrink-0 w-20 h-24 rounded-xl overflow-hidden border-2 transition-all flex flex-col justify-end p-1 text-left cursor-pointer ${
+                          isSelected
+                            ? 'border-amber-400 ring-2 ring-amber-500/40 scale-105 shadow-lg shadow-amber-500/20 bg-slate-900'
+                            : 'border-slate-800 hover:border-slate-600 bg-slate-950 opacity-80 hover:opacity-100'
+                        }`}
+                        title={`${avatar.name} (${avatar.defaultSpeakingStyle} • ${lang})`}
+                      >
+                        {avatar.previewImageUrl ? (
+                          <img
+                            src={avatar.previewImageUrl}
+                            alt={avatar.name}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-slate-600 font-bold text-xs">
+                            DNA
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                        
+                        <div className="relative z-10 space-y-0.5">
+                          <span className={`inline-block text-[9px] font-black px-1 rounded uppercase ${
+                            lang === 'HI' ? 'bg-orange-600 text-white' : lang === 'MR' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                          }`}>
+                            {lang}
+                          </span>
+                          <span className="block text-[10px] font-bold text-white truncate leading-tight">
+                            {avatar.name.replace(/•.*$/, '').trim()}
+                          </span>
+                        </div>
+
+                        {isSelected && (
+                          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-400 text-black flex items-center justify-center text-[8px] font-black shadow">
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {avatarNotice && (
-                <div className="mb-2 p-2 rounded-xl bg-rose-950/70 border border-rose-800/60 text-[11px] text-rose-200 font-bold flex items-center justify-between">
+                <div className="p-2 rounded-xl bg-rose-950/70 border border-rose-800/60 text-[11px] text-rose-200 font-bold flex items-center justify-between">
                   <span>🗑️ {avatarNotice}</span>
                   <button type="button" onClick={() => setAvatarNotice(null)} className="text-slate-400 hover:text-white text-xs">✕</button>
                 </div>
               )}
 
+              {/* Dropdown Select with Permanent Delete */}
               <div className="flex items-center gap-2">
                 <select
                   value={selectedAvatarId}
@@ -1637,6 +1885,254 @@ export default function Module8VideoProductionStudio({
           </div>
         </div>
       </div>
+
+      {/* ===================================================================== */}
+      {/* 39 DNA AVATAR LOOKS FULL GALLERY MODAL */}
+      {/* ===================================================================== */}
+      {showAllDnaModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-[#0b1019] border border-slate-700/80 rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-black flex items-center justify-center font-black shadow-lg">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      Mohan Sir 39 DNA Avatar Looks Studio
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      {finalAvatars.length} Available
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Click any look to immediately bind it to the Live Canvas video & prosody editor.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAllDnaModal(false)}
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Toolbar: Search + Language Filter Pills */}
+            <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={dnaSearchQuery}
+                  onChange={(e) => setDnaSearchQuery(e.target.value)}
+                  placeholder="🔍 Search looks by title, style, or topic..."
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                />
+                {dnaSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setDnaSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Language Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: `All (${dnaCounts.all})` },
+                  { id: 'hi', label: `हिन्दी (${dnaCounts.hi})` },
+                  { id: 'mr', label: `मराठी (${dnaCounts.mr})` },
+                  { id: 'en', label: `English (${dnaCounts.en})` },
+                ].map((pill) => {
+                  const isActive = dnaLangFilter === pill.id;
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => setDnaLangFilter(pill.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                        isActive
+                          ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+                          : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Body: Responsive Grid of 39 DNA Cards */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              {filteredDnaAvatars.length === 0 ? (
+                <div className="text-center py-16 space-y-2">
+                  <Grid className="w-10 h-10 text-slate-600 mx-auto" />
+                  <p className="text-sm font-bold text-white">No DNA looks match your search</p>
+                  <p className="text-xs text-slate-500">Try searching with a different term or resetting the language filter.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filteredDnaAvatars.map((avatar) => {
+                    const isSelected = avatar.id === selectedAvatarId;
+                    const lang = (avatar.defaultLanguage || 'hi').toUpperCase();
+
+                    return (
+                      <div
+                        key={avatar.id}
+                        className={`group relative rounded-2xl overflow-hidden border-2 transition-all flex flex-col bg-slate-900 shadow-lg ${
+                          isSelected
+                            ? 'border-amber-400 ring-2 ring-amber-500/40 shadow-amber-500/20'
+                            : 'border-slate-800 hover:border-slate-600 hover:shadow-xl'
+                        }`}
+                      >
+                        {/* Thumbnail Image Container */}
+                        <div className="relative aspect-video w-full overflow-hidden bg-black">
+                          {avatar.previewImageUrl ? (
+                            <img
+                              src={avatar.previewImageUrl}
+                              alt={avatar.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-950 text-slate-600 font-bold text-xs">
+                              DNA Avatar
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30 pointer-events-none" />
+
+                          {/* Top Badges */}
+                          <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase shadow ${
+                              lang === 'HI' ? 'bg-orange-600 text-white' : lang === 'MR' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                            }`}>
+                              {lang}
+                            </span>
+                            <span className="text-[10px] font-semibold bg-black/70 backdrop-blur px-2 py-0.5 rounded text-slate-300 capitalize">
+                              {avatar.defaultSpeakingStyle}
+                            </span>
+                          </div>
+
+                          {/* Active Pill */}
+                          {isSelected && (
+                            <div className="absolute bottom-2 left-2 z-10">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-black text-[10px] font-black flex items-center gap-1 shadow">
+                                <Check size={10} className="stroke-[3]" />
+                                <span>ACTIVE LOOK</span>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Details */}
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-2.5">
+                          <div>
+                            <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight">
+                              {avatar.name}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 mt-1 capitalize">
+                              Profile: {avatar.defaultSpeakingStyle} • Emotion: {avatar.defaultEmotion.replace('_', ' ')}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAvatarId(avatar.id);
+                                setConfirmDeleteAvatarId(null);
+                                setShowAllDnaModal(false);
+                              }}
+                              className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                isSelected
+                                  ? 'bg-amber-400 text-black shadow'
+                                  : 'bg-slate-800 hover:bg-amber-500 text-slate-200 hover:text-black'
+                              }`}
+                            >
+                              {isSelected ? (
+                                <>
+                                  <Check size={12} className="stroke-[3]" />
+                                  <span>Selected</span>
+                                </>
+                              ) : (
+                                <span>Use This Look ➔</span>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirmDeleteAvatarId === avatar.id) {
+                                  handleDeleteAvatar(avatar.id);
+                                } else {
+                                  setConfirmDeleteAvatarId(avatar.id);
+                                }
+                              }}
+                              disabled={isDeletingAvatar}
+                              className={`p-1.5 rounded-xl border transition-colors cursor-pointer shrink-0 ${
+                                confirmDeleteAvatarId === avatar.id
+                                  ? 'bg-rose-600 text-white border-rose-500'
+                                  : 'bg-slate-950 border-slate-800 text-rose-400 hover:bg-rose-950'
+                              }`}
+                              title="Permanently remove avatar from database"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+
+                          {confirmDeleteAvatarId === avatar.id && (
+                            <div className="text-[10px] text-rose-300 font-bold flex items-center justify-between bg-rose-950/70 p-1.5 rounded-lg border border-rose-800/80">
+                              <span>Delete permanently?</span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAvatar(avatar.id)}
+                                  className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-black"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteAvatarId(null)}
+                                  className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between text-xs text-slate-400">
+              <span>Showing {filteredDnaAvatars.length} of {finalAvatars.length} DNA Avatar Looks</span>
+              <button
+                type="button"
+                onClick={() => setShowAllDnaModal(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
