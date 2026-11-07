@@ -446,8 +446,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
 
-      const certNo = (document.getElementById('cert-number') as HTMLInputElement)?.value || certificateData?.certificateNumber || (selectedLead?.id || selectedLead?._id || 'SWAR').slice(-8).toUpperCase();
-      const pName = ((document.getElementById('cert-fullname') as HTMLInputElement)?.value || certificateData?.fullName || selectedLead?.name || 'Participant').replace(/[^a-zA-Z0-9]/g, '_');
+      const certNo = (certRegNo || 'SW4/2024/01').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const pName = (certFullName || selectedLead?.name || 'Participant').replace(/[^a-zA-Z0-9]/g, '_');
       pdf.save(`SwarYoga-Certificate-${certNo}-${pName}.pdf`);
       toast.success('Certificate PDF downloaded successfully!');
     } catch (err: any) {
@@ -1961,20 +1961,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 <button
                                   onClick={handleDownloadCertificate}
                                   disabled={isDownloadingCert}
-                                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                                 >
                                   {isDownloadingCert ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                                   <span>Download Certificate PDF</span>
                                 </button>
                                 <button
                                   onClick={() => window.print()}
-                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                                 >
                                   <Printer size={14} />
                                   <span>Print</span>
                                 </button>
                                 <a
-                                  href={`https://wa.me/${(selectedLead?.whatsapp || selectedLead?.Phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Dear ${(certificateData?.fullName || selectedLead?.name || 'Participant')},\n\nCongratulations on completing the Swar Yoga Workshop!\nYour Certificate Reg No is: ${certificateData?.certificateNumber}.\n\nBest regards,\nUpamanyu Swar Yoga Team`)}`}
+                                  href={`https://wa.me/${(selectedLead?.whatsapp || selectedLead?.Phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Dear ${certPrefix} ${certFullName || 'Participant'},\n\nCongratulations on completing the Swar Yoga Workshop!\nYour Certificate Reg No is: ${certRegNo}.\n\nBest regards,\nUpamanyu Swar Yoga Team`)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
@@ -1986,118 +1986,221 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                             </div>
 
                             {/* Actual Certificate Document (A4 Ratio, Printable, html2canvas Target) */}
-                            <div className="w-full overflow-x-auto flex justify-center py-2 bg-slate-100/50 rounded-2xl border border-slate-200">
+                            <div className="w-full overflow-x-auto flex justify-center py-4 bg-slate-200/60 rounded-2xl border border-slate-300">
+                              <link rel="preconnect" href="https://fonts.googleapis.com" />
+                              <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                              <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700&display=swap" rel="stylesheet" />
+
                               <div
                                 id="certificate-render-node"
                                 className="relative bg-white overflow-hidden shadow-2xl mx-auto select-none"
                                 style={{
                                   width: '210mm',
                                   minHeight: '297mm',
-                                  padding: '16mm',
-                                  border: '6px double #cda349',
-                                  boxSizing: 'border-box'
+                                  height: '297mm',
+                                  padding: '0',
+                                  boxSizing: 'border-box',
+                                  position: 'relative',
+                                  fontFamily: "'Montserrat', sans-serif"
                                 }}
                               >
+                                {/* Diagonal Corner Banners */}
                                 <CornerBanner corner="top-left" />
                                 <CornerBanner corner="bottom-right" />
 
-                                <div className="relative z-10 flex flex-col justify-between h-full" style={{ minHeight: '265mm' }}>
-                                  {/* Top Header */}
-                                  <div className="relative flex items-center justify-center pt-2" style={{ minHeight: '120px' }}>
-                                    <img
-                                      src={ASSETS.photo}
-                                      alt="Swar Yoga"
-                                      crossOrigin="anonymous"
-                                      className="absolute left-0 top-0 w-24 h-24 rounded-full object-cover border-4 shadow-md"
-                                      style={{ borderColor: '#5b9bd5' }}
-                                    />
-                                    <div className="text-center">
-                                      <h1 className="text-5xl font-black tracking-tight" style={{ color: BROWN }}>
-                                        Swar Yoga
-                                      </h1>
-                                      <p className="text-lg italic mt-1 font-serif" style={{ color: RUST }}>
-                                        The Science Of Breath
-                                      </p>
-                                    </div>
-                                    <img
-                                      src={ASSETS.goldBadge}
-                                      alt="Certificate Badge"
-                                      crossOrigin="anonymous"
-                                      className="absolute right-0 top-0 w-36 h-auto object-contain"
-                                    />
+                                {/* Top-Left Mohan Sir Photo (Circular with White Ring Border) */}
+                                <div className="absolute top-6 left-6 z-10">
+                                  <img
+                                    src={ASSETS.photo}
+                                    alt="Mohan Kalburgi"
+                                    crossOrigin="anonymous"
+                                    className="w-24 h-24 rounded-full object-cover shadow-lg"
+                                    style={{ border: '3.5px solid #ffffff' }}
+                                  />
+                                </div>
+
+                                {/* Top-Right Golden Rosette Badge */}
+                                <div className="absolute top-5 right-7 z-10">
+                                  <img
+                                    src={ASSETS.goldBadge}
+                                    alt="Golden Award Badge"
+                                    crossOrigin="anonymous"
+                                    className="w-24 h-auto object-contain drop-shadow-md"
+                                  />
+                                </div>
+
+                                {/* Main Certificate Flow */}
+                                <div className="relative z-10 flex flex-col justify-between h-full px-12 pt-7 pb-4">
+                                  {/* Header Section */}
+                                  <div className="text-center pt-2">
+                                    <h1
+                                      className="text-[40px] font-black tracking-tight leading-none"
+                                      style={{
+                                        color: '#7a4427',
+                                        fontFamily: "'Playfair Display', Georgia, serif"
+                                      }}
+                                    >
+                                      Swar Yoga
+                                    </h1>
+                                    <p
+                                      className="text-[16px] font-semibold mt-1 tracking-wide"
+                                      style={{
+                                        color: '#b91c1c',
+                                        fontFamily: "'Montserrat', sans-serif"
+                                      }}
+                                    >
+                                      The Science Of Breath
+                                    </p>
                                   </div>
 
-                                  {/* Certificate Title */}
-                                  <div className="text-center mt-6">
-                                    <h2 className="text-5xl font-black tracking-wide" style={{ color: TEAL }}>
+                                  {/* Title Section */}
+                                  <div className="text-center mt-3">
+                                    <h2
+                                      className="text-[44px] font-black leading-none tracking-wider"
+                                      style={{
+                                        color: '#175c6c',
+                                        fontFamily: "'Montserrat', sans-serif"
+                                      }}
+                                    >
                                       CERTIFICATE
                                     </h2>
-                                    <p className="text-xl mt-1 tracking-[0.3em] font-bold text-slate-800">
-                                      OF PARTICIPATION & COMPLETION
-                                    </p>
-                                  </div>
-
-                                  {/* Presented To */}
-                                  <div className="text-center mt-8">
-                                    <p className="text-lg font-bold text-slate-700">This Certificate is Proudly Presented To :</p>
                                     <p
-                                      className="text-4xl font-black mt-3 tracking-wide uppercase border-b-2 inline-block px-8 pb-2"
-                                      style={{ color: TEAL, borderColor: GOLD }}
+                                      className="text-[15px] font-bold mt-1.5 uppercase tracking-[0.24em]"
+                                      style={{
+                                        color: '#175c6c',
+                                        fontFamily: "'Montserrat', sans-serif"
+                                      }}
                                     >
-                                      {certificateData?.fullName || selectedLead?.name || 'Participant Name'}
+                                      OF PARTICIPATION
                                     </p>
                                   </div>
 
-                                  {/* Body Certification Text */}
-                                  <p className="text-center text-base text-slate-700 leading-relaxed mt-6 px-4">
-                                    This is to proudly certify that{' '}
-                                    <span className="font-bold text-slate-900">{certificateData?.fullName || selectedLead?.name}</span>
-                                    {certificateData?.city && (
-                                      <>, <span className="font-bold text-slate-900">{certificateData.city}, {certificateData.country}</span></>
-                                    )}, has successfully completed the Swar Yoga –{' '}
-                                    <span className="font-bold text-slate-900">{certificateData?.workshopName || 'Swar Yoga Workshop'}</span>{' '}
-                                    organized by Upamanyu International Swar Yoga Education. With consistent enthusiasm, active involvement,
-                                    and sincere dedication to learning and practicing Swar Yoga principles, the participant is hereby recognized
-                                    with the Best Participation and Completion Certificate.
-                                    <br />
-                                    <span className="font-bold inline-block mt-3 text-slate-800">
-                                      Issue Date: {new Date().toLocaleDateString('en-GB')}
-                                    </span>
-                                  </p>
+                                  {/* Center Participant Photo Frame */}
+                                  <div className="flex justify-center my-2">
+                                    <div
+                                      className="p-1 bg-white shadow-md rounded-xs"
+                                      style={{
+                                        border: '2px solid #5b9bd5',
+                                        width: '124px',
+                                        height: '148px',
+                                      }}
+                                    >
+                                      <div
+                                        className="w-full h-full overflow-hidden"
+                                        style={{ border: '1px solid #7cb5ec' }}
+                                      >
+                                        <img
+                                          src={certPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80'}
+                                          alt={certFullName || 'Participant'}
+                                          crossOrigin="anonymous"
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
 
-                                  {/* Reg No */}
-                                  <div className="text-center mt-4">
-                                    <span className="px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-mono font-bold text-amber-900">
-                                      Reg. No.: {certificateData?.certificateNumber || (selectedLead?.id || selectedLead?._id || 'SWAR').slice(-8).toUpperCase()}
-                                    </span>
+                                  {/* Presentation & Calligraphy Name */}
+                                  <div className="text-center">
+                                    <p
+                                      className="text-[16px] font-bold text-slate-800"
+                                      style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                    >
+                                      This Certificate is Presented To :
+                                    </p>
+                                    <div
+                                      className="text-center my-0.5 select-none"
+                                      style={{
+                                        fontFamily: "'Great Vibes', 'Dancing Script', cursive",
+                                        color: '#175c6c',
+                                        fontSize: '56px',
+                                        lineHeight: '1.2',
+                                        fontWeight: 'normal',
+                                      }}
+                                    >
+                                      {certFullName || 'Ritika Goklani'}
+                                    </div>
+                                  </div>
+
+                                  {/* Body Paragraph */}
+                                  <div className="px-4 text-center">
+                                    <p
+                                      className="text-[13px] leading-[1.8] text-slate-800"
+                                      style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                    >
+                                      This is to proudly certify that{' '}
+                                      <strong className="font-bold text-slate-900">
+                                        {certPrefix} {certFullName}
+                                      </strong>
+                                      , has successfully Completed the{' '}
+                                      <strong className="font-bold text-slate-900">
+                                        {certCourse || 'Swar Yoga – Level 1 to 4'}
+                                      </strong>{' '}
+                                      organized by{' '}
+                                      <strong className="font-bold text-slate-900">
+                                        Upamanyu International Swar Yoga Education
+                                      </strong>
+                                      . With consistent enthusiasm, active involvement, and sincere dedication to learning and practicing Swar Yoga principles, the participant is hereby recognized with the Best Participation and Completion Certificate{' '}
+                                      <strong className="font-bold text-slate-900">
+                                        (Levels 1, 2, 3 &amp; 4). Date: {certDateLang || 'December 2024 in Hindi'}
+                                      </strong>
+                                    </p>
                                   </div>
 
                                   {/* Seal & Signature Row */}
-                                  <div className="flex items-end justify-between px-6 mt-10 pt-4 border-t border-slate-200">
-                                    <div className="text-center">
+                                  <div className="mt-4 flex items-end justify-between relative z-10 px-2">
+                                    {/* Left: Reg No and Seal */}
+                                    <div className="flex flex-col items-start">
+                                      <span
+                                        className="text-[12px] font-bold text-slate-800 mb-1.5 font-mono"
+                                        style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                      >
+                                        Reg. No.: {certRegNo || 'SW4/2024/01'}
+                                      </span>
                                       <img
                                         src={ASSETS.seal}
-                                        alt="Company Seal"
+                                        alt="Upamanyu Seal"
                                         crossOrigin="anonymous"
-                                        className="w-36 h-36 object-contain mx-auto"
+                                        className="w-28 h-28 object-contain"
                                       />
-                                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-1">Upamanyu Seal of Authenticity</p>
                                     </div>
 
-                                    <div className="text-center">
+                                    {/* Right: Signature & Acharya info */}
+                                    <div className="flex flex-col items-center text-center">
                                       <img
                                         src={ASSETS.signature}
-                                        alt="Signature"
+                                        alt="Mohan Kalburgi Signature"
                                         crossOrigin="anonymous"
-                                        className="h-28 mx-auto -mb-1 object-contain"
+                                        className="h-16 w-auto object-contain -mb-2"
                                       />
-                                      <p className="font-black text-base text-slate-900 border-t border-slate-400 pt-1">
-                                        MOHAN KALBURGI
-                                      </p>
-                                      <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">
-                                        SWAR YOGA ACHARYA
-                                      </p>
+                                      <div className="w-52 border-t border-slate-700 pt-1.5">
+                                        <p
+                                          className="font-bold text-[12px] uppercase text-slate-900 tracking-wider"
+                                          style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                        >
+                                          MOHAN KALBURGI
+                                        </p>
+                                        <p
+                                          className="text-[9.5px] font-semibold uppercase text-slate-700 tracking-widest mt-0.5"
+                                          style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                        >
+                                          SWAR YOGA ACHARYA
+                                        </p>
+                                        <p
+                                          className="text-[9px] text-slate-500 font-medium tracking-normal mt-0.5"
+                                          style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                        >
+                                          CEO &amp; Founder
+                                        </p>
+                                      </div>
                                     </div>
+                                  </div>
+
+                                  {/* Very Bottom Address Line */}
+                                  <div
+                                    className="mt-3 text-center text-[11px] text-slate-800 font-medium"
+                                    style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                  >
+                                    off: Maldad road Vedant complex sangamner-422605. Mo-9309986820
                                   </div>
                                 </div>
                               </div>

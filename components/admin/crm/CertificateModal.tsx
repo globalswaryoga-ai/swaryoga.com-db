@@ -237,6 +237,9 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
 
         {/* Modal Body / Certificate Visual Frame */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900/60 flex items-center justify-center">
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700&display=swap" rel="stylesheet" />
           <div
             id="cert-modal-render-node"
             className="relative bg-white text-slate-900 rounded-lg shadow-xl overflow-hidden w-full max-w-[700px] border border-amber-300/40"
@@ -308,7 +311,15 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
               {/* Recipient */}
               <div className="text-center mt-3">
                 <p className="text-xs sm:text-sm font-bold text-slate-700">This Certificate is Presented To :</p>
-                <p className="cert-script-modal text-3xl sm:text-5xl mt-1 font-bold" style={{ color: TEAL }}>
+                <p
+                  className="text-3xl sm:text-5xl mt-1 select-none"
+                  style={{
+                    color: TEAL,
+                    fontFamily: "'Great Vibes', 'Dancing Script', cursive",
+                    fontWeight: 'normal',
+                    lineHeight: '1.2'
+                  }}
+                >
                   {customerName}
                 </p>
               </div>
