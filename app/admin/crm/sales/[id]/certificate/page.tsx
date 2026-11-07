@@ -438,18 +438,18 @@ export default function CertificatePage() {
                 src={ASSETS.photo}
                 alt="Swar Yoga"
                 crossOrigin="anonymous"
-                className="absolute left-0 top-0 w-32 h-32 rounded-full object-cover border-4 shadow"
+                className="absolute left-0 top-0 w-[132px] h-[132px] rounded-full object-cover border-4 shadow"
                 style={{ borderColor: '#5b9bd5' }}
               />
               <div className="text-center mt-[4mm]">
-                <h1 className="text-6xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
-                <p className="text-xl italic mt-1 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
+                <h1 className="text-[66px] font-extrabold whitespace-nowrap" style={{ color: '#b91c1c' }}>Swar Yoga</h1>
+                <p className="text-xl font-black italic mt-1 whitespace-nowrap" style={{ color: '#000000', fontFamily: 'Georgia, serif', textShadow: '0 0.5px 1px rgba(0,0,0,0.3)' }}>The Science Of Breath</p>
               </div>
               <img
                 src={ASSETS.goldBadge}
                 alt="Certificate Badge"
                 crossOrigin="anonymous"
-                className="absolute right-0 top-0 w-52 h-auto object-contain"
+                className="absolute right-0 top-0 w-[212px] h-auto object-contain"
                 style={{ marginRight: '-10mm' }}
               />
             </div>

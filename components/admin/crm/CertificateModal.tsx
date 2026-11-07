@@ -259,14 +259,14 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
                   src={ASSETS.photo}
                   alt="Swar Yoga"
                   crossOrigin="anonymous"
-                  className="absolute left-0 top-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 shadow"
+                  className="absolute left-0 top-0 w-[68px] h-[68px] sm:w-[84px] sm:h-[84px] rounded-full object-cover border-2 shadow"
                   style={{ borderColor: '#5b9bd5' }}
                 />
                 <div className="text-center">
-                  <h1 className="text-2xl sm:text-4xl font-extrabold tracking-wide" style={{ color: BROWN }}>
+                  <h1 className="text-2xl sm:text-[42px] font-extrabold tracking-wide" style={{ color: '#b91c1c' }}>
                     Swar Yoga
                   </h1>
-                  <p className="text-xs sm:text-sm italic mt-0.5 tracking-wider" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>
+                  <p className="text-xs sm:text-sm font-black italic mt-0.5 tracking-wider" style={{ color: '#000000', fontFamily: 'Georgia, serif', textShadow: '0 0.5px 1px rgba(0,0,0,0.3)' }}>
                     The Science Of Breath
                   </p>
                 </div>
@@ -274,7 +274,7 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
                   src={ASSETS.goldBadge}
                   alt="Badge"
                   crossOrigin="anonymous"
-                  className="absolute right-0 top-0 w-20 sm:w-28 h-auto object-contain"
+                  className="absolute right-0 top-0 w-[84px] sm:w-[116px] h-auto object-contain"
                 />
               </div>
 

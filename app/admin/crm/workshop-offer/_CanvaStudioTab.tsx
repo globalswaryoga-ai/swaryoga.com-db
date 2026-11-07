@@ -2188,24 +2188,24 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 <CornerBanner corner="top-left" />
                                 <CornerBanner corner="bottom-right" />
 
-                                {/* Top-Left Mohan Sir Photo (Circular with White Ring Border) */}
+                                {/* Top-Left Mohan Sir Photo (Circular with White Ring Border) - enlarged by 1mm */}
                                 <div className="absolute top-6 left-6 z-10">
                                   <img
                                     src={ASSETS.photo}
                                     alt="Mohan Kalburgi"
                                     crossOrigin="anonymous"
-                                    className="w-24 h-24 rounded-full object-cover shadow-lg"
+                                    className="w-[100px] h-[100px] rounded-full object-cover shadow-lg"
                                     style={{ border: '3.5px solid #ffffff' }}
                                   />
                                 </div>
 
-                                {/* Top-Right Golden Rosette Badge */}
+                                {/* Top-Right Golden Rosette Badge - enlarged by 1mm */}
                                 <div className="absolute top-5 right-7 z-10">
                                   <img
                                     src={ASSETS.goldBadge}
                                     alt="Golden Award Badge"
                                     crossOrigin="anonymous"
-                                    className="w-24 h-auto object-contain drop-shadow-md"
+                                    className="w-[100px] h-auto object-contain drop-shadow-md"
                                   />
                                 </div>
 
@@ -2214,19 +2214,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   {/* Header Section */}
                                   <div className="text-center pt-2">
                                     <h1
-                                      className="text-[40px] font-black tracking-tight leading-none"
+                                      className="text-[45px] font-black tracking-tight leading-none"
                                       style={{
-                                        color: '#7a4427',
+                                        color: '#b91c1c',
                                         fontFamily: "'Playfair Display', Georgia, serif"
                                       }}
                                     >
                                       Swar Yoga
                                     </h1>
                                     <p
-                                      className="text-[16px] font-semibold mt-1 tracking-wide"
+                                      className="text-[16px] font-black mt-1 tracking-wide"
                                       style={{
-                                        color: '#b91c1c',
-                                        fontFamily: "'Montserrat', sans-serif"
+                                        color: '#000000',
+                                        fontFamily: "'Montserrat', sans-serif",
+                                        textShadow: '0 0.5px 1px rgba(0,0,0,0.3)'
                                       }}
                                     >
                                       The Science Of Breath
