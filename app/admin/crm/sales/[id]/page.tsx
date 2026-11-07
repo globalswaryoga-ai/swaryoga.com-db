@@ -266,9 +266,9 @@ export default function SaleDetailPage() {
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow"
                 />
                 <div>
-                  <h1 className="text-4xl font-extrabold tracking-wide text-slate-900">{ORG.brand}</h1>
-                  <p className="text-xs text-slate-500 mt-1">Maldad Road, Sangamner • Mo {ORG.phone}</p>
-                  <p className="text-xs text-slate-500">Email: mohan@swaryoga.com</p>
+                  <h1 className="text-4xl font-extrabold tracking-wide text-red-800">{ORG.brand}</h1>
+                  <p className="text-xs font-bold text-black mt-1">Maldad Road, Sangamner • Mo {ORG.phone}</p>
+                  <p className="text-xs font-bold text-black">Email: mohan@swaryoga.com • Web: www.swaryoga.com</p>
                 </div>
               </div>
               <div className="text-right flex-shrink-0">

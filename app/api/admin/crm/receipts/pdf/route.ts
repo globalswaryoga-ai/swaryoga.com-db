@@ -102,6 +102,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const borderTan  = rgb(0.851, 0.635, 0.416);  // #D9A26A — table borders
   const accentGreen = rgb(0.357, 0.667, 0.184); // #5BAA2F — customer name
   const accentRed  = rgb(0.843, 0.180, 0.180);  // #D72E2E — totals
+  const darkRed    = rgb(0.68, 0.08, 0.08);     // #AD1414 — rich dark red
   const waveLight  = rgb(0.420, 0.722, 0.173);  // #6BB82C
   const waveDark   = rgb(0.325, 0.510, 0.365);  // #53825D
   const white      = rgb(1, 1, 1);
@@ -159,9 +160,9 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     page.drawImage(photoImg, { x: M, y: H - 92, width: 64, height: 64 });
   }
 
-  text('SWAR YOGA', M + 78, H - 40, { size: 22, font: bold, color: white });
-  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 58, { size: 8.5, font: bold, color: white });
-  text('Email: mohan@swaryoga.com • Web: www.swaryoga.com', M + 78, H - 72, { size: 8.5, font: bold, color: rgb(1, 0.95, 0.65) });
+  text('SWAR YOGA', M + 78, H - 40, { size: 22, font: bold, color: darkRed });
+  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 58, { size: 8.5, font: bold, color: darkBlack });
+  text('Email: mohan@swaryoga.com • Web: www.swaryoga.com', M + 78, H - 72, { size: 8.5, font: bold, color: darkBlack });
 
   if (logoImg) {
     page.drawImage(logoImg, { x: W - M - 54, y: H - 70, width: 54, height: 54 });

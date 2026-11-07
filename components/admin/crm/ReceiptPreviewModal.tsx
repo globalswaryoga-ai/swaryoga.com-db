@@ -339,9 +339,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                         <div className="flex items-center gap-3">
                           <img src={ASSETS.photo} alt="Swar Yoga" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
                           <div>
-                            <p className="text-xl font-extrabold text-gray-900 leading-tight">SWAR YOGA</p>
-                            <p className="text-[10px] text-gray-500">{ORG.address} • Mo {ORG.phone}</p>
-                            <p className="text-[10px] text-gray-500">Email: {ORG.email}</p>
+                            <p className="text-xl font-extrabold text-red-800 leading-tight">SWAR YOGA</p>
+                            <p className="text-[10px] font-bold text-black">{ORG.address} • Mo {ORG.phone}</p>
+                            <p className="text-[10px] font-bold text-black">Email: {ORG.email} • Web: www.swaryoga.com</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -569,19 +569,19 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       <CanvaCrmSidePanel
         isOpen={isCanvaOpen}
         onClose={() => setIsCanvaOpen(false)}
-        title={`Canva Studio • Receipt ${receipt?.receiptNumber || ''}`}
+        title={`Canva Studio • Receipt ${activeReceipt?.receiptNumber || ''}`}
         aspectRatio="A4"
         initialDesignId="EAHWzpxbbVw"
         receiptData={{
-          receiptNumber: receipt?.receiptNumber,
-          studentName: receipt?.customerName || leadName,
-          amount: receipt?.payment?.paidAmount ?? receipt?.payment?.amount,
-          date: receipt?.issuedAt ? new Date(receipt.issuedAt).toLocaleDateString('en-GB') : undefined,
-          workshopName: receipt?.workshopName,
+          receiptNumber: activeReceipt?.receiptNumber,
+          studentName: activeReceipt?.customerName || leadName,
+          amount: activeReceipt?.payment?.paidAmount ?? activeReceipt?.payment?.amount,
+          date: activeReceipt?.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-GB') : undefined,
+          workshopName: activeReceipt?.workshopName,
         }}
         onUpdateReceipt={(updated) => {
-          if (updated) {
-            setReceipts(prev => prev.map((r, i) => i === activeIndex ? {
+          if (updated && activeReceipt) {
+            setReceipts(prev => prev.map((r) => r._id === activeReceipt._id ? {
               ...r,
               customerName: updated.studentName || r.customerName,
               workshopName: updated.workshopName || r.workshopName,
