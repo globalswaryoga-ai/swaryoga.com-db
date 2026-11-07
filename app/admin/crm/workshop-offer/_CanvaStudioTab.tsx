@@ -57,9 +57,54 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedBatchForDownload, setSelectedBatchForDownload] = useState<string | null>(null);
   const [localOfferData, setLocalOfferData] = useState<Record<string, any>>({});
+  const [salesData, setSalesData] = useState<any[]>([]);
+
+  // Fetch sales records directly from CRM sales API to guarantee received & pushed amounts always populate
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSales = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('token')) : null;
+        if (!token) return;
+        const res = await fetch('/api/admin/crm/sales?limit=500', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data?.sales || json?.sales || (Array.isArray(json?.data) ? json.data : []);
+          if (isMounted && Array.isArray(list) && list.length > 0) {
+            setSalesData(list);
+          }
+        }
+      } catch (e) {
+        // Silent background fallback
+      }
+    };
+    fetchSales();
+    return () => { isMounted = false; };
+  }, []);
+
   const crmOfferData = useMemo(() => {
-    return { ...localOfferData, ...(offerStore.records || {}) };
-  }, [localOfferData, offerStore.records]);
+    const merged: Record<string, any> = { ...localOfferData, ...(offerStore.records || {}) };
+    salesData.forEach((s: any) => {
+      const key = String(s.leadId || s.id || '');
+      if (key) {
+        merged[key] = {
+          ...(merged[key] || {}),
+          status: 'received',
+          pushedToCreateReceipts: true,
+          pushedToReceipts: true,
+          amount: s.saleAmount ? `₹${Number(s.saleAmount).toLocaleString('en-IN')}` : (merged[key]?.amount || '₹1,500'),
+          receivedAmount: s.saleAmount,
+          paymentMode: s.paymentMode || merged[key]?.paymentMode || 'UPI / Online',
+          workshopName: s.workshopName || merged[key]?.workshopName || 'Swar Yoga Hindi Workshop',
+          receiptNumber: s.receiptNumber || merged[key]?.receiptNumber,
+          date: s.saleDate || s.date || merged[key]?.date
+        };
+      }
+    });
+    return merged;
+  }, [localOfferData, offerStore.records, salesData]);
   const [leadFilterType, setLeadFilterType] = useState<'received_pushed' | 'all'>('received_pushed');
   const [expandedBatches, setExpandedBatches] = useState<string[]>([]);
   const [downloadTab, setDownloadTab] = useState<'meta' | 'receipts' | 'certificate'>('receipts');
@@ -458,24 +503,48 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
   };
 
+  // Combined leads pool including leads passed in props and any recorded direct sales from Bunny DB
+  const allAvailableLeads = useMemo(() => {
+    const existingIds = new Set((leadsData || []).map(l => String(l?.id || l?._id || '')));
+    const extra: any[] = [];
+    (salesData || []).forEach(s => {
+      const id = String(s.leadId || s.id || '');
+      if (id && !existingIds.has(id)) {
+        extra.push({
+          id,
+          _id: id,
+          name: s.customerName || 'Participant',
+          phone: s.customerPhone || '',
+          mobile: s.customerPhone || '',
+          whatsapp: s.customerPhone || '',
+          amount: s.saleAmount ? `₹${Number(s.saleAmount).toLocaleString('en-IN')}` : '₹1,500',
+          paymentStatus: 'paid',
+          workshopName: s.workshopName || 'Swar Yoga Hindi Workshop',
+          receiptNumber: s.receiptNumber,
+          createdAt: s.saleDate || s.createdAt || new Date().toISOString()
+        });
+      }
+    });
+    return [...(leadsData || []), ...extra];
+  }, [leadsData, salesData]);
+
   // Helper to extract lead details reliably
   const getLeadInfo = (lead: any) => {
-    if (!lead) return { name: 'Unknown', phone: '', email: '' };
+    if (!lead || typeof lead !== 'object') return { name: 'Unknown', phone: '', email: '' };
     const answers = lead.dynamicAnswers || lead._rawRecord || {};
     const name = lead.name || lead.Name || lead.customerName || answers['Name'] || answers['NAME'] || 'Participant';
-    const phone = lead.mobile || lead.phoneNumber || lead.phone || answers['WhatsApp Number'] || answers['Mobile'] || '';
+    const phone = lead.mobile || lead.phoneNumber || lead.phone || lead.customerPhone || answers['WhatsApp Number'] || answers['Mobile'] || '';
     const email = lead.email || lead.Email || answers['Email'] || '';
     return { name, phone, email };
   };
 
   // Helper to determine if lead is Received amount or Pushed to receipts
   const getLeadStatus = (lead: any) => {
-    if (!lead) return { isPushed: false, isReceived: false, matches: false, amount: null };
-    const leadId = lead.id || lead._id;
+    if (!lead || typeof lead !== 'object') return { isPushed: false, isReceived: false, matches: false, amount: null };
+    const leadId = String(lead.id || lead._id || '');
     const data = crmOfferData[leadId] || {};
-    const isPushed = data.pushedToCreateReceipts === true || data.pushedToReceipts === true || data.pushed === true;
-    const isReceived = data.status === 'received' || !!data.amount || !!data.receivedAmount;
-    const hasPayment = lead.paymentStatus === 'paid' || !!lead.amount || !!lead.payment || !!lead.paidAmount;
+    const isPushed = data.pushedToCreateReceipts === true || data.pushedToReceipts === true || data.pushed === true || !!lead.receiptNumber || !!lead.receiptId;
+    const isReceived = data.status === 'received' || !!data.amount || !!data.receivedAmount || lead.paymentStatus === 'paid' || !!lead.amount || !!lead.payment || !!lead.paidAmount;
     const rawAmt = data.amount || data.receivedAmount || lead.amount || lead.payment || lead.paidAmount;
     let formattedAmt: string | null = null;
     if (rawAmt) {
@@ -484,40 +553,38 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
     return {
       isPushed,
-      isReceived: isReceived || hasPayment,
-      matches: isPushed || isReceived || hasPayment,
+      isReceived,
+      matches: isPushed || isReceived,
       amount: formattedAmt,
     };
   };
 
   // Leads that have Received amount OR have been Pushed to Receipts
   const pushedAndReceivedLeads = useMemo(() => {
-    return leadsData.filter(lead => getLeadStatus(lead).matches);
-  }, [leadsData, crmOfferData]);
+    return allAvailableLeads.filter(lead => getLeadStatus(lead).matches);
+  }, [allAvailableLeads, crmOfferData]);
 
   // Dynamic active leads pool respecting user search and filter tabs
   const activeLeadsPool = useMemo(() => {
-    if (leadFilterType === 'all') return leadsData;
-
-    // If searching, check if search exists in pushedAndReceivedLeads
+    // If searching, search across all available workshop leads
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.toLowerCase().trim();
-      const hasMatchInPushed = pushedAndReceivedLeads.some(l => {
+      const matching = allAvailableLeads.filter(l => {
         const { name, phone, email } = getLeadInfo(l);
         return name.toLowerCase().includes(q) || phone.toLowerCase().includes(q) || email.toLowerCase().includes(q);
       });
-      // If not in pushed list, automatically expand to all workshop leads so search never shows blank
-      if (!hasMatchInPushed) return leadsData;
+      if (matching.length > 0) return matching;
     }
 
-    return pushedAndReceivedLeads.length > 0 ? pushedAndReceivedLeads : leadsData;
-  }, [leadFilterType, pushedAndReceivedLeads, leadsData, searchQuery]);
+    if (leadFilterType === 'all') return allAvailableLeads;
+    return pushedAndReceivedLeads.length > 0 ? pushedAndReceivedLeads : allAvailableLeads;
+  }, [leadFilterType, pushedAndReceivedLeads, allAvailableLeads, searchQuery]);
 
   // Group active pool leads by Batch
   const batches = useMemo(() => {
     const groups: Record<string, any[]> = {};
     activeLeadsPool.forEach(lead => {
-      const leadId = lead.id || lead._id;
+      const leadId = String(lead.id || lead._id || '');
       const data = crmOfferData[leadId] || {};
       
       const dateStr = data.date || lead.createdAt || lead.date || new Date().toISOString();
@@ -531,26 +598,28 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       if (!groups[batchName]) groups[batchName] = [];
       groups[batchName].push(lead);
     });
-    
-    if (Object.keys(groups).length > 0 && expandedBatches.length === 0) {
-      setExpandedBatches([Object.keys(groups)[0]]);
-    }
-    
-    if (Object.keys(groups).length > 0 && !selectedBatchForDownload) {
-      setSelectedBatchForDownload(Object.keys(groups)[0]);
-    }
-    
     return groups;
   }, [activeLeadsPool, crmOfferData]);
+
+  // Synchronize batch selection on load or batch update
+  useEffect(() => {
+    const batchKeys = Object.keys(batches);
+    if (batchKeys.length > 0) {
+      setExpandedBatches(prev => prev.length === 0 ? [batchKeys[0]] : prev);
+      setSelectedBatchForDownload(prev => !prev ? batchKeys[0] : prev);
+    }
+  }, [batches]);
 
   const toggleBatch = (batch: string) => {
     setExpandedBatches(prev => prev.includes(batch) ? prev.filter(b => b !== batch) : [...prev, batch]);
   };
 
   const selectedLead = useMemo(() => {
-    return leadsData.find(l => (l.id || l._id) === selectedLeadId)
-      || pushedAndReceivedLeads.find(l => (l.id || l._id) === selectedLeadId);
-  }, [leadsData, pushedAndReceivedLeads, selectedLeadId]);
+    if (!selectedLeadId) return null;
+    return allAvailableLeads.find(l => (l.id || l._id) === selectedLeadId)
+      || pushedAndReceivedLeads.find(l => (l.id || l._id) === selectedLeadId)
+      || null;
+  }, [allAvailableLeads, pushedAndReceivedLeads, selectedLeadId]);
 
   const leadsInSelectedBatch = useMemo(() => {
     if (!selectedBatchForDownload) return [];
@@ -626,26 +695,32 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   };
 
   const getCertificateData = (lead: any) => {
-    if (!lead) return null;
     const d = new Date();
     const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
     const year = d.getFullYear();
-    const lang = (lead.language || 'EN').substring(0, 2).toUpperCase();
+    const lang = (lead?.language || 'EN').substring(0, 2).toUpperCase();
     const srNo = Math.floor(Math.random()*1000).toString().padStart(3,'0');
     
     return {
-      firstName: lead.name || lead.Name || 'Participant Name',
-      fullName: lead.name || lead.Name || 'Participant Name',
-      city: lead.city || lead.City || 'Unknown City',
-      country: lead.country || lead.Country || 'Unknown Country',
+      firstName: lead?.name || lead?.Name || 'Participant Name',
+      fullName: lead?.name || lead?.Name || 'Participant Name',
+      city: lead?.city || lead?.City || 'Unknown City',
+      country: lead?.country || lead?.Country || 'Unknown Country',
       batchName: `${month} ${year}`, 
-      workshopName: lead.workshopName || lead.workshop_name || lead.course || 'Swar Yoga L-1',
+      workshopName: lead?.workshopName || lead?.workshop_name || lead?.course || 'Swar Yoga L-1',
       certificateNumber: `${year}${month}${lang}${srNo}`
     };
   };
 
   const receiptData = useMemo(() => getReceiptData(selectedLead), [selectedLead, crmOfferData, batches]);
   const certificateData = useMemo(() => getCertificateData(selectedLead), [selectedLead]);
+
+  const certFullName = certificateData?.fullName || selectedLead?.name || selectedLead?.Name || 'Ritika Goklani';
+  const certPrefix = selectedLead?.gender === 'male' ? 'Mr.' : 'Mrs.';
+  const certRegNo = certificateData?.certificateNumber || 'SW4/2024/01';
+  const certCourse = certificateData?.workshopName || 'Swar Yoga – Level 1 to 4';
+  const certDateLang = 'December 2024 in Hindi';
+  const certPhotoUrl = selectedLead?.photoUrl || selectedLead?.photo || null;
 
   return (
     <div className="flex flex-col min-h-full w-full bg-slate-50 overflow-auto">
@@ -801,7 +876,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                         }`}
                         title="Show all participants in this workshop"
                       >
-                        👥 All Leads ({leadsData.length})
+                        👥 All Leads ({allAvailableLeads.length})
                       </button>
                     </div>
 
@@ -821,93 +896,114 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
              
              <div className="flex-1 overflow-y-auto p-3">
                 {Object.keys(batches).length > 0 ? (
-                  Object.entries(batches).map(([batchName, leads]) => {
-                    
-                    if (activeSection === 'downloads') {
-                      const isSelected = selectedBatchForDownload === batchName;
+                  (() => {
+                    let totalVisible = 0;
+                    const rendered = Object.entries(batches).map(([batchName, leads]) => {
+                      if (activeSection === 'downloads') {
+                        const isSelected = selectedBatchForDownload === batchName;
+                        return (
+                          <div key={batchName} className="mb-2">
+                            <button 
+                              onClick={() => setSelectedBatchForDownload(batchName)}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${isSelected ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : 'hover:bg-slate-50 border border-transparent'}`}
+                            >
+                              <span className={`font-black text-sm tracking-tight ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>{batchName}</span>
+                              <span className={`${isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'} px-2 py-0.5 rounded-md text-[10px] font-bold`}>
+                                {leads.length}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      const isExpanded = expandedBatches.includes(batchName) || searchQuery.length > 0;
+                      const visibleLeads = leads.filter(l => {
+                         if (!searchQuery.trim()) return true;
+                         const { name, phone, email } = getLeadInfo(l);
+                         const q = searchQuery.toLowerCase().trim();
+                         return name.toLowerCase().includes(q) || phone.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+                      });
+                      
+                      if (visibleLeads.length === 0) return null;
+                      totalVisible += visibleLeads.length;
+                      
                       return (
-                        <div key={batchName} className="mb-2">
+                        <div key={batchName} className="mb-3">
                           <button 
-                            onClick={() => setSelectedBatchForDownload(batchName)}
-                            className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${isSelected ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : 'hover:bg-slate-50 border border-transparent'}`}
+                            onClick={() => toggleBatch(batchName)}
+                            className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors group"
                           >
-                            <span className={`font-black text-sm tracking-tight ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>{batchName}</span>
-                            <span className={`${isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'} px-2 py-0.5 rounded-md text-[10px] font-bold`}>
-                              {leads.length}
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? 
+                                <ChevronDown size={16} className="text-indigo-600" /> : 
+                                <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600" />
+                              }
+                              <span className="font-black text-sm text-slate-700 tracking-tight">{batchName}</span>
+                            </div>
+                            <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                              {visibleLeads.length}
                             </span>
                           </button>
+                          
+                          {isExpanded && (
+                            <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-100 space-y-1">
+                              {visibleLeads.map(lead => {
+                                const isSelected = selectedLeadId === (lead.id || lead._id);
+                                const { name, phone } = getLeadInfo(lead);
+                                const st = getLeadStatus(lead);
+                                return (
+                                  <button
+                                    key={lead.id || lead._id}
+                                    onClick={() => setSelectedLeadId(lead.id || lead._id)}
+                                    className={`w-full text-left p-2.5 rounded-xl text-sm font-medium transition-all ${
+                                      isSelected 
+                                        ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm border border-indigo-200' 
+                                        : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="truncate font-bold text-xs">{name}</span>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {st.amount && (
+                                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shadow-2xs">
+                                            {st.amount}
+                                          </span>
+                                        )}
+                                        {st.isPushed && (
+                                          <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded uppercase">
+                                            Pushed
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {phone && <div className="text-[11px] text-slate-400 truncate mt-0.5">{phone}</div>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )
+                      );
+                    });
+
+                    if (activeSection !== 'downloads' && totalVisible === 0 && searchQuery.trim().length > 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400">
+                          <Search size={24} className="mb-2 opacity-50" />
+                          <p className="text-xs font-bold text-slate-600 mb-1">No participants found matching &ldquo;{searchQuery}&rdquo;</p>
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg mt-2 cursor-pointer"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      );
                     }
 
-                    const isExpanded = expandedBatches.includes(batchName) || searchQuery.length > 0;
-                    const visibleLeads = leads.filter(l => {
-                       if (!searchQuery.trim()) return true;
-                       const { name, phone, email } = getLeadInfo(l);
-                       const q = searchQuery.toLowerCase().trim();
-                       return name.toLowerCase().includes(q) || phone.toLowerCase().includes(q) || email.toLowerCase().includes(q);
-                    });
-                    
-                    if (visibleLeads.length === 0) return null;
-                    
-                    return (
-                      <div key={batchName} className="mb-3">
-                        <button 
-                          onClick={() => toggleBatch(batchName)}
-                          className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors group"
-                        >
-                          <div className="flex items-center gap-2">
-                            {isExpanded ? 
-                              <ChevronDown size={16} className="text-indigo-600" /> : 
-                              <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600" />
-                            }
-                            <span className="font-black text-sm text-slate-700 tracking-tight">{batchName}</span>
-                          </div>
-                          <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold">
-                            {visibleLeads.length}
-                          </span>
-                        </button>
-                        
-                        {isExpanded && (
-                          <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-100 space-y-1">
-                            {visibleLeads.map(lead => {
-                              const isSelected = selectedLeadId === (lead.id || lead._id);
-                              const { name, phone } = getLeadInfo(lead);
-                              const st = getLeadStatus(lead);
-                              return (
-                                <button
-                                  key={lead.id || lead._id}
-                                  onClick={() => setSelectedLeadId(lead.id || lead._id)}
-                                  className={`w-full text-left p-2.5 rounded-xl text-sm font-medium transition-all ${
-                                    isSelected 
-                                      ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm border border-indigo-200' 
-                                      : 'hover:bg-slate-50 text-slate-700 border border-transparent'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="truncate font-bold text-xs">{name}</span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {st.amount && (
-                                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shadow-2xs">
-                                          {st.amount}
-                                        </span>
-                                      )}
-                                      {st.isPushed && (
-                                        <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded uppercase">
-                                          Pushed
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {phone && <div className="text-[11px] text-slate-400 truncate mt-0.5">{phone}</div>}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+                    return rendered;
+                  })()
                 ) : (
                   <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400">
                     <Info size={24} className="mb-2 opacity-50" />
@@ -918,7 +1014,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                       onClick={() => setLeadFilterType('all')}
                       className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition cursor-pointer"
                     >
-                      Show All {leadsData.length} Workshop Leads
+                      Show All {allAvailableLeads.length} Workshop Leads
                     </button>
                   </div>
                 )}
@@ -1593,27 +1689,27 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            <>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Name</label>
-                               <input id="receipt-name" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData.name} />
+                               <input id="receipt-name" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData?.name || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">WhatsApp</label>
-                               <input id="receipt-whatsapp" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData.whatsapp} />
+                               <input id="receipt-whatsapp" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData?.whatsapp || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Amount</label>
-                               <input id="receipt-amount" type="text" className="w-full bg-emerald-50 p-3 rounded-xl border border-emerald-200 font-black text-emerald-700 text-lg" defaultValue={receiptData.amount} />
+                               <input id="receipt-amount" type="text" className="w-full bg-emerald-50 p-3 rounded-xl border border-emerald-200 font-black text-emerald-700 text-lg" defaultValue={receiptData?.amount || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Payment Mode</label>
-                               <input id="receipt-mode" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 uppercase" defaultValue={receiptData.paymentMode} />
+                               <input id="receipt-mode" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 uppercase" defaultValue={receiptData?.paymentMode || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Payment Details</label>
-                               <input id="receipt-details" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm truncate" defaultValue={receiptData.paymentDetails} />
+                               <input id="receipt-details" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm truncate" defaultValue={receiptData?.paymentDetails || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
-                               <input id="receipt-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={receiptData.workshopName} />
+                               <input id="receipt-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={receiptData?.workshopName || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Date</label>
@@ -1640,7 +1736,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
-                               <input id="receipt-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={receiptData.receiptNumber} />
+                               <input id="receipt-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={receiptData?.receiptNumber || ''} />
                              </div>
                              
                              <div className="mt-4 pt-4 border-t border-slate-200">
@@ -1671,29 +1767,29 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            <>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Name (Big Letters)</label>
-                               <input id="cert-firstname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-black text-slate-800 text-xl uppercase" defaultValue={certificateData.firstName} />
+                               <input id="cert-firstname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-black text-slate-800 text-xl uppercase" defaultValue={certificateData?.firstName || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Full Name</label>
-                               <input id="cert-fullname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData.fullName} />
+                               <input id="cert-fullname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData?.fullName || ''} />
                              </div>
                              <div className="grid grid-cols-2 gap-4">
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">City</label>
-                                 <input id="cert-city" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.city} />
+                                 <input id="cert-city" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.city || ''} />
                                </div>
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Country</label>
-                                 <input id="cert-country" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.country} />
+                                 <input id="cert-country" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.country || ''} />
                                </div>
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Batch Name</label>
-                               <input id="cert-batch" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData.batchName} />
+                               <input id="cert-batch" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData?.batchName || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
-                               <input id="cert-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.workshopName} />
+                               <input id="cert-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.workshopName || ''} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Certificate Template ID</label>
@@ -1707,7 +1803,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
-                               <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData.certificateNumber} />
+                               <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData?.certificateNumber || ''} />
                              </div>
                              
                              <div className="mt-4 pt-4 border-t border-slate-200">
@@ -1740,16 +1836,15 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 onClick={async () => {
                                 const btn = document.getElementById('btn-generate-pdf');
                                 if (btn) btn.innerText = 'Generating...';
+                                const leadId = selectedLead?.id || selectedLead?._id || '';
+                                const name = (document.getElementById('receipt-name') as HTMLInputElement)?.value || receiptData?.name || 'Participant';
+                                const amount = (document.getElementById('receipt-amount') as HTMLInputElement)?.value || receiptData?.amount || '₹1,500';
+                                const mode = (document.getElementById('receipt-mode') as HTMLInputElement)?.value || receiptData?.paymentMode || 'UPI / Online';
+                                const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || receiptData?.receiptNumber || 'RCPT-001';
+                                const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || receiptData?.workshopName || 'Swar Yoga Workshop';
+                                const whatsapp = (document.getElementById('receipt-whatsapp') as HTMLInputElement)?.value || receiptData?.whatsapp || '';
+                                const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
                                 try {
-                                  const leadId = selectedLead?.id || selectedLead?._id || '';
-                                  const name = (document.getElementById('receipt-name') as HTMLInputElement)?.value || '';
-                                  const amount = (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '';
-                                  const mode = (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '';
-                                  const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || '';
-                                  const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '';
-                                  const whatsapp = (document.getElementById('receipt-whatsapp') as HTMLInputElement)?.value || '';
-                                  const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
-                                  
                                   const res = await fetch('/api/admin/crm/receipts', {
                                     method: 'POST', 
                                     headers: { 
@@ -1792,8 +1887,6 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 } catch (error: any) { 
                                   console.error('Receipt generation error:', error);
                                   // Fallback direct preview so it NEVER fails
-                                  const leadId = selectedLead?.id || selectedLead?._id || '';
-                                  const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
                                   setGeneratedDesignId(`PDF_${leadId}`);
                                   const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&token=${token}&t=${Date.now()}`;
                                   setCurrentReceiptPdfUrl(pdfSrc);

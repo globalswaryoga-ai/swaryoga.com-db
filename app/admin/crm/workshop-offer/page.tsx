@@ -1441,10 +1441,10 @@ export default function WorkshopOfferPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             meetingId: zoomMeetingId,
-            email: lead.email,
-            firstName: lead.name?.split(' ')[0] || 'Unknown',
-            lastName: lead.name?.split(' ').slice(1).join(' ') || '',
-            phone: lead.mobile || lead.phoneNumber || ''
+            email: lead?.email,
+            firstName: lead?.name?.split(' ')[0] || 'Unknown',
+            lastName: lead?.name?.split(' ').slice(1).join(' ') || '',
+            phone: lead?.mobile || lead?.phoneNumber || ''
           })
         });
         if (res.ok) successCount++;
