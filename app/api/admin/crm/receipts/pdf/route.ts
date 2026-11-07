@@ -105,8 +105,9 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const waveLight  = rgb(0.420, 0.722, 0.173);  // #6BB82C
   const waveDark   = rgb(0.325, 0.510, 0.365);  // #53825D
   const white      = rgb(1, 1, 1);
-  const black      = rgb(0.07, 0.07, 0.07);
-  const gray       = rgb(0.40, 0.40, 0.40);
+  const black      = rgb(0, 0, 0); // Pure dark black
+  const darkBlack  = rgb(0, 0, 0); // Pure dark black
+  const gray       = rgb(0.35, 0.35, 0.35);
   const lightGray  = rgb(0.96, 0.96, 0.96);
   const midGray    = rgb(0.87, 0.87, 0.87);
 
@@ -328,7 +329,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   }
 
   const website = 'www.swaryoga.com';
-  text(website, (W - bold.widthOfTextAtSize(website, 9)) / 2, 40, { size: 9, font: bold, color: gray });
+  text(website, (W - bold.widthOfTextAtSize(website, 10.5)) / 2, 40, { size: 10.5, font: bold, color: darkBlack });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;

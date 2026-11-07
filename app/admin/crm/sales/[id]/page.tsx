@@ -402,7 +402,7 @@ export default function SaleDetailPage() {
               </div>
             </div>
 
-            <p className="text-center text-sm font-semibold text-slate-500 mt-8">{ORG.website}</p>
+            <p className="text-center text-sm font-bold text-black mt-8">{ORG.website}</p>
           </div>
         </div>
 
