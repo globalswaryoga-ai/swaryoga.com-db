@@ -758,6 +758,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [certPhotoOffsetY, setCertPhotoOffsetY] = useState<number>(0);
   const [isCertSaved, setIsCertSaved] = useState<boolean>(false);
 
+  // Backward-compatible safe aliases for certCourse and certDateLang
+  const certCourse = certWorkshopName;
+  const certDateLang = `${certMonthYear} in ${certLanguage}`;
+
   // Synchronize certificate state whenever selectedLead changes or from localStorage
   useEffect(() => {
     const leadId = selectedLead?.id || selectedLead?._id || 'default';
