@@ -299,8 +299,12 @@ export default function SaleDetailPage() {
                 <p className="text-xs text-slate-500 tracking-wider uppercase">Invoice To :</p>
                 <p className="text-lg font-bold text-slate-900 mt-1">ID: {sale.customerId || id?.slice(-8)}</p>
                 <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{formatPersonName(sale.customerName) || 'Customer'}</p>
-                {sale.customerAddress && <p className="text-sm text-slate-600 mt-1">{sale.customerAddress}</p>}
-                {sale.customerPhone && <p className="text-sm text-slate-600 mt-2">{sale.customerPhone}</p>}
+                {sale.customerPhone && <p className="text-sm text-slate-600 mt-1">{sale.customerPhone}</p>}
+                {((sale as any).customerCityCountry || (sale as any).cityCountry || [(sale as any).city, (sale as any).country].filter(Boolean).join(', ') || sale.customerAddress) && (
+                  <p className="text-sm text-slate-600 mt-0.5">
+                    {(sale as any).customerCityCountry || (sale as any).cityCountry || [(sale as any).city, (sale as any).country].filter(Boolean).join(', ') || sale.customerAddress}
+                  </p>
+                )}
                 {sale.customerEmail && <p className="text-sm text-slate-600">{sale.customerEmail}</p>}
               </div>
               <div className="text-right flex-shrink-0">

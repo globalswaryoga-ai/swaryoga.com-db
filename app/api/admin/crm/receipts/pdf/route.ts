@@ -23,6 +23,7 @@ const PAYMENT_MODE_LABELS: Record<string, string> = {
 // (e.g. sales recorded before receipts were generated for every sale).
 function receiptShapeFromSale(sale: any) {
   const paidAmount = sale.paidAmount ?? sale.saleAmount ?? 0;
+  const cityCountry = sale.customerCityCountry || [sale.customerCity || sale.city, sale.customerCountry || sale.country].filter(Boolean).join(', ') || sale.address || '';
   return {
     _id: sale._id,
     leadId: sale.leadId,
@@ -30,6 +31,7 @@ function receiptShapeFromSale(sale: any) {
     customerId: sale.customerId,
     customerName: sale.customerName,
     customerPhone: sale.customerPhone,
+    customerCityCountry: cityCountry,
     workshopName: sale.workshopName,
     issuedAt: sale.saleDate || sale.createdAt,
     createdAt: sale.createdAt,
@@ -223,10 +225,18 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text(`ID: ${custId}`, M, H - 168, { size: 10, font: bold });
 
   const customerName = safe(formatPersonName(receipt?.customerName));
-  text(trunc(customerName, 32), M, H - 186, { size: 17, font: bold, color: accentGreen });
+  text(trunc(customerName, 32), M, H - 184, { size: 16.5, font: bold, color: accentGreen });
 
   const customerPhone = safe(receipt?.customerPhone);
-  text(customerPhone, M, H - 204, { size: 9, color: gray });
+  text(customerPhone, M, H - 199, { size: 9, color: gray });
+
+  const rawCityCountry = receipt?.customerCityCountry 
+    || receipt?.cityCountry 
+    || [receipt?.customerCity || receipt?.city, receipt?.customerCountry || receipt?.country].filter(Boolean).join(', ')
+    || (receipt?.address && receipt?.address !== 'N/A' ? receipt?.address : '');
+  if (rawCityCountry && rawCityCountry !== '—' && rawCityCountry !== 'N/A') {
+    text(trunc(safe(rawCityCountry), 38), M, H - 212, { size: 9, color: gray });
+  }
 
   const issuedAt = fmt(receipt?.issuedAt || receipt?.createdAt);
   text(`Date: ${issuedAt}`, W - M - reg.widthOfTextAtSize(`Date: ${issuedAt}`, 10), H - 152, { size: 10 });
@@ -428,6 +438,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const cityCountryParam = url.searchParams.get('cityCountry') || url.searchParams.get('city') || '';
+    const countryParam = url.searchParams.get('country') || '';
+    const fullCityCountry = [cityCountryParam, countryParam].filter(Boolean).join(', ');
+
+    if (rec) {
+      if (fullCityCountry) {
+        rec.customerCityCountry = fullCityCountry;
+      }
+      if (url.searchParams.get('name')) {
+        rec.customerName = url.searchParams.get('name');
+      }
+      if (url.searchParams.get('phone')) {
+        rec.customerPhone = url.searchParams.get('phone');
+      }
+    }
+
     if (!rec) {
       const customerName = url.searchParams.get('name') || url.searchParams.get('customerName');
       const amountStr = url.searchParams.get('amount') || '0';
@@ -444,6 +470,7 @@ export async function GET(request: NextRequest) {
           receiptNumber,
           customerName: customerName || 'Participant',
           customerPhone,
+          customerCityCountry: fullCityCountry,
           workshopName,
           issuedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),

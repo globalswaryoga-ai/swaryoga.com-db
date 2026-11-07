@@ -368,6 +368,11 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                           {displayName || '—'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">{activeReceipt.customerPhone || leadPhone || ''}</p>
+                        {((activeReceipt as any).customerCityCountry || (activeReceipt as any).cityCountry || [(activeReceipt as any).city, (activeReceipt as any).country].filter(Boolean).join(', ') || (activeReceipt as any).address) && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {(activeReceipt as any).customerCityCountry || (activeReceipt as any).cityCountry || [(activeReceipt as any).city, (activeReceipt as any).country].filter(Boolean).join(', ') || (activeReceipt as any).address}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm text-gray-700">Date: {fmtDate(activeReceipt.issuedAt)}</p>
