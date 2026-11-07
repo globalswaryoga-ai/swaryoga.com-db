@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid, Handshake } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid, Handshake, Check, Save } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useOfferRecords } from '@/hooks/useOfferRecords';
 import CanvaCrmSidePanel from '@/components/admin/crm/CanvaCrmSidePanel';
@@ -742,12 +742,115 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const receiptData = useMemo(() => getReceiptData(selectedLead), [selectedLead, crmOfferData, batches]);
   const certificateData = useMemo(() => getCertificateData(selectedLead), [selectedLead]);
 
-  const certFullName = certificateData?.fullName || selectedLead?.name || selectedLead?.Name || 'Ritika Goklani';
-  const certPrefix = selectedLead?.gender === 'male' ? 'Mr.' : 'Mrs.';
-  const certRegNo = certificateData?.certificateNumber || 'SW4/2024/01';
-  const certCourse = certificateData?.workshopName || 'Swar Yoga – Level 1 to 4';
-  const certDateLang = 'December 2024 in Hindi';
-  const certPhotoUrl = selectedLead?.photoUrl || selectedLead?.photo || null;
+  // Editable Certificate Customization State
+  const [certFullName, setCertFullName] = useState<string>('Ritika Goklani');
+  const [certPrefix, setCertPrefix] = useState<string>('Mrs.');
+  const [certCity, setCertCity] = useState<string>('');
+  const [certCountry, setCertCountry] = useState<string>('India');
+  const [certWorkshopName, setCertWorkshopName] = useState<string>('Swar Yoga Hindi Workshop');
+  const [certLanguage, setCertLanguage] = useState<string>('Hindi');
+  const [certMonthYear, setCertMonthYear] = useState<string>('December 2024');
+  const [certLevels, setCertLevels] = useState<string>('Levels 1, 2, 3 & 4');
+  const [certRegNo, setCertRegNo] = useState<string>('SW4/2024/01');
+  const [certPhotoUrl, setCertPhotoUrl] = useState<string>('');
+  const [certPhotoZoom, setCertPhotoZoom] = useState<number>(1);
+  const [certPhotoOffsetX, setCertPhotoOffsetX] = useState<number>(0);
+  const [certPhotoOffsetY, setCertPhotoOffsetY] = useState<number>(0);
+  const [isCertSaved, setIsCertSaved] = useState<boolean>(false);
+
+  // Synchronize certificate state whenever selectedLead changes or from localStorage
+  useEffect(() => {
+    const leadId = selectedLead?.id || selectedLead?._id || 'default';
+    let saved: any = null;
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(`cert_custom_${leadId}`) : null;
+      if (raw) saved = JSON.parse(raw);
+    } catch {}
+
+    const name = saved?.fullName || selectedLead?.name || selectedLead?.Name || 'Ritika Goklani';
+    const rawGender = (selectedLead?.gender || '').toLowerCase();
+    const defaultPrefix = rawGender === 'male' ? 'Mr.' : (rawGender === 'female' ? 'Mrs.' : (name.toLowerCase().includes('devi') || name.toLowerCase().includes('bai') || name.toLowerCase().includes('ben') ? 'Mrs.' : 'Mr.'));
+
+    let defaultLang = selectedLead?.language || selectedLead?.Language || 'Hindi';
+    if (defaultLang.toLowerCase().startsWith('hi')) defaultLang = 'Hindi';
+    else if (defaultLang.toLowerCase().startsWith('mr')) defaultLang = 'Marathi';
+    else if (defaultLang.toLowerCase().startsWith('en')) defaultLang = 'English';
+
+    let defaultWorkshop = selectedLead?.workshopName || selectedLead?.workshop_name || selectedLead?.course || '';
+    if (!defaultWorkshop || /^[a-zA-Z0-9_-]{20,}$/.test(defaultWorkshop) || defaultWorkshop.includes('18zLNgV')) {
+      defaultWorkshop = `Swar Yoga ${defaultLang} Workshop`;
+    } else if (defaultWorkshop.includes('1nZz1ib') || defaultWorkshop.includes('1MmdQk')) {
+      defaultWorkshop = 'Swar Yoga Marathi Workshop';
+    } else if (defaultWorkshop.includes('1UXrEI')) {
+      defaultWorkshop = 'Swar Yoga English Workshop';
+    }
+
+    const d = new Date();
+    const defaultMonthYear = saved?.monthYear || 'December 2024';
+
+    setCertFullName(saved?.fullName || name);
+    setCertPrefix(saved?.prefix || defaultPrefix);
+    setCertCity(saved?.city ?? (selectedLead?.city || selectedLead?.City || selectedLead?.town || ''));
+    setCertCountry(saved?.country ?? (selectedLead?.country || selectedLead?.Country || 'India'));
+    setCertWorkshopName(saved?.workshopName || defaultWorkshop || 'Swar Yoga Hindi Workshop');
+    setCertLanguage(saved?.language || defaultLang);
+    setCertMonthYear(saved?.monthYear || defaultMonthYear);
+    setCertLevels(saved?.levels || 'Levels 1, 2, 3 & 4');
+    setCertRegNo(saved?.regNo || `SW4/${d.getFullYear()}/${Math.floor(Math.random()*1000).toString().padStart(3,'0')}`);
+    setCertPhotoUrl(saved?.photoUrl || selectedLead?.photoUrl || selectedLead?.photo || selectedLead?.avatar || '');
+    setCertPhotoZoom(saved?.photoZoom ?? 1);
+    setCertPhotoOffsetX(saved?.photoOffsetX ?? 0);
+    setCertPhotoOffsetY(saved?.photoOffsetY ?? 0);
+    setIsCertSaved(false);
+  }, [selectedLeadId]);
+
+  const handleSaveCertificate = () => {
+    const leadId = selectedLead?.id || selectedLead?._id || 'default';
+    const payload = {
+      fullName: certFullName,
+      prefix: certPrefix,
+      city: certCity,
+      country: certCountry,
+      workshopName: certWorkshopName,
+      language: certLanguage,
+      monthYear: certMonthYear,
+      levels: certLevels,
+      regNo: certRegNo,
+      photoUrl: certPhotoUrl,
+      photoZoom: certPhotoZoom,
+      photoOffsetX: certPhotoOffsetX,
+      photoOffsetY: certPhotoOffsetY,
+      savedAt: new Date().toISOString(),
+    };
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`cert_custom_${leadId}`, JSON.stringify(payload));
+      }
+      setIsCertSaved(true);
+      toast.success('✅ Certificate data saved & updated successfully!');
+      setTimeout(() => setIsCertSaved(false), 3000);
+    } catch (e: any) {
+      toast.error('Failed to save certificate data');
+    }
+  };
+
+  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setCertPhotoUrl(dataUrl);
+        setCertPhotoZoom(1);
+        setCertPhotoOffsetX(0);
+        setCertPhotoOffsetY(0);
+        toast.success('Photo loaded! You can now zoom and adjust position.');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="flex flex-col min-h-full w-full bg-slate-50 overflow-auto">
@@ -1819,66 +1922,296 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            </>
                          )}
                          
-                         {activeSection === 'certificate' && certificateData && (
+                         {activeSection === 'certificate' && (
                            <>
+                             {/* Prefix / Title */}
                              <div>
-                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Name (Big Letters)</label>
-                               <input id="cert-firstname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-black text-slate-800 text-xl uppercase" defaultValue={certificateData?.firstName || ''} />
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Title / Prefix</label>
+                               <div className="flex gap-1.5">
+                                 {['Mr.', 'Mrs.', 'Ms.', 'Dr.'].map((p) => (
+                                   <button
+                                     key={p}
+                                     type="button"
+                                     onClick={() => setCertPrefix(p)}
+                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${certPrefix === p ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                   >
+                                     {p}
+                                   </button>
+                                 ))}
+                                </div>
                              </div>
+
+                             {/* Participant Name */}
                              <div>
-                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Full Name</label>
-                               <input id="cert-fullname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData?.fullName || ''} />
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Participant Name</label>
+                               <input
+                                 type="text"
+                                 value={certFullName}
+                                 onChange={(e) => setCertFullName(e.target.value)}
+                                 className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 font-black text-slate-800 text-base"
+                                 placeholder="e.g. Vishal singh thakur"
+                               />
                              </div>
-                             <div className="grid grid-cols-2 gap-4">
+
+                             {/* Language */}
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Language</label>
+                               <input
+                                 type="text"
+                                 value={certLanguage}
+                                 onChange={(e) => setCertLanguage(e.target.value)}
+                                 className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm mb-1.5"
+                                 placeholder="e.g. Hindi, Marathi, English"
+                               />
+                               <div className="flex gap-1">
+                                 {['Hindi', 'Marathi', 'English', 'Gujarati'].map((lang) => (
+                                   <button
+                                     key={lang}
+                                     type="button"
+                                     onClick={() => setCertLanguage(lang)}
+                                     className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${certLanguage === lang ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                   >
+                                     {lang}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+
+                             {/* Workshop Done - Month and Year */}
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Done (Month &amp; Year)</label>
+                               <input
+                                 type="text"
+                                 value={certMonthYear}
+                                 onChange={(e) => setCertMonthYear(e.target.value)}
+                                 className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm mb-1.5"
+                                 placeholder="e.g. December 2024"
+                               />
+                               <div className="flex gap-1 flex-wrap">
+                                 {['December 2024', 'January 2025', 'February 2025', 'November 2026'].map((my) => (
+                                   <button
+                                     key={my}
+                                     type="button"
+                                     onClick={() => setCertMonthYear(my)}
+                                     className={`px-2 py-0.5 rounded text-[10.5px] font-semibold transition-colors cursor-pointer ${certMonthYear === my ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                   >
+                                     {my}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+
+                             {/* Levels - Editable */}
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Levels (Editable)</label>
+                               <input
+                                 type="text"
+                                 value={certLevels}
+                                 onChange={(e) => setCertLevels(e.target.value)}
+                                 className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm mb-1.5"
+                                 placeholder="e.g. Levels 1, 2, 3 &amp; 4"
+                               />
+                               <div className="flex gap-1 flex-wrap">
+                                 {['Levels 1, 2, 3 & 4', 'Level 1', 'Levels 1 & 2', 'Levels 1, 2 & 3', 'Level 2'].map((lvl) => (
+                                   <button
+                                     key={lvl}
+                                     type="button"
+                                     onClick={() => setCertLevels(lvl)}
+                                     className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${certLevels === lvl ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                   >
+                                     {lvl}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+
+                             {/* Workshop Name */}
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
+                               <input
+                                 type="text"
+                                 value={certWorkshopName}
+                                 onChange={(e) => setCertWorkshopName(e.target.value)}
+                                 className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm"
+                                 placeholder="e.g. Swar Yoga Hindi Workshop"
+                               />
+                             </div>
+
+                             {/* Participant Image Crop & Zoom */}
+                             <div>
+                               <div className="flex items-center justify-between mb-1.5">
+                                 <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block">Participant Photo</label>
+                                 {certPhotoUrl && (
+                                   <button
+                                     type="button"
+                                     onClick={() => { setCertPhotoUrl(''); setCertPhotoZoom(1); setCertPhotoOffsetX(0); setCertPhotoOffsetY(0); }}
+                                     className="text-[10px] text-red-600 hover:text-red-700 font-bold cursor-pointer"
+                                   >
+                                     Remove Photo
+                                   </button>
+                                 )}
+                               </div>
+                               <input
+                                 type="text"
+                                 placeholder="Image URL (https://...)"
+                                 value={certPhotoUrl}
+                                 onChange={(e) => setCertPhotoUrl(e.target.value)}
+                                 className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono mb-1.5"
+                               />
+                               <label className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 cursor-pointer transition-colors mb-2">
+                                 <Upload size={13} />
+                                 <span>Upload Photo from Device</span>
+                                 <input type="file" accept="image/*" onChange={handlePhotoFileUpload} className="hidden" />
+                               </label>
+
+                               {certPhotoUrl && (
+                                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                                   <div>
+                                     <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
+                                       <span>Zoom: {certPhotoZoom.toFixed(2)}x</span>
+                                       <div className="flex items-center gap-1">
+                                         <button
+                                           type="button"
+                                           onClick={() => setCertPhotoZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
+                                           className="w-6 h-6 rounded bg-white border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 font-black cursor-pointer text-sm shadow-xs"
+                                           title="Zoom Out"
+                                         >
+                                           -
+                                         </button>
+                                         <button
+                                           type="button"
+                                           onClick={() => setCertPhotoZoom((z) => Math.min(3.0, Number((z + 0.1).toFixed(2))))}
+                                           className="w-6 h-6 rounded bg-white border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 font-black cursor-pointer text-sm shadow-xs"
+                                           title="Zoom In"
+                                         >
+                                           +
+                                         </button>
+                                       </div>
+                                     </div>
+                                     <input
+                                       type="range"
+                                       min="0.5"
+                                       max="3.0"
+                                       step="0.05"
+                                       value={certPhotoZoom}
+                                       onChange={(e) => setCertPhotoZoom(parseFloat(e.target.value))}
+                                       className="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                                     />
+                                   </div>
+
+                                   <div>
+                                     <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
+                                       <span>Position / Crop</span>
+                                       <button
+                                         type="button"
+                                         onClick={() => { setCertPhotoOffsetX(0); setCertPhotoOffsetY(0); setCertPhotoZoom(1); }}
+                                         className="text-[10px] text-indigo-600 hover:underline font-bold cursor-pointer"
+                                       >
+                                         Reset
+                                       </button>
+                                     </div>
+                                     <div className="grid grid-cols-3 gap-1 w-28 mx-auto">
+                                       <div></div>
+                                       <button
+                                         type="button"
+                                         onClick={() => setCertPhotoOffsetY((y) => y - 8)}
+                                         className="p-1 bg-white border border-slate-300 rounded hover:bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 cursor-pointer shadow-xs"
+                                         title="Move Up"
+                                       >
+                                         ▲
+                                       </button>
+                                       <div></div>
+                                       <button
+                                         type="button"
+                                         onClick={() => setCertPhotoOffsetX((x) => x - 8)}
+                                         className="p-1 bg-white border border-slate-300 rounded hover:bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 cursor-pointer shadow-xs"
+                                         title="Move Left"
+                                       >
+                                         ◀
+                                       </button>
+                                       <div className="flex items-center justify-center text-[9px] text-slate-400 font-mono">
+                                         {certPhotoOffsetX},{certPhotoOffsetY}
+                                       </div>
+                                       <button
+                                         type="button"
+                                         onClick={() => setCertPhotoOffsetX((x) => x + 8)}
+                                         className="p-1 bg-white border border-slate-300 rounded hover:bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 cursor-pointer shadow-xs"
+                                         title="Move Right"
+                                       >
+                                         ▶
+                                       </button>
+                                       <div></div>
+                                       <button
+                                         type="button"
+                                         onClick={() => setCertPhotoOffsetY((y) => y + 8)}
+                                         className="p-1 bg-white border border-slate-300 rounded hover:bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 cursor-pointer shadow-xs"
+                                         title="Move Down"
+                                       >
+                                         ▼
+                                       </button>
+                                       <div></div>
+                                     </div>
+                                   </div>
+                                 </div>
+                               )}
+                             </div>
+
+                             {/* City & Country */}
+                             <div className="grid grid-cols-2 gap-3">
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">City</label>
-                                 <input id="cert-city" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.city || ''} />
+                                 <input
+                                   type="text"
+                                   value={certCity}
+                                   onChange={(e) => setCertCity(e.target.value)}
+                                   className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm"
+                                   placeholder="City"
+                                 />
                                </div>
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Country</label>
-                                 <input id="cert-country" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.country || ''} />
+                                 <input
+                                   type="text"
+                                   value={certCountry}
+                                   onChange={(e) => setCertCountry(e.target.value)}
+                                   className="w-full bg-slate-50 p-2 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm"
+                                   placeholder="Country"
+                                 />
                                </div>
                              </div>
+
+                             {/* Certificate No */}
                              <div>
-                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Batch Name</label>
-                               <input id="cert-batch" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData?.batchName || ''} />
+                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate Reg. No.</label>
+                               <input
+                                 type="text"
+                                 value={certRegNo}
+                                 onChange={(e) => setCertRegNo(e.target.value)}
+                                 className="w-full bg-indigo-50 p-2 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700 text-sm"
+                               />
                              </div>
-                             <div>
-                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
-                               <input id="cert-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData?.workshopName || ''} />
+
+                             {/* Save & Update Button in Sidebar */}
+                             <div className="pt-2">
+                               <button
+                                 type="button"
+                                 onClick={handleSaveCertificate}
+                                 className="w-full py-3 rounded-xl font-black text-sm transition-all bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
+                               >
+                                 <Check size={16} />
+                                 <span>{isCertSaved ? '✅ Certificate Saved & Updated!' : '💾 Save & Update Certificate'}</span>
+                               </button>
                              </div>
-                             <div>
-                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Certificate Template ID</label>
+
+                             {/* Canva template open */}
+                             <div className="mt-3 pt-3 border-t border-slate-200">
+                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1 block">Canva Template ID</label>
                                <div className="flex gap-2">
-                                 <input id="cert-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaCertificateTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaCertificateTemplateId', e.target.value); }} />
+                                 <input id="cert-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-2 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700 text-xs" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaCertificateTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaCertificateTemplateId', e.target.value); }} />
                                  <button onClick={() => {
                                    const tpl = (document.getElementById('cert-template-id') as HTMLInputElement)?.value;
                                    if (tpl) openCanvaPopup(tpl.includes('canva.com') ? tpl : `https://www.canva.com/brand/brand-templates/${tpl}`);
-                                 }} className="px-3 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">Open</button>
-                               </div>
-                             </div>
-                             <div>
-                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
-                               <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData?.certificateNumber || ''} />
-                             </div>
-                             
-                             <div className="mt-4 pt-4 border-t border-slate-200">
-                               <label className="text-[10px] uppercase font-black text-pink-500 tracking-widest mb-1.5 block">Canva Design ID (Edit directly)</label>
-                               <div className="flex gap-2">
-                                 <input id="cert-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 min-w-0 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
-                                 <button 
-                                   onClick={() => {
-                                     const id = (document.getElementById('cert-design-id') as HTMLInputElement)?.value;
-                                     if (id) {
-                                       setGeneratedDesignId(id);
-                                     } else {
-                                       alert('Please enter a Canva Design ID');
-                                     }
-                                   }}
-                                   className="px-4 py-3 rounded-xl bg-pink-600 text-white font-black text-sm hover:bg-pink-700 transition-all shadow-sm"
-                                 >
-                                   Open Editor
-                                 </button>
+                                 }} className="px-3 py-1.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-200 transition-colors cursor-pointer">Open</button>
                                </div>
                              </div>
                            </>
@@ -1978,9 +2311,17 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           ) : (
                             <>
                               <button
+                                type="button"
+                                onClick={handleSaveCertificate}
+                                className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                <Check size={16} />
+                                <span>{isCertSaved ? '✅ Saved!' : '💾 Save & Update'}</span>
+                              </button>
+                              <button
                                 onClick={handleDownloadCertificate}
                                 disabled={isDownloadingCert}
-                                className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                                className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all bg-gradient-to-r from-teal-600 to-indigo-600 text-white hover:from-teal-700 hover:to-indigo-700 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                               >
                                 {isDownloadingCert ? (
                                   <>
@@ -2294,15 +2635,26 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       }}
                                     >
                                       <div
-                                        className="w-full h-full overflow-hidden"
+                                        className="w-full h-full overflow-hidden relative bg-slate-50 flex items-center justify-center"
                                         style={{ border: '1px solid #7cb5ec' }}
                                       >
-                                        <img
-                                          src={certPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80'}
-                                          alt={certFullName || 'Participant'}
-                                          crossOrigin="anonymous"
-                                          className="w-full h-full object-cover"
-                                        />
+                                        {certPhotoUrl ? (
+                                          <img
+                                            src={certPhotoUrl}
+                                            alt={certFullName || 'Participant'}
+                                            crossOrigin="anonymous"
+                                            className="absolute top-1/2 left-1/2 w-full h-full object-cover select-none pointer-events-none"
+                                            style={{
+                                              transform: `translate(-50%, -50%) translate(${certPhotoOffsetX}px, ${certPhotoOffsetY}px) scale(${certPhotoZoom})`,
+                                              transformOrigin: 'center center',
+                                            }}
+                                          />
+                                        ) : (
+                                          <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center select-none">
+                                            <span className="text-3xl mb-1">👤</span>
+                                            <span className="text-[10px] font-bold">No Photo</span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -2339,9 +2691,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       <strong className="font-bold text-slate-900">
                                         {certPrefix} {certFullName}
                                       </strong>
+                                      {certCity ? `, from ${certCity}${certCountry ? `, ${certCountry}` : ''}` : ''}
                                       , has successfully Completed the{' '}
                                       <strong className="font-bold text-slate-900">
-                                        {certCourse || 'Swar Yoga – Level 1 to 4'}
+                                        {certWorkshopName || 'Swar Yoga Hindi Workshop'}
                                       </strong>{' '}
                                       organized by{' '}
                                       <strong className="font-bold text-slate-900">
@@ -2349,7 +2702,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       </strong>
                                       . With consistent enthusiasm, active involvement, and sincere dedication to learning and practicing Swar Yoga principles, the participant is hereby recognized with the Best Participation and Completion Certificate{' '}
                                       <strong className="font-bold text-slate-900">
-                                        (Levels 1, 2, 3 &amp; 4). Date: {certDateLang || 'December 2024 in Hindi'}
+                                        ({certLevels || 'Levels 1, 2, 3 & 4'}). Date: {certMonthYear || 'December 2024'} in {certLanguage || 'Hindi'}
                                       </strong>
                                     </p>
                                   </div>
@@ -2986,7 +3339,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         receiptData={receiptData || undefined}
         slideData={{
           heading: selectedLead?.name || receiptData?.name || certFullName || 'Swar Yoga Participant',
-          subHeading: selectedLead?.workshop || receiptData?.workshopName || certCourse || 'Swar Yoga Workshop',
+          subHeading: selectedLead?.workshop || receiptData?.workshopName || certWorkshopName || 'Swar Yoga Workshop',
           description: `Receipt No: ${receiptData?.receiptNumber || certRegNo || 'RCPT-SWAR'} • Amount: ₹${receiptData?.amount || '0'}`,
           bulletPoints: [
             `Participant: ${selectedLead?.name || receiptData?.name || certFullName || 'Participant'}`,
