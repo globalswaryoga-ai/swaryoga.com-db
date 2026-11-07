@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid, Handshake } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { useOfferRecords } from '@/hooks/useOfferRecords';
 
 const TEAL = '#2c6975';
 const GOLD = '#cda349';
@@ -51,9 +52,14 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [selectedDesignModal, setSelectedDesignModal] = useState<any | null>(null);
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
   const [currentReceiptPdfUrl, setCurrentReceiptPdfUrl] = useState<string | null>(null);
+  const offerStore = useOfferRecords();
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedBatchForDownload, setSelectedBatchForDownload] = useState<string | null>(null);
-  const [crmOfferData, setCrmOfferData] = useState<Record<string, any>>({});
+  const [localOfferData, setLocalOfferData] = useState<Record<string, any>>({});
+  const crmOfferData = useMemo(() => {
+    return { ...localOfferData, ...(offerStore.records || {}) };
+  }, [localOfferData, offerStore.records]);
+  const [leadFilterType, setLeadFilterType] = useState<'received_pushed' | 'all'>('received_pushed');
   const [expandedBatches, setExpandedBatches] = useState<string[]>([]);
   const [downloadTab, setDownloadTab] = useState<'meta' | 'receipts' | 'certificate'>('receipts');
   const [selectedForDownload, setSelectedForDownload] = useState<string[]>([]);
@@ -346,7 +352,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     const saved = localStorage.getItem('crm_offer_data');
     if (saved) {
       try {
-        setCrmOfferData(JSON.parse(saved));
+        setLocalOfferData(JSON.parse(saved));
       } catch(e) {}
     }
   }, []);
@@ -448,22 +454,69 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
   };
 
-  // Filter to only show leads that have been PUSHED
-  const pushedLeads = useMemo(() => {
-    return leadsData.filter(lead => {
-      const data = crmOfferData[lead.id || lead._id];
-      return data && data.pushedToCreateReceipts === true;
-    });
+  // Helper to extract lead details reliably
+  const getLeadInfo = (lead: any) => {
+    if (!lead) return { name: 'Unknown', phone: '', email: '' };
+    const answers = lead.dynamicAnswers || lead._rawRecord || {};
+    const name = lead.name || lead.Name || lead.customerName || answers['Name'] || answers['NAME'] || 'Participant';
+    const phone = lead.mobile || lead.phoneNumber || lead.phone || answers['WhatsApp Number'] || answers['Mobile'] || '';
+    const email = lead.email || lead.Email || answers['Email'] || '';
+    return { name, phone, email };
+  };
+
+  // Helper to determine if lead is Received amount or Pushed to receipts
+  const getLeadStatus = (lead: any) => {
+    if (!lead) return { isPushed: false, isReceived: false, matches: false, amount: null };
+    const leadId = lead.id || lead._id;
+    const data = crmOfferData[leadId] || {};
+    const isPushed = data.pushedToCreateReceipts === true || data.pushedToReceipts === true || data.pushed === true;
+    const isReceived = data.status === 'received' || !!data.amount || !!data.receivedAmount;
+    const hasPayment = lead.paymentStatus === 'paid' || !!lead.amount || !!lead.payment || !!lead.paidAmount;
+    const rawAmt = data.amount || data.receivedAmount || lead.amount || lead.payment || lead.paidAmount;
+    let formattedAmt: string | null = null;
+    if (rawAmt) {
+      const s = String(rawAmt).trim();
+      formattedAmt = s.startsWith('₹') ? s : `₹${s}`;
+    }
+    return {
+      isPushed,
+      isReceived: isReceived || hasPayment,
+      matches: isPushed || isReceived || hasPayment,
+      amount: formattedAmt,
+    };
+  };
+
+  // Leads that have Received amount OR have been Pushed to Receipts
+  const pushedAndReceivedLeads = useMemo(() => {
+    return leadsData.filter(lead => getLeadStatus(lead).matches);
   }, [leadsData, crmOfferData]);
 
-  // Group pushed leads by Batch
+  // Dynamic active leads pool respecting user search and filter tabs
+  const activeLeadsPool = useMemo(() => {
+    if (leadFilterType === 'all') return leadsData;
+
+    // If searching, check if search exists in pushedAndReceivedLeads
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.toLowerCase().trim();
+      const hasMatchInPushed = pushedAndReceivedLeads.some(l => {
+        const { name, phone, email } = getLeadInfo(l);
+        return name.toLowerCase().includes(q) || phone.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+      });
+      // If not in pushed list, automatically expand to all workshop leads so search never shows blank
+      if (!hasMatchInPushed) return leadsData;
+    }
+
+    return pushedAndReceivedLeads.length > 0 ? pushedAndReceivedLeads : leadsData;
+  }, [leadFilterType, pushedAndReceivedLeads, leadsData, searchQuery]);
+
+  // Group active pool leads by Batch
   const batches = useMemo(() => {
     const groups: Record<string, any[]> = {};
-    pushedLeads.forEach(lead => {
+    activeLeadsPool.forEach(lead => {
       const leadId = lead.id || lead._id;
       const data = crmOfferData[leadId] || {};
       
-      const dateStr = data.date || new Date().toISOString();
+      const dateStr = data.date || lead.createdAt || lead.date || new Date().toISOString();
       const d = new Date(dateStr);
       let batchName = `${d.toLocaleString('default', { month: 'long' }).toUpperCase()} ${d.getFullYear()}`;
       
@@ -484,15 +537,16 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
     
     return groups;
-  }, [pushedLeads, crmOfferData]);
+  }, [activeLeadsPool, crmOfferData]);
 
   const toggleBatch = (batch: string) => {
     setExpandedBatches(prev => prev.includes(batch) ? prev.filter(b => b !== batch) : [...prev, batch]);
   };
 
   const selectedLead = useMemo(() => {
-    return pushedLeads.find(l => l.id === selectedLeadId || l._id === selectedLeadId);
-  }, [pushedLeads, selectedLeadId]);
+    return leadsData.find(l => (l.id || l._id) === selectedLeadId)
+      || pushedAndReceivedLeads.find(l => (l.id || l._id) === selectedLeadId);
+  }, [leadsData, pushedAndReceivedLeads, selectedLeadId]);
 
   const leadsInSelectedBatch = useMemo(() => {
     if (!selectedBatchForDownload) return [];
@@ -690,18 +744,48 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                     ? 'Choose a batch to view files' 
                     : `Choose a lead to generate ${activeSection === 'receipts' ? 'receipt' : 'certificate'}`}
                 </p>
-                
+
                 {activeSection !== 'downloads' && (
-                  <div className="mt-4 relative">
-                    <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search by name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium"
-                    />
-                  </div>
+                  <>
+                    {/* Filter Pills: Received / Pushed vs All Leads */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setLeadFilterType('received_pushed')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer ${
+                          leadFilterType === 'received_pushed'
+                            ? 'bg-white text-indigo-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                        title="Show participants with received payments or pushed to receipts"
+                      >
+                        💰 Received ({pushedAndReceivedLeads.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadFilterType('all')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer ${
+                          leadFilterType === 'all'
+                            ? 'bg-white text-indigo-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                        title="Show all participants in this workshop"
+                      >
+                        👥 All Leads ({leadsData.length})
+                      </button>
+                    </div>
+
+                    <div className="mt-3 relative">
+                      <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search name, phone, email..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-medium"
+                      />
+                    </div>
+                  </>
                 )}
              </div>
              
@@ -728,9 +812,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
                     const isExpanded = expandedBatches.includes(batchName) || searchQuery.length > 0;
                     const visibleLeads = leads.filter(l => {
-                       if (!searchQuery) return true;
-                       const name = String(l.name || l.Name || '').toLowerCase();
-                       return name.includes(searchQuery.toLowerCase());
+                       if (!searchQuery.trim()) return true;
+                       const { name, phone, email } = getLeadInfo(l);
+                       const q = searchQuery.toLowerCase().trim();
+                       return name.toLowerCase().includes(q) || phone.toLowerCase().includes(q) || email.toLowerCase().includes(q);
                     });
                     
                     if (visibleLeads.length === 0) return null;
@@ -749,7 +834,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                             <span className="font-black text-sm text-slate-700 tracking-tight">{batchName}</span>
                           </div>
                           <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold">
-                            {leads.length}
+                            {visibleLeads.length}
                           </span>
                         </button>
                         
@@ -757,17 +842,34 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-100 space-y-1">
                             {visibleLeads.map(lead => {
                               const isSelected = selectedLeadId === (lead.id || lead._id);
+                              const { name, phone } = getLeadInfo(lead);
+                              const st = getLeadStatus(lead);
                               return (
                                 <button
                                   key={lead.id || lead._id}
                                   onClick={() => setSelectedLeadId(lead.id || lead._id)}
-                                  className={`w-full text-left p-2.5 rounded-lg text-sm font-medium transition-all ${
+                                  className={`w-full text-left p-2.5 rounded-xl text-sm font-medium transition-all ${
                                     isSelected 
-                                      ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm border border-indigo-100/50' 
-                                      : 'hover:bg-slate-50 text-slate-600 border border-transparent'
+                                      ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm border border-indigo-200' 
+                                      : 'hover:bg-slate-50 text-slate-700 border border-transparent'
                                   }`}
                                 >
-                                  <div className="truncate">{lead.name || lead.Name || 'Unknown'}</div>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="truncate font-bold text-xs">{name}</span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {st.amount && (
+                                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shadow-2xs">
+                                          {st.amount}
+                                        </span>
+                                      )}
+                                      {st.isPushed && (
+                                        <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded uppercase">
+                                          Pushed
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {phone && <div className="text-[11px] text-slate-400 truncate mt-0.5">{phone}</div>}
                                 </button>
                               )
                             })}
@@ -777,9 +879,17 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                     );
                   })
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                  <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400">
                     <Info size={24} className="mb-2 opacity-50" />
-                    <p className="text-sm font-medium">No leads pushed yet.</p>
+                    <p className="text-xs font-bold text-slate-600 mb-1">No pushed or received leads found in this view.</p>
+                    <p className="text-[11px] text-slate-400 mb-3">Click below to view all workshop participants.</p>
+                    <button
+                      type="button"
+                      onClick={() => setLeadFilterType('all')}
+                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition cursor-pointer"
+                    >
+                      Show All {leadsData.length} Workshop Leads
+                    </button>
                   </div>
                 )}
              </div>
