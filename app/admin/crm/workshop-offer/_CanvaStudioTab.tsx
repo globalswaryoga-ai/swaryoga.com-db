@@ -572,7 +572,18 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
   // Extractions
   const getReceiptData = (lead: any) => {
-    if (!lead) return null;
+    if (!lead) {
+      return {
+        name: 'Participant',
+        whatsapp: '',
+        address: '',
+        amount: '₹1,500',
+        paymentMode: 'UPI / Online',
+        paymentDetails: '',
+        workshopName: 'Swar Yoga Workshop',
+        receiptNumber: 'RCPT-SWAR-001'
+      };
+    }
     const leadId = lead.id || lead._id;
     const receivedData = crmOfferData[leadId] || {};
     let amount = receivedData.amount || lead.amount || lead.payment || lead['Offer-1'] || lead['Offer-2'] || '₹1,500';
@@ -633,8 +644,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     };
   };
 
-  const receiptData = activeSection === 'receipts' ? getReceiptData(selectedLead) : null;
-  const certificateData = activeSection === 'certificate' ? getCertificateData(selectedLead) : null;
+  const receiptData = useMemo(() => getReceiptData(selectedLead), [selectedLead, crmOfferData, batches]);
+  const certificateData = useMemo(() => getCertificateData(selectedLead), [selectedLead]);
 
   return (
     <div className="flex flex-col min-h-full w-full bg-slate-50 overflow-auto">
@@ -2769,17 +2780,17 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         title={activeSection === 'receipts' ? 'A4 Official Receipt Editor' : activeSection === 'certificate' ? 'Certificate Studio' : 'Canva Visual Studio'}
         initialDesignId={generatedDesignId || (typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw' : 'EAHWzpxbbVw')}
         aspectRatio={activeSection === 'receipts' ? 'A4' : activeSection === 'certificate' ? 'A4_landscape' : '16:9'}
-        receiptData={receiptData}
+        receiptData={receiptData || undefined}
         slideData={{
-          heading: selectedLead?.name || receiptData.name || 'Swar Yoga Participant',
-          subHeading: selectedLead?.workshop || receiptData.workshopName || 'Swar Yoga Workshop',
-          description: `Receipt No: ${receiptData.receiptNumber || 'RCPT-SWAR'} • Amount: ₹${receiptData.amount || '0'}`,
+          heading: selectedLead?.name || receiptData?.name || certFullName || 'Swar Yoga Participant',
+          subHeading: selectedLead?.workshop || receiptData?.workshopName || certCourse || 'Swar Yoga Workshop',
+          description: `Receipt No: ${receiptData?.receiptNumber || certRegNo || 'RCPT-SWAR'} • Amount: ₹${receiptData?.amount || '0'}`,
           bulletPoints: [
-            `Participant: ${selectedLead?.name || receiptData.name || 'Participant'}`,
-            `Contact / WhatsApp: ${selectedLead?.whatsapp || selectedLead?.Phone || receiptData.whatsapp || 'N/A'}`,
-            `Amount Paid: ₹${receiptData.amount || selectedLead?.paidAmount || '0'}`,
-            `Payment Mode: ${receiptData.mode || 'Online'}`,
-            `Receipt ID: ${receiptData.receiptNumber || 'RCPT-SWAR'}`,
+            `Participant: ${selectedLead?.name || receiptData?.name || certFullName || 'Participant'}`,
+            `Contact / WhatsApp: ${selectedLead?.whatsapp || selectedLead?.Phone || receiptData?.whatsapp || 'N/A'}`,
+            `Amount Paid: ₹${receiptData?.amount || selectedLead?.paidAmount || '0'}`,
+            `Payment Mode: ${receiptData?.paymentMode || 'Online'}`,
+            `Receipt ID: ${receiptData?.receiptNumber || certRegNo || 'RCPT-SWAR'}`,
             `Date: ${new Date().toLocaleDateString('en-GB')}`
           ]
         }}
