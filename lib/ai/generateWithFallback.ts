@@ -42,7 +42,7 @@ function sleep(ms: number): Promise<void> {
 function getGeminiModels(): string[] {
   const configured = process.env.GEMINI_MODEL;
   if (configured) return [configured];
-  return ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+  return ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
 }
 
 async function callGemini(params: GenerateTextParams, attempt = 1): Promise<string> {
@@ -205,34 +205,44 @@ async function callReplicate(params: GenerateTextParams): Promise<string> {
   throw new Error('Replicate timed out');
 }
 
-// Tries Gemini first (free tier); on ANY Gemini failure — not just a
-// missing key — falls back to Anthropic, then OpenAI, for whichever of
-// those have a configured key. Throws only if every configured provider
-// fails (or none are configured at all).
-export async function generateAIText(params: GenerateTextParams): Promise<string> {
+export async function generateAITextWithProvider(params: GenerateTextParams): Promise<{ text: string; provider: string; switchedFrom?: string }> {
   const allProviders: Record<string, { configured: boolean; call: () => Promise<string> }> = {
     Replicate: { configured: Boolean(process.env.REPLICATE_API_TOKEN), call: () => callReplicate(params) },
-    Gemini: { configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
-    Anthropic: { configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
     OpenAI: { configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
+    Anthropic: { configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
+    Gemini: { configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
   };
-  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['Replicate', 'OpenAI', 'Anthropic', 'Gemini'];
+  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['Replicate', 'OpenAI', 'Gemini', 'Anthropic'];
   const providers = order
     .map((name) => ({ name, ...allProviders[name] }))
     .filter((p) => p.configured);
 
   if (!providers.length) {
-    throw new Error('AI is not configured — add REPLICATE_API_TOKEN, GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to your environment variables.');
+    throw new Error('AI is not configured — add REPLICATE_API_TOKEN, OPENAI_API_KEY, or GEMINI_API_KEY to your environment variables.');
   }
 
   const errors: string[] = [];
+  let firstProviderName = providers[0]?.name;
   for (const provider of providers) {
     try {
-      return await provider.call();
-    } catch (err) {
+      const text = await provider.call();
+      return {
+        text,
+        provider: provider.name,
+        switchedFrom: provider.name !== firstProviderName ? firstProviderName : undefined
+      };
+    } catch (err: any) {
+      console.warn(`[AI Engine] ${provider.name} failed: ${err?.message || err}. Auto-switching to next provider...`);
       errors.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   throw new Error(`All configured AI providers failed. ${errors.join(' | ')}`);
+}
+
+// Tries providers in order; on ANY failure (quota, insufficient credit, error)
+// falls back to the next configured provider.
+export async function generateAIText(params: GenerateTextParams): Promise<string> {
+  const res = await generateAITextWithProvider(params);
+  return res.text;
 }

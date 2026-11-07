@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { uploadToBunnyStorage } from '@/lib/bunny-storage';
 import { registrationViewer } from '@/lib/registrationAuth';
 import { requestsImage, boundedCreativeHistory } from '@/lib/creativeRequest';
+import { generateAIText, generateAITextWithProvider } from '@/lib/ai/generateWithFallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,24 +38,22 @@ async function runReplicate(payload: Record<string, any>): Promise<any> {
 
     prediction = await createRes.json();
     
-    // If it's a rate limit error, wait 10 seconds and try again
     if (createRes.status === 429 && attempt < 3) {
       console.log('Replicate rate limited. Waiting 10 seconds before retry...');
       await new Promise(r => setTimeout(r, 10000));
       continue;
     }
     
-    break; // Success or non-retryable error
+    break;
   }
 
   if (!createRes || !createRes.ok) {
     throw new Error(prediction?.detail || JSON.stringify(prediction) || 'Replicate API error');
   }
 
-  // If already done (with Prefer: wait)
   if (prediction.status === 'succeeded') return prediction.output;
 
-  // Poll (up to 5 minutes for video generation)
+  // Poll (up to 5 minutes)
   const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 5000));
@@ -68,8 +67,94 @@ async function runReplicate(payload: Record<string, any>): Promise<any> {
   throw new Error('Replicate timed out');
 }
 
-// Llama 3 8B Instruct version ID
-const LLAMA3_VERSION = '5a6809ca6288247d06daf6365557e5e429063f32a21146b2a807c682652136b8';
+// Multi-provider Image Generator with Auto-Switching
+async function generateImageWithFallback(prompt: string, aspectRatio: string, preferredEngine = 'auto'): Promise<{ imageUrl: string; provider: string }> {
+  const width = aspectRatio === '16:9' ? 1344 : aspectRatio === '9:16' ? 768 : 1024;
+  const height = aspectRatio === '16:9' ? 768 : aspectRatio === '9:16' ? 1344 : 1024;
+  const errors: string[] = [];
+
+  // Provider 1: Replicate Flux 1.1 Pro
+  const tryReplicate = async () => {
+    if (!process.env.REPLICATE_API_TOKEN) throw new Error('REPLICATE_API_TOKEN missing');
+    console.log('[Image AI] Attempting Replicate Flux 1.1 Pro...');
+    const output = await runReplicate({
+      model: 'black-forest-labs/flux-1.1-pro',
+      input: {
+        prompt,
+        width,
+        height,
+        output_format: 'webp',
+        output_quality: 100,
+      }
+    });
+    const url = Array.isArray(output) ? output[0] : output;
+    if (typeof url !== 'string' || !url.startsWith('http')) throw new Error('Replicate returned invalid URL');
+    
+    const imgRes = await fetch(url);
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    const bunnyUrl = await uploadToBunnyStorage(imgBuffer, `meta-ai-replicate-${Date.now()}.webp`, { contentType: 'image/webp' });
+    return { imageUrl: bunnyUrl, provider: 'Replicate Flux' };
+  };
+
+  // Provider 2: OpenAI DALL-E 3
+  const tryOpenAI = async () => {
+    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
+    console.log('[Image AI] Attempting OpenAI DALL-E 3...');
+    const dSize = aspectRatio === '16:9' ? '1792x1024' : aspectRatio === '9:16' ? '1024x1792' : '1024x1024';
+    const oRes = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt,
+        n: 1,
+        size: dSize,
+        quality: 'standard',
+      })
+    });
+    const oData = await oRes.json();
+    if (!oRes.ok || !oData.data?.[0]?.url) {
+      throw new Error(oData.error?.message || oRes.statusText);
+    }
+    const oUrl = oData.data[0].url;
+    const imgRes = await fetch(oUrl);
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    const bunnyUrl = await uploadToBunnyStorage(imgBuffer, `meta-ai-dalle-${Date.now()}.png`, { contentType: 'image/png' });
+    return { imageUrl: bunnyUrl, provider: 'OpenAI DALL-E 3' };
+  };
+
+  // Provider 3: Ultra-reliable Free Flux Fallback (Pollinations.ai)
+  const tryPollinations = async () => {
+    console.log('[Image AI] Auto-switching to High-Res Flux Fallback...');
+    const safePrompt = encodeURIComponent(prompt.slice(0, 800));
+    const seed = Math.floor(Math.random() * 10000000);
+    const pollUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}`;
+    const pRes = await fetch(pollUrl, { signal: AbortSignal.timeout(45000) });
+    if (!pRes.ok) throw new Error(`Pollinations HTTP ${pRes.status}`);
+    const buffer = Buffer.from(await pRes.arrayBuffer());
+    if (buffer.byteLength < 3000) throw new Error('Pollinations image too small');
+    const bunnyUrl = await uploadToBunnyStorage(buffer, `meta-ai-flux-${Date.now()}.jpg`, { contentType: 'image/jpeg' });
+    return { imageUrl: bunnyUrl, provider: 'Flux High-Res' };
+  };
+
+  const queue = preferredEngine === 'openai' 
+    ? [tryOpenAI, tryReplicate, tryPollinations] 
+    : [tryReplicate, tryOpenAI, tryPollinations];
+
+  for (const fn of queue) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      console.warn(`[Image AI Step Failed]: ${e.message}`);
+      errors.push(e.message);
+    }
+  }
+
+  throw new Error(`All image generation options failed: ${errors.join(' | ')}`);
+}
 
 // Detect if the user is asking for an image
 function wantsImage(prompt: string): boolean {
@@ -101,17 +186,15 @@ function wantsAdCopy(prompt: string): boolean {
 function wantsVideo(prompt: string): boolean {
   const lower = prompt.toLowerCase();
   if (lower.includes('thumbnail') || lower.includes('thumbline')) {
-    return false; // User wants a thumbnail image for a video, not the video itself
+    return false;
   }
   const keywords = ['video', 'animate', 'animation', 'motion', 'mp4', 'movie', 'clip', 'reels', 'reel'];
   return keywords.some(k => lower.includes(k));
 }
 
-
-
-async function uploadImageToCanva(imageUrl, accessToken) {
+async function uploadImageToCanva(imageUrl: string, accessToken: string) {
   try {
-    console.log('Downloading image from Replicate...', imageUrl);
+    console.log('Downloading image for Canva upload...', imageUrl);
     const imgRes = await fetch(imageUrl);
     const imgBuffer = await imgRes.arrayBuffer();
 
@@ -168,7 +251,7 @@ export async function POST(request: Request) {
     const accessToken = cookieStore.get('canva_access_token')?.value;
 
     const body = await request.json();
-    const { prompt, templateId, messages } = body;
+    const { prompt, templateId, messages, engine = 'auto' } = body;
 
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 4000) {
       return NextResponse.json({ error: 'Provide a prompt of at most 4,000 characters' }, { status: 400 });
@@ -188,27 +271,40 @@ export async function POST(request: Request) {
     if (lowerPrompt.includes('16:9') || lowerPrompt.includes('youtube')) { aspectRatio = "16:9"; } 
     else if (lowerPrompt.includes('9:16') || lowerPrompt.includes('story') || lowerPrompt.includes('reels') || lowerPrompt.includes('tiktok')) { aspectRatio = "9:16"; }
 
-    // Build conversation history
-    const historyText = boundedCreativeHistory(messages).map(m =>
-      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
-    ).join('\n');
+    // Build Provider Order with Auto-Switching between Replicate and OpenAI
+    const chosenEngine = String(engine).toLowerCase();
+    const providerOrder = chosenEngine === 'openai'
+      ? ['OpenAI', 'Replicate', 'Gemini']
+      : chosenEngine === 'replicate'
+        ? ['Replicate', 'OpenAI', 'Gemini']
+        : chosenEngine === 'gemini'
+          ? ['Gemini', 'Replicate', 'OpenAI']
+          : ['Replicate', 'OpenAI', 'Gemini']; // Auto-switch default
 
-    // 1. Generate Chat Response via Llama 3 on Replicate
+    // Format history for generateAIText (mapping 'ai' -> 'assistant')
+    const historyTurns: { role: 'user' | 'assistant'; content: string }[] = boundedCreativeHistory(messages).map(m => ({
+      role: m.role === 'ai' ? 'assistant' : 'user',
+      content: m.content
+    }));
+
+    // 1. Generate Chat / Ad Copy Response with Auto-Switching
     let aiText = '';
     let aiData: any = null;
+    let activeProvider = '';
 
     if (shouldGenerateAdCopy) {
       const systemPrompt = `You are a world-class social media copywriter and ad strategist. When the user provides a topic, prompt, or idea, you MUST brainstorm and generate exactly 3 highly engaging elements: a catchy Headline, a compelling Subheading, and a strong Call-to-Action (CTA). \n\nReturn them STRICTLY as a valid JSON object with keys: "Headline", "Subheading", "CTA". \n\nDo not include markdown blocks, just the raw JSON object.`;
-      const llmOutput = await runReplicate({
-        version: LLAMA3_VERSION,
-        input: {
-          prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
-          system_prompt: systemPrompt,
-          max_new_tokens: 300,
-          temperature: 0.7,
-        }
+      
+      const { text: rawText, provider, switchedFrom } = await generateAITextWithProvider({
+        systemPrompt,
+        history: historyTurns,
+        message: prompt,
+        maxOutputTokens: 400,
+        temperature: 0.7,
+        providerOrder,
       });
-      const rawText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
+
+      activeProvider = provider;
       try {
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         aiData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
@@ -220,27 +316,37 @@ export async function POST(request: Request) {
       } catch {
         aiText = rawText;
       }
+
+      if (switchedFrom) {
+        aiText += `\n\n*(⚡ Auto-switched to ${provider} because ${switchedFrom} account had insufficient credit)*`;
+      }
     } else {
       const systemPrompt = `You are a world-class creative AI assistant, highly trained in social media marketing, image generation, video creation, and design strategy.
 You help users create ads, posters, YouTube thumbnails, and any creative content they need.
 IMPORTANT INSTRUCTIONS: 
 1. Never claim an image has been generated or invent an image attachment. Only describe the requested creative briefly; actual image generation is handled separately.
 2. DO NOT make assumptions about the platform (e.g., Facebook) unless the user specifically mentions it. If they ask for a YouTube thumbnail, acknowledge it is for YouTube.
-3. Keep responses concise, engaging, and professional. Act like a high-end agency partner.\n4. Always explicitly acknowledge the requested aspect ratio or platform size if the user mentions one (e.g. 16:9, square, reels).`;
+3. Keep responses concise, engaging, and professional. Act like a high-end agency partner.
+4. Always explicitly acknowledge the requested aspect ratio or platform size if the user mentions one (e.g. 16:9, square, reels).`;
 
-      const llmOutput = await runReplicate({
-        version: LLAMA3_VERSION,
-        input: {
-          prompt: `${historyText}\nUser: ${prompt}\nAssistant:`,
-          system_prompt: systemPrompt,
-          max_new_tokens: 500,
-          temperature: 0.7,
-        }
+      const { text, provider, switchedFrom } = await generateAITextWithProvider({
+        systemPrompt,
+        history: historyTurns,
+        message: prompt,
+        maxOutputTokens: 600,
+        temperature: 0.7,
+        providerOrder,
       });
-      aiText = Array.isArray(llmOutput) ? llmOutput.join('') : String(llmOutput);
+
+      activeProvider = provider;
+      aiText = text;
+
+      if (switchedFrom) {
+        aiText += `\n\n*(⚡ Auto-switched to ${provider} because ${switchedFrom} credit was exhausted)*`;
+      }
     }
 
-    // 2. Generate Image via Flux Schnell on Replicate
+    // 2. Generate Image via Auto-Switching Image Pipeline
     let imageUrl: string | null = null;
     let videoUrl: string | null = null;
     const shouldGenerateVideo = wantsVideo(prompt);
@@ -251,105 +357,86 @@ IMPORTANT INSTRUCTIONS:
         let finalImagePrompt = `A highly detailed, professional YouTube thumbnail or poster based on this request: "${prompt}". IMPORTANT: If the user asked for specific text (e.g. "Hindi Swar Yoga"), you MUST write it exactly as provided using English Alphabet characters. Do not invent fake languages or use Devanagari script. Make the text big, bold, and perfectly spelled. Ensure high-quality, modern design.`;
         
         if (!shouldGenerateAdCopy || !aiData) {
-           const promptOptimizerOutput = await runReplicate({
-             version: LLAMA3_VERSION,
-             input: {
-               prompt: `Optimize this user request into a highly detailed image generation prompt for a text-to-image AI model (like Midjourney or Flux). \nUser Request: "${prompt}"\n\nCRITICAL RULES:\n1. If the user included any Hindi/Devanagari text, TRANSLATE it to English or write it in Hinglish (English alphabet). The AI model CANNOT generate Hindi fonts.\n2. Keep it under 500 characters.\n3. Force MAXIMUM PROFESSIONAL quality: add terms like "ultra-realistic, highly detailed, high-end commercial design, cinematic studio lighting, 8k resolution, premium corporate layout". Provide ONLY the final optimized prompt text, nothing else.`,
-               max_new_tokens: 300,
-               temperature: 0.6,
-             }
-           });
-           const optimized = Array.isArray(promptOptimizerOutput) ? promptOptimizerOutput.join('') : String(promptOptimizerOutput);
-           if (optimized && optimized.length > 20) {
-             finalImagePrompt = optimized;
-           }
-        } else {
-           finalImagePrompt = `A beautiful, clean, modern social media background image. Theme: ${prompt}`;
-        }
-
-        console.log("Generating image with Replicate Flux 1.1 Pro. Optimized Prompt:", finalImagePrompt);
-        const output = await runReplicate({
-          model: 'black-forest-labs/flux-1.1-pro',
-          input: {
-            prompt: finalImagePrompt,
-            width: aspectRatio === '16:9' ? 1344 : aspectRatio === '9:16' ? 768 : 1024,
-            height: aspectRatio === '16:9' ? 768 : aspectRatio === '9:16' ? 1344 : 1024,
-            output_format: 'webp',
-            output_quality: 100,
+          try {
+            const optimized = await generateAIText({
+              systemPrompt: 'You are an expert prompt engineer for text-to-image AI models like Midjourney and Flux.',
+              message: `Optimize this user request into a highly detailed image generation prompt. \nUser Request: "${prompt}"\n\nCRITICAL RULES:\n1. If the user included any Hindi/Devanagari text, TRANSLATE it to English or write it in Hinglish (English alphabet). The AI model CANNOT generate Hindi fonts.\n2. Keep it under 500 characters.\n3. Force MAXIMUM PROFESSIONAL quality: add terms like "ultra-realistic, highly detailed, high-end commercial design, cinematic studio lighting, 8k resolution, premium corporate layout". Provide ONLY the final optimized prompt text, nothing else.`,
+              maxOutputTokens: 300,
+              temperature: 0.6,
+              providerOrder,
+            });
+            if (optimized && optimized.length > 20) {
+              finalImagePrompt = optimized;
+            }
+          } catch(optErr) {
+            console.warn('Prompt optimization fallback:', optErr);
           }
-        });
-
-        imageUrl = Array.isArray(output) ? output[0] : output;
-        if (typeof imageUrl !== 'string' || !imageUrl.startsWith('https://')) throw new Error('Image provider returned no image');
-        
-        if (imageUrl) {
-           console.log("Uploading generated image to Bunny Storage...");
-           try {
-             const imgRes = await fetch(imageUrl);
-             const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
-             imageUrl = await uploadToBunnyStorage(imgBuffer, 'meta-ai-image-' + Date.now() + '.webp', { contentType: 'image/webp' });
-             console.log("Bunny Storage Image URL:", imageUrl);
-           } catch(e) {
-             console.error("Failed to upload image to Bunny Storage:", e);
-             throw new Error('Generated image could not be saved to Bunny Storage. Generation is not complete.');
-           }
+        } else {
+          finalImagePrompt = `A beautiful, clean, modern social media background image. Theme: ${prompt}`;
         }
+
+        console.log("Generating image with multi-engine fallback. Optimized Prompt:", finalImagePrompt);
+        const imgResult = await generateImageWithFallback(finalImagePrompt, aspectRatio, chosenEngine);
+        imageUrl = imgResult.imageUrl;
+        console.log(`Image generated successfully via ${imgResult.provider}:`, imageUrl);
 
         // 3. Generate Video if requested
         if (shouldGenerateVideo && imageUrl) {
-           console.log("Generating video with Minimax Video-01...");
-           const videoOutput = await runReplicate({
-             model: 'minimax/video-01',
-             input: {
-               prompt: `Cinematic, highly detailed, ultra-realistic motion. ${prompt}`,
-               first_frame_image: imageUrl,
-             }
-           });
-           
-           videoUrl = Array.isArray(videoOutput) ? videoOutput[0] : videoOutput;
-           if (typeof videoOutput === 'string' && videoOutput.endsWith('.mp4')) {
-               videoUrl = videoOutput;
-           }
-           
-           if (videoUrl) {
-             console.log("Uploading generated video to Bunny Storage...");
-             try {
-               const vidRes = await fetch(videoUrl);
-               const vidBuffer = Buffer.from(await vidRes.arrayBuffer());
-               videoUrl = await uploadToBunnyStorage(vidBuffer, 'meta-ai-video-' + Date.now() + '.mp4', { contentType: 'video/mp4' });
-               console.log("Bunny Storage Video URL:", videoUrl);
-             } catch(e) {
-               console.error("Failed to upload video to Bunny Storage:", e);
-               throw new Error('Generated video could not be saved to Bunny Storage. Generation is not complete.');
-             }
-           }
+          if (process.env.REPLICATE_API_TOKEN) {
+            try {
+              console.log("Generating video with Minimax Video-01...");
+              const videoOutput = await runReplicate({
+                model: 'minimax/video-01',
+                input: {
+                  prompt: `Cinematic, highly detailed, ultra-realistic motion. ${prompt}`,
+                  first_frame_image: imageUrl,
+                }
+              });
+              
+              videoUrl = Array.isArray(videoOutput) ? videoOutput[0] : videoOutput;
+              if (typeof videoOutput === 'string' && videoOutput.endsWith('.mp4')) {
+                videoUrl = videoOutput;
+              }
+              
+              if (videoUrl) {
+                console.log("Uploading generated video to Bunny Storage...");
+                const vidRes = await fetch(videoUrl);
+                const vidBuffer = Buffer.from(await vidRes.arrayBuffer());
+                videoUrl = await uploadToBunnyStorage(vidBuffer, 'meta-ai-video-' + Date.now() + '.mp4', { contentType: 'video/mp4' });
+                console.log("Bunny Storage Video URL:", videoUrl);
+              }
+            } catch (vErr: any) {
+              console.warn("Video generation failed:", vErr.message);
+              aiText += `\n\n*(Note: Video motion requires active Replicate GPU credits. The high-resolution image has been generated above).*`;
+            }
+          } else {
+            aiText += `\n\n*(Note: Video motion requires REPLICATE_API_TOKEN with GPU credits).*`;
+          }
         }
         
       } catch (e: any) {
-        console.error('Replicate image/video generation failed:', e.message);
-        return NextResponse.json({ error: `Image/video generation failed: ${e.message}` }, { status: 502 });
+        console.error('Multi-engine image generation failed:', e.message);
+        return NextResponse.json({ error: `Image generation failed: ${e.message}` }, { status: 502 });
       }
     }
 
-    // 3. Canva Integration (Autofill OR Create from Asset)
+    // 4. Canva Integration (Autofill OR Create from Asset)
     let job = null;
     let designUrl = null;
 
     if (accessToken && (templateId || imageUrl)) {
       let assetId = null;
       if (imageUrl) {
-         assetId = await uploadImageToCanva(imageUrl, accessToken);
+        assetId = await uploadImageToCanva(imageUrl, accessToken);
       }
 
       if (templateId && aiData) {
-        // Option A: Autofill template
         const dataToFill: any = {
           Headline: { type: 'text', text: aiData.Headline || 'Amazing Offer' },
           Subheading: { type: 'text', text: aiData.Subheading || "Don't miss out." },
           CTA: { type: 'text', text: aiData.CTA || 'Learn More' }
         };
 
-        // If template has a predefined image replacement slot named 'Background' or 'Image'
         if (assetId) {
           dataToFill['Image'] = { type: 'image', asset_id: assetId };
           dataToFill['Background'] = { type: 'image', asset_id: assetId };
@@ -373,7 +460,6 @@ IMPORTANT INSTRUCTIONS:
           job = responseData.job;
         }
       } else if (assetId) {
-        // Option B: Create a brand new design from the uploaded asset
         const presetName = aspectRatio === '9:16' ? 'instagram_story' : (aspectRatio === '16:9' ? 'youtube_thumbnail' : 'instagram_post');
         
         const response = await fetch('https://api.canva.com/rest/v1/designs', {
@@ -395,9 +481,6 @@ IMPORTANT INSTRUCTIONS:
           aiText += `\n\n✨ **[Click here to edit your design in Canva](${designUrl})**`;
         }
       }
-    } else if (!accessToken && (templateId || imageUrl)) {
-       // Just notify that it's not connected
-       // The error will be passed to UI but generation succeeded
     }
 
     return NextResponse.json({
@@ -407,6 +490,7 @@ IMPORTANT INSTRUCTIONS:
       videoUrl,
       designUrl,
       generatedText: aiData,
+      provider: activeProvider,
     });
 
   } catch (error: any) {

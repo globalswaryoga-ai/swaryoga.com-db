@@ -138,6 +138,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [metaLanguage, setMetaLanguage] = useState<string>('English');
   const [metaPlatformsList, setMetaPlatformsList] = useState<string[]>(['FB(size)', 'Insta(size)', 'YouTube(16:9)', '1:1', 'PDF']);
   const [metaPlatform, setMetaPlatform] = useState<string>('FB');
+  const [metaEngine, setMetaEngine] = useState<'auto' | 'replicate' | 'openai' | 'gemini'>('auto');
   const [metaTemplatesMap, setMetaTemplatesMap] = useState<Record<string, string>>({});
   const [savedMetaAds, setSavedMetaAds] = useState<any[]>([]);
 
@@ -149,6 +150,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       if (storedPlats) setMetaPlatformsList(JSON.parse(storedPlats));
       const storedLangs = localStorage.getItem('meta_languages');
       if (storedLangs) setMetaLanguagesList(JSON.parse(storedLangs));
+      const storedEngine = localStorage.getItem('meta_engine');
+      if (storedEngine && ['auto', 'replicate', 'openai', 'gemini'].includes(storedEngine)) {
+        setMetaEngine(storedEngine as any);
+      }
       
       const storedMap = localStorage.getItem('meta_templates_map');
       if (storedMap) setMetaTemplatesMap(JSON.parse(storedMap));
@@ -322,7 +327,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const res = await fetch('/api/admin/canva/meta-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
-        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: strippedMessages })
+        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: strippedMessages, engine: metaEngine })
       });
 
       
@@ -1077,28 +1082,53 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                 <div className="flex-1 flex flex-col bg-white relative">
                   
                   {/* Top Area: Selectors */}
-                  <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-white z-10">
-                     <div className="flex items-center gap-2">
-                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Language</span>
-                       <select 
-                         value={metaLanguage} 
-                         onChange={e => setMetaLanguage(e.target.value)}
-                         className="bg-slate-100 text-sm font-bold text-slate-700 px-3 py-1.5 rounded-lg outline-none cursor-pointer"
-                       >
-                         {metaLanguagesList.map(l => <option key={l} value={l}>{l}</option>)}
-                       </select>
-                       <button onClick={handleAddLanguage} className="text-slate-400 hover:text-indigo-600 p-1"><Plus size={14}/></button>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Platform</span>
-                       <select 
-                         value={metaPlatform} 
-                         onChange={e => setMetaPlatform(e.target.value)}
-                         className="bg-slate-100 text-sm font-bold text-slate-700 px-3 py-1.5 rounded-lg outline-none cursor-pointer"
-                       >
-                         {metaPlatformsList.map(p => <option key={p} value={p}>{p}</option>)}
-                       </select>
-                       <button onClick={handleAddPlatform} className="text-slate-400 hover:text-indigo-600 p-1"><Plus size={14}/></button>
+                  <div className="flex flex-wrap items-center justify-between p-4 border-b border-slate-100 bg-white z-10 gap-3">
+                     <div className="flex items-center gap-3 flex-wrap">
+                       {/* Language */}
+                       <div className="flex items-center gap-2">
+                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Language</span>
+                         <select 
+                           value={metaLanguage} 
+                           onChange={e => setMetaLanguage(e.target.value)}
+                           className="bg-slate-100 text-sm font-bold text-slate-700 px-3 py-1.5 rounded-lg outline-none cursor-pointer hover:bg-slate-200 transition"
+                         >
+                           {metaLanguagesList.map(l => <option key={l} value={l}>{l}</option>)}
+                         </select>
+                         <button onClick={handleAddLanguage} className="text-slate-400 hover:text-indigo-600 p-1" title="Add language"><Plus size={14}/></button>
+                       </div>
+
+                       {/* Platform */}
+                       <div className="flex items-center gap-2">
+                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Platform</span>
+                         <select 
+                           value={metaPlatform} 
+                           onChange={e => setMetaPlatform(e.target.value)}
+                           className="bg-slate-100 text-sm font-bold text-slate-700 px-3 py-1.5 rounded-lg outline-none cursor-pointer hover:bg-slate-200 transition"
+                         >
+                           {metaPlatformsList.map(p => <option key={p} value={p}>{p}</option>)}
+                         </select>
+                         <button onClick={handleAddPlatform} className="text-slate-400 hover:text-indigo-600 p-1" title="Add platform"><Plus size={14}/></button>
+                       </div>
+
+                       {/* AI Engine with Auto-Switch */}
+                       <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-1.5 rounded-xl border border-indigo-100">
+                         <Sparkles size={14} className="text-indigo-600 shrink-0" />
+                         <span className="text-xs font-bold text-indigo-700">Engine</span>
+                         <select 
+                           value={metaEngine} 
+                           onChange={e => {
+                             const val = e.target.value as any;
+                             setMetaEngine(val);
+                             if (typeof window !== 'undefined') localStorage.setItem('meta_engine', val);
+                           }}
+                           className="bg-white text-xs font-bold text-indigo-900 px-2 py-1 rounded-lg border border-indigo-200 outline-none cursor-pointer shadow-xs"
+                         >
+                           <option value="auto">⚡ Auto-Switch (OpenAI ⇄ Replicate)</option>
+                           <option value="replicate">Replicate (Flux & Llama)</option>
+                           <option value="openai">OpenAI (GPT-4o & DALL-E)</option>
+                           <option value="gemini">Gemini (Flash & Free Flux)</option>
+                         </select>
+                       </div>
                      </div>
                   </div>
 
