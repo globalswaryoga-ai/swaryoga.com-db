@@ -188,17 +188,29 @@ export async function POST(request: NextRequest) {
     }
 
     const workshop = lead?.sales?.workshop || {};
-    const payment = sale ? paymentSnapshotFromSale(sale) : (lead?.sales?.payment || {});
-    const workshopName = sale?.workshopName || lead.workshopName || lead?.sales?.workshopName;
+    const payment = body.payment || (sale ? paymentSnapshotFromSale(sale) : (lead?.sales?.payment || {}));
+    const rawDetails = (body.paymentDetails || body.transactionId || body.payment?.transactionId || body.payment?.paymentDetails || '').trim();
+    if (rawDetails) {
+      if (!payment.transactionId) payment.transactionId = rawDetails;
+      if (!payment.paymentDetails) payment.paymentDetails = rawDetails;
+    }
+    const workshopName = body.workshopName || sale?.workshopName || lead.workshopName || lead?.sales?.workshopName;
+    const customerCityCountry = body.customerCityCountry || '';
 
     let receipt: any;
-    if (existing && existingIsStale) {
-      receipt = await updateBunnyReceipt(existing._id, { workshopName, payment, customerName: currentName });
+    if (existing && (existingIsStale || force)) {
+      const updateData: any = { workshopName, payment, customerName: currentName };
+      if (customerCityCountry) updateData.customerCityCountry = customerCityCountry;
+      if (rawDetails) {
+        updateData.paymentDetails = rawDetails;
+        updateData.transactionId = rawDetails;
+      }
+      receipt = await updateBunnyReceipt(existing._id, updateData);
     } else {
       // Reuse the sale's own receipt number (YYMMSWNNN, assigned at creation)
       // instead of minting a different one — the sale record is the source
       // of truth for what receipt number a customer was already given.
-      const receiptNumber = sale?.receiptNumber || await generateInvoiceNumber();
+      const receiptNumber = body.receiptNumber || sale?.receiptNumber || await generateInvoiceNumber();
       receipt = await createBunnyReceipt({
         leadId: leadId,
         leadNumber: lead.leadNumber,
@@ -207,8 +219,11 @@ export async function POST(request: NextRequest) {
         issuedByUserId: viewerUserId,
         issuedAt: new Date().toISOString(),
         customerName: currentName,
-        customerPhone: sale?.customerPhone || lead.phoneNumber,
-        customerEmail: sale?.customerEmail || lead.email,
+        customerPhone: body.customerPhone || sale?.customerPhone || lead.phoneNumber,
+        customerEmail: body.customerEmail || sale?.customerEmail || lead.email,
+        customerCityCountry: customerCityCountry || existing?.customerCityCountry,
+        paymentDetails: rawDetails,
+        transactionId: rawDetails,
         workshopName,
         workshopSlug: workshop.slug,
         scheduleId: workshop.scheduleId,

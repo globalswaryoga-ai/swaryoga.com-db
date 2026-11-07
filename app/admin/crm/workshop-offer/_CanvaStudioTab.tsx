@@ -624,8 +624,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const receiptNo = receiptData.receiptNumber || '';
       const whatsapp = receiptData.whatsapp || '';
       const cityCountry = receiptData.cityCountry || '';
+      const paymentDetails = receiptData.paymentDetails || '';
+      const mode = receiptData.paymentMode || '';
       const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
-      const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&token=${token}&t=${Date.now()}`;
+      const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&paymentDetails=${encodeURIComponent(paymentDetails)}&mode=${encodeURIComponent(mode)}&token=${token}&t=${Date.now()}`;
       setCurrentReceiptPdfUrl(pdfSrc);
     }
   }, [selectedLeadId, activeSection]);
@@ -706,6 +708,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     const country = lead?.country || lead?.Country || receivedData?.country || '';
     const cityCountry = [city, country].filter(Boolean).join(', ') || lead?.address || lead?.Address || receivedData?.address || '';
 
+    const rawDetails = (receivedData.transactionId || receivedData.paymentDetails || receivedData.txnId || lead.paymentDetails || lead.transactionId || lead.payment?.transactionId || lead.sales?.payment?.transactionId || '').toString().trim();
+    const cleanDetails = (rawDetails && rawDetails !== 'N/A' && rawDetails !== '—') ? rawDetails : '';
+
     return {
       name: lead.name || lead.Name || receivedData.name || 'Unknown',
       whatsapp: lead.whatsapp || lead.mobile || lead.Mobile || receivedData.phone || 'Unknown',
@@ -715,7 +720,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       address: cityCountry || 'N/A',
       amount: amount,
       paymentMode: receivedData.paymentMode || lead.paymentMode || lead.payment_mode || 'UPI / Online',
-      paymentDetails: receivedData.transactionId || lead.paymentDetails || lead.transactionId || 'N/A',
+      paymentDetails: cleanDetails,
       workshopName: cleanWorkshop,
       receiptNumber: `${finalPrefix}${srNo.toString().padStart(3,'0')}`
     };
@@ -2235,6 +2240,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 const cityCountry = (document.getElementById('receipt-city-country') as HTMLInputElement)?.value || receiptData?.cityCountry || '';
                                 const amount = (document.getElementById('receipt-amount') as HTMLInputElement)?.value || receiptData?.amount || '₹1,500';
                                 const mode = (document.getElementById('receipt-mode') as HTMLInputElement)?.value || receiptData?.paymentMode || 'UPI / Online';
+                                const paymentDetails = (document.getElementById('receipt-details') as HTMLInputElement)?.value || receiptData?.paymentDetails || '';
                                 const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || receiptData?.receiptNumber || 'RCPT-001';
                                 const workshop = (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || receiptData?.workshopName || 'Swar Yoga Workshop';
                                 const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
@@ -2252,6 +2258,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       customerName: name, 
                                       customerPhone: whatsapp, 
                                       customerCityCountry: cityCountry,
+                                      paymentDetails: paymentDetails,
+                                      transactionId: paymentDetails,
                                       workshopName: workshop, 
                                       issuedAt: new Date().toISOString(), 
                                       payment: { 
@@ -2259,6 +2267,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                         paidAmount: parseFloat(amount.replace(/[^\d.]/g, '')) || 0, 
                                         method: mode, 
                                         provider: mode, 
+                                        transactionId: paymentDetails,
+                                        paymentDetails: paymentDetails,
                                         paidAt: new Date().toISOString() 
                                       } 
                                     })
@@ -2268,7 +2278,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   // Fallback to direct leadId if receipt ID isn't returned
                                   const realReceiptId = data.data?._id || data.data?.id || leadId;
                                   setGeneratedDesignId(`PDF_${leadId}`);
-                                  const pdfSrc = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&token=${token}&t=${Date.now()}`;
+                                  const pdfSrc = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&paymentDetails=${encodeURIComponent(paymentDetails)}&mode=${encodeURIComponent(mode)}&token=${token}&t=${Date.now()}`;
                                   setCurrentReceiptPdfUrl(pdfSrc);
                                   setTimeout(() => { 
                                     const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; 
@@ -2283,7 +2293,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   console.error('Receipt generation error:', error);
                                   // Fallback direct preview so it NEVER fails
                                   setGeneratedDesignId(`PDF_${leadId}`);
-                                  const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&token=${token}&t=${Date.now()}`;
+                                  const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&cityCountry=${encodeURIComponent(cityCountry)}&paymentDetails=${encodeURIComponent(paymentDetails)}&mode=${encodeURIComponent(mode)}&token=${token}&t=${Date.now()}`;
                                   setCurrentReceiptPdfUrl(pdfSrc);
                                   if (btn) btn.innerText = '📄 Generate PDF';
                                 }
@@ -2375,7 +2385,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <a
-                                      href={`${currentReceiptPdfUrl || `/api/admin/crm/receipts/pdf?id=${selectedLead?.id || selectedLead?._id}&leadId=${selectedLead?.id || selectedLead?._id}&cityCountry=${encodeURIComponent(receiptData?.cityCountry || '')}&token=${typeof window !== 'undefined' ? localStorage.getItem('adminToken') || '' : ''}`}&download=1`}
+                                      href={`${currentReceiptPdfUrl || `/api/admin/crm/receipts/pdf?id=${selectedLead?.id || selectedLead?._id}&leadId=${selectedLead?.id || selectedLead?._id}&cityCountry=${encodeURIComponent(receiptData?.cityCountry || '')}&paymentDetails=${encodeURIComponent(receiptData?.paymentDetails || '')}&token=${typeof window !== 'undefined' ? localStorage.getItem('adminToken') || '' : ''}`}&download=1`}
                                       download
                                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
                                     >

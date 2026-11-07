@@ -310,6 +310,19 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const method = PAYMENT_MODE_LABELS[methodKey]
     || (methodKey && methodKey !== '—' ? methodKey.charAt(0).toUpperCase() + methodKey.slice(1).replace(/_/g, ' ') : 'Bank Transfer');
   text(method, M, leftY, { size: 11 });
+
+  // If transaction ID / payment details exists, show below payment mode
+  const rawTxnId = safe(pay?.transactionId || pay?.paymentDetails || receipt?.paymentDetails || receipt?.transactionId || '')
+    .replace(/^N\/A$/i, '')
+    .replace(/^—$/, '')
+    .trim();
+
+  if (rawTxnId) {
+    leftY -= 15;
+    const label = /^(txn|transaction|ref|utr|id)/i.test(rawTxnId) ? rawTxnId : `Txn ID: ${rawTxnId}`;
+    text(label, M, leftY, { size: 9.5, font: bold, color: darkBlack });
+  }
+
   leftY -= 20;
 
   const terms = [
@@ -441,6 +454,8 @@ export async function GET(request: NextRequest) {
     const cityCountryParam = url.searchParams.get('cityCountry') || url.searchParams.get('city') || '';
     const countryParam = url.searchParams.get('country') || '';
     const fullCityCountry = [cityCountryParam, countryParam].filter(Boolean).join(', ');
+    const paymentDetailsParam = (url.searchParams.get('paymentDetails') || url.searchParams.get('txnId') || url.searchParams.get('transactionId') || '').trim();
+    const methodParam = (url.searchParams.get('method') || url.searchParams.get('mode') || url.searchParams.get('paymentMode') || '').trim();
 
     if (rec) {
       if (fullCityCountry) {
@@ -452,6 +467,21 @@ export async function GET(request: NextRequest) {
       if (url.searchParams.get('phone')) {
         rec.customerPhone = url.searchParams.get('phone');
       }
+      if (url.searchParams.get('receiptNo') || url.searchParams.get('receiptNumber')) {
+        rec.receiptNumber = url.searchParams.get('receiptNo') || url.searchParams.get('receiptNumber');
+      }
+      if (paymentDetailsParam && paymentDetailsParam !== 'N/A') {
+        rec.paymentDetails = paymentDetailsParam;
+        rec.transactionId = paymentDetailsParam;
+        if (!rec.payment) rec.payment = {};
+        rec.payment.transactionId = paymentDetailsParam;
+        rec.payment.paymentDetails = paymentDetailsParam;
+      }
+      if (methodParam) {
+        if (!rec.payment) rec.payment = {};
+        rec.payment.method = methodParam;
+        rec.payment.provider = methodParam;
+      }
     }
 
     if (!rec) {
@@ -461,7 +491,7 @@ export async function GET(request: NextRequest) {
       const workshopName = url.searchParams.get('workshop') || url.searchParams.get('workshopName') || 'Swar Yoga Workshop';
       const receiptNumber = url.searchParams.get('receiptNo') || url.searchParams.get('receiptNumber') || `RCPT-${Date.now().toString().slice(-6)}`;
       const customerPhone = url.searchParams.get('phone') || url.searchParams.get('customerPhone') || '';
-      const method = url.searchParams.get('method') || 'Online / Bank Transfer';
+      const method = methodParam || 'Online / Bank Transfer';
 
       if (customerName || parsedAmount > 0 || leadId) {
         rec = {
@@ -471,6 +501,8 @@ export async function GET(request: NextRequest) {
           customerName: customerName || 'Participant',
           customerPhone,
           customerCityCountry: fullCityCountry,
+          paymentDetails: paymentDetailsParam && paymentDetailsParam !== 'N/A' ? paymentDetailsParam : '',
+          transactionId: paymentDetailsParam && paymentDetailsParam !== 'N/A' ? paymentDetailsParam : '',
           workshopName,
           issuedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
@@ -480,6 +512,8 @@ export async function GET(request: NextRequest) {
             paidAmount: parsedAmount,
             method,
             provider: method,
+            transactionId: paymentDetailsParam && paymentDetailsParam !== 'N/A' ? paymentDetailsParam : '',
+            paymentDetails: paymentDetailsParam && paymentDetailsParam !== 'N/A' ? paymentDetailsParam : '',
             paidAt: new Date().toISOString(),
           }
         };

@@ -422,6 +422,12 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                       <div>
                         <p className="font-bold text-sm text-gray-900">Payment Method :</p>
                         <p className="text-sm text-gray-700 mt-0.5">{methodLabel}</p>
+                        {(() => {
+                          const txn = (activeReceipt.payment?.transactionId || (activeReceipt as any).paymentDetails || (activeReceipt as any).transactionId || '').toString().trim();
+                          if (!txn || txn.toUpperCase() === 'N/A' || txn === '—') return null;
+                          const label = /^(txn|transaction|ref|utr|id)/i.test(txn) ? txn : `Txn ID: ${txn}`;
+                          return <p className="text-xs font-semibold text-gray-800 mt-0.5">{label}</p>;
+                        })()}
                         <div className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
                           isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                         }`}>
