@@ -357,7 +357,7 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
                     src={ASSETS.signature}
                     alt="Signature"
                     crossOrigin="anonymous"
-                    className="h-14 sm:h-18 mx-auto -mb-1 object-contain"
+                    className="h-24 sm:h-32 mx-auto -mb-2 object-contain"
                   />
                   <p className="font-bold text-xs text-slate-900 border-t border-slate-400 pt-0.5">
                     MOHAN KALBURGI

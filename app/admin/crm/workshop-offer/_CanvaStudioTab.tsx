@@ -2344,13 +2344,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       />
                                     </div>
 
-                                    {/* Right: Signature & Acharya info */}
+                                    {/* Right: Signature & Acharya info (2x bigger CEO signature) */}
                                     <div className="flex flex-col items-center text-center">
                                       <img
                                         src={ASSETS.signature}
                                         alt="Mohan Kalburgi Signature"
                                         crossOrigin="anonymous"
-                                        className="h-16 w-auto object-contain -mb-2"
+                                        className="h-32 w-auto object-contain -mb-4"
                                       />
                                       <div className="w-52 border-t border-slate-700 pt-1.5">
                                         <p
