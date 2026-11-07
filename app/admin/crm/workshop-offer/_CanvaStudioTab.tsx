@@ -593,6 +593,15 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     const prefix = rawPrefix.replace(/\d+$/, '');
     const finalPrefix = prefix || `RCPT-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-`;
     
+    let cleanWorkshop = lead.workshopName || lead.workshop_name || lead.course || '';
+    if (!cleanWorkshop || /^[a-zA-Z0-9_-]{20,}$/.test(cleanWorkshop) || cleanWorkshop.includes('18zLNgV')) {
+      cleanWorkshop = 'Swar Yoga Hindi Workshop';
+    } else if (cleanWorkshop.includes('1nZz1ib') || cleanWorkshop.includes('1MmdQk')) {
+      cleanWorkshop = 'Swar Yoga Marathi Workshop';
+    } else if (cleanWorkshop.includes('1UXrEI')) {
+      cleanWorkshop = 'Swar Yoga English Workshop';
+    }
+
     return {
       name: lead.name || lead.Name || receivedData.name || 'Unknown',
       whatsapp: lead.whatsapp || lead.mobile || lead.Mobile || receivedData.phone || 'Unknown',
@@ -600,7 +609,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       amount: amount,
       paymentMode: receivedData.paymentMode || lead.paymentMode || lead.payment_mode || 'UPI / Online',
       paymentDetails: receivedData.transactionId || lead.paymentDetails || lead.transactionId || 'N/A',
-      workshopName: lead.workshopName || lead.workshop_name || lead.course || 'Swar Yoga L-1',
+      workshopName: cleanWorkshop,
       receiptNumber: `${finalPrefix}${srNo.toString().padStart(3,'0')}`
     };
   };

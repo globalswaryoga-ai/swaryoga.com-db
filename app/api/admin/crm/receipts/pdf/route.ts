@@ -158,9 +158,9 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     page.drawImage(photoImg, { x: M, y: H - 92, width: 64, height: 64 });
   }
 
-  text('SWAR YOGA', M + 78, H - 42, { size: 21, font: bold, color: black });
-  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 62, { size: 8, color: gray });
-  text('Email: mohan@swaryoga.com', M + 78, H - 74, { size: 8, color: gray });
+  text('SWAR YOGA', M + 78, H - 40, { size: 22, font: bold, color: white });
+  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 58, { size: 8.5, font: bold, color: white });
+  text('Email: mohan@swaryoga.com • Web: www.swaryoga.com', M + 78, H - 72, { size: 8.5, font: bold, color: rgb(1, 0.95, 0.65) });
 
   if (logoImg) {
     page.drawImage(logoImg, { x: W - M - 54, y: H - 70, width: 54, height: 54 });
@@ -179,12 +179,13 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   // ═══════════════════════════════════════════════════════════════════════════
   text('INVOICE TO :', M, H - 152, { size: 8.5, color: gray });
 
-  // CrmReceipt documents store the lead's number as `leadNumber` (set at
-  // receipt creation); the sale-fallback shape (receiptShapeFromSale) sets
-  // `customerId` instead. `receipt.customerId` alone was never populated on
-  // real CrmReceipt docs, which silently fell through to the ObjectId-hex
-  // fallback for every receipt issued via the normal create flow.
-  const custId = safe(receipt?.leadNumber || receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
+  // Clean, professional participant ID (removes internal SUB_ hashes)
+  let rawCustId = receipt?.leadNumber || receipt?.customerId || '';
+  if (!rawCustId || rawCustId.startsWith('sub_') || rawCustId.startsWith('SUB_') || /^[a-zA-Z0-9_-]{12,}$/.test(rawCustId)) {
+    const cleanPhone = (receipt?.customerPhone || '').replace(/\D/g, '').slice(-4);
+    rawCustId = cleanPhone ? `SW-${cleanPhone}` : (receipt?.receiptNumber ? `SW-${receipt.receiptNumber.slice(-4)}` : 'SW-001');
+  }
+  const custId = safe(rawCustId);
   text(`ID: ${custId}`, M, H - 168, { size: 10, font: bold });
 
   const customerName = safe(formatPersonName(receipt?.customerName));
@@ -219,7 +220,16 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     text(h, tx, tTop - 16, { size: 8.5, font: bold, color: white });
   });
 
-  const workshopName = safe(receipt?.workshopName || 'Workshop');
+  // Sanitize workshop name so internal spreadsheet hashes or form IDs never appear
+  let rawWorkshop = receipt?.workshopName || '';
+  if (!rawWorkshop || /^[a-zA-Z0-9_-]{20,}$/.test(rawWorkshop) || rawWorkshop.includes('18zLNgV')) {
+    rawWorkshop = 'Swar Yoga Hindi Workshop';
+  } else if (rawWorkshop.includes('1nZz1ib') || rawWorkshop.includes('1MmdQk')) {
+    rawWorkshop = 'Swar Yoga Marathi Workshop';
+  } else if (rawWorkshop.includes('1UXrEI')) {
+    rawWorkshop = 'Swar Yoga English Workshop';
+  }
+  const workshopName = safe(rawWorkshop || 'Swar Yoga Basic Workshop');
   const qty     = Number(receipt?.quantity ?? 1) || 1;
   const unitAmt = Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0);
 
