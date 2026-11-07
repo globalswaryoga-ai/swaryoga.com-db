@@ -337,7 +337,7 @@ export default function WorkshopOfferPage() {
         let hasChanges = false;
 
         Object.entries(tagData).forEach(([tag, info]) => {
-          const existing = newWorkshops.find(w => w.name.toLowerCase() === tag.toLowerCase());
+          const existing = newWorkshops.find(w => w && w.name && w.name.toLowerCase() === tag.toLowerCase());
           if (existing) {
             existing.leads = (existing.leads || 0) + info.count;
             hasChanges = true;
@@ -1375,7 +1375,7 @@ export default function WorkshopOfferPage() {
 
   const handleEditBatch = (e: React.MouseEvent, w: any) => {
     e.stopPropagation();
-    toast.success(`Editing batch: ${w.name}`);
+    toast.success(`Editing batch: ${w?.name || 'Batch'}`);
     setIsAddBatchModalOpen(true);
     // In a real app we'd populate the modal with 'w' data
   };
@@ -2001,7 +2001,7 @@ export default function WorkshopOfferPage() {
                             : 'border-transparent hover:bg-slate-100 text-slate-600'
                             }`}
                         >
-                          <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
+                          <span className="break-words w-full pr-2 leading-tight" title={batch?.name || ''}>{batch?.name || 'Untitled Batch'}</span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{getDynamicBatchLeads(batch)}</span>
                             <button
@@ -2046,11 +2046,11 @@ export default function WorkshopOfferPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the target batch:", batch.name);
-                                if (newName && newName !== batch.name) {
+                                const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the target batch:", batch?.name || '');
+                                if (newName && newName !== batch?.name) {
                                   const targetBatch = workshops.find((w: any) => w && w.id && w.name === newName);
                                   if (targetBatch) {
-                                    if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"? The source batch "${batch.name}" will be merged and removed.`)) {
+                                    if (window.confirm(`Merge "${batch?.name}" into "${targetBatch?.name}"? The source batch "${batch?.name}" will be merged and removed.`)) {
                                       const newFilters = Array.from(new Set([
                                         ...(targetBatch.formFilterKeyword || '').split('|'),
                                         ...(batch.formFilterKeyword || '').split('|'),
@@ -2096,8 +2096,8 @@ export default function WorkshopOfferPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
-                                  const newWorkshops = workshops.filter((w: any) => w.id !== batch.id);
+                                if (window.confirm(`Are you sure you want to delete ${batch?.name || 'this batch'}?`)) {
+                                  const newWorkshops = workshops.filter((w: any) => w && w.id !== batch.id);
                                   setWorkshops(newWorkshops);
                                   localStorage.setItem('crm_offers', JSON.stringify(newWorkshops));
                                   fetch('/api/admin/crm/new-registration/state', {
@@ -2138,7 +2138,7 @@ export default function WorkshopOfferPage() {
               </div>
               <div>
                 <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                  {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
+                  {selectedWorkshop ? (selectedWorkshop?.name || 'Untitled Batch') : 'Select a Batch to begin'}
                 </h1>
                 <p className="text-sm text-slate-500 font-medium">
                   {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}

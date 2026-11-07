@@ -2047,15 +2047,52 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   </div>
                                 </div>
                                 
-                                <iframe 
-                                  src={generatedDesignId.startsWith('EAH')
-                                    ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}`
-                                    : `https://www.canva.com/design/${generatedDesignId}/view?embed`}
-                                  className="flex-1 w-full rounded-xl border border-slate-200 shadow-sm mb-4 min-h-[500px]"
-                                  allowFullScreen
-                                  allow="fullscreen"
-                                  title="Canva Receipt Preview"
-                                />
+                                {currentReceiptPdfUrl ? (
+                                  <iframe 
+                                    id="receipt-preview-frame"
+                                    src={currentReceiptPdfUrl}
+                                    className="flex-1 w-full rounded-xl border border-slate-200 shadow-sm mb-4 min-h-[500px]"
+                                    title="Receipt PDF Preview"
+                                  />
+                                ) : generatedDesignId && !generatedDesignId.startsWith('EAH') && !generatedDesignId.includes('canva.com') ? (
+                                  <iframe 
+                                    src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
+                                    className="flex-1 w-full rounded-xl border border-slate-200 shadow-sm mb-4 min-h-[500px]"
+                                    allowFullScreen
+                                    allow="fullscreen"
+                                    title="Canva Receipt Preview"
+                                  />
+                                ) : (
+                                  <div className="flex-1 w-full rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 p-8 flex flex-col items-center justify-center text-center shadow-inner mb-4 min-h-[460px]">
+                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg mb-4">
+                                      <Palette size={32} />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-800 mb-1">Canva Receipt Template Ready</h3>
+                                    <p className="text-xs text-slate-500 max-w-md mb-6">
+                                      Template ID: <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{generatedDesignId || 'EAHWzpxbbVw'}</span>
+                                      <br />Canva brand templates open securely directly in Canva or via the in-CRM editor side panel.
+                                    </p>
+                                    <div className="flex flex-wrap items-center justify-center gap-3">
+                                      <a
+                                        href={generatedDesignId && generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId || 'EAHWzpxbbVw'}/edit`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <ExternalLink size={14} />
+                                        <span>Open in Canva.com</span>
+                                      </a>
+                                      <button
+                                        type="button"
+                                        onClick={() => setIsCanvaSidePanelOpen(true)}
+                                        className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Palette size={14} />
+                                        <span>Open in CRM Side Panel</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
 
                                 <div className="flex gap-4 w-full h-14">
                                   <button
@@ -2834,6 +2871,21 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                   alt={selectedDesignModal.title}
                   className="max-h-[60vh] max-w-full rounded-2xl shadow-lg object-contain bg-white"
                 />
+              ) : selectedDesignModal.id?.startsWith('EAH') ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center">
+                  <Palette size={48} className="text-indigo-500 mb-3" />
+                  <h4 className="font-bold text-slate-800 mb-1">{selectedDesignModal.title || 'Brand Template'}</h4>
+                  <p className="text-xs text-slate-500 mb-4">Canva Brand Templates open directly in Canva.</p>
+                  <a
+                    href={`https://www.canva.com/brand/brand-templates/${selectedDesignModal.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5"
+                  >
+                    <span>Open in Canva</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
               ) : (
                 <iframe
                   src={`https://www.canva.com/design/${selectedDesignModal.id}/view?embed`}

@@ -103,7 +103,7 @@ export function LeadsManagementTab({
     }
   }, [activeBatchId, workshops, selectedLanguage]);
 
-  const activeBatch = workshops?.find(w => w.id === activeBatchId);
+  const activeBatch = workshops?.find(w => w && w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
 
   // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
@@ -757,8 +757,8 @@ export function LeadsManagementTab({
               onChange={(e) => setSelectedBatchId(e.target.value)}
             >
               <option value="">-- Select Batch Name --</option>
-              {filteredBatches.map(batch => (
-                <option key={batch.id} value={batch.id}>{batch.name}</option>
+              {filteredBatches.filter(b => b && b.id).map(batch => (
+                <option key={batch.id} value={batch.id}>{batch?.name || batch?.id}</option>
               ))}
             </select>
 

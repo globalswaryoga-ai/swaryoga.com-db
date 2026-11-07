@@ -65,7 +65,7 @@ export default function OfferDetailsTab({
 
   const getAutoAmount = () => {
     if (!selectedWorkshop) return '';
-    const nameToMatch = selectedWorkshop.formFilterKeyword || selectedWorkshop.name || '';
+    const nameToMatch = selectedWorkshop?.formFilterKeyword || selectedWorkshop?.name || '';
     // Look for ₹ followed by digits/commas
     const match = nameToMatch.match(/₹\s*([\d,]+)/);
     if (match) return `₹${match[1]}`;
@@ -198,14 +198,14 @@ export default function OfferDetailsTab({
           <select 
             value={selectedWorkshop?.id || ''} 
             onChange={(e) => {
-              const batch = workshops.find(w => w.id === e.target.value);
+              const batch = workshops.find(w => w && w.id === e.target.value);
               if (batch) setSelectedWorkshop(batch);
             }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium min-w-[300px] w-auto max-w-none"
           >
             <option value="">Select Offer Batch...</option>
             {availableBatches.map(batch => {
-              const fullName = batch.formFilterKeyword ? `${getBaseLanguage(batch.language || selectedDashboardLang)} - ${batch.formFilterKeyword}` : batch.name;
+              const fullName = batch?.formFilterKeyword ? `${getBaseLanguage(batch?.language || selectedDashboardLang)} - ${batch?.formFilterKeyword}` : (batch?.name || batch?.id || 'Batch');
               return (
                 <option key={batch.id} value={batch.id}>{fullName}</option>
               );
@@ -266,7 +266,7 @@ export default function OfferDetailsTab({
               </div>
               <div>
                 <h3 className="font-bold text-slate-800">
-                  {selectedWorkshop ? (selectedWorkshop.formFilterKeyword ? `${getBaseLanguage(selectedWorkshop.language || selectedDashboardLang)} - ${selectedWorkshop.formFilterKeyword}` : selectedWorkshop.name) : 'All Leads'}
+                  {selectedWorkshop ? (selectedWorkshop?.formFilterKeyword ? `${getBaseLanguage(selectedWorkshop?.language || selectedDashboardLang)} - ${selectedWorkshop?.formFilterKeyword}` : (selectedWorkshop?.name || 'Batch')) : 'All Leads'}
                 </h3>
                 <p className="text-xs text-slate-500">{filteredLeads.length} leads found in this batch</p>
               </div>

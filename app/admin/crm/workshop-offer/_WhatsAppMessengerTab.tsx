@@ -284,10 +284,10 @@ export function WhatsAppMessengerTab({
                         <p>No templates found for this language.</p>
                       </div>
                     ) : (
-                      templates.filter(t => t.language === allMessagesLang).map(template => (
+                      templates.filter(t => t && t.language === allMessagesLang).map(template => (
                         <div key={template._id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all">
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-bold text-slate-800 text-lg pr-4">{template.name}</h3>
+                            <h3 className="font-bold text-slate-800 text-lg pr-4">{template?.name || 'Untitled Template'}</h3>
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`text-xs px-2 py-1 rounded-full font-semibold capitalize ${
                                 template.status === 'approved' ? 'bg-green-100 text-green-700' :

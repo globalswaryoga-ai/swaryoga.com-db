@@ -1560,21 +1560,52 @@ export default function CanvaCrmSidePanel({
               </a>
             </div>
 
-            {/* Embedded Iframe */}
-            <div className="flex-1 w-full h-full relative bg-slate-950">
+            {/* Embedded Iframe or Safe Fallback for Brand Templates */}
+            <div className="flex-1 w-full h-full relative bg-slate-950 flex flex-col items-center justify-center">
               {activeDesignId ? (
-                <iframe
-                  title="Canva Editor"
-                  src={
-                    activeDesignId.includes('canva.com')
-                      ? activeDesignId.includes('embed')
-                        ? activeDesignId
-                        : `${activeDesignId}?embed`
-                      : `https://www.canva.com/design/${activeDesignId}/view?embed`
-                  }
-                  allow="fullscreen; clipboard-write; camera; microphone"
-                  className="w-full h-full border-0 absolute inset-0"
-                />
+                activeDesignId.startsWith('EAH') || activeDesignId.includes('brand-templates') || activeDesignId === 'https://www.canva.com/' || activeDesignId === 'https://www.canva.com' ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-center max-w-lg">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-xl mb-4">
+                      <Palette size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold text-white mb-2">Canva Brand Template Selected</h3>
+                    <p className="text-xs text-slate-400 mb-6">
+                      Template <span className="font-mono text-cyan-300 font-bold">{activeDesignId}</span> is a Canva Brand Template. Canva security policies prevent brand templates from being loaded inside iframes. You can open and edit this template directly in Canva, or switch to the <strong>Corrections &amp; Editor</strong> tab for live in-CRM design.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                      <a
+                        href={activeDesignId.startsWith('http') ? activeDesignId : `https://www.canva.com/brand/brand-templates/${activeDesignId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-lg flex items-center gap-2 cursor-pointer"
+                      >
+                        <ExternalLink size={14} />
+                        <span>Open Template in Canva.com</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('native')}
+                        className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition border border-slate-700 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Palette size={14} />
+                        <span>Use Live Editor Tab</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <iframe
+                    title="Canva Editor"
+                    src={
+                      activeDesignId.includes('canva.com')
+                        ? activeDesignId.includes('embed')
+                          ? activeDesignId
+                          : `${activeDesignId}?embed`
+                        : `https://www.canva.com/design/${activeDesignId}/view?embed`
+                    }
+                    allow="fullscreen; clipboard-write; camera; microphone"
+                    className="w-full h-full border-0 absolute inset-0"
+                  />
+                )
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
                   <Palette size={32} className="opacity-40" />

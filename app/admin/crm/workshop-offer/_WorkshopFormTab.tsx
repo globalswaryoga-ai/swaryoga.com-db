@@ -227,8 +227,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             ) : googleFormsList.length === 0 && !needsGoogleAuth ? (
                               <option disabled>No forms found — click Refresh or Connect Google</option>
                             ) : (
-                              googleFormsList.map((f: any) => (
-                                <option key={f.id} value={f.id}>{f.name}</option>
+                              (googleFormsList || []).filter((f: any) => f && f.id).map((f: any) => (
+                                <option key={f.id} value={f.id}>{f?.name || f?.id || 'Untitled Form'}</option>
                               ))
                             )}
                           </select>
@@ -921,7 +921,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 >
                   <option value="">Select destination form/batch...</option>
                   {availableMergeBatches.map((w: any) => (
-                    <option key={w.id} value={w.id}>{w.name} ({w.leads || 0} leads)</option>
+                    <option key={w.id} value={w.id}>{w?.name || w?.id} ({w?.leads || 0} leads)</option>
                   ))}
                 </select>
               </div>
@@ -931,15 +931,15 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                   <label className="text-sm font-bold text-slate-700">2. Select Source Batches / Forms (Move leads FROM these)</label>
                   {mergeSourceIds.length > 0 && (
                     <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">
-                      {availableMergeBatches.filter((w: any) => mergeSourceIds.includes(w.id)).reduce((acc, b) => acc + (b.leads || 0), 0)} Leads Selected
+                      {availableMergeBatches.filter((w: any) => w && mergeSourceIds.includes(w.id)).reduce((acc, b) => acc + (b?.leads || 0), 0)} Leads Selected
                     </span>
                   )}
                 </div>
                 <div className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white min-h-[120px] max-h-[200px] overflow-y-auto space-y-1">
-                  {availableMergeBatches.filter((w: any) => w.id !== mergeTargetId).length === 0 ? (
+                  {availableMergeBatches.filter((w: any) => w && w.id !== mergeTargetId).length === 0 ? (
                     <div className="text-slate-400 p-2 text-center italic">No other batches or forms available</div>
                   ) : (
-                    availableMergeBatches.filter((w: any) => w.id !== mergeTargetId).map((w: any) => (
+                    availableMergeBatches.filter((w: any) => w && w.id !== mergeTargetId).map((w: any) => (
                       <label key={w.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-colors">
                         <input
                           type="checkbox"
@@ -953,7 +953,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                             }
                           }}
                         />
-                        <span className="text-slate-700 truncate">{w.name} ({w.leads || 0} leads)</span>
+                        <span className="text-slate-700 truncate">{w?.name || w?.id} ({w?.leads || 0} leads)</span>
                       </label>
                     ))
                   )}
@@ -970,18 +970,18 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
                 onClick={async () => {
-                  const target = workshops.find((w: any) => w.id === mergeTargetId);
-                  const sources = workshops.filter((w: any) => mergeSourceIds.includes(w.id));
+                  const target = workshops.find((w: any) => w && w.id === mergeTargetId);
+                  const sources = workshops.filter((w: any) => w && mergeSourceIds.includes(w.id));
                   if (!target || sources.length === 0) return;
 
-                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} source item(s) into "${target.name}"? The source batch(es) will be merged into the target and removed.`)) {
-                    let combinedKeywords = (target.formFilterKeyword || target.name || '').split('|');
-                    let totalLeads = target.leads || 0;
+                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} source item(s) into "${target?.name || 'Target'}"? The source batch(es) will be merged into the target and removed.`)) {
+                    let combinedKeywords = (target?.formFilterKeyword || target?.name || '').split('|');
+                    let totalLeads = target?.leads || 0;
                     
                     sources.forEach((src: any) => {
-                      const srcKeywords = (src.formFilterKeyword || src.name || '').split('|');
+                      const srcKeywords = (src?.formFilterKeyword || src?.name || '').split('|');
                       combinedKeywords = [...combinedKeywords, ...srcKeywords];
-                      totalLeads += (src.leads || 0);
+                      totalLeads += (src?.leads || 0);
                     });
                     
                     const finalKeywords = Array.from(new Set(combinedKeywords.map(k => k.trim()))).filter(Boolean).join('|');
