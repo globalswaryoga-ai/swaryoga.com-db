@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 import { formatPersonName } from '@/lib/formatName';
+import CanvaCrmSidePanel from '@/components/admin/crm/CanvaCrmSidePanel';
 
 interface SaleRecord {
   _id: string;
@@ -116,6 +117,7 @@ export default function SaleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [isCanvaOpen, setIsCanvaOpen] = useState(false);
 
   // Fetch sale details
   useEffect(() => {
@@ -419,15 +421,14 @@ export default function SaleDetailPage() {
           >
             {downloading ? 'Generating…' : '⬇️ Download PDF'}
           </button>
-          <a
-            href={`https://www.canva.com/design/create?width=210&height=297&unit=mm&title=${encodeURIComponent('Swar Yoga Receipt - ' + (receipt?.receiptNumber || 'A4'))}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold rounded-lg transition-colors shadow flex items-center gap-2"
-            title="Edit and customize this receipt in Canva (A4: 210x297mm)"
+          <button
+            type="button"
+            onClick={() => setIsCanvaOpen(true)}
+            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold rounded-lg transition-colors shadow flex items-center gap-2 cursor-pointer"
+            title="Open Canva Side Panel inside CRM (A4)"
           >
-            <span>🎨 Edit in Canva (A4)</span>
-          </a>
+            <span>🎨 Canva (In-CRM)</span>
+          </button>
           <button
             onClick={() => window.print()}
             className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors border border-white/20"
@@ -442,6 +443,21 @@ export default function SaleDetailPage() {
           </button>
         </div>
       </div>
+
+      <CanvaCrmSidePanel
+        isOpen={isCanvaOpen}
+        onClose={() => setIsCanvaOpen(false)}
+        title={`Canva Studio • Receipt ${sale?.receiptNumber || ''}`}
+        aspectRatio="A4"
+        initialDesignId="EAHW508uKP4"
+        receiptData={{
+          receiptNumber: sale?.receiptNumber,
+          studentName: sale?.customerName,
+          amount: sale?.paidAmount,
+          date: sale?.saleDate ? new Date(sale.saleDate).toLocaleDateString('en-GB') : undefined,
+          workshopName: sale?.workshopName,
+        }}
+      />
     </div>
   );
 }

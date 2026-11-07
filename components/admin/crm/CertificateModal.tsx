@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Download, Printer, Share2, ExternalLink, Loader2, Award } from 'lucide-react';
+import { X, Download, Printer, Share2, ExternalLink, Loader2, Award, Palette } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatPersonName } from '@/lib/formatName';
+import CanvaCrmSidePanel from './CanvaCrmSidePanel';
 
 export interface CertificateSaleRecord {
   _id: string;
@@ -88,6 +89,7 @@ function CornerBanner({ corner }: { corner: 'top-left' | 'bottom-right' }) {
 export default function CertificateModal({ sale, token, onClose }: CertificateModalProps) {
   const router = useRouter();
   const [downloading, setDownloading] = useState(false);
+  const [isCanvaOpen, setIsCanvaOpen] = useState(false);
 
   const certNo = sale.receiptNumber || (sale._id || '').slice(-8).toUpperCase();
   const customerName = sale.certificateName?.trim() || formatPersonName(sale.customerName) || 'Participant';
@@ -203,16 +205,15 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
               <Share2 className="w-4 h-4" />
             </button>
 
-            <a
-              href={`https://www.canva.com/design/create?width=297&height=210&unit=mm&title=${encodeURIComponent('Swar Yoga Certificate - ' + (certificateData.studentName || 'Student'))}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => setIsCanvaOpen(true)}
               className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white font-semibold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-              title="Customize Certificate in Canva (A4 Landscape: 297x210mm)"
+              title="Open Canva Side Panel inside CRM (A4 Landscape)"
             >
-              <span>🎨 Canva (A4)</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+              <Palette className="w-3.5 h-3.5" />
+              <span>🎨 Canva (In-CRM)</span>
+            </button>
 
             <button
               onClick={() => router.push(`/admin/crm/sales/${sale._id}/certificate`)}
@@ -366,6 +367,20 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
           </button>
         </div>
       </div>
+
+      <CanvaCrmSidePanel
+        isOpen={isCanvaOpen}
+        onClose={() => setIsCanvaOpen(false)}
+        title={`Canva Studio • Certificate ${certNo}`}
+        aspectRatio="A4_landscape"
+        initialDesignId="EAGcert92Swar"
+        certificateData={{
+          studentName: customerName,
+          workshopName: workshopName,
+          completionDate: completionDate,
+          certificateNumber: certNo,
+        }}
+      />
     </div>
   );
 }

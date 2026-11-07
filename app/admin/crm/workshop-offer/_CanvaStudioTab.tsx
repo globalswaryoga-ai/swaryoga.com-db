@@ -1657,17 +1657,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                             </button>
                             <button 
                               onClick={() => {
-                                const name = (document.getElementById('receipt-name') as HTMLInputElement)?.value || selectedLead?.name || 'Participant';
-                                const receiptNo = (document.getElementById('receipt-number') as HTMLInputElement)?.value || '';
-                                const canvaUrl = `https://www.canva.com/design/create?width=210&height=297&unit=mm&title=${encodeURIComponent(`Swar Yoga Official Receipt - ${name} (${receiptNo})`)}`;
-                                window.open(canvaUrl, '_blank');
+                                const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value || 'EAHW508uKP4';
+                                const cleanId = tpl.includes('brand-templates/') 
+                                  ? tpl.split('brand-templates/')[1].split('/')[0] 
+                                  : tpl.includes('design/') 
+                                    ? tpl.split('design/')[1].split('/')[0] 
+                                    : tpl;
+                                setGeneratedDesignId(cleanId);
                               }}
                               id="btn-generate-canva"
                               className="px-5 py-3.5 rounded-xl font-black text-sm transition-all bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
-                              title="Open exact A4 Receipt Canvas in Canva"
+                              title="Render A4 Receipt Canvas directly in CRM Side Panel"
                             >
                               <Palette size={16} />
-                              <span>🎨 Open in Canva (A4)</span>
+                              <span>🎨 Open in CRM Side View</span>
                             </button>
                             </>
                           ) : (
@@ -1691,17 +1694,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                               </button>
                               <button 
                                 onClick={() => {
-                                  const name = (document.getElementById('cert-fullname') as HTMLInputElement)?.value || selectedLead?.name || 'Participant';
-                                  const workshop = (document.getElementById('cert-workshop') as HTMLInputElement)?.value || 'Swar Yoga Masterclass';
-                                  const canvaUrl = `https://www.canva.com/design/create?width=297&height=210&unit=mm&title=${encodeURIComponent(`Swar Yoga Certificate - ${name} (${workshop})`)}`;
-                                  window.open(canvaUrl, '_blank');
+                                  const tpl = (document.getElementById('cert-template-id') as HTMLInputElement)?.value || 'EAGcert92Swar';
+                                  const cleanId = tpl.includes('brand-templates/') 
+                                    ? tpl.split('brand-templates/')[1].split('/')[0] 
+                                    : tpl.includes('design/') 
+                                      ? tpl.split('design/')[1].split('/')[0] 
+                                      : tpl;
+                                  setGeneratedDesignId(cleanId);
                                 }}
                                 id="btn-generate-cert-canva"
                                 className="px-5 py-3.5 rounded-xl font-black text-sm transition-all bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 hover:shadow-md hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
-                                title="Open exact A4 Landscape Certificate Canvas in Canva"
+                                title="Render A4 Landscape Certificate Canvas directly in CRM Side Panel"
                               >
                                 <Palette size={16} />
-                                <span>🎨 Open in Canva (A4)</span>
+                                <span>🎨 Open in CRM Side View</span>
                               </button>
                             </>
                           )}

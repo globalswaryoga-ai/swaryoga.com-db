@@ -29,6 +29,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { PPT_THEME_PRESETS, PptThemePreset } from '@/app/api/avatar/ppt-generate/route';
+import CanvaCrmSidePanel from '@/components/admin/crm/CanvaCrmSidePanel';
 
 export interface EditableSlide {
   id: string;
@@ -84,6 +85,7 @@ export default function ModulePptStudio({
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [curatedLibrary, setCuratedLibrary] = useState<any[]>([]);
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+  const [isCanvaSidePanelOpen, setIsCanvaSidePanelOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Active theme object
@@ -262,16 +264,15 @@ export default function ModulePptStudio({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`https://www.canva.com/design/create?width=1920&height=1080&unit=px&title=${encodeURIComponent('Swar Yoga Presentation Deck - ' + (slides[0]?.heading || 'Master Class'))}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => setIsCanvaSidePanelOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white text-xs font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
-            title="Create full 16:9 Presentation in Canva (1920x1080)"
+            title="Open Canva Side Panel inside CRM"
           >
-            <span>🎨 Open Deck in Canva (16:9)</span>
-            <ExternalLink size={13} />
-          </a>
+            <Palette size={14} />
+            <span>🎨 Canva Studio (In-CRM)</span>
+          </button>
 
           <button
             onClick={handleExportMarkdown}
@@ -694,16 +695,15 @@ export default function ModulePptStudio({
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <a
-                    href={`https://www.canva.com/design/create?width=1920&height=1080&unit=px&title=${encodeURIComponent('Swar Yoga - Slide ' + activeSlide.slideNumber + ' - ' + activeSlide.heading)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setIsCanvaSidePanelOpen(true)}
                     className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all hover:scale-105"
-                    title="Opens Canva 16:9 presentation slide (1920x1080)"
+                    title="Open Canva Side Panel inside CRM"
                   >
-                    <span>🎨 Design Slide in Canva (16:9)</span>
-                    <ExternalLink size={12} />
-                  </a>
+                    <Palette size={13} />
+                    <span>🎨 Canva Studio (In-CRM)</span>
+                  </button>
 
                   <button
                     onClick={() => setIsImagePickerOpen(!isImagePickerOpen)}
@@ -837,6 +837,24 @@ export default function ModulePptStudio({
           </div>
         )}
       </div>
+      {/* In-CRM Canva Side Panel (Opens directly beside CRM page, never opens new external tab) */}
+      <CanvaCrmSidePanel
+        isOpen={isCanvaSidePanelOpen}
+        onClose={() => setIsCanvaSidePanelOpen(false)}
+        title={`Canva Studio • Slide #${activeSlide?.slideNumber || 1}`}
+        aspectRatio="16:9"
+        initialDesignId="DAGw5Hx3Vmo"
+        slideData={activeSlide ? {
+          slideNumber: activeSlide.slideNumber,
+          heading: activeSlide.heading,
+          description: activeSlide.subHeading || activeSlide.visualConcept,
+          themeColor: activeSlide.themeColor,
+          themeType: activeSlide.phaseName,
+          metaphor: activeSlide.visualConcept,
+          imageUrl: activeSlide.imageUrl,
+          bulletPoints: [activeSlide.subHeading, activeSlide.visualConcept].filter(Boolean),
+        } : undefined}
+      />
     </div>
   );
 }

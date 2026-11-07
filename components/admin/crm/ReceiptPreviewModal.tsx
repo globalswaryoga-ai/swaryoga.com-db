@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X, Download, Mail, Send, FileText, Loader2, AlertCircle, Plus,
-  ExternalLink, CheckCircle, Clock, ChevronDown, QrCode,
+  ExternalLink, CheckCircle, Clock, ChevronDown, QrCode, Palette,
 } from 'lucide-react';
+import CanvaCrmSidePanel from './CanvaCrmSidePanel';
 import { formatPersonName } from '@/lib/formatName';
 
 interface ReceiptData {
@@ -73,6 +74,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const router = useRouter();
   const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCanvaOpen, setIsCanvaOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
@@ -543,16 +545,15 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
               <Download className="h-4 w-4" />
               Download
             </button>
-            <a
-              href={`https://www.canva.com/design/create?width=210&height=297&unit=mm&title=${encodeURIComponent('Swar Yoga Receipt - ' + (receipt?.receiptNumber || 'A4'))}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 transition shadow"
-              title="Edit and customize this receipt in Canva (A4: 210x297mm)"
+            <button
+              type="button"
+              onClick={() => setIsCanvaOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 transition shadow cursor-pointer"
+              title="Open Canva Side Panel inside CRM (A4)"
             >
-              <span>🎨 Canva (A4)</span>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+              <Palette className="h-3.5 w-3.5" />
+              <span>🎨 Canva (In-CRM)</span>
+            </button>
             <button
               onClick={regenerateReceipt}
               disabled={generating}
@@ -564,6 +565,21 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
           </div>
         )}
       </div>
+
+      <CanvaCrmSidePanel
+        isOpen={isCanvaOpen}
+        onClose={() => setIsCanvaOpen(false)}
+        title={`Canva Studio • Receipt ${receipt?.receiptNumber || ''}`}
+        aspectRatio="A4"
+        initialDesignId="EAHW508uKP4"
+        receiptData={{
+          receiptNumber: receipt?.receiptNumber,
+          studentName: receipt?.customerName || leadName,
+          amount: receipt?.payment?.paidAmount ?? receipt?.payment?.amount,
+          date: receipt?.issuedAt ? new Date(receipt.issuedAt).toLocaleDateString('en-GB') : undefined,
+          workshopName: receipt?.workshopName,
+        }}
+      />
     </div>
   );
 }
