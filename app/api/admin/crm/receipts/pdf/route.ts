@@ -329,20 +329,21 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   page.drawSvgPath(scaleSvgPath('M1000,200 L0,200 L0,180 C200,170 500,90 1000,50 Z', sx, syBottom), { x: 0, y: bottomWaveH, color: waveLight });
   page.drawSvgPath(scaleSvgPath('M1000,200 L0,200 L0,30 C200,35 500,130 1000,170 Z', sx, syBottom), { x: 0, y: bottomWaveH, color: waveDark });
 
-  const closeY = Math.min(bY - lH * 3 - 2 - 50, 230);
+  // Move closing up slightly by 2mm (~6-8pt) so seal, thank-you & confirmation text cleanly clear bottom green wave
+  const closeY = Math.min(bY - lH * 3 - 2 - 45, 238);
 
   if (sealImg) {
-    page.drawImage(sealImg, { x: M + 10, y: closeY - 100, width: 100, height: 100 });
-    text('"Thank you!"', M + 10, closeY - 116, { size: 13, font: bold });
-    text('Your registration & payment are confirmed', M + 10, closeY - 130, { size: 8.5, color: gray });
+    page.drawImage(sealImg, { x: M + 10, y: closeY - 96, width: 96, height: 96 });
+    text('"Thank you!"', M + 10, closeY - 112, { size: 13, font: bold });
+    text('Your registration & payment are confirmed', M + 10, closeY - 124, { size: 8.5, color: gray });
   }
 
   if (signatureImg) {
     const sigW = 130, sigH = 65;
     const sigX = W - M - sigW;
-    page.drawImage(signatureImg, { x: sigX, y: closeY - 70, width: sigW, height: sigH });
-    text('Mohan Kalburgi', W - M - bold.widthOfTextAtSize('Mohan Kalburgi', 11), closeY - 86, { size: 11, font: bold });
-    text('Yogacharya', W - M - italic.widthOfTextAtSize('Yogacharya', 9), closeY - 100, { size: 9, font: italic, color: gray });
+    page.drawImage(signatureImg, { x: sigX, y: closeY - 68, width: sigW, height: sigH });
+    text('Mohan Kalburgi', W - M - bold.widthOfTextAtSize('Mohan Kalburgi', 11), closeY - 84, { size: 11, font: bold });
+    text('Yogacharya', W - M - italic.widthOfTextAtSize('Yogacharya', 9), closeY - 98, { size: 9, font: italic, color: gray });
   }
 
   const website = 'www.swaryoga.com';
