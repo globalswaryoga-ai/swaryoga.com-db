@@ -170,7 +170,23 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 26) , H - 92, { size: 26, font: bold, color: black });
 
   const receiptNumber = safe(receipt?.receiptNumber || receipt?._id);
-  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10), H - 106, { size: 10, color: gray });
+  const noText = `No: ${receiptNumber}`;
+  const noW = bold.widthOfTextAtSize(noText, 10.5);
+  const noX = W - M - noW;
+  const noY = H - 114;
+
+  // Solid white badge with clean tan border so the green wave never slices through the invoice number
+  page.drawRectangle({
+    x: noX - 8,
+    y: noY - 3,
+    width: noW + 16,
+    height: 18,
+    color: white,
+    borderColor: borderTan,
+    borderWidth: 1,
+  });
+
+  text(noText, noX, noY + 2, { size: 10.5, font: bold, color: darkBlack });
 
   // ─── Tan divider (matches ACCENT_BORDER on the HTML receipt) ─────────────────
   page.drawRectangle({ x: 0, y: H - 132, width: W, height: 2.5, color: borderTan });

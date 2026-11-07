@@ -279,7 +279,9 @@ export default function SaleDetailPage() {
                   className="w-20 h-20 rounded-full object-cover ml-auto mb-2"
                 />
                 <h2 className="text-5xl font-extrabold text-slate-900">INVOICE</h2>
-                <p className="text-sm text-slate-500 mt-1">No: {receiptNumber}</p>
+                <div className="inline-block mt-2 px-3 py-1 bg-white rounded-md border border-amber-300 shadow-xs">
+                  <p className="text-sm font-black text-black tracking-wide">No: {receiptNumber}</p>
+                </div>
               </div>
             </div>
 
