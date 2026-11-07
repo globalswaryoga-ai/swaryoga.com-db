@@ -266,7 +266,7 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
                   <h1 className="text-2xl sm:text-[42px] font-extrabold tracking-wide" style={{ color: '#b91c1c' }}>
                     Swar Yoga
                   </h1>
-                  <p className="text-xs sm:text-sm font-black italic mt-0.5 tracking-wider" style={{ color: '#000000', fontFamily: 'Georgia, serif', textShadow: '0 0.5px 1px rgba(0,0,0,0.3)' }}>
+                  <p className="text-xs sm:text-sm font-normal italic mt-0.5 tracking-wider" style={{ color: '#000000', fontFamily: 'Georgia, serif' }}>
                     The Science Of Breath
                   </p>
                 </div>

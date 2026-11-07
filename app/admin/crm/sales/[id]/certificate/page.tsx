@@ -443,7 +443,7 @@ export default function CertificatePage() {
               />
               <div className="text-center mt-[4mm]">
                 <h1 className="text-[66px] font-extrabold whitespace-nowrap" style={{ color: '#b91c1c' }}>Swar Yoga</h1>
-                <p className="text-xl font-black italic mt-1 whitespace-nowrap" style={{ color: '#000000', fontFamily: 'Georgia, serif', textShadow: '0 0.5px 1px rgba(0,0,0,0.3)' }}>The Science Of Breath</p>
+                <p className="text-xl font-normal italic mt-1 whitespace-nowrap" style={{ color: '#000000', fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
               <img
                 src={ASSETS.goldBadge}

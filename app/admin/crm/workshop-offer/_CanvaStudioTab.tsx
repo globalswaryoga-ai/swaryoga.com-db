@@ -2223,11 +2223,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                       Swar Yoga
                                     </h1>
                                     <p
-                                      className="text-[16px] font-black mt-1 tracking-wide"
+                                      className="text-[16px] font-normal mt-1 tracking-wide"
                                       style={{
                                         color: '#000000',
-                                        fontFamily: "'Montserrat', sans-serif",
-                                        textShadow: '0 0.5px 1px rgba(0,0,0,0.3)'
+                                        fontFamily: "'Montserrat', sans-serif"
                                       }}
                                     >
                                       The Science Of Breath
