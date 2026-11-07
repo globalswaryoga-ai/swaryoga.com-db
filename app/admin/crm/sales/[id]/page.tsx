@@ -449,7 +449,7 @@ export default function SaleDetailPage() {
         onClose={() => setIsCanvaOpen(false)}
         title={`Canva Studio • Receipt ${sale?.receiptNumber || ''}`}
         aspectRatio="A4"
-        initialDesignId="EAHW508uKP4"
+        initialDesignId="EAHWzpxbbVw"
         receiptData={{
           receiptNumber: sale?.receiptNumber,
           studentName: sale?.customerName,

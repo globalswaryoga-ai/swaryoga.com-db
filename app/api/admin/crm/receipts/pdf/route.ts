@@ -384,6 +384,37 @@ export async function GET(request: NextRequest) {
     }
 
     if (!rec) {
+      const customerName = url.searchParams.get('name') || url.searchParams.get('customerName');
+      const amountStr = url.searchParams.get('amount') || '0';
+      const parsedAmount = parseFloat(amountStr.replace(/[^\d.]/g, '')) || 0;
+      const workshopName = url.searchParams.get('workshop') || url.searchParams.get('workshopName') || 'Swar Yoga Workshop';
+      const receiptNumber = url.searchParams.get('receiptNo') || url.searchParams.get('receiptNumber') || `RCPT-${Date.now().toString().slice(-6)}`;
+      const customerPhone = url.searchParams.get('phone') || url.searchParams.get('customerPhone') || '';
+      const method = url.searchParams.get('method') || 'Online / Bank Transfer';
+
+      if (customerName || parsedAmount > 0 || leadId) {
+        rec = {
+          _id: receiptId || `rec_${leadId || Date.now()}`,
+          leadId: leadId || '',
+          receiptNumber,
+          customerName: customerName || 'Participant',
+          customerPhone,
+          workshopName,
+          issuedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          quantity: 1,
+          payment: {
+            amount: parsedAmount,
+            paidAmount: parsedAmount,
+            method,
+            provider: method,
+            paidAt: new Date().toISOString(),
+          }
+        };
+      }
+    }
+
+    if (!rec) {
       return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
     }
 

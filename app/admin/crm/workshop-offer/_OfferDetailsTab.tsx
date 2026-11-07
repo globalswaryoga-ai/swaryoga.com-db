@@ -232,7 +232,7 @@ export default function OfferDetailsTab({
                 type="text" 
                 className="w-32 bg-slate-50 border border-slate-200 rounded p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500" 
                 placeholder="Canva Template ID" 
-                defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
+                defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw') : 'EAHWzpxbbVw'}
                 onChange={(e) => {
                   if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value);
                 }}

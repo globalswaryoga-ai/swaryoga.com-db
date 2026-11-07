@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2, Edit2, Send, Upload, Sparkles, X, ExternalLink, Copy, Palette, Award, Printer, RefreshCw, LayoutGrid, Handshake } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useOfferRecords } from '@/hooks/useOfferRecords';
+import CanvaCrmSidePanel from '@/components/admin/crm/CanvaCrmSidePanel';
 
 const TEAL = '#2c6975';
 const GOLD = '#cda349';
@@ -66,7 +67,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [canvaDesigns, setCanvaDesigns] = useState<any[]>([]);
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
   const [designError, setDesignError] = useState('');
-  const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
+  const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(
+    typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw') : 'EAHWzpxbbVw'
+  );
+  const [isCanvaSidePanelOpen, setIsCanvaSidePanelOpen] = useState(false);
   
   const [brandTemplates, setBrandTemplates] = useState<any[]>([]);
   const [isLoadingBrandTemplates, setIsLoadingBrandTemplates] = useState(false);
@@ -654,7 +658,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
               )}
             </button>
             <button 
-              onClick={() => setActiveSection('receipts')}
+              onClick={() => {
+                setActiveSection('receipts');
+                const tplId = (typeof window !== 'undefined' && localStorage.getItem('canvaReceiptTemplateId')) || 'EAHWzpxbbVw';
+                if (!generatedDesignId || generatedDesignId.startsWith('DAG')) {
+                  setGeneratedDesignId(tplId);
+                }
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
             >
               <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
@@ -698,7 +708,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
             id="header-canva-id"
             className="w-36 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400" 
             placeholder="Canva ID" 
-            defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
+            defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw') : 'EAHWzpxbbVw'}
           />
           <button 
             onClick={() => {
@@ -1592,11 +1602,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Template ID</label>
                                <div className="flex gap-2">
-                                 <input id="global-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4') : 'https://www.canva.com/brand/brand-templates/EAHW508uKP4'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
+                                 <input id="global-template-id" type="text" className="flex-1 min-w-0 bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw') : 'EAHWzpxbbVw'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
                                  <button onClick={() => {
-                                   const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value;
-                                   if (tpl) openCanvaPopup(tpl.includes('canva.com') ? tpl : `https://www.canva.com/brand/brand-templates/${tpl}`);
-                                 }} className="px-3 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-colors">Open</button>
+                                   const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value || 'EAHWzpxbbVw';
+                                   const clean = tpl.includes('brand-templates/') 
+                                     ? tpl.split('brand-templates/')[1].split('/')[0] 
+                                     : tpl.includes('design/') 
+                                       ? tpl.split('design/')[1].split('/')[0] 
+                                       : tpl;
+                                   setGeneratedDesignId(clean);
+                                   setIsCanvaSidePanelOpen(true);
+                                 }} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs">
+                                   <Palette size={13} />
+                                   <span>Edit in CRM</span>
+                                 </button>
                                </div>
                              </div>
                              <div>
@@ -1607,19 +1626,21 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              <div className="mt-4 pt-4 border-t border-slate-200">
                                <label className="text-[10px] uppercase font-black text-pink-500 tracking-widest mb-1.5 block">Canva Design ID (Edit directly)</label>
                                <div className="flex gap-2">
-                                 <input id="receipt-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 min-w-0 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
+                                 <input id="receipt-design-id" type="text" placeholder="e.g. EAHWzpxbbVw" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw') : 'EAHWzpxbbVw'} className="flex-1 min-w-0 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
                                  <button 
                                    onClick={() => {
-                                     const id = (document.getElementById('receipt-design-id') as HTMLInputElement)?.value;
+                                     const id = (document.getElementById('receipt-design-id') as HTMLInputElement)?.value || 'EAHWzpxbbVw';
                                      if (id) {
                                        setGeneratedDesignId(id);
+                                       setIsCanvaSidePanelOpen(true);
                                      } else {
                                        alert('Please enter a Canva Design ID');
                                      }
                                    }}
-                                   className="px-4 py-3 rounded-xl bg-pink-600 text-white font-black text-sm hover:bg-pink-700 transition-all shadow-sm"
+                                   className="px-4 py-3 rounded-xl bg-pink-600 text-white font-black text-sm hover:bg-pink-700 transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
                                  >
-                                   Open Editor
+                                   <Palette size={14} />
+                                   <span>Open Editor</span>
                                  </button>
                                </div>
                              </div>
@@ -1737,7 +1758,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   // Fallback to direct leadId if receipt ID isn't returned
                                   const realReceiptId = data.data?._id || data.data?.id || leadId;
                                   setGeneratedDesignId(`PDF_${leadId}`);
-                                  const pdfSrc = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&token=${token}&t=${Date.now()}`;
+                                  const pdfSrc = `/api/admin/crm/receipts/pdf?id=${realReceiptId}&leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&token=${token}&t=${Date.now()}`;
                                   setCurrentReceiptPdfUrl(pdfSrc);
                                   setTimeout(() => { 
                                     const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; 
@@ -1754,7 +1775,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                   const leadId = selectedLead?.id || selectedLead?._id || '';
                                   const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('adminToken') || '') : '';
                                   setGeneratedDesignId(`PDF_${leadId}`);
-                                  const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&token=${token}&t=${Date.now()}`;
+                                  const pdfSrc = `/api/admin/crm/receipts/pdf?leadId=${leadId}&name=${encodeURIComponent(name)}&amount=${encodeURIComponent(amount)}&workshop=${encodeURIComponent(workshop)}&receiptNo=${encodeURIComponent(receiptNo)}&phone=${encodeURIComponent(whatsapp)}&token=${token}&t=${Date.now()}`;
                                   setCurrentReceiptPdfUrl(pdfSrc);
                                   if (btn) btn.innerText = '📄 Generate PDF';
                                 }
@@ -1767,7 +1788,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                             </button>
                             <button 
                               onClick={() => {
-                                const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value || 'EAHW508uKP4';
+                                const tpl = (document.getElementById('global-template-id') as HTMLInputElement)?.value || 'EAHWzpxbbVw';
                                 const cleanId = tpl.includes('brand-templates/') 
                                   ? tpl.split('brand-templates/')[1].split('/')[0] 
                                   : tpl.includes('design/') 
@@ -1865,25 +1886,53 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                               </div>
                             ) : (
                               <div className="flex flex-col w-full h-full p-2">
-                                {generatedDesignId.startsWith('EAH') ? (
-                                  <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-xl mb-4 text-slate-500 p-8 text-center border border-slate-200">
-                                    <p className="font-bold mb-2">Canva Brand Template Detected</p>
-                                    <p className="text-sm">Templates cannot be embedded. Click the button below to open the template, create your design, and then paste the new Design ID here.</p>
+                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                    <span className="text-xs font-bold text-slate-700">Canva Receipt Template: <span className="font-mono text-indigo-600">{generatedDesignId || 'EAHWzpxbbVw'}</span></span>
                                   </div>
-                                ) : (
-                                  <iframe 
-                                    src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
-                                    className="flex-1 w-full rounded-xl border-none shadow-sm mb-4 min-h-[500px]"
-                                    allowFullScreen
-                                    allow="fullscreen"
-                                  ></iframe>
-                                )}
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsCanvaSidePanelOpen(true)}
+                                      className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                      title="Open Canva Side Panel to edit or correct receipt details"
+                                    >
+                                      <Palette size={14} />
+                                      <span>✏️ Open Editor in CRM Side Panel</span>
+                                    </button>
+                                  </div>
+                                </div>
+                                
+                                <iframe 
+                                  src={generatedDesignId.startsWith('EAH')
+                                    ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}`
+                                    : `https://www.canva.com/design/${generatedDesignId}/view?embed`}
+                                  className="flex-1 w-full rounded-xl border border-slate-200 shadow-sm mb-4 min-h-[500px]"
+                                  allowFullScreen
+                                  allow="fullscreen"
+                                  title="Canva Receipt Preview"
+                                />
+
                                 <div className="flex gap-4 w-full h-14">
-                                  <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
-                                    {generatedDesignId.startsWith('EAH') ? 'Use Template' : 'Edit in Canva'}
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsCanvaSidePanelOpen(true)}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                  >
+                                    <Palette size={18} />
+                                    <span>Edit in Canva (Inside CRM)</span>
                                   </button>
-                                  <button onClick={() => openCanvaPopup(generatedDesignId.startsWith('EAH') ? `https://www.canva.com/brand/brand-templates/${generatedDesignId}` : `https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
-                                    {generatedDesignId.startsWith('EAH') ? 'Open Template' : 'Download'}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const btn = document.getElementById('btn-generate-pdf');
+                                      if (btn) btn.click();
+                                    }}
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                  >
+                                    <FileText size={18} />
+                                    <span>Generate Official A4 PDF</span>
                                   </button>
                                 </div>
                               </div>
@@ -2600,6 +2649,29 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         </div>
       )}
 
+    
+      {/* In-Page Canva CRM Side Panel Drawer */}
+      <CanvaCrmSidePanel
+        isOpen={isCanvaSidePanelOpen}
+        onClose={() => setIsCanvaSidePanelOpen(false)}
+        title={activeSection === 'receipts' ? 'A4 Official Receipt Editor' : activeSection === 'certificate' ? 'Certificate Studio' : 'Canva Visual Studio'}
+        initialDesignId={generatedDesignId || (typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || 'EAHWzpxbbVw' : 'EAHWzpxbbVw')}
+        aspectRatio={activeSection === 'receipts' ? 'A4' : activeSection === 'certificate' ? 'A4_landscape' : '16:9'}
+        receiptData={receiptData}
+        slideData={{
+          heading: selectedLead?.name || receiptData.name || 'Swar Yoga Participant',
+          subHeading: selectedLead?.workshop || receiptData.workshopName || 'Swar Yoga Workshop',
+          description: `Receipt No: ${receiptData.receiptNumber || 'RCPT-SWAR'} • Amount: ₹${receiptData.amount || '0'}`,
+          bulletPoints: [
+            `Participant: ${selectedLead?.name || receiptData.name || 'Participant'}`,
+            `Contact / WhatsApp: ${selectedLead?.whatsapp || selectedLead?.Phone || receiptData.whatsapp || 'N/A'}`,
+            `Amount Paid: ₹${receiptData.amount || selectedLead?.paidAmount || '0'}`,
+            `Payment Mode: ${receiptData.mode || 'Online'}`,
+            `Receipt ID: ${receiptData.receiptNumber || 'RCPT-SWAR'}`,
+            `Date: ${new Date().toLocaleDateString('en-GB')}`
+          ]
+        }}
+      />
     </div>
   );
 }

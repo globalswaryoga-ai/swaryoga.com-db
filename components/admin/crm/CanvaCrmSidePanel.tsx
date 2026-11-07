@@ -34,6 +34,7 @@ export interface EditableSlideData {
   themeColor?: string;
   themeType?: string;
   metaphor?: string;
+  visualConcept?: string;
   imageUrl?: string;
   bulletPoints?: string[];
 }
@@ -66,7 +67,7 @@ export interface CanvaCrmSidePanelProps {
 // Preset Swar Yoga templates
 const PRESET_TEMPLATES = [
   { id: 'DAGw5Hx3Vmo', label: '16:9 Swar Yoga Slides', type: '16:9' },
-  { id: 'EAHW508uKP4', label: 'A4 Official Receipt', type: 'A4' },
+  { id: 'EAHWzpxbbVw', label: 'A4 Official Receipt', type: 'A4' },
   { id: 'EAGcert92Swar', label: 'A4 Swar Yoga Certificate', type: 'A4_landscape' },
 ];
 
@@ -786,7 +787,9 @@ export default function CanvaCrmSidePanel({
                 </button>
 
                 <a
-                  href={`https://www.canva.com/design/${activeDesignId}/edit`}
+                  href={activeDesignId.startsWith('EAH')
+                    ? `https://www.canva.com/brand/brand-templates/${activeDesignId}`
+                    : `https://www.canva.com/design/${activeDesignId}/edit`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1 transition shadow cursor-pointer"
@@ -804,7 +807,9 @@ export default function CanvaCrmSidePanel({
                 <div className="w-full h-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-black relative flex flex-col">
                   <iframe
                     key={activeDesignId}
-                    src={`https://www.canva.com/design/${activeDesignId}/view?embed`}
+                    src={activeDesignId.startsWith('EAH')
+                      ? `https://www.canva.com/brand/brand-templates/${activeDesignId}`
+                      : `https://www.canva.com/design/${activeDesignId}/view?embed`}
                     className="w-full flex-1 border-0"
                     allowFullScreen
                     allow="fullscreen"
