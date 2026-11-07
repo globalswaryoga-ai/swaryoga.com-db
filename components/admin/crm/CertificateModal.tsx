@@ -328,7 +328,7 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
               <p className="text-center text-xs sm:text-sm text-slate-700 leading-relaxed mt-2.5 px-4 font-sans">
                 This is to proudly certify that{' '}
                 <span className="font-bold text-slate-900">{certTitle ? `${certTitle}. ` : ''}{customerName}</span>
-                {location ? <>, <span className="font-semibold">{location}</span></> : ''},{' '}
+                {location ? <>, from <span className="font-bold text-slate-900">{location}</span></> : ''},{' '}
                 has successfully completed the Swar Yoga
                 {' – '}<span className="font-bold text-slate-900">{workshopName}</span> organized by Upamnyu International Swar Yoga Education.
                 With consistent enthusiasm, active involvement, and sincere dedication to learning and practicing Swar Yoga principles,

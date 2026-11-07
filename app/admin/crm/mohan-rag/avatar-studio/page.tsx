@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/client-auth';
+import { getMohan360FrameForAngle, MOHAN_360_FRAMES, MOHAN_CLONE_VIDEOS } from '@/lib/mohanAiClone/mohanClone360Catalog';
 import { 
   UserCheck, 
   Sparkles, 
@@ -251,6 +252,104 @@ const DEFAULT_ORIGINAL_VIDEOS: OriginalSavedVideo[] = [
     slotAssigned: 'slot-17',
     badge: '📐 360° Calibration Track',
     category: '360',
+  },
+  {
+    id: 'orig-360-rotation-real',
+    title: 'Mohan Sir (360° Rotational Angle Anchor - 60fps Standing)',
+    fileName: 'mohan_clone_video_01.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
+    durationText: '0:28 mins',
+    originalDuration: 28,
+    trimStart: 0,
+    trimEnd: 28,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-17',
+    badge: '🔄 360° Real Rotation Scan',
+    category: '360',
+  },
+  {
+    id: 'orig-kinetic-walk-real',
+    title: 'Mohan Sir (Slow Turn & Kinetic Walking Gait)',
+    fileName: 'mohan_clone_video_02.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_02.mp4',
+    durationText: '0:26 mins',
+    originalDuration: 26,
+    trimStart: 0,
+    trimEnd: 26,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-18',
+    badge: '🚶 Kinetic Locomotion Rig',
+    category: '360',
+  },
+  {
+    id: 'orig-mudra-flow-real',
+    title: 'Mohan Sir (Mudra & Upper Body Flow Calibration)',
+    fileName: 'mohan_clone_video_03.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_03.mp4',
+    durationText: '0:31 mins',
+    originalDuration: 31,
+    trimStart: 0,
+    trimEnd: 31,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-19',
+    badge: '🧘 Yogic Mudra & Breath Flow',
+    category: 'pranayama',
+  },
+  {
+    id: 'orig-facial-micro-real',
+    title: 'Mohan Sir (Facial Micro-Expressions & Eye Blink Track)',
+    fileName: 'mohan_clone_video_04.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4',
+    durationText: '0:19 mins',
+    originalDuration: 19,
+    trimStart: 0,
+    trimEnd: 19,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-20',
+    badge: '👁️ Micro-Expression & Blink Rig',
+    category: '360',
+  },
+  {
+    id: 'orig-conversational-speech-real',
+    title: 'Mohan Sir (Conversational Speech & Breath Resonance)',
+    fileName: 'mohan_clone_video_05.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_05.mp4',
+    durationText: '0:41 mins',
+    originalDuration: 41,
+    trimStart: 0,
+    trimEnd: 41,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-3',
+    badge: '🎙️ Authentic Discourse Resonance',
+    category: 'speech',
+  },
+  {
+    id: 'orig-profile-discourse-real',
+    title: 'Mohan Sir (45° Semi-Profile Angle Discourse)',
+    fileName: 'mohan_clone_video_06.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_06.mp4',
+    durationText: '0:23 mins',
+    originalDuration: 23,
+    trimStart: 0,
+    trimEnd: 23,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-4',
+    badge: '📐 45° Semi-Profile Discourse',
+    category: 'speech',
+  },
+  {
+    id: 'orig-smile-gaze-real',
+    title: 'Mohan Sir (Close-Up Smile & Meditative Gaze Rig)',
+    fileName: 'mohan_clone_video_07.mp4',
+    fileUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_07.mp4',
+    durationText: '0:06 mins',
+    originalDuration: 6,
+    trimStart: 0,
+    trimEnd: 6,
+    uploadedAt: 'Nov 07, 2026',
+    slotAssigned: 'slot-6',
+    badge: '✨ Vedic Smile & Aura Anchor',
+    category: 'speech',
   },
 ];
 
@@ -1265,7 +1364,14 @@ export default function AvatarStudioPage() {
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem('mohan_original_videos_library_v1');
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            const existingIds = new Set(parsed.map((x: any) => x.id));
+            const newDefaults = DEFAULT_ORIGINAL_VIDEOS.filter(d => !existingIds.has(d.id));
+            return [...parsed, ...newDefaults];
+          }
+        }
       } catch {}
     }
     return DEFAULT_ORIGINAL_VIDEOS;
@@ -2153,7 +2259,7 @@ export default function AvatarStudioPage() {
     setSelectedFacialHair(avatar.facialHairId);
     setSelectedSpectacles(avatar.spectaclesId);
     setSelectedTilak(avatar.tilakId);
-    setCloneBackground(avatar.background);
+    setCloneBackground(avatar.background as any);
     setCloneMode('clone');
     setInspectorMode('video');
     setLastSavedNotice(`Picked "${avatar.name}" as active avatar!`);
@@ -4612,9 +4718,15 @@ export default function AvatarStudioPage() {
                         );
                       }
                       return (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                          <Eye className="w-10 h-10 text-purple-400 mb-2" />
-                          <span className="text-xs font-bold text-white">Face Calibration Active</span>
+                        <div className="w-full h-full relative">
+                          <img
+                            src={getMohan360FrameForAngle(avatarAngle).cdnUrl}
+                            alt={`Mohan Sir ${avatarAngle}° View`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 text-[9px] font-bold text-purple-300 border border-purple-500/40">
+                            {avatarAngle}° Calibration Angle
+                          </div>
                         </div>
                       );
                     })()}
@@ -6913,7 +7025,13 @@ export default function AvatarStudioPage() {
                   >
                     <div className="w-44 h-44 rounded-2xl mx-auto bg-gradient-to-tr from-amber-500 via-emerald-500 to-teal-500 p-1 shadow-2xl shadow-emerald-500/20 relative">
                       <div className="w-full h-full rounded-xl bg-slate-950 flex flex-col items-center justify-center text-white overflow-hidden relative">
-                        {outfitImageMap[selectedOutfitId] ? (
+                        {inspectorMode === '360' ? (
+                          <img
+                            src={getMohan360FrameForAngle(avatarAngle).cdnUrl}
+                            alt={`Mohan Sir ${avatarAngle}° View`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : outfitImageMap[selectedOutfitId] ? (
                           <img
                             src={outfitImageMap[selectedOutfitId]}
                             alt={activeOutfit.name}
@@ -6928,11 +7046,11 @@ export default function AvatarStudioPage() {
                             style={{ objectPosition: 'center 28%' }}
                           />
                         ) : (
-                          <div className="flex flex-col items-center justify-center p-4 text-center">
-                            <Shirt className="w-8 h-8 text-amber-400 mb-1" />
-                            <span className="text-xs font-bold text-white">{activeOutfit.name}</span>
-                            <span className="text-[10px] text-slate-400 mt-0.5">360° Rig Active</span>
-                          </div>
+                          <img
+                            src={getMohan360FrameForAngle(avatarAngle).cdnUrl}
+                            alt={`Mohan Sir ${avatarAngle}° View`}
+                            className="w-full h-full object-cover"
+                          />
                         )}
                         <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/85 border border-amber-400/60 text-[9px] font-bold text-amber-300">
                           {avatarAngle <= 45 || avatarAngle >= 315 ? 'Front View' : avatarAngle <= 135 ? 'Right Profile' : avatarAngle <= 225 ? 'Back View' : 'Left Profile'}

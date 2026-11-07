@@ -1,0 +1,566 @@
+{
+  "updatedAt": "2026-11-07T13:11:46.573Z",
+  "totalImages": 60,
+  "totalVideos": 7,
+  "images": [
+    {
+      "index": 1,
+      "angle": 0,
+      "fileName": "mohan_360_frame_01.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_01.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.52.jpeg"
+    },
+    {
+      "index": 2,
+      "angle": 6,
+      "fileName": "mohan_360_frame_02.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_02.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_02.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.53 (1).jpeg"
+    },
+    {
+      "index": 3,
+      "angle": 12,
+      "fileName": "mohan_360_frame_03.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_03.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_03.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.53.jpeg"
+    },
+    {
+      "index": 4,
+      "angle": 18,
+      "fileName": "mohan_360_frame_04.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_04.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_04.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.54 (1).jpeg"
+    },
+    {
+      "index": 5,
+      "angle": 24,
+      "fileName": "mohan_360_frame_05.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_05.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_05.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.54.jpeg"
+    },
+    {
+      "index": 6,
+      "angle": 30,
+      "fileName": "mohan_360_frame_06.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_06.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_06.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.55 (1).jpeg"
+    },
+    {
+      "index": 7,
+      "angle": 36,
+      "fileName": "mohan_360_frame_07.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_07.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_07.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.55.jpeg"
+    },
+    {
+      "index": 8,
+      "angle": 42,
+      "fileName": "mohan_360_frame_08.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_08.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_08.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.56 (1).jpeg"
+    },
+    {
+      "index": 9,
+      "angle": 48,
+      "fileName": "mohan_360_frame_09.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_09.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_09.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.56.jpeg"
+    },
+    {
+      "index": 10,
+      "angle": 54,
+      "fileName": "mohan_360_frame_10.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_10.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_10.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.57 (1).jpeg"
+    },
+    {
+      "index": 11,
+      "angle": 60,
+      "fileName": "mohan_360_frame_11.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_11.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_11.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.57.jpeg"
+    },
+    {
+      "index": 12,
+      "angle": 66,
+      "fileName": "mohan_360_frame_12.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_12.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_12.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.58 (1).jpeg"
+    },
+    {
+      "index": 13,
+      "angle": 72,
+      "fileName": "mohan_360_frame_13.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_13.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_13.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.58.jpeg"
+    },
+    {
+      "index": 14,
+      "angle": 78,
+      "fileName": "mohan_360_frame_14.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_14.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_14.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.37.59.jpeg"
+    },
+    {
+      "index": 15,
+      "angle": 84,
+      "fileName": "mohan_360_frame_15.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_15.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_15.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.00 (1).jpeg"
+    },
+    {
+      "index": 16,
+      "angle": 90,
+      "fileName": "mohan_360_frame_16.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_16.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_16.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.00 (2).jpeg"
+    },
+    {
+      "index": 17,
+      "angle": 96,
+      "fileName": "mohan_360_frame_17.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_17.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_17.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.00 (3).jpeg"
+    },
+    {
+      "index": 18,
+      "angle": 102,
+      "fileName": "mohan_360_frame_18.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_18.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_18.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.00.jpeg"
+    },
+    {
+      "index": 19,
+      "angle": 108,
+      "fileName": "mohan_360_frame_19.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_19.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_19.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.01 (1).jpeg"
+    },
+    {
+      "index": 20,
+      "angle": 114,
+      "fileName": "mohan_360_frame_20.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_20.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_20.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.01 (2).jpeg"
+    },
+    {
+      "index": 21,
+      "angle": 120,
+      "fileName": "mohan_360_frame_21.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_21.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_21.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.01 (3).jpeg"
+    },
+    {
+      "index": 22,
+      "angle": 126,
+      "fileName": "mohan_360_frame_22.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_22.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_22.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.01.jpeg"
+    },
+    {
+      "index": 23,
+      "angle": 132,
+      "fileName": "mohan_360_frame_23.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_23.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_23.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.02 (1).jpeg"
+    },
+    {
+      "index": 24,
+      "angle": 138,
+      "fileName": "mohan_360_frame_24.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_24.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_24.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.02 (2).jpeg"
+    },
+    {
+      "index": 25,
+      "angle": 144,
+      "fileName": "mohan_360_frame_25.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_25.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_25.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.02.jpeg"
+    },
+    {
+      "index": 26,
+      "angle": 150,
+      "fileName": "mohan_360_frame_26.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_26.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_26.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.03 (1).jpeg"
+    },
+    {
+      "index": 27,
+      "angle": 156,
+      "fileName": "mohan_360_frame_27.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_27.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_27.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.03.jpeg"
+    },
+    {
+      "index": 28,
+      "angle": 162,
+      "fileName": "mohan_360_frame_28.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_28.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_28.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.38.11.jpeg"
+    },
+    {
+      "index": 29,
+      "angle": 168,
+      "fileName": "mohan_360_frame_29.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_29.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_29.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.45.53.jpeg"
+    },
+    {
+      "index": 30,
+      "angle": 174,
+      "fileName": "mohan_360_frame_30.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_30.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_30.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.45.57.jpeg"
+    },
+    {
+      "index": 31,
+      "angle": 180,
+      "fileName": "mohan_360_frame_31.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_31.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_31.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.45.58.jpeg"
+    },
+    {
+      "index": 32,
+      "angle": 186,
+      "fileName": "mohan_360_frame_32.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_32.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_32.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.45.59.jpeg"
+    },
+    {
+      "index": 33,
+      "angle": 192,
+      "fileName": "mohan_360_frame_33.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_33.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_33.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.46.00.jpeg"
+    },
+    {
+      "index": 34,
+      "angle": 198,
+      "fileName": "mohan_360_frame_34.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_34.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_34.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.46.01.jpeg"
+    },
+    {
+      "index": 35,
+      "angle": 204,
+      "fileName": "mohan_360_frame_35.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_35.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_35.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.39.jpeg"
+    },
+    {
+      "index": 36,
+      "angle": 210,
+      "fileName": "mohan_360_frame_36.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_36.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_36.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.48.jpeg"
+    },
+    {
+      "index": 37,
+      "angle": 216,
+      "fileName": "mohan_360_frame_37.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_37.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_37.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.50.jpeg"
+    },
+    {
+      "index": 38,
+      "angle": 222,
+      "fileName": "mohan_360_frame_38.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_38.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_38.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.52.jpeg"
+    },
+    {
+      "index": 39,
+      "angle": 228,
+      "fileName": "mohan_360_frame_39.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_39.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_39.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.54.jpeg"
+    },
+    {
+      "index": 40,
+      "angle": 234,
+      "fileName": "mohan_360_frame_40.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_40.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_40.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.55.jpeg"
+    },
+    {
+      "index": 41,
+      "angle": 240,
+      "fileName": "mohan_360_frame_41.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_41.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_41.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.57.jpeg"
+    },
+    {
+      "index": 42,
+      "angle": 246,
+      "fileName": "mohan_360_frame_42.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_42.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_42.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.58 (1).jpeg"
+    },
+    {
+      "index": 43,
+      "angle": 252,
+      "fileName": "mohan_360_frame_43.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_43.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_43.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.51.58.jpeg"
+    },
+    {
+      "index": 44,
+      "angle": 258,
+      "fileName": "mohan_360_frame_44.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_44.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_44.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.52.03.jpeg"
+    },
+    {
+      "index": 45,
+      "angle": 264,
+      "fileName": "mohan_360_frame_45.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_45.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_45.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.41 (1).jpeg"
+    },
+    {
+      "index": 46,
+      "angle": 270,
+      "fileName": "mohan_360_frame_46.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_46.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_46.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.41 (2).jpeg"
+    },
+    {
+      "index": 47,
+      "angle": 276,
+      "fileName": "mohan_360_frame_47.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_47.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_47.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.41.jpeg"
+    },
+    {
+      "index": 48,
+      "angle": 282,
+      "fileName": "mohan_360_frame_48.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_48.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_48.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.46.jpeg"
+    },
+    {
+      "index": 49,
+      "angle": 288,
+      "fileName": "mohan_360_frame_49.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_49.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_49.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.47.jpeg"
+    },
+    {
+      "index": 50,
+      "angle": 294,
+      "fileName": "mohan_360_frame_50.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_50.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_50.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.49.jpeg"
+    },
+    {
+      "index": 51,
+      "angle": 300,
+      "fileName": "mohan_360_frame_51.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_51.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_51.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.55.jpeg"
+    },
+    {
+      "index": 52,
+      "angle": 306,
+      "fileName": "mohan_360_frame_52.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_52.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_52.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.56.jpeg"
+    },
+    {
+      "index": 53,
+      "angle": 312,
+      "fileName": "mohan_360_frame_53.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_53.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_53.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.54.58.jpeg"
+    },
+    {
+      "index": 54,
+      "angle": 318,
+      "fileName": "mohan_360_frame_54.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_54.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_54.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.55.00.jpeg"
+    },
+    {
+      "index": 55,
+      "angle": 324,
+      "fileName": "mohan_360_frame_55.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_55.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_55.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.55.02.jpeg"
+    },
+    {
+      "index": 56,
+      "angle": 330,
+      "fileName": "mohan_360_frame_56.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_56.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_56.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.57.03.jpeg"
+    },
+    {
+      "index": 57,
+      "angle": 336,
+      "fileName": "mohan_360_frame_57.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_57.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_57.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.57.05.jpeg"
+    },
+    {
+      "index": 58,
+      "angle": 342,
+      "fileName": "mohan_360_frame_58.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_58.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_58.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.57.10.jpeg"
+    },
+    {
+      "index": 59,
+      "angle": 348,
+      "fileName": "mohan_360_frame_59.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_59.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_59.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 15.57.11.jpeg"
+    },
+    {
+      "index": 60,
+      "angle": 354,
+      "fileName": "mohan_360_frame_60.jpg",
+      "localUrl": "/mohan-clone-360/mohan_360_frame_60.jpg",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_60.jpg",
+      "originalName": "WhatsApp Image 2026-11-07 at 16.01.14.jpeg"
+    }
+  ],
+  "videos": [
+    {
+      "index": 1,
+      "title": "Mohan Sir 360° Rotational Angle Anchor (Standing)",
+      "fileName": "mohan_clone_video_01.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_01.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 15.44.07.mp4",
+      "duration": 28,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 2,
+      "title": "Mohan Sir Slow Turn & Kinetic Walking Gait",
+      "fileName": "mohan_clone_video_02.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_02.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_02.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 15.44.21.mp4",
+      "duration": 26,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 3,
+      "title": "Mohan Sir Mudra & Upper Body Flow Calibration",
+      "fileName": "mohan_clone_video_03.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_03.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_03.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 15.45.50.mp4",
+      "duration": 31,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 4,
+      "title": "Mohan Sir Facial Micro-Expressions & Eye Blink Track",
+      "fileName": "mohan_clone_video_04.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_04.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 15.57.21.mp4",
+      "duration": 19,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 5,
+      "title": "Mohan Sir Conversational Speech & Breath Resonance",
+      "fileName": "mohan_clone_video_05.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_05.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_05.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 16.01.00.mp4",
+      "duration": 41,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 6,
+      "title": "Mohan Sir 45° Semi-Profile Angle Discourse",
+      "fileName": "mohan_clone_video_06.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_06.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_06.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 16.03.35.mp4",
+      "duration": 23,
+      "width": 464,
+      "height": 832
+    },
+    {
+      "index": 7,
+      "title": "Mohan Sir Close-Up Smile & Meditative Gaze Rig",
+      "fileName": "mohan_clone_video_07.mp4",
+      "localUrl": "/mohan-clone-360/mohan_clone_video_07.mp4",
+      "cdnUrl": "https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_07.mp4",
+      "originalName": "WhatsApp Video 2026-11-07 at 16.03.39.mp4",
+      "duration": 6,
+      "width": 464,
+      "height": 832
+    }
+  ]
+}

@@ -2703,9 +2703,16 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                     >
                                       This is to proudly certify that{' '}
                                       <strong className="font-bold text-slate-900">
-                                        {certPrefix} {certFullName}
+                                        {certPrefix ? `${certPrefix.trim()} ` : ''}{certFullName.trim()}
                                       </strong>
-                                      {certCity ? `, from ${certCity}${certCountry ? `, ${certCountry}` : ''}` : ''}
+                                      {(() => {
+                                        const loc = [certCity?.trim(), certCountry?.trim()].filter(Boolean).join(', ');
+                                        return loc ? (
+                                          <>
+                                            , from <strong className="font-bold text-slate-900">{loc}</strong>
+                                          </>
+                                        ) : null;
+                                      })()}
                                       , has successfully Completed the{' '}
                                       <strong className="font-bold text-slate-900">
                                         {certWorkshopName || 'Swar Yoga Hindi Workshop'}
