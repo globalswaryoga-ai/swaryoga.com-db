@@ -338,9 +338,14 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                       <div className="relative flex items-end justify-between gap-4 px-6 pt-6 pb-4">
                         <div className="flex items-center gap-3">
                           <img src={ASSETS.photo} alt="Swar Yoga" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
-                          <div>
-                            <p className="text-xl font-extrabold text-red-800 leading-tight">SWAR YOGA</p>
-                            <p className="text-[10px] font-bold text-black">{ORG.address} • Mo {ORG.phone}</p>
+                          <div className="pt-1.5">
+                            <p 
+                              className="text-xl font-extrabold text-red-700 leading-tight"
+                              style={{ textShadow: '-0.75px -0.75px 0 #fff, 0.75px -0.75px 0 #fff, -0.75px 0.75px 0 #fff, 0.75px 0.75px 0 #fff, 0 0 1.5px #fff' }}
+                            >
+                              SWAR YOGA
+                            </p>
+                            <p className="text-[10px] font-bold text-black mt-0.5">{ORG.address} • Mo {ORG.phone}</p>
                             <p className="text-[10px] font-bold text-black">Email: {ORG.email} • Web: www.swaryoga.com</p>
                           </div>
                         </div>

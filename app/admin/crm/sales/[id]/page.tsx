@@ -265,9 +265,14 @@ export default function SaleDetailPage() {
                   crossOrigin="anonymous"
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow"
                 />
-                <div>
-                  <h1 className="text-4xl font-extrabold tracking-wide text-red-800">{ORG.brand}</h1>
-                  <p className="text-xs font-bold text-black mt-1">Maldad Road, Sangamner • Mo {ORG.phone}</p>
+                <div className="pt-2">
+                  <h1 
+                    className="text-4xl font-extrabold tracking-wide text-red-700"
+                    style={{ textShadow: '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 2px #fff' }}
+                  >
+                    {ORG.brand}
+                  </h1>
+                  <p className="text-xs font-bold text-black mt-1.5">Maldad Road, Sangamner • Mo {ORG.phone}</p>
                   <p className="text-xs font-bold text-black">Email: mohan@swaryoga.com • Web: www.swaryoga.com</p>
                 </div>
               </div>

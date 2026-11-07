@@ -160,9 +160,25 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     page.drawImage(photoImg, { x: M, y: H - 92, width: 64, height: 64 });
   }
 
-  text('SWAR YOGA', M + 78, H - 40, { size: 22, font: bold, color: darkRed });
-  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 58, { size: 8.5, font: bold, color: darkBlack });
-  text('Email: mohan@swaryoga.com • Web: www.swaryoga.com', M + 78, H - 72, { size: 8.5, font: bold, color: darkBlack });
+  // 1) Slightly down: SWAR YOGA and address moved down to align with photo center
+  // 2) Red SWAR YOGA with light white outer line (8-directional sub-pixel outline)
+  const brandX = M + 78;
+  const brandY = H - 48; // moved down slightly from H - 40
+  const brandSize = 22;
+  const outlineOffset = 0.8;
+  const outlineDiag = outlineOffset * 0.707;
+  const outlineOffsets = [
+    [-outlineOffset, 0], [outlineOffset, 0], [0, -outlineOffset], [0, outlineOffset],
+    [-outlineDiag, -outlineDiag], [outlineDiag, outlineDiag], [-outlineDiag, outlineDiag], [outlineDiag, -outlineDiag]
+  ];
+  for (const [dx, dy] of outlineOffsets) {
+    page.drawText('SWAR YOGA', { x: brandX + dx, y: brandY + dy, size: brandSize, font: bold, color: white });
+  }
+  page.drawText('SWAR YOGA', { x: brandX, y: brandY, size: brandSize, font: bold, color: darkRed });
+
+  // Address and contact lines moved down slightly
+  text('Maldad Road, Sangamner • Mo +91 93099 86820', brandX, H - 66, { size: 8.5, font: bold, color: darkBlack });
+  text('Email: mohan@swaryoga.com • Web: www.swaryoga.com', brandX, H - 80, { size: 8.5, font: bold, color: darkBlack });
 
   if (logoImg) {
     page.drawImage(logoImg, { x: W - M - 54, y: H - 70, width: 54, height: 54 });
