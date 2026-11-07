@@ -848,12 +848,14 @@ export default function ModulePptStudio({
           slideNumber: activeSlide.slideNumber,
           heading: activeSlide.heading,
           description: activeSlide.subHeading || activeSlide.visualConcept,
+          subHeading: activeSlide.subHeading,
           themeColor: activeSlide.themeColor,
           themeType: activeSlide.phaseName,
           metaphor: activeSlide.visualConcept,
           imageUrl: activeSlide.imageUrl,
           bulletPoints: [activeSlide.subHeading, activeSlide.visualConcept].filter(Boolean),
         } : undefined}
+        onUpdateSlide={(updated) => handleUpdateActiveSlide(updated)}
       />
     </div>
   );

@@ -579,6 +579,16 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
           date: receipt?.issuedAt ? new Date(receipt.issuedAt).toLocaleDateString('en-GB') : undefined,
           workshopName: receipt?.workshopName,
         }}
+        onUpdateReceipt={(updated) => {
+          if (updated) {
+            setReceipts(prev => prev.map((r, i) => i === activeIndex ? {
+              ...r,
+              customerName: updated.studentName || r.customerName,
+              workshopName: updated.workshopName || r.workshopName,
+              payment: r.payment ? { ...r.payment, amount: updated.amount, paidAmount: updated.amount } : undefined
+            } : r));
+          }
+        }}
       />
     </div>
   );

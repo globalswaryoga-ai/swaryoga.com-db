@@ -90,10 +90,12 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
   const router = useRouter();
   const [downloading, setDownloading] = useState(false);
   const [isCanvaOpen, setIsCanvaOpen] = useState(false);
+  const [customName, setCustomName] = useState<string | null>(null);
+  const [customWorkshop, setCustomWorkshop] = useState<string | null>(null);
 
   const certNo = sale.receiptNumber || (sale._id || '').slice(-8).toUpperCase();
-  const customerName = sale.certificateName?.trim() || formatPersonName(sale.customerName) || 'Participant';
-  const workshopName = sale.workshopName || 'Swar Yoga Workshop';
+  const customerName = customName ?? (sale.certificateName?.trim() || formatPersonName(sale.customerName) || 'Participant');
+  const workshopName = customWorkshop ?? (sale.workshopName || 'Swar Yoga Workshop');
   const completionDate = formatMonthYear(sale.batchDate || sale.saleDate || sale.createdAt);
   const certTitle = sale.certificateTitle?.trim();
   const location = [sale.certificatePlace, sale.certificateState, sale.certificateCountry].filter(Boolean).join(', ');
@@ -379,6 +381,10 @@ export default function CertificateModal({ sale, token, onClose }: CertificateMo
           workshopName: workshopName,
           completionDate: completionDate,
           certificateNumber: certNo,
+        }}
+        onUpdateCertificate={(updated) => {
+          if (updated?.studentName) setCustomName(updated.studentName);
+          if (updated?.workshopName) setCustomWorkshop(updated.workshopName);
         }}
       />
     </div>
