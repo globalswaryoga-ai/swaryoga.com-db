@@ -169,12 +169,36 @@ export async function GET(request: NextRequest) {
         sql: `SELECT * FROM colab_workers_sql ORDER BY worker_id ASC`,
       }).catch(() => ({ rows: [] }));
 
-      // Return default 4 workers merged with active state
+      // Return default 4 workers with exact user-configured emails
       const defaultWorkers = [
-        { worker_id: 'worker_1', account_label: 'Google Account 1 (Primary T4)', status: 'ready', total_rendered: 0 },
-        { worker_id: 'worker_2', account_label: 'Google Account 2 (Backup T4)', status: 'standby', total_rendered: 0 },
-        { worker_id: 'worker_3', account_label: 'Google Account 3 (Backup T4)', status: 'standby', total_rendered: 0 },
-        { worker_id: 'worker_4', account_label: 'Google Account 4 (Backup T4)', status: 'standby', total_rendered: 0 },
+        {
+          worker_id: 'worker_1',
+          email: process.env.COLAB_WORKER_1_EMAIL || 'swarsakshi9@gmail.com',
+          account_label: 'swarsakshi9@gmail.com (Account 1)',
+          status: 'ready',
+          total_rendered: 0,
+        },
+        {
+          worker_id: 'worker_2',
+          email: process.env.COLAB_WORKER_2_EMAIL || 'swarsakshi9999@gmail.com',
+          account_label: 'swarsakshi9999@gmail.com (Account 2)',
+          status: 'standby',
+          total_rendered: 0,
+        },
+        {
+          worker_id: 'worker_3',
+          email: process.env.COLAB_WORKER_3_EMAIL || 'mt.mohan64@gmail.com',
+          account_label: 'mt.mohan64@gmail.com (Account 3)',
+          status: 'standby',
+          total_rendered: 0,
+        },
+        {
+          worker_id: 'worker_4',
+          email: process.env.COLAB_WORKER_4_EMAIL || 'allindiamohan@gmail.com',
+          account_label: 'allindiamohan@gmail.com (Account 4)',
+          status: 'standby',
+          total_rendered: 0,
+        },
       ];
 
       const activeMap = new Map((res.rows || []).map((r: any) => [r.worker_id, r]));

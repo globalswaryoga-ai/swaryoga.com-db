@@ -414,30 +414,36 @@ export default function AvatarEditStudio({
         </div>
 
         {/* 4 Workers Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
           {[
-            { id: 'worker_1', label: 'Google Account 1', desc: 'Primary GPU', status: 'Ready (Live)' },
-            { id: 'worker_2', label: 'Google Account 2', desc: 'Backup GPU', status: 'Standby' },
-            { id: 'worker_3', label: 'Google Account 3', desc: 'Backup GPU', status: 'Standby' },
-            { id: 'worker_4', label: 'Google Account 4', desc: 'Backup GPU', status: 'Standby' },
+            { id: 'worker_1', email: 'swarsakshi9@gmail.com', label: 'swarsakshi9', desc: 'Account 1 (Primary T4)', status: 'Ready (Live)' },
+            { id: 'worker_2', email: 'swarsakshi9999@gmail.com', label: 'swarsakshi9999', desc: 'Account 2 (T4 Active)', status: 'Rendering' },
+            { id: 'worker_3', email: 'mt.mohan64@gmail.com', label: 'mt.mohan64', desc: 'Account 3 (Backup T4)', status: 'Standby' },
+            { id: 'worker_4', email: 'allindiamohan@gmail.com', label: 'allindiamohan', desc: 'Account 4 (Backup T4)', status: 'Standby' },
           ].map((w, idx) => (
             <div
               key={w.id}
               className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                idx === 0
+                idx === 1
+                  ? 'bg-amber-950/30 border-amber-500/40 ring-1 ring-amber-400/30'
+                  : idx === 0
                   ? 'bg-emerald-950/30 border-emerald-500/40'
                   : 'bg-slate-800/40 border-slate-700/60'
               }`}
             >
-              <div>
+              <div className="min-w-0 pr-2">
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${idx === 0 ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-                  <span className="text-[11px] font-bold text-white">{w.label}</span>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    idx === 1 ? 'bg-amber-400 animate-pulse' : idx === 0 ? 'bg-emerald-400' : 'bg-slate-500'
+                  }`} />
+                  <span className="text-[11px] font-bold text-white truncate" title={w.email}>{w.email}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">{w.desc}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{w.desc}</p>
               </div>
-              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                idx === 0
+              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                idx === 1
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
+                  : idx === 0
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   : 'bg-slate-800 text-slate-400 border border-slate-700'
               }`}>
