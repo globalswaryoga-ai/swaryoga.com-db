@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import MohanSirGeneratedAvatarLibrary from './MohanSirGeneratedAvatarLibrary';
 import {
   Dna,
   Play,
@@ -43,7 +44,7 @@ import type {
 import { summarizeFacialExtractionError } from '@/lib/mohanRag/facialExpressionErrors';
 import FaceToChestLiveTalkModal from './FaceToChestLiveTalkModal';
 
-type DnaSubTab = 'looks' | 'facial' | 'vocal' | 'postures' | 'wardrobe' | 'deploy';
+type DnaSubTab = 'all_avatars' | 'looks' | 'facial' | 'vocal' | 'postures' | 'wardrobe' | 'deploy';
 
 interface Props {
   token: string | null;
@@ -99,7 +100,7 @@ function getFacialClipSourceUrl(videoUrl: string, timestampMs: number): string {
 }
 
 export default function MohanSirAvatarDnaLibrary({ token }: Props) {
-  const [activeTab, setActiveTab] = useState<DnaSubTab>('looks');
+  const [activeTab, setActiveTab] = useState<DnaSubTab>('all_avatars');
   const [looks, setLooks] = useState<AvatarDnaLook[]>([]);
   const [activeLookId, setActiveLookId] = useState<string>('');
   const [duplicateLookCount, setDuplicateLookCount] = useState(0);
@@ -729,6 +730,19 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-emerald-800/40 pt-4">
           <button
             type="button"
+            onClick={() => setActiveTab('all_avatars')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+              activeTab === 'all_avatars'
+                ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 ring-2 ring-amber-400/50'
+                : 'bg-white/5 text-amber-200 hover:bg-white/10'
+            }`}
+          >
+            <Sparkles className="h-4 w-4 text-amber-300" />
+            <span>🌟 All AI Avatars (42 Videos)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('looks')}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               activeTab === 'looks'
@@ -819,7 +833,12 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
           <span>{error}</span>
         </div>
       )}
-      {activeTab === 'looks' && duplicateLookCount > 0 && (
+            {/* ── SUB-PAGE 0: ALL 2K AI AVATARS LIBRARY (42 VIDEOS) ── */}
+      {activeTab === 'all_avatars' && (
+        <MohanSirGeneratedAvatarLibrary />
+      )}
+
+{activeTab === 'looks' && duplicateLookCount > 0 && (
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <span>
             {duplicateLookCount} repeated DNA video entr{duplicateLookCount === 1 ? 'y is' : 'ies are'} hidden. The same video will now reuse its existing library entry.
