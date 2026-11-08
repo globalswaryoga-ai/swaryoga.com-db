@@ -200,8 +200,14 @@ export default function Module7MultilingualText({
         ? 'te-IN'
         : 'hi-IN';
 
+    utterance.pitch = 0.88; // Deep baritone pitch for Mohan Sir
+
     const voices = window.speechSynthesis.getVoices();
-    const v = voices.find((vox) => vox.lang.toLowerCase().startsWith(langCode));
+    const nonFemale = voices.filter(vox => {
+      const n = vox.name.toLowerCase();
+      return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+    });
+    const v = nonFemale.find((vox) => vox.lang.toLowerCase().startsWith(langCode)) || nonFemale[0];
     if (v) utterance.voice = v;
 
     utterance.onend = () => setPlayingLang(null);

@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "subject": "Mohan Kalburgi",
+  "identity": {
+    "face_shape": "oval_broad",
+    "skin_tone": "indian_medium_warm",
+    "eyes": {
+      "color": "deep_brown",
+      "shape": "almond",
+      "gaze": "front_meditative"
+    },
+    "facial_hair": {
+      "style": "natural_beard",
+      "color": "dark_brown_with_salt_pepper"
+    },
+    "hair": {
+      "style": "guru_natural_volume",
+      "color": "black_natural"
+    },
+    "visemes": [
+      "neutral",
+      "open_a",
+      "open_e",
+      "p_b_m_closed",
+      "o_u_round",
+      "f_v_touch"
+    ]
+  },
+  "calibrated_assets": {
+    "frontal": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg",
+    "left_angle": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_left_1080p.jpg",
+    "right_angle": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_right_1080p.jpg",
+    "chest_up_anchor": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+    "voice_master": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_vocal_clone_master.mp3"
+  },
+  "dna_profiles_count": 39,
+  "supported_roles": [
+    "university_professor",
+    "businessman_entrepreneur",
+    "bank_manager",
+    "doctor_health_educator",
+    "civil_engineer",
+    "factory_supervisor",
+    "news_anchor",
+    "farmer",
+    "spiritual_acharya",
+    "corporate_trainer"
+  ]
+}

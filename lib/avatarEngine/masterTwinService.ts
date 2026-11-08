@@ -107,9 +107,9 @@ export const DEFAULT_MASTER_TWIN_PROFILE: MasterTwinProfile = {
       category: 'expression',
       subType: 'smile',
       title: 'Warm Guru Smile & Natural Eye Blinks',
-      videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-      thumbnailUrl: 'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg',
-      durationSeconds: 180,
+      videoUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4',
+      thumbnailUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg',
+      durationSeconds: 19,
       qualityScore: 99,
       description: 'Authentic warm welcoming expression with micro eye-movements and smiling wrinkles.',
       createdAt: new Date().toISOString(),
@@ -143,9 +143,9 @@ export const DEFAULT_MASTER_TWIN_PROFILE: MasterTwinProfile = {
       category: 'motion',
       subType: 'yoga_asana',
       title: 'Pranayama & Swar Yoga Demonstration',
-      videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-      thumbnailUrl: 'https://swaryogacrm.b-cdn.net/uploads/content-cache/Images/d99f90faf07d38394e0662fc419db063.png',
-      durationSeconds: 180,
+      videoUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_03.mp4',
+      thumbnailUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_08.jpg',
+      durationSeconds: 31,
       qualityScore: 99,
       description: 'Nadi Shodhana and Chandra Bhedana breath demonstration with hand mudras.',
       createdAt: new Date().toISOString(),
@@ -519,10 +519,10 @@ export class MasterTwinService {
     }
     totalMinutes = Math.round(totalMinutes * 10) / 10;
 
-    const firstVideoUrl = videos[0]?.videoUrl || 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+    const firstVideoUrl = videos[0]?.videoUrl || 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4';
     const firstThumbUrl =
       videos[0]?.thumbnailUrl ||
-      'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg';
+      'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg';
 
     // 2. Insert into studio_master_twin_profile_sql
     const beautyDefaults: MasterTwinBeautySettings = {

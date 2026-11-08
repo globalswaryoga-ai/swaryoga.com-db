@@ -1,0 +1,119 @@
+{
+  "identity": {
+    "fullName": "Mohan Kalburgi (Mohan Sir)",
+    "modelTag": "mohan_digital_human_v1_master",
+    "gender": "male",
+    "ethnicity": "Indian (Vedic Yogic Master)",
+    "ageGroup": "40-45",
+    "skinToneHex": "#c89270",
+    "eyeColorHex": "#2a1a12",
+    "hairColorHex": "#141416",
+    "beardStyle": "Natural trimmed goatee & yogic moustache",
+    "bodyBuild": "Sturdy, broad-shouldered yogic physique",
+    "heightMeters": 1.74,
+    "shoulderWidthMeters": 0.48,
+    "chestCircumferenceMeters": 1.04,
+    "waistCircumferenceMeters": 0.94
+  },
+  "facialProportions": {
+    "foreheadRatio": 0.32,
+    "eyeSpacing": 0.38,
+    "noseWidthRatio": 0.34,
+    "mouthWidthRatio": 0.46,
+    "jawWidthRatio": 0.86,
+    "chinProminence": 0.78,
+    "asymmetryOffset": {
+      "leftCheekElevation": 0.015,
+      "rightEyeSmileTilt": 0.012
+    }
+  },
+  "blendshapes": [
+    "eyeBlinkLeft",
+    "eyeBlinkRight",
+    "eyeLookDownLeft",
+    "eyeLookDownRight",
+    "eyeLookInLeft",
+    "eyeLookInRight",
+    "eyeLookOutLeft",
+    "eyeLookOutRight",
+    "eyeLookUpLeft",
+    "eyeLookUpRight",
+    "jawOpen",
+    "jawForward",
+    "jawLeft",
+    "jawRight",
+    "mouthClose",
+    "mouthFunnel",
+    "mouthPucker",
+    "mouthLeft",
+    "mouthRight",
+    "mouthSmileLeft",
+    "mouthSmileRight",
+    "mouthFrownLeft",
+    "mouthFrownRight",
+    "mouthDimpleLeft",
+    "mouthDimpleRight",
+    "mouthStretchLeft",
+    "mouthStretchRight",
+    "mouthRollLower",
+    "mouthRollUpper",
+    "mouthShrugLower",
+    "mouthShrugUpper",
+    "mouthPressLeft",
+    "mouthPressRight",
+    "mouthLowerDownLeft",
+    "mouthLowerDownRight",
+    "mouthUpperUpLeft",
+    "mouthUpperUpRight",
+    "browDownLeft",
+    "browDownRight",
+    "browInnerUp",
+    "browOuterUpLeft",
+    "browOuterUpRight",
+    "cheekPuff",
+    "cheekSquintLeft",
+    "cheekSquintRight",
+    "noseSneerLeft",
+    "noseSneerRight",
+    "tongueOut"
+  ],
+  "motionPresets": [
+    {
+      "id": "standing_upright",
+      "name": "सहज खड़े (Upright Keynote)",
+      "description": "Balanced stance with steady breathing and attentive gaze"
+    },
+    {
+      "id": "seated_padmasana",
+      "name": "पद्मासन (Lotus Posture)",
+      "description": "Traditional cross-legged sadhana posture on yoga mat with Gyan Mudra"
+    },
+    {
+      "id": "namaste_mudra",
+      "name": "अंजलि मुद्रा (Namaste Greeting)",
+      "description": "Palms folded at Anahata Chakra with gentle head bow"
+    },
+    {
+      "id": "teaching_gesture",
+      "name": "स्वर उपदेश (Teaching Delivery)",
+      "description": "Expressive right hand mudra explaining Ida & Pingala Nadis"
+    },
+    {
+      "id": "pranayama_mudra",
+      "name": "प्राणायाम (Nasika Mudra)",
+      "description": "Right hand at nostrils demonstrating Swar changing technique"
+    },
+    {
+      "id": "mindful_walk",
+      "name": "प्राकृतिक चलना (Mindful Walk)",
+      "description": "Slow grounded pace with upright spine"
+    }
+  ],
+  "sourcesUsed": {
+    "rotationalFrames": 60,
+    "facialLooks": 31,
+    "kineticsVideos": 7,
+    "studioMasterVideos": 39,
+    "transcriptionChunks": 2393
+  }
+}

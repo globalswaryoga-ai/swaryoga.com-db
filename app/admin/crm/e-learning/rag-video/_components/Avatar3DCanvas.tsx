@@ -31,10 +31,11 @@ export default function Avatar3DCanvas({
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
-  // Fallback to pure cutout
+  // Fallback to verified master digital human portrait of Mohan Sir
   const cleanCutoutUrl =
-    avatarCutoutUrl ||
-    'https://swaryogacrm.b-cdn.net/uploads/content-cache/Images/d99f90faf07d38394e0662fc419db063.png';
+    avatarCutoutUrl && !avatarCutoutUrl.includes('d99f90faf07d38394e0662fc419db063')
+      ? avatarCutoutUrl
+      : 'https://swaryogacrm.b-cdn.net/mohan.jpg';
 
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -54,8 +55,8 @@ export default function Avatar3DCanvas({
     prevY: 0,
     rotY: 0,
     rotX: 0,
-    dist: 3.2,
-    targetY: 0.8,
+    dist: 3.5,
+    targetY: 1.15,
   });
 
   useEffect(() => {
@@ -70,9 +71,10 @@ export default function Avatar3DCanvas({
     sceneRef.current = scene;
     scene.fog = new THREE.FogExp2(0x0a0f1d, 0.04);
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    camera.position.set(0, 0.8, 3.2);
+    // 2. Camera - Chest-up perspective with proper headroom
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(0, 1.15, 3.5);
+    camera.lookAt(0, 1.15, 0);
     cameraRef.current = camera;
 
     // 3. WebGL Renderer
@@ -379,10 +381,10 @@ export default function Avatar3DCanvas({
       mouseState.current.targetY = 0.95;
       mouseState.current.dist = 2.8;
     } else {
-      // Normal standing or walking
+      // Professional Presenter Chest-Up Framing
       avatarGroupRef.current.position.set(0, 0, 0);
-      mouseState.current.targetY = 0.85;
-      mouseState.current.dist = 3.2;
+      mouseState.current.targetY = 1.15;
+      mouseState.current.dist = 3.5;
     }
   }, [postureId]);
 
@@ -410,23 +412,23 @@ export default function Avatar3DCanvas({
     if (preset === 'front') {
       mouseState.current.rotY = 0;
       mouseState.current.rotX = 0;
-      mouseState.current.dist = 2.8;
-      mouseState.current.targetY = 0.9;
+      mouseState.current.dist = 3.5;
+      mouseState.current.targetY = 1.15; // Chest-up with full head visible
     } else if (preset === 'close') {
       mouseState.current.rotY = 0;
-      mouseState.current.rotX = 0.05;
-      mouseState.current.dist = 1.6;
-      mouseState.current.targetY = 1.35; // Focused on face
+      mouseState.current.rotX = 0.02;
+      mouseState.current.dist = 2.0;
+      mouseState.current.targetY = 1.45; // Focused on face & eyes
     } else if (preset === 'full') {
       mouseState.current.rotY = 0;
-      mouseState.current.rotX = 0.1;
-      mouseState.current.dist = 4.0;
-      mouseState.current.targetY = 0.75;
+      mouseState.current.rotX = 0.05;
+      mouseState.current.dist = 4.2;
+      mouseState.current.targetY = 1.05; // Full presenter view
     } else if (preset === 'dynamic') {
-      mouseState.current.rotY = 0.45; // 3/4 hero angle
-      mouseState.current.rotX = -0.05;
-      mouseState.current.dist = 2.9;
-      mouseState.current.targetY = 0.85;
+      mouseState.current.rotY = 0.35; // 3/4 professional angle
+      mouseState.current.rotX = 0;
+      mouseState.current.dist = 3.5;
+      mouseState.current.targetY = 1.15;
     }
   };
 

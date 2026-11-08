@@ -340,7 +340,7 @@ export default function MohanRagManagementPage() {
   const currentModule = modules.find(module => module.id === active);
 
   return (
-    <div className="mohan-rag-management min-h-[calc(100vh-5rem)] bg-white text-slate-900">
+    <div className="mohan-rag-management min-h-full pb-32 bg-white text-slate-900 font-[-apple-system,BlinkMacSystemFont,system-ui,'Kohinoor_Devanagari','Segoe_UI',Roboto,sans-serif] antialiased">
       <style jsx global>{`
         /* Global button baseline */
         .mohan-rag-management button.mohan-rag-btn-dark,

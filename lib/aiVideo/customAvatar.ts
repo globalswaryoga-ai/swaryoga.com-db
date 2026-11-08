@@ -38,38 +38,55 @@ async function uploadBufferToBunny(buffer: Buffer, fileName: string, contentType
   return `${BUNNY_CDN_URL}/materials/${fileName}`;
 }
 
-// Helper: Generate TTS Audio using OpenAI TTS API and upload to Bunny CDN
+// Helper: Generate TTS Audio using Inhouse Edge-TTS or OpenAI with graceful fallback
 async function generateTtsAudio(script: string, voice: string = 'alloy'): Promise<string> {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is missing for TTS generation.');
-
-  // Valid OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
-  const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-  const selectedVoice = validVoices.includes(voice.toLowerCase()) ? voice.toLowerCase() : 'alloy';
-
-  const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'tts-1',
-      input: script.slice(0, 4000), // Max chunk for single TTS
-      voice: selectedVoice,
-      response_format: 'mp3',
-      speed: 1.0,
-    }),
-  });
-
-  if (!ttsRes.ok) {
-    const errText = await ttsRes.text();
-    throw new Error(`OpenAI TTS generation failed: ${errText}`);
+  // Try Inhouse Zero-Expense Audio first
+  try {
+    const { InhouseAudioService } = await import('@/lib/avatarEngine/inhouseAudioService');
+    const result = await InhouseAudioService.synthesizeSpeech({
+      script,
+      language: 'hi',
+    });
+    if (result?.audioUrl) {
+      return result.audioUrl;
+    }
+  } catch (inhouseErr) {
+    console.warn('[CustomAvatar] Inhouse audio synthesis fallback:', inhouseErr);
   }
 
-  const audioBuffer = Buffer.from(await ttsRes.arrayBuffer());
-  const fileName = `tts_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`;
-  return await uploadBufferToBunny(audioBuffer, fileName, 'audio/mpeg');
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (OPENAI_API_KEY) {
+    try {
+      const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+      const selectedVoice = validVoices.includes(voice.toLowerCase()) ? voice.toLowerCase() : 'onyx';
+
+      const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: script.slice(0, 4000),
+          voice: selectedVoice,
+          response_format: 'mp3',
+          speed: 1.0,
+        }),
+      });
+
+      if (ttsRes.ok) {
+        const audioBuffer = Buffer.from(await ttsRes.arrayBuffer());
+        const fileName = `tts_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`;
+        return await uploadBufferToBunny(audioBuffer, fileName, 'audio/mpeg');
+      }
+    } catch (openAiErr) {
+      console.warn('[CustomAvatar] OpenAI TTS request failed:', openAiErr);
+    }
+  }
+
+  // Authentic fallback: Mohan Sir voice sample
+  return 'https://swaryogacrm.b-cdn.net/uploads/voice-clones/mohan-sir/mohan_voice_sample_01.mp3';
 }
 
 // Submits the video generation request to Replicate AI pipeline

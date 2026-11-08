@@ -150,17 +150,17 @@ export const DEFAULT_AVATAR_DNA_LOOKS: AvatarDnaLook[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'dna_look_ashram_lime_02',
-    title: 'Ashram Lime Green Kurta — Swar Shastra & Diet Mastery',
-    heading: 'Ashram Lime Green Kurta — Diet & Swar Mastery',
-    description: 'Relaxed classroom discourse on Surya Nadi and Jatharagni food rules. Demonstrates spontaneous warm smiles, lively eyebrow emphasis, and friendly humor.',
-    video_url: 'https://iframe.mediadelivery.net/play/606386/d06767ad-3ba3-4695-b3e5-32e3012fdbc2',
-    thumbnail_url: '/avatar-studio/looks/mohan_lime_green_diet.jpg',
-    look_category: 'ashram_sadhana',
-    outfit_style: 'Lime Green Ashram Kurta & Linen Stole',
-    emotion_profile: 'Warm Conversational Teaching & Native Humor',
-    speaking_tone: 'Authentic Colloquial Marathi & Hindi Punches',
-    duration_seconds: 95,
+    id: 'dna_look_executive_suit_02',
+    title: 'Executive Business Suit & Coat — Strategic Keynote Master',
+    heading: 'Executive Bespoke Suit — Global Keynote Master',
+    description: 'High-level executive presentation in tailored corporate suit. Clear articulation, sharp leadership presence, and deep calm breath focus.',
+    video_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
+    thumbnail_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    look_category: 'corporate_keynote',
+    outfit_style: 'Tailored Bespoke Navy Suit & Tie',
+    emotion_profile: 'Executive Presence & Strategic Clarity',
+    speaking_tone: 'Authoritative, Confident, Global Keynote Delivery',
+    duration_seconds: 180,
     is_active: false,
     source_type: 'direct_mp4',
     created_at: new Date().toISOString(),
@@ -260,7 +260,7 @@ export const DEFAULT_FACIAL_DNA: FacialDnaItem[] = [
     sampleTimestamp: '10:40',
     description: 'Half-closed eyelids, relaxed forehead, still jawline, and subtle nostril flaring during Swar observation.',
     landmarkPoints: 468,
-    videoClipUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    videoClipUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4',
     detectedInVideosCount: 72,
   },
   {
@@ -299,7 +299,7 @@ export const DEFAULT_FACIAL_DNA: FacialDnaItem[] = [
     sampleTimestamp: '18:30',
     description: 'Direct forward gaze, steady head nod, firm lips, and focused ocular tracking when asserting strict dietary rules.',
     landmarkPoints: 468,
-    videoClipUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    videoClipUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4',
     detectedInVideosCount: 64,
   },
 ];
@@ -335,7 +335,7 @@ export const DEFAULT_POSTURE_DNA: YogicPostureItem[] = [
     category: 'mudra',
     description: 'Thumb and index fingertips lightly touching, three fingers extended straight on knees, spine aligned straight.',
     associatedNadi: 'sushumna',
-    videoClipUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    videoClipUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_04.mp4',
   },
   {
     id: 'posture_dna_nostril_check',
@@ -384,7 +384,7 @@ export const DEFAULT_WARDROBE_DNA: WardrobeDnaItem[] = [
     collar_style: 'Traditional Kurta Placket with Natural Coconut Shell Buttons',
     yogic_occasion: 'Brahma Muhurta Pranayama, Sushumna Awakening & Sacred Shiva Swarodaya Initiations',
     front_image_url: '/avatar-studio/looks/mohan_white_khadi_1080p.jpg',
-    video_clip_url: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    video_clip_url: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
     is_selected: false,
     worn_in_videos_count: 14,
     created_at: new Date().toISOString(),
@@ -432,7 +432,7 @@ export const DEFAULT_WARDROBE_DNA: WardrobeDnaItem[] = [
     collar_style: 'Modern Clean Band Collar with Hidden Button Fly',
     yogic_occasion: 'Aahar Shastra Lectures, Digestive Fire Mastery, Water Therapy Rules & Health Webinars',
     front_image_url: '/avatar-studio/looks/mohan_lime_green_diet.jpg',
-    video_clip_url: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    video_clip_url: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
     is_selected: false,
     worn_in_videos_count: 6,
     created_at: new Date().toISOString(),
@@ -687,7 +687,7 @@ export async function setActiveAvatarDnaLook(lookId: string): Promise<boolean> {
 
 export async function saveAvatarDnaLook(look: Partial<AvatarDnaLook>): Promise<AvatarDnaLook> {
   await initAvatarDnaSchema();
-  const videoUrl = look.video_url || 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+  const videoUrl = look.video_url || 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4';
   const videoKey = getAvatarDnaVideoKey(videoUrl);
   const existingRes = await bunnyExecute(
     'SELECT id, video_url, is_active, created_at FROM mohan_avatar_dna_looks_sql ORDER BY created_at ASC',
@@ -873,7 +873,7 @@ export async function saveWardrobeDnaItem(item: Partial<WardrobeDnaItem>): Promi
       item.collar_style || 'Nehru Collar',
       item.yogic_occasion || 'Swar Yoga Sadhana',
       item.front_image_url || 'https://swaryogacrm.b-cdn.net/avatar-studio/thumbnails/8f9280a32e94603307e5312213efd5465c5cbbddcdf9793026e0ce31c3b760b6.jpg',
-      item.video_clip_url || 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+      item.video_clip_url || 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
       item.is_selected ? 1 : 0,
       item.worn_in_videos_count || 1,
       item.created_at || now,

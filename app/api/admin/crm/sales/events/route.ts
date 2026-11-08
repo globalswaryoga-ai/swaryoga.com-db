@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
   getViewerUserId,
@@ -7,46 +6,50 @@ import {
   handleCrmError,
   formatCrmSuccess,
   parsePagination,
-  isValidObjectId,
-  toObjectId,
 } from '@/lib/crm-handlers';
-import { getWorkshopEvent } from '@/lib/schemas/enterpriseSchemas';
+import {
+  getBunnyWorkshopEvents,
+  getBunnyWorkshopEventById,
+  createBunnyWorkshopEvent,
+} from '@/lib/bunnyWorkshopEventRepository';
 
 export const dynamic = 'force-dynamic';
 
-function computeTotals(participants: any[]) {
-  const list = Array.isArray(participants) ? participants : [];
-  const totalAmount = list.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
-  return { totalAmount, participantCount: list.length };
-}
-
-function buildEventAccessFilter(decoded: any, request?: Request | NextRequest | null): Record<string, any> {
-  const visibleUserIds = getVisibleUserIds(decoded, request);
-  if (visibleUserIds === null) return {};
-  if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
-  return { reportedByUserId: { $in: visibleUserIds } };
+function cleanParticipantsList(participants: any[], defaultWorkshopName: string) {
+  if (!Array.isArray(participants)) return [];
+  return participants
+    .filter((p: any) => p && (p.customerName || p.customerId || p.name))
+    .map((p: any) => ({
+      customerId: String(p.customerId || p.id || '').trim(),
+      customerName: String(p.customerName || p.name || '').trim(),
+      customerPhone: String(p.customerPhone || p.phone || '').trim(),
+      workshopName: String(p.workshopName || defaultWorkshopName || '').trim(),
+      amount: Number(p.amount) || 0,
+      paymentMode: String(p.paymentMode || 'upi').trim(),
+      saleId: p.saleId ? String(p.saleId) : undefined,
+      source: p.source ? String(p.source) : undefined,
+      email: p.email ? String(p.email) : undefined,
+      city: p.city ? String(p.city) : undefined,
+      country: p.country ? String(p.country) : undefined,
+    }));
 }
 
 /**
- * Workshop Events
- * GET: list events (filters: month=YYYY-MM, workshop=name)
+ * Workshop Events (Bunny Database Edge SQL)
+ * GET: list events (filters: month=YYYY-MM, workshop=name, id=string)
  * POST: create a new event with participants
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    const WorkshopEvent = getWorkshopEvent();
-
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) throw new Error('Unauthorized: Admin access required');
-    const accessFilter = buildEventAccessFilter(decoded, request);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
 
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     if (id) {
-      if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
-      const doc = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
+      const doc = await getBunnyWorkshopEventById(id, visibleUserIds);
       if (!doc) throw new Error('Invalid: Event not found');
       return formatCrmSuccess(doc);
     }
@@ -55,26 +58,19 @@ export async function GET(request: NextRequest) {
     const workshop = url.searchParams.get('workshop');
     const { limit, skip } = parsePagination(request);
 
-    const filter: Record<string, any> = { ...accessFilter };
-    if (month) filter.month = month;
-    if (workshop) filter.workshopName = workshop;
-
-    const [events, total, summary] = await Promise.all([
-      WorkshopEvent.find(filter).sort({ startDate: -1 }).skip(skip).limit(limit).lean(),
-      WorkshopEvent.countDocuments(filter),
-      WorkshopEvent.aggregate([
-        { $match: filter },
-        { $group: { _id: null, totalAmount: { $sum: '$totalAmount' }, totalParticipants: { $sum: '$participantCount' }, totalEvents: { $sum: 1 } } },
-      ]),
-    ]);
+    const { events, total, summary } = await getBunnyWorkshopEvents({
+      month,
+      workshop,
+      limit,
+      skip,
+      visibleUserIds,
+    });
 
     return formatCrmSuccess(events, {
       total,
       limit,
       skip,
-      summary: summary[0]
-        ? { totalAmount: summary[0].totalAmount, totalParticipants: summary[0].totalParticipants, totalEvents: summary[0].totalEvents }
-        : { totalAmount: 0, totalParticipants: 0, totalEvents: 0 },
+      summary,
     });
   } catch (error: any) {
     return handleCrmError(error, 'sales/events GET');
@@ -83,16 +79,26 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    const WorkshopEvent = getWorkshopEvent();
-
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) throw new Error('Unauthorized: Admin access required');
     const adminUserId = getViewerUserId(decoded);
 
     const body = await request.json();
-    const { startDate, endDate, workshopName, workshopTime, workshopFees, notes, participants } = body;
+    const {
+      startDate,
+      endDate,
+      workshopName,
+      workshopTime,
+      workshopFees,
+      language,
+      mode,
+      teacher,
+      coTeachers,
+      organizers,
+      notes,
+      participants,
+    } = body;
 
     if (!startDate) throw new Error('Invalid: startDate is required');
     if (!workshopName || !String(workshopName).trim()) throw new Error('Invalid: workshopName is required');
@@ -100,32 +106,21 @@ export async function POST(request: NextRequest) {
     const start = new Date(startDate);
     if (isNaN(start.getTime())) throw new Error('Invalid: startDate is not a valid date');
 
-    const cleanParticipants = Array.isArray(participants)
-      ? participants
-          .filter((p: any) => p && (p.customerName || p.customerId))
-          .map((p: any) => ({
-            customerId: String(p.customerId || '').trim(),
-            customerName: String(p.customerName || '').trim(),
-            customerPhone: String(p.customerPhone || '').trim(),
-            workshopName: String(p.workshopName || workshopName).trim(),
-            amount: Number(p.amount) || 0,
-            paymentMode: String(p.paymentMode || '').trim(),
-          }))
-      : [];
+    const cleanParticipants = cleanParticipantsList(participants, workshopName);
 
-    const { totalAmount, participantCount } = computeTotals(cleanParticipants);
-
-    const doc = await WorkshopEvent.create({
-      startDate: start,
-      endDate: endDate ? new Date(endDate) : undefined,
+    const doc = await createBunnyWorkshopEvent({
+      startDate: start.toISOString(),
+      endDate: endDate ? new Date(endDate).toISOString() : undefined,
       workshopName: String(workshopName).trim(),
       workshopTime: String(workshopTime || '').trim(),
       workshopFees: Number(workshopFees) || 0,
-      month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      language: String(language || 'Hindi').trim(),
+      mode: String(mode || 'online').trim(),
+      teacher: String(teacher || '').trim(),
+      coTeachers: Array.isArray(coTeachers) ? coTeachers.map(String).map((s) => s.trim()).filter(Boolean) : [],
+      organizers: Array.isArray(organizers) ? organizers.map(String).map((s) => s.trim()).filter(Boolean) : [],
       notes: String(notes || '').trim(),
       participants: cleanParticipants,
-      totalAmount,
-      participantCount,
       reportedByUserId: adminUserId,
       labels: ['manual'],
     });

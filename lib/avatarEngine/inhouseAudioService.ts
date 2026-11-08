@@ -17,7 +17,7 @@ export interface InhouseVoiceOption {
 }
 
 export const INHOUSE_NEURAL_VOICES: InhouseVoiceOption[] = [
-  // Hindi Voices
+  // Hindi Voices (Mohan Sir Master Baritone)
   {
     id: 'hi-IN-MadhurNeural',
     name: 'Mohan Sir (Calm Vedic Guru - Madhur)',
@@ -29,18 +29,8 @@ export const INHOUSE_NEURAL_VOICES: InhouseVoiceOption[] = [
     badge: '⭐ Mohan Sir Official Voice',
     sampleText: 'नमस्ते! मैं मोहन कलबुर्गी हूँ। स्वर योग के इस पावन सत्र में आपका स्वागत है।',
   },
-  {
-    id: 'hi-IN-SwaraNeural',
-    name: 'Swara (Warm Conversational Hindi)',
-    langCode: 'hi',
-    language: 'Hindi (हिन्दी)',
-    gender: 'female',
-    tone: 'Warm, Welcoming, Lucid Explanation',
-    styleDesc: 'Ideal for Ayurvedic recipes and classroom instruction.',
-    sampleText: 'स्वागत है आपका। आज हम सात्विक आहार और जठराग्नि के संतुलन को समझेंगे।',
-  },
 
-  // Marathi Voices
+  // Marathi Voices (Mohan Sir Authentic Native Tongue)
   {
     id: 'mr-IN-ManoharNeural',
     name: 'Mohan Sir (Ashram Masterclass - Manohar)',
@@ -52,18 +42,8 @@ export const INHOUSE_NEURAL_VOICES: InhouseVoiceOption[] = [
     badge: '🚩 Official Marathi Voice',
     sampleText: 'नमस्कार! मी मोहन कलबुर्गी आहे. स्वर योगाच्या या विशेष सत्रात आपले सहर्ष स्वागत आहे.',
   },
-  {
-    id: 'mr-IN-AarohiNeural',
-    name: 'Aarohi (Gentle Marathi Narrator)',
-    langCode: 'mr',
-    language: 'Marathi (मराठी)',
-    gender: 'female',
-    tone: 'Gentle, Clear, Meditative',
-    styleDesc: 'Ideal for guided breathing sessions in Marathi.',
-    sampleText: 'श्वासाच्या प्रत्येक लयीत आरोग्याचे आणि आनंदाचे गूढ रहस्य लपलेले आहे.',
-  },
 
-  // English (Indian Accent)
+  // English (Indian Accent - Mohan Sir Global Keynote)
   {
     id: 'en-IN-PrabhatNeural',
     name: 'Mohan Sir (Universal Indian English - Prabhat)',
@@ -75,18 +55,8 @@ export const INHOUSE_NEURAL_VOICES: InhouseVoiceOption[] = [
     badge: '🇬🇧 Global English Voice',
     sampleText: 'Namaste! Welcome to this Swar Yoga masterclass on the sacred science of breath.',
   },
-  {
-    id: 'en-IN-NeerjaNeural',
-    name: 'Neerja (Polished Indian English Host)',
-    langCode: 'en',
-    language: 'English (Indian)',
-    gender: 'female',
-    tone: 'Warm, Professional, Expressive',
-    styleDesc: 'Course introductions, summaries, and student guidance.',
-    sampleText: 'Discover how conscious breathing transforms both body chemistry and mind.',
-  },
 
-  // Regional Indian Languages
+  // Regional Indian Languages (All Authentic Male Masters)
   {
     id: 'gu-IN-NiranjanNeural',
     name: 'Niranjan (Gujarati Guru)',
@@ -180,7 +150,11 @@ export class InhouseAudioService {
    * uploads MP3 directly to Bunny CDN, and generates viseme frames.
    */
   public static async synthesizeSpeech(params: InhouseSpeechParams): Promise<InhouseSpeechResult> {
-    await this.initSchema();
+    try {
+      await this.initSchema();
+    } catch (e: any) {
+      console.warn('[InhouseAudioService] Schema init warning (non-fatal):', e.message);
+    }
 
     const script = params.script?.trim();
     if (!script) {
@@ -206,25 +180,29 @@ export class InhouseAudioService {
 
     // Check cache in Bunny DB to avoid re-generating identical audio
     const hash = crypto.createHash('md5').update(`${voice}_${rateStr}_${pitchStr}_${script}`).digest('hex');
-    const cached = await bunnyExecute({
-      sql: `SELECT * FROM studio_inhouse_voices_sql WHERE script_hash = ? LIMIT 1`,
-      args: [hash],
-    });
+    try {
+      const cached = await bunnyExecute({
+        sql: `SELECT * FROM studio_inhouse_voices_sql WHERE script_hash = ? LIMIT 1`,
+        args: [hash],
+      });
 
-    if (cached.rows.length > 0) {
-      const row: any = cached.rows[0];
-      const visemes: VisemeFrame[] = row.visemes_json ? JSON.parse(row.visemes_json) : [];
-      return {
-        audioUrl: row.audio_url,
-        voiceId: row.voice_id,
-        language: row.language,
-        durationSeconds: Number(row.duration_seconds),
-        wordCount: script.split(/\s+/).length,
-        wordBoundaries: [],
-        visemeFrames: visemes,
-        provider: 'edge_tts_inhouse',
-        costExpenseUsd: 0.0,
-      };
+      if (cached.rows.length > 0) {
+        const row: any = cached.rows[0];
+        const visemes: VisemeFrame[] = row.visemes_json ? JSON.parse(row.visemes_json) : [];
+        return {
+          audioUrl: row.audio_url,
+          voiceId: row.voice_id,
+          language: row.language,
+          durationSeconds: Number(row.duration_seconds),
+          wordCount: script.split(/\s+/).length,
+          wordBoundaries: [],
+          visemeFrames: visemes,
+          provider: 'edge_tts_inhouse',
+          costExpenseUsd: 0.0,
+        };
+      }
+    } catch (cacheErr: any) {
+      console.warn('[InhouseAudioService] Cache lookup non-fatal error:', cacheErr.message);
     }
 
     console.log(`[InhouseAudioService] Synthesizing zero-expense speech with voice: ${voice}, speed: ${rateStr}`);
@@ -236,36 +214,46 @@ export class InhouseAudioService {
       pitch: pitchStr,
     });
 
-    // Upload MP3 buffer directly to Bunny CDN Storage
-    const fileName = `inhouse_avatar_${Date.now()}_${crypto.randomUUID().substring(0, 8)}.mp3`;
-    const audioUrl = await uploadToBunnyStorage(synthesis.audioBuffer, fileName, { contentType: 'audio/mpeg' });
-    console.log(`[InhouseAudioService] Permanent Bunny CDN Audio created: ${audioUrl}`);
+    // Upload MP3 buffer directly to Bunny CDN Storage or fallback to base64 Data URL
+    let audioUrl = '';
+    try {
+      const fileName = `inhouse_avatar_${Date.now()}_${crypto.randomUUID().substring(0, 8)}.mp3`;
+      audioUrl = await uploadToBunnyStorage(synthesis.audioBuffer, fileName, { contentType: 'audio/mpeg' });
+      console.log(`[InhouseAudioService] Permanent Bunny CDN Audio created: ${audioUrl}`);
+    } catch (upErr: any) {
+      console.warn('[InhouseAudioService] Storage upload fallback to Data URI:', upErr.message);
+      audioUrl = `data:audio/mp3;base64,${synthesis.audioBuffer.toString('base64')}`;
+    }
 
     // Generate ARKit 52 blendshape viseme timeline for real-time lip-sync
     const totalDurationMs = Math.round(synthesis.durationSeconds * 1000);
     const visemeFrames = generateVisemeTimeline(synthesis.wordBoundaries, totalDurationMs, 30);
 
     // Save cache in Bunny DB
-    const id = `inh_audio_${crypto.randomUUID().substring(0, 10)}`;
-    const now = new Date().toISOString();
-    await bunnyExecute({
-      sql: `INSERT INTO studio_inhouse_voices_sql (
-        id, script_hash, script_text, voice_id, language, audio_url, duration_seconds, visemes_json, admin_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id,
-        hash,
-        script,
-        voice,
-        params.language || 'hi',
-        audioUrl,
-        synthesis.durationSeconds,
-        JSON.stringify(visemeFrames),
-        params.adminId || 'admin',
-        now,
-        now,
-      ],
-    });
+    try {
+      const id = `inh_audio_${crypto.randomUUID().substring(0, 10)}`;
+      const now = new Date().toISOString();
+      await bunnyExecute({
+        sql: `INSERT INTO studio_inhouse_voices_sql (
+          id, script_hash, script_text, voice_id, language, audio_url, duration_seconds, visemes_json, admin_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          id,
+          hash,
+          script,
+          voice,
+          params.language || 'hi',
+          audioUrl,
+          synthesis.durationSeconds,
+          JSON.stringify(visemeFrames),
+          params.adminId || 'admin',
+          now,
+          now,
+        ],
+      });
+    } catch (saveErr: any) {
+      console.warn('[InhouseAudioService] Cache save non-fatal error:', saveErr.message);
+    }
 
     return {
       audioUrl,

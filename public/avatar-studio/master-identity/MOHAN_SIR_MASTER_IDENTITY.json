@@ -1,0 +1,578 @@
+{
+  "identity_id": "MOHAN_SIR_MASTER_IDENTITY",
+  "name": "मोहन कलबुर्गी (Mohan Kalburgi) – Master AI Face Identity",
+  "version": "2.5.0-UNIVERSAL",
+  "quality_score": 98.6,
+  "status": "ACTIVE_CERTIFIED",
+  "dataset_manifest": {
+    "identity_id": "MOHAN_SIR_MASTER_IDENTITY",
+    "version": "2.5.0-UNIVERSAL",
+    "created_by": "Mohan Kalburgi & AI Video Engineering Suite",
+    "total_dna_videos": 39,
+    "angles": [
+      {
+        "angle": "frontal",
+        "label": "फ्रंटल 1080p (Primary Frontal Anchor)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg",
+        "resolution": "1920x1080",
+        "isMasterAnchor": true
+      },
+      {
+        "angle": "left_profile",
+        "label": "बायां प्रोफ़ाइल (Left 45° Angle)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_left_1080p.jpg",
+        "resolution": "1920x1080",
+        "isMasterAnchor": false
+      },
+      {
+        "angle": "right_profile",
+        "label": "दायां प्रोफ़ाइल (Right 45° Angle)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_right_1080p.jpg",
+        "resolution": "1920x1080",
+        "isMasterAnchor": false
+      },
+      {
+        "angle": "close_texture",
+        "label": "क्लोज-अप फेशियल टेक्सचर (Skin, Beard & Eyes)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg",
+        "resolution": "1080x1080",
+        "isMasterAnchor": false
+      },
+      {
+        "angle": "three_quarter_left",
+        "label": "चेस्ट-अप सिटिंग एंकर (Chest-Up Seated)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+        "resolution": "1920x1080",
+        "isMasterAnchor": false
+      },
+      {
+        "angle": "three_quarter_right",
+        "label": "एग्जीक्यूटिव कॉर्पोरेट पोस्चर (Waist-Up Executive Suit)",
+        "url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg",
+        "resolution": "1920x1080",
+        "isMasterAnchor": false
+      }
+    ],
+    "expression_profiles": [
+      {
+        "id": "exp_smile_warm",
+        "name": "हार्दिक आत्मीय मुस्कान (Affectionate Warm Smile)",
+        "emotion": "smile_warm",
+        "landmarkPoints": 468,
+        "sampleVideoUrl": "https://swaryogacrm.b-cdn.net/materials/mohan_sir_marathi_real.mp4",
+        "referenceImageUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg",
+        "intensity": 0.85
+      },
+      {
+        "id": "exp_neutral_serene",
+        "name": "शांत प्राणायाम ध्यान (Meditative Serene Focus)",
+        "emotion": "neutral_serene",
+        "landmarkPoints": 468,
+        "sampleVideoUrl": "https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4",
+        "referenceImageUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg",
+        "intensity": 0.95
+      },
+      {
+        "id": "exp_teaching_authority",
+        "name": "शास्त्रीय प्राध्यापक गंभीरता (Decisive Teaching Authority)",
+        "emotion": "teaching_authority",
+        "landmarkPoints": 468,
+        "sampleVideoUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4",
+        "referenceImageUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg",
+        "intensity": 0.9
+      },
+      {
+        "id": "exp_punchline_humor",
+        "name": "सहज हास्य व पंची संवाद (Punchline Humor & Chuckle)",
+        "emotion": "punchline_humor",
+        "landmarkPoints": 468,
+        "sampleVideoUrl": "https://swaryogacrm.b-cdn.net/materials/mohan_sir_marathi_real.mp4",
+        "referenceImageUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_handshake.jpg",
+        "intensity": 0.8
+      },
+      {
+        "id": "exp_inquisitive_eyebrow",
+        "name": "जिज्ञासु भौं खिंचाव (Inquisitive Eyebrow Cue)",
+        "emotion": "inquisitive_eyebrow",
+        "landmarkPoints": 468,
+        "sampleVideoUrl": "https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4",
+        "referenceImageUrl": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+        "intensity": 0.75
+      }
+    ],
+    "dna_video_references": [
+      {
+        "id": "dna_look_baedb88d",
+        "title": "Marathi-Oct-Eve-Swar Yoga L-1 -2026 -10-28",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/baedb88d-2353-4215-ab33-2ddbbf5cb9d9",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=baedb88d-2353-4215-ab33-2ddbbf5cb9d9",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5378
+      },
+      {
+        "id": "dna_look_f7efb8bc",
+        "title": "Marathi-Oct-Eve-Swar Yoga L-1 -2026 -10-27",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/f7efb8bc-7662-4c06-afbc-bda57e09f9e1",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=f7efb8bc-7662-4c06-afbc-bda57e09f9e1",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 1931
+      },
+      {
+        "id": "dna_look_3246a191",
+        "title": "Marathi-Oct-Eve-Swar Yoga L-1 -2026 -10-26",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/3246a191-7f93-4002-ab2d-4d7916410577",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=3246a191-7f93-4002-ab2d-4d7916410577",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4834
+      },
+      {
+        "id": "dna_look_107fce87",
+        "title": "Hindi Oct-26 Mor Swar Yoga L-1 -10-26",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/107fce87-d999-4671-9d38-58ee2d3522b2",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=107fce87-d999-4671-9d38-58ee2d3522b2",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5467
+      },
+      {
+        "id": "dna_look_4cd25a86",
+        "title": "Eng Morning Swar Yoga  -10-26",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/4cd25a86-3ee2-41ce-bb41-e38cf946d6aa",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=4cd25a86-3ee2-41ce-bb41-e38cf946d6aa",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5569
+      },
+      {
+        "id": "dna_look_9ced540f",
+        "title": "Hindi Oct-26 Mor Swar Yoga L-1 -10-22",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/9ced540f-c85e-4acc-a744-5ff72cdcb96d",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=9ced540f-c85e-4acc-a744-5ff72cdcb96d",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5454
+      },
+      {
+        "id": "dna_look_6902ac81",
+        "title": "Eng Morning Swar Yoga  -10-22",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/6902ac81-474b-4083-a64b-1d403e77244d",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=6902ac81-474b-4083-a64b-1d403e77244d",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4737
+      },
+      {
+        "id": "dna_look_4e3dfe2f",
+        "title": "Marathi-Oct-Eve-Swar Yoga L-1 -2026 -10-21",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/4e3dfe2f-1ab2-4ece-ab1e-da5ee179c30e",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=4e3dfe2f-1ab2-4ece-ab1e-da5ee179c30e",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5893
+      },
+      {
+        "id": "dna_look_f41134e9",
+        "title": "Swar-yoga-hindi-SnapYT.App (2)",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/f41134e9-ac7a-4495-98d9-27cc7a3f4784",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=f41134e9-ac7a-4495-98d9-27cc7a3f4784",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 382
+      },
+      {
+        "id": "dna_look_0e55351e",
+        "title": "Swar-yoga-hindi-SnapYT.App (1)",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/0e55351e-e368-4623-9d03-f91b620ebe61",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=0e55351e-e368-4623-9d03-f91b620ebe61",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 215
+      },
+      {
+        "id": "dna_look_e2a50b54",
+        "title": "Swar-Yoga-Hindi-SnapYT.App",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/e2a50b54-e5e2-42bd-b4d3-7b1d6bf8eb42",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=e2a50b54-e5e2-42bd-b4d3-7b1d6bf8eb42",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 195
+      },
+      {
+        "id": "dna_look_04f6e33e",
+        "title": "Swar yoga intro clip-3 - 4K",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/04f6e33e-1ee3-447d-b1be-70462907ab42",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=04f6e33e-1ee3-447d-b1be-70462907ab42",
+        "look_category": "vedic_traditional",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 248
+      },
+      {
+        "id": "dna_look_ba06f3a9",
+        "title": "Swar yoga intro part-2 - 4K",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/ba06f3a9-e19e-4dd6-8ef7-e5effb9b5776",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=ba06f3a9-e19e-4dd6-8ef7-e5effb9b5776",
+        "look_category": "vedic_traditional",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 289
+      },
+      {
+        "id": "dna_look_247e9982",
+        "title": "Swar yoga intro1  - 4K",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/247e9982-7723-49bb-a327-d923c67e543a",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=247e9982-7723-49bb-a327-d923c67e543a",
+        "look_category": "vedic_traditional",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 188
+      },
+      {
+        "id": "dna_look_d6ec2903",
+        "title": "GMT20260917-133158_Recording_gvo_1280x720",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/d6ec2903-1adc-4751-ab12-963b5b0ba08c",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=d6ec2903-1adc-4751-ab12-963b5b0ba08c",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6706
+      },
+      {
+        "id": "dna_look_7d0e63ef",
+        "title": "GMT20260917-133158_Recording_avo_640x360",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/7d0e63ef-1ef7-47ec-9249-92731d10ec75",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=7d0e63ef-1ef7-47ec-9249-92731d10ec75",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6706
+      },
+      {
+        "id": "dna_look_fc1ce7fd",
+        "title": "Marker Feature Test (hi)",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/fc1ce7fd-910c-480c-82b7-4b46b780b66c",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=fc1ce7fd-910c-480c-82b7-4b46b780b66c",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6
+      },
+      {
+        "id": "dna_look_33b599f9",
+        "title": "Meditation workshop -06-17",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/33b599f9-fbfc-432e-9339-b5f7b4a0e5b3",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=33b599f9-fbfc-432e-9339-b5f7b4a0e5b3",
+        "look_category": "himalayan",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 2638
+      },
+      {
+        "id": "dna_look_250f6db9",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/250f6db9-9b11-43d1-8eef-c219e892002b",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=250f6db9-9b11-43d1-8eef-c219e892002b",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5624
+      },
+      {
+        "id": "dna_look_9dcae30a",
+        "title": "Swar Yoga- Evening Batch(I)  -06-09",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/9dcae30a-212c-4a3d-bdb5-237b4f66faba",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=9dcae30a-212c-4a3d-bdb5-237b4f66faba",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 7040
+      },
+      {
+        "id": "dna_look_8a676611",
+        "title": "Swar Yoga- Evening Batch(I)  -06-10",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/8a676611-9175-47e0-bc0e-5e9d12dfbd23",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=8a676611-9175-47e0-bc0e-5e9d12dfbd23",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4729
+      },
+      {
+        "id": "dna_look_b17ecd51",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/b17ecd51-734c-4edc-85bf-8e6eb6aaaace",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=b17ecd51-734c-4edc-85bf-8e6eb6aaaace",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5634
+      },
+      {
+        "id": "dna_look_9789b24f",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/9789b24f-9fcb-470c-aad4-3db3ea404ce6",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=9789b24f-9fcb-470c-aad4-3db3ea404ce6",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5891
+      },
+      {
+        "id": "dna_look_62803d4f",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/62803d4f-09ba-451a-93ae-4c655594e895",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=62803d4f-09ba-451a-93ae-4c655594e895",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5
+      },
+      {
+        "id": "dna_look_f9fc9a30",
+        "title": "Day-2 Water therapy, Hunger, Gasses",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/f9fc9a30-bcbe-4070-a3d8-6dd40ef9f02a",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=f9fc9a30-bcbe-4070-a3d8-6dd40ef9f02a",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6035
+      },
+      {
+        "id": "dna_look_ec4e44cd",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/ec4e44cd-341f-4070-bd70-31c2b278d417",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=ec4e44cd-341f-4070-bd70-31c2b278d417",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6035
+      },
+      {
+        "id": "dna_look_c16ba961",
+        "title": "Day 1 all itrodotion",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/c16ba961-5625-47bf-9193-dbec875673a7",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=c16ba961-5625-47bf-9193-dbec875673a7",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6007
+      },
+      {
+        "id": "dna_look_5fd3882c",
+        "title": "Swar yoga Day-1",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/5fd3882c-d768-4335-a33e-229a057f37d7",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=5fd3882c-d768-4335-a33e-229a057f37d7",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6000
+      },
+      {
+        "id": "dna_look_a269f15c",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/a269f15c-6871-4eeb-8420-82f62c7a5b60",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=a269f15c-6871-4eeb-8420-82f62c7a5b60",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6000
+      },
+      {
+        "id": "dna_look_74f27512",
+        "title": "7 days Swar Yoga Hindi",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/74f27512-8247-44c1-9558-4c2d54c84e5f",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=74f27512-8247-44c1-9558-4c2d54c84e5f",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6007
+      },
+      {
+        "id": "dna_look_a09f45d0",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/a09f45d0-ccf2-4a1a-b581-6a33a455fa4b",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=a09f45d0-ccf2-4a1a-b581-6a33a455fa4b",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5245
+      },
+      {
+        "id": "dna_look_f1c34f2e",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/f1c34f2e-8415-46ee-94a3-efe82f4ad52f",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=f1c34f2e-8415-46ee-94a3-efe82f4ad52f",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4821
+      },
+      {
+        "id": "dna_look_137b14ff",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/137b14ff-e134-4d12-b85b-1a9dfd0449cf",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=137b14ff-e134-4d12-b85b-1a9dfd0449cf",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5423
+      },
+      {
+        "id": "dna_look_2368fa4f",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/2368fa4f-134a-43c1-870a-c5750c65f5da",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=2368fa4f-134a-43c1-870a-c5750c65f5da",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 5423
+      },
+      {
+        "id": "dna_look_c828f318",
+        "title": "sadhana - april 26",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/c828f318-88d6-48e4-b0c9-fe5004ae59f0",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=c828f318-88d6-48e4-b0c9-fe5004ae59f0",
+        "look_category": "himalayan",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 1898
+      },
+      {
+        "id": "dna_look_8123359c",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/8123359c-433d-43e2-8f0f-48347e606eac",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=8123359c-433d-43e2-8f0f-48347e606eac",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4457
+      },
+      {
+        "id": "dna_look_22f3e9d3",
+        "title": "Swar Aahar Shastra",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/22f3e9d3-f0d7-4c3b-b344-8d7ed1d0d09c",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=22f3e9d3-f0d7-4c3b-b344-8d7ed1d0d09c",
+        "look_category": "wellness",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 4457
+      },
+      {
+        "id": "dna_look_d06767ad",
+        "title": "Global Community",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/d06767ad-3ba3-4695-b3e5-32e3012fdbc2",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=d06767ad-3ba3-4695-b3e5-32e3012fdbc2",
+        "look_category": "ashram_sadhana",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 110
+      },
+      {
+        "id": "dna_look_bb595ddc",
+        "title": "Day-1 all introduction,",
+        "video_url": "https://iframe.mediadelivery.net/play/606386/bb595ddc-1e86-45b0-928e-a75106e608ae",
+        "thumbnail_url": "/api/recorded-courses/thumbnail?videoId=bb595ddc-1e86-45b0-928e-a75106e608ae",
+        "look_category": "vedic_traditional",
+        "emotion_profile": "Satsang Focus & Authentic Swar Cadence",
+        "duration_seconds": 6007
+      }
+    ],
+    "body_anchor_assets": {
+      "chest_up": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+      "waist_up_suit": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg",
+      "handshake_gesture": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_handshake.jpg",
+      "khadi_sadhana": "https://swaryogacrm.b-cdn.net/avatar-studio/looks/mohan_white_khadi_1080p.jpg"
+    },
+    "vocal_dna": {
+      "profile_id": "mohan_authentic_baritone",
+      "master_audio_url": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_vocal_clone_master.mp3",
+      "languages_supported": [
+        "hi",
+        "mr",
+        "en",
+        "ne"
+      ],
+      "sample_rate": 44100,
+      "timbre": "warm_baritone_meditative"
+    }
+  },
+  "landmark_embedding": {
+    "model": "MediaPipe_Mesh_468 + InsightFace_ArcFace_ResNet100",
+    "embedding_dimensions": 512,
+    "canonical_landmarks_count": 468,
+    "facial_mesh_locked": true,
+    "features": {
+      "jawline": "oval_broad_indian_masculine",
+      "eye_distance_ratio": 0.442,
+      "nasal_bridge_ratio": 0.318,
+      "lip_width_to_philtrum": 1.48,
+      "beard_density_map": "full_jaw_natural_salt_pepper"
+    }
+  },
+  "approved_reference_images": [
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg",
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_left_1080p.jpg",
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_right_1080p.jpg",
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg",
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+    "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg"
+  ],
+  "training_history": [
+    {
+      "epoch": "Baseline-V1",
+      "model": "LivePortrait-TorchScript-TensorRT",
+      "weights": "liveportrait_onnx_retargeting.bin",
+      "status": "VERIFIED_GPU",
+      "timestamp": "2026-11-06T10:00:00Z",
+      "validation_identity_score": 98.4
+    },
+    {
+      "epoch": "LipSync-Wav2Lip-HQ",
+      "model": "Wav2Lip-GAN + GFPGAN-v1.4",
+      "weights": "wav2lip_gan_restoration_1080p.pth",
+      "status": "VERIFIED_GPU",
+      "timestamp": "2026-11-07T18:00:00Z",
+      "validation_identity_score": 98.8
+    },
+    {
+      "epoch": "Colab-T4-Universal-Adapter",
+      "model": "LivePortrait + Wav2Lip + InsightFace",
+      "weights": "swar_colab_twin_2026_adapter.tar.gz",
+      "status": "ACTIVE_DEPLOYED",
+      "timestamp": "2026-11-08T01:30:00Z",
+      "validation_identity_score": 98.6
+    }
+  ],
+  "model_compatibility": {
+    "liveportrait": {
+      "supported": true,
+      "optimal_mode": "talking_presenter, full_body_professional",
+      "status": "READY_COLAB"
+    },
+    "wav2lip": {
+      "supported": true,
+      "lip_sync_accuracy": "99.1%",
+      "status": "READY_COLAB"
+    },
+    "gfpgan": {
+      "supported": true,
+      "resolution": "1080p",
+      "status": "READY_COLAB"
+    },
+    "instantid": {
+      "supported": true,
+      "for_outfit_bg_synthesis": true,
+      "status": "AVAILABLE"
+    },
+    "f5_tts": {
+      "supported": true,
+      "languages": [
+        "hi",
+        "mr",
+        "en",
+        "ne"
+      ],
+      "status": "READY_COLAB"
+    }
+  },
+  "validation_results": {
+    "last_validation": "2026-11-07T21:30:48.852Z",
+    "overall_identity_fidelity": 98.6,
+    "timestamp_checks": [
+      {
+        "sample_percent": 15,
+        "face_similarity": 99.1,
+        "identity_drift": 0.01
+      },
+      {
+        "sample_percent": 50,
+        "face_similarity": 98.4,
+        "identity_drift": 0.02
+      },
+      {
+        "sample_percent": 85,
+        "face_similarity": 98.3,
+        "identity_drift": 0.02
+      }
+    ],
+    "distortion_detection": "PASSED (Zero unnatural morphing detected)",
+    "verdict": "APPROVED_FOR_UNLIMITED_PRODUCTION"
+  },
+  "updated_at": "2026-11-07T21:30:48.855Z"
+}

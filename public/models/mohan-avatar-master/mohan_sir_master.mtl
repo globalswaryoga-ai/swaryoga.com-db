@@ -1,0 +1,26 @@
+# Wavefront MTL: Mohan Sir Photorealistic PBR Material
+newmtl Mohan_Skin_PBR
+Ka 1.0 1.0 1.0
+Kd 0.784 0.572 0.439
+Ks 0.15 0.15 0.15
+Ns 35.0
+d 1.0
+illum 2
+map_Kd mohan_skin_diffuse.jpg
+map_Bump mohan_skin_normal.jpg
+
+newmtl Mohan_Kurta_WhiteSilk
+Ka 1.0 1.0 1.0
+Kd 0.95 0.95 0.94
+Ks 0.25 0.25 0.25
+Ns 60.0
+d 1.0
+illum 2
+
+newmtl Mohan_Kurta_Saffron
+Ka 1.0 1.0 1.0
+Kd 0.92 0.48 0.12
+Ks 0.2 0.2 0.2
+Ns 45.0
+d 1.0
+illum 2

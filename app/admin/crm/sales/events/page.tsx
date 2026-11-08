@@ -444,7 +444,36 @@ export default function WorkshopEventsPage() {
                     <tr key={evt._id} className="border-t border-gray-100 text-gray-900 hover:bg-gray-50">
                       <td className="px-4 py-3">{fmtDate(evt.startDate)}</td>
                       <td className="px-4 py-3">{fmtDate(evt.endDate)}</td>
-                      <td className="px-4 py-3 font-semibold">{evt.workshopName}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-gray-900">{evt.workshopName}</div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {evt.mode && (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                              evt.mode === 'online'
+                                ? 'bg-blue-100 text-blue-800'
+                                : evt.mode === 'offline'
+                                ? 'bg-amber-100 text-amber-800'
+                                : evt.mode === 'residential' || evt.mode === 'residesial'
+                                ? 'bg-purple-100 text-purple-800'
+                                : evt.mode === 'Retreat'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-teal-100 text-teal-800'
+                            }`}>
+                              {evt.mode}
+                            </span>
+                          )}
+                          {evt.language && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                              🗣️ {evt.language}
+                            </span>
+                          )}
+                          {evt.teacher && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-800">
+                              👨‍🏫 {evt.teacher}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">{evt.workshopTime || '—'}</td>
                       <td className="px-4 py-3 text-right">₹{Number(evt.workshopFees || 0).toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 text-right">
@@ -463,9 +492,38 @@ export default function WorkshopEventsPage() {
                       </td>
                     </tr>
                     {expandedId === evt._id && (
-                      <tr className="border-t border-gray-100 bg-purple-50">
-                        <td colSpan={8} className="px-4 py-3">
-                          {evt.notes && <p className="text-sm text-gray-600 mb-2">📝 {evt.notes}</p>}
+                      <tr className="border-t border-gray-100 bg-purple-50/50">
+                        <td colSpan={8} className="px-5 py-4 space-y-3">
+                          {/* Event Meta Details Card */}
+                          <div className="bg-white rounded-xl border border-purple-200 p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-800">
+                            <div>
+                              <span className="font-bold text-gray-500 uppercase block text-[10px]">Mode & Language</span>
+                              <span className="font-bold text-purple-900 capitalize">{evt.mode || 'online'}</span> • <span>{evt.language || 'Hindi'}</span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-gray-500 uppercase block text-[10px]">Lead Teacher</span>
+                              <span className="font-bold text-gray-900">{evt.teacher || 'Mohan Kalburgi'}</span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-gray-500 uppercase block text-[10px]">Co-Teacher(s)</span>
+                              <span className="text-gray-800">
+                                {evt.coTeachers && evt.coTeachers.length > 0 ? evt.coTeachers.join(', ') : '—'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-gray-500 uppercase block text-[10px]">Organizer(s)</span>
+                              <span className="text-gray-800">
+                                {evt.organizers && evt.organizers.length > 0 ? evt.organizers.join(', ') : '—'}
+                              </span>
+                            </div>
+                            {evt.notes && (
+                              <div className="sm:col-span-2 md:col-span-4 border-t border-gray-100 pt-2 text-gray-600">
+                                <span className="font-bold text-gray-500 mr-1.5">📝 Notes:</span>
+                                {evt.notes}
+                              </div>
+                            )}
+                          </div>
+
                           {evt.participants.length > 0 ? (
                             <table className="w-full text-sm bg-white rounded-lg border border-purple-100 overflow-hidden">
                               <thead className="bg-purple-100 text-purple-900">
@@ -512,6 +570,7 @@ export default function WorkshopEventsPage() {
         editingEvent={editingEvent}
         workshopOptions={workshopOptions}
         saving={saving}
+        token={token}
       />
     </div>
   );

@@ -1,16 +1,14 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { handleCrmError, formatCrmSuccess, getVisibleUserIds, isValidObjectId, toObjectId } from '@/lib/crm-handlers';
-import { getWorkshopEvent, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
+import { handleCrmError, formatCrmSuccess, getVisibleUserIds } from '@/lib/crm-handlers';
+import {
+  getBunnyWorkshopEventById,
+  updateBunnyWorkshopEvent,
+  deleteBunnyWorkshopEvent,
+} from '@/lib/bunnyWorkshopEventRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
-
-function computeTotals(participants: any[]) {
-  const list = Array.isArray(participants) ? participants : [];
-  const totalAmount = list.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
-  return { totalAmount, participantCount: list.length };
-}
 
 function verifyAdmin(request: NextRequest) {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -19,23 +17,14 @@ function verifyAdmin(request: NextRequest) {
   return decoded;
 }
 
-function buildEventAccessFilter(decoded: any, request?: Request | NextRequest | null): Record<string, any> {
-  const visibleUserIds = getVisibleUserIds(decoded, request);
-  if (visibleUserIds === null) return {};
-  if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
-  return { reportedByUserId: { $in: visibleUserIds } };
-}
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded, request);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
     const { id } = await params;
-    if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
+    if (!id || !id.trim()) throw new Error('Invalid: bad event id');
 
-    const WorkshopEvent = getWorkshopEvent();
-    const doc = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
+    const doc = await getBunnyWorkshopEventById(id, visibleUserIds);
     if (!doc) throw new Error('Invalid: Event not found');
     return formatCrmSuccess(doc);
   } catch (error: any) {
@@ -45,91 +34,117 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded, request);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
     const { id } = await params;
-    if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
+    if (!id || !id.trim()) throw new Error('Invalid: bad event id');
 
-    const WorkshopEvent = getWorkshopEvent();
+    const existing = await getBunnyWorkshopEventById(id, visibleUserIds);
+    if (!existing) throw new Error('Invalid: Event not found');
+
     const body = await request.json();
-    const { startDate, endDate, workshopName, workshopTime, workshopFees, notes, participants, addSaleIds } = body;
+    const {
+      startDate,
+      endDate,
+      workshopName,
+      workshopTime,
+      workshopFees,
+      language,
+      mode,
+      teacher,
+      coTeachers,
+      organizers,
+      notes,
+      participants,
+      addSaleIds,
+    } = body;
 
     const update: Record<string, any> = {};
     if (startDate) {
       const start = new Date(startDate);
       if (isNaN(start.getTime())) throw new Error('Invalid: startDate is not a valid date');
-      update.startDate = start;
-      update.month = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
+      update.startDate = start.toISOString();
     }
-    if (endDate !== undefined) update.endDate = endDate ? new Date(endDate) : undefined;
+    if (endDate !== undefined) update.endDate = endDate ? new Date(endDate).toISOString() : undefined;
     if (workshopName !== undefined) {
       if (!String(workshopName).trim()) throw new Error('Invalid: workshopName is required');
       update.workshopName = String(workshopName).trim();
     }
     if (workshopTime !== undefined) update.workshopTime = String(workshopTime || '').trim();
     if (workshopFees !== undefined) update.workshopFees = Number(workshopFees) || 0;
+    if (language !== undefined) update.language = String(language || 'Hindi').trim();
+    if (mode !== undefined) update.mode = String(mode || 'online').trim();
+    if (teacher !== undefined) update.teacher = String(teacher || '').trim();
+    if (coTeachers !== undefined) {
+      update.coTeachers = Array.isArray(coTeachers)
+        ? coTeachers.map(String).map((s) => s.trim()).filter(Boolean)
+        : [];
+    }
+    if (organizers !== undefined) {
+      update.organizers = Array.isArray(organizers)
+        ? organizers.map(String).map((s) => s.trim()).filter(Boolean)
+        : [];
+    }
     if (notes !== undefined) update.notes = String(notes || '').trim();
 
+    let mergedParticipants = existing.participants || [];
+
     if (participants !== undefined) {
-      const cleanParticipants = Array.isArray(participants)
+      mergedParticipants = Array.isArray(participants)
         ? participants
-            .filter((p: any) => p && (p.customerName || p.customerId))
+            .filter((p: any) => p && (p.customerName || p.customerId || p.name))
             .map((p: any) => ({
-              customerId: String(p.customerId || '').trim(),
-              customerName: String(p.customerName || '').trim(),
-              customerPhone: String(p.customerPhone || '').trim(),
-              workshopName: String(p.workshopName || update.workshopName || '').trim(),
+              customerId: String(p.customerId || p.id || '').trim(),
+              customerName: String(p.customerName || p.name || '').trim(),
+              customerPhone: String(p.customerPhone || p.phone || '').trim(),
+              workshopName: String(p.workshopName || update.workshopName || existing.workshopName).trim(),
               amount: Number(p.amount) || 0,
-              paymentMode: String(p.paymentMode || '').trim(),
+              paymentMode: String(p.paymentMode || 'upi').trim(),
+              saleId: p.saleId ? String(p.saleId) : undefined,
+              source: p.source ? String(p.source) : undefined,
+              email: p.email ? String(p.email) : undefined,
+              city: p.city ? String(p.city) : undefined,
+              country: p.country ? String(p.country) : undefined,
             }))
         : [];
-      const { totalAmount, participantCount } = computeTotals(cleanParticipants);
-      update.participants = cleanParticipants;
-      update.totalAmount = totalAmount;
-      update.participantCount = participantCount;
     }
 
     if (Array.isArray(addSaleIds) && addSaleIds.length > 0) {
-      const existing = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
-      if (!existing) throw new Error('Invalid: Event not found');
+      const existingSaleIds = new Set(
+        mergedParticipants.map((p: any) => (p.saleId ? String(p.saleId) : '')).filter(Boolean)
+      );
 
-      const basis: any[] = update.participants !== undefined ? update.participants : (existing as any).participants || [];
-      const existingSaleIds = new Set(basis.map((p: any) => p.saleId ? String(p.saleId) : '').filter(Boolean));
+      const placeholders = addSaleIds.map(() => '?').join(',');
+      const salesRes = await bunnyExecute({
+        sql: `SELECT document_id, data_json, sale_amount, payment_mode, workshop_name FROM sales_reports_sql WHERE document_id IN (${placeholders})`,
+        args: addSaleIds,
+      });
 
-      const SalesReport = getSalesReport();
-      const validIds = addSaleIds.filter((sid: any) => isValidObjectId(sid));
-      const salesFilter: Record<string, any> = { _id: { $in: validIds.map((sid: string) => toObjectId(sid)) } };
-      const visibleUserIds = getVisibleUserIds(decoded, request);
-      if (visibleUserIds !== null) {
-        salesFilter.reportedByUserId = visibleUserIds.length === 1 ? visibleUserIds[0] : { $in: visibleUserIds };
-      }
-      const salesToAdd = await SalesReport.find(salesFilter).lean();
+      const newFromSales = salesRes.rows
+        .filter((r: any) => !existingSaleIds.has(String(r.document_id)))
+        .map((r: any) => {
+          let s: any = {};
+          try {
+            s = JSON.parse(String(r.data_json || '{}'));
+          } catch {}
+          return {
+            customerId: String(s.leadId || s.customerId || r.document_id || ''),
+            customerName: String(s.customerName || s.name || 'Customer'),
+            customerPhone: String(s.customerPhone || s.phone || ''),
+            workshopName: String(s.workshopName || r.workshop_name || update.workshopName || existing.workshopName),
+            amount: Number(s.saleAmount || r.sale_amount || 0),
+            paymentMode: String(s.paymentMode || r.payment_mode || 'upi').toLowerCase(),
+            saleId: String(r.document_id),
+            source: 'sales',
+          };
+        });
 
-      const newParticipants = (salesToAdd as any[])
-        .filter((s) => !existingSaleIds.has(String(s._id)))
-        .map((s) => ({
-          customerId: s.customerId || '',
-          customerName: s.customerName || '',
-          customerPhone: s.customerPhone || '',
-          workshopName: s.workshopName || '',
-          amount: Number(s.saleAmount) || 0,
-          paymentMode: s.paymentMode || '',
-          saleId: s._id,
-        }));
-
-      const merged = [...basis, ...newParticipants];
-      const { totalAmount, participantCount } = computeTotals(merged);
-      update.participants = merged;
-      update.totalAmount = totalAmount;
-      update.participantCount = participantCount;
+      mergedParticipants = [...mergedParticipants, ...newFromSales];
     }
 
-    const doc = await WorkshopEvent.findOneAndUpdate(
-      { _id: toObjectId(id), ...accessFilter },
-      { $set: update },
-      { new: true }
-    ).lean();
+    update.participants = mergedParticipants;
+
+    const doc = await updateBunnyWorkshopEvent(id, update, visibleUserIds);
     if (!doc) throw new Error('Invalid: Event not found');
     return formatCrmSuccess(doc);
   } catch (error: any) {
@@ -139,15 +154,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectDB();
     const decoded = verifyAdmin(request);
-    const accessFilter = buildEventAccessFilter(decoded, request);
+    const visibleUserIds = getVisibleUserIds(decoded, request);
     const { id } = await params;
-    if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
+    if (!id || !id.trim()) throw new Error('Invalid: bad event id');
 
-    const WorkshopEvent = getWorkshopEvent();
-    const doc = await WorkshopEvent.findOneAndDelete({ _id: toObjectId(id), ...accessFilter }).lean();
-    if (!doc) throw new Error('Invalid: Event not found');
+    const success = await deleteBunnyWorkshopEvent(id, visibleUserIds);
+    if (!success) throw new Error('Invalid: Event not found or could not be deleted');
     return formatCrmSuccess({ deleted: true });
   } catch (error: any) {
     return handleCrmError(error, 'sales/events/[id] DELETE');

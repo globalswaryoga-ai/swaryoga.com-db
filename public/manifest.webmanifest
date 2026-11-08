@@ -1,0 +1,22 @@
+{
+  "name": "Swar Yoga - Ancient Breathing Science & AI Digital Twin",
+  "short_name": "Swar Yoga",
+  "description": "Ancient Vedic science of Swar Yoga, breath-based healing, and Mohan Sir AI Digital Twin Engine.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#f59e0b",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo-square.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+

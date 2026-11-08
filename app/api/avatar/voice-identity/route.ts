@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     }
 
     // Also fetch full vocal DNA models
-    let vocalDnaRows = [];
+    let vocalDnaRows: any[] = [];
     try {
       const vocalRes = await bunnyExecute(`
         SELECT id, language, tone_name, pitch_hz, cadence_words_per_minute,

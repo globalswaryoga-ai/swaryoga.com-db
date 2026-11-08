@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import SwarCalendarNightCard from '@/components/SwarCalendarNightCard';
+import DiwaliCelebrationExperience from '@/components/DiwaliCelebrationExperience';
 import AppInitializer from '@/components/AppInitializer';
 import AppUniversalBackButton from '@/components/AppUniversalBackButton';
 import VisitorTracker from '@/components/VisitorTracker';
@@ -113,7 +114,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link rel="preconnect" href="https://i.postimg.cc" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://i.postimg.cc" />
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
@@ -333,7 +334,7 @@ export default function RootLayout({
                 padding: 0;
                 background-color: #ffffff;
                 color: #1e293b;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Kohinoor Devanagari', 'SF Pro Display', "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 -webkit-font-smoothing: antialiased;
               }
               a { color: inherit; text-decoration: none; }
@@ -360,6 +361,7 @@ export default function RootLayout({
             {children}
             <WhatsAppWidget />
             <SwarCalendarNightCard />
+            <DiwaliCelebrationExperience />
           </CartProvider>
         </RootErrorBoundary>
       </body>

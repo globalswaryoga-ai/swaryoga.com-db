@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Presentation,
   Sparkles,
@@ -43,6 +43,7 @@ export interface EditableSlide {
   imageUrl: string;
   imageTitle?: string;
   avatarLayout: 'corner_circle' | 'corner_square' | 'split_screen' | 'stage_background';
+  avatarPosition?: { x: number; y: number };
   themeColor: string;
   accentColor: string;
   bgGradient: string;
@@ -87,6 +88,47 @@ export default function ModulePptStudio({
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCanvaSidePanelOpen, setIsCanvaSidePanelOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const slideStageRef = useRef<HTMLDivElement>(null);
+  const [isDraggingAvatar, setIsDraggingAvatar] = useState(false);
+
+  // Drag and drop avatar bubble anywhere on slide stage
+  const handleAvatarDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDraggingAvatar(true);
+
+    const moveHandler = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!slideStageRef.current) return;
+      const clientX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const clientY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const rect = slideStageRef.current.getBoundingClientRect();
+      const x = Math.min(Math.max(((clientX - rect.left) / rect.width) * 100, 6), 94);
+      const y = Math.min(Math.max(((clientY - rect.top) / rect.height) * 100, 8), 92);
+      handleUpdateActiveSlide({
+        avatarPosition: { x: Math.round(x), y: Math.round(y) },
+      });
+    };
+
+    const upHandler = () => {
+      setIsDraggingAvatar(false);
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('mouseup', upHandler);
+      window.removeEventListener('touchmove', moveHandler);
+      window.removeEventListener('touchend', upHandler);
+    };
+
+    window.addEventListener('mousemove', moveHandler);
+    window.addEventListener('mouseup', upHandler);
+    window.addEventListener('touchmove', moveHandler);
+    window.addEventListener('touchend', upHandler);
+  };
+
+  const snapSlideAvatarTo = (pos: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center') => {
+    if (pos === 'bottom-right') handleUpdateActiveSlide({ avatarPosition: { x: 86, y: 76 } });
+    if (pos === 'bottom-left') handleUpdateActiveSlide({ avatarPosition: { x: 14, y: 76 } });
+    if (pos === 'top-right') handleUpdateActiveSlide({ avatarPosition: { x: 86, y: 24 } });
+    if (pos === 'top-left') handleUpdateActiveSlide({ avatarPosition: { x: 14, y: 24 } });
+    if (pos === 'center') handleUpdateActiveSlide({ avatarPosition: { x: 50, y: 50 } });
+  };
 
   // Active theme object
   const currentTheme: PptThemePreset =
@@ -589,7 +631,10 @@ export default function ModulePptStudio({
         {activeSlide ? (
           <div className="lg:col-span-8 space-y-4">
             {/* The 16:9 Visual Slide Stage */}
-            <div className="relative aspect-video rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-black flex flex-col justify-between p-6">
+            <div
+              ref={slideStageRef}
+              className="relative aspect-video rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-black flex flex-col justify-between p-6 select-none"
+            >
               {/* Background HD Image with Overlay */}
               <img
                 src={activeSlide.imageUrl}
@@ -654,24 +699,56 @@ export default function ModulePptStudio({
                   </span>
                 </div>
 
-                {/* Simulated Mohan Sir Video Avatar Placement */}
+                {/* Simulated Mohan Sir Video Avatar Placement (Movable anywhere on the slide) */}
                 {activeSlide.avatarLayout === 'corner_circle' && (
                   <div
-                    className="w-24 h-24 rounded-full border-2 overflow-hidden shadow-2xl bg-slate-900 flex flex-col items-center justify-center text-center p-2 relative ring-4 ring-black/50"
-                    style={{ borderColor: activeSlide.themeColor }}
+                    onMouseDown={handleAvatarDragStart}
+                    onTouchStart={handleAvatarDragStart}
+                    className={`w-24 h-24 rounded-full border-2 overflow-hidden shadow-2xl bg-slate-900 flex flex-col items-center justify-center text-center p-2 z-20 cursor-grab active:cursor-grabbing group transition-shadow ${
+                      isDraggingAvatar ? 'ring-4 ring-amber-400 scale-105 shadow-amber-500/50' : 'ring-4 ring-black/50'
+                    }`}
+                    style={
+                      activeSlide.avatarPosition
+                        ? {
+                            position: 'absolute',
+                            left: `${activeSlide.avatarPosition.x}%`,
+                            top: `${activeSlide.avatarPosition.y}%`,
+                            transform: 'translate(-50%, -50%)',
+                            borderColor: activeSlide.themeColor,
+                          }
+                        : { borderColor: activeSlide.themeColor }
+                    }
+                    title="Click and drag Mohan Sir avatar anywhere on this slide"
                   >
                     <span className="text-[10px] font-bold text-white">Mohan Sir</span>
                     <span className="text-[8px] text-amber-400 font-mono">Avatar PiP</span>
+                    <span className="text-[7px] text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity">✥ Drag</span>
                   </div>
                 )}
 
                 {activeSlide.avatarLayout === 'corner_square' && (
                   <div
-                    className="w-28 h-20 rounded-xl border-2 overflow-hidden shadow-2xl bg-slate-900 flex flex-col items-center justify-center text-center p-2 relative ring-4 ring-black/50"
-                    style={{ borderColor: activeSlide.themeColor }}
+                    onMouseDown={handleAvatarDragStart}
+                    onTouchStart={handleAvatarDragStart}
+                    className={`w-28 h-20 rounded-xl border-2 overflow-hidden shadow-2xl bg-slate-900 flex flex-col items-center justify-center text-center p-2 z-20 cursor-grab active:cursor-grabbing group transition-shadow ${
+                      isDraggingAvatar ? 'ring-4 ring-amber-400 scale-105 shadow-amber-500/50' : 'ring-4 ring-black/50'
+                    }`}
+                    style={
+                      activeSlide.avatarPosition
+                        ? {
+                            position: 'absolute',
+                            left: `${activeSlide.avatarPosition.x}%`,
+                            top: `${activeSlide.avatarPosition.y}%`,
+                            transform: 'translate(-50%, -50%)',
+                            borderColor: activeSlide.themeColor,
+                          }
+                        : { borderColor: activeSlide.themeColor }
+                    }
+                    title="Click and drag Mohan Sir avatar anywhere on this slide"
                   >
                     <span className="text-[10px] font-bold text-white">Mohan Sir</span>
                     <span className="text-[8px] text-amber-400 font-mono">Webcam Box</span>
+                    <span className="text-[7px] text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity">✥ Drag</span>
                   </div>
                 )}
 
@@ -725,9 +802,16 @@ export default function ModulePptStudio({
 
               {/* Avatar Layout Selector for this slide */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-400">
-                  Mohan Sir Avatar Layout on this Slide:
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-400">
+                    Mohan Sir Avatar Layout & Position:
+                  </label>
+                  {activeSlide.avatarPosition && (
+                    <span className="text-[10px] font-mono text-amber-400">
+                      X: {activeSlide.avatarPosition.x}% • Y: {activeSlide.avatarPosition.y}%
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { id: 'corner_circle', label: '⚪ Round Corner Bubble' },
@@ -751,6 +835,35 @@ export default function ModulePptStudio({
                     </button>
                   ))}
                 </div>
+
+                {/* Free Drag / Snap Position Buttons */}
+                {(activeSlide.avatarLayout === 'corner_circle' || activeSlide.avatarLayout === 'corner_square') && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                      <span>✥ Movable Anywhere (Click &amp; Drag Avatar on Slide):</span>
+                      <span className="text-[10px] text-emerald-400 font-normal">Free drag enabled</span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { id: 'bottom-right', label: '↘ Bottom Right' },
+                        { id: 'bottom-left', label: '↙ Bottom Left' },
+                        { id: 'top-right', label: '↗ Top Right' },
+                        { id: 'top-left', label: '↖ Top Left' },
+                        { id: 'center', label: '⏺ Center' },
+                      ].map((pos) => (
+                        <button
+                          key={pos.id}
+                          type="button"
+                          onClick={() => snapSlideAvatarTo(pos.id as any)}
+                          className="py-1 text-[9px] font-bold rounded-lg border bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-amber-400/50 transition truncate"
+                          title={pos.label}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Image Picker Drawer (if opened) */}

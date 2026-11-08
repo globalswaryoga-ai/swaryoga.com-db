@@ -80,11 +80,15 @@ export default function Module2VoiceAvatar({ token, onSelectVoiceForFinal }: Mod
     const testText = `नमस्कार, मैं ${voice.name} हूँ। स्वर योग और प्राणायाम के इस सत्र में आपका स्वागत है।`;
     const utterance = new SpeechSynthesisUtterance(testText);
     utterance.rate = voice.speed || 1.0;
-    utterance.pitch = voice.pitch || 1.0;
+    utterance.pitch = 0.88; // Deep baritone pitch for Mohan Sir
     utterance.lang = 'hi-IN';
 
     const voicesList = window.speechSynthesis.getVoices();
-    const indVoice = voicesList.find((v) => v.lang.includes('IN') || v.lang.startsWith('hi'));
+    const indVoice = voicesList.find((v) => {
+      const n = v.name.toLowerCase();
+      const isFemale = n.includes('female') || n.includes('woman') || n.includes('girl') || n.includes('zira') || n.includes('heera') || n.includes('lekha') || n.includes('samantha') || n.includes('victoria');
+      return !isFemale && (v.lang.includes('IN') || v.lang.startsWith('hi'));
+    });
     if (indVoice) utterance.voice = indVoice;
 
     utterance.onend = () => setPlayingVoiceId(null);

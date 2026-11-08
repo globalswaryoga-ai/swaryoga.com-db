@@ -50,10 +50,10 @@ export const DEFAULT_SOURCE_VIDEOS: SourceVideoItem[] = [
   },
   {
     id: 'src_vid_vedic_twin_02',
-    name: 'Mohan Sir - Vedic Twin (Hindi Masterclass 1080p)',
-    videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/thumbnails/8f9280a32e94603307e5312213efd5465c5cbbddcdf9793026e0ce31c3b760b6.jpg',
-    durationSeconds: 120,
+    name: 'Mohan Sir - 360° Calibrated AI Clone (4K Master)',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
+    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg',
+    durationSeconds: 28,
     resolution: '1080p Full HD',
     fileSizeBytes: 24500000,
     format: 'mp4',
@@ -454,11 +454,11 @@ export default function Module1VideoAvatar({
     setMultiVideos([
       {
         id: `vid_${Date.now()}_1`,
-        title: 'Mohan Sir - 3 Min Vedic Wisdom & Smile',
-        videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-        thumbnailUrl: 'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg',
-        durationSeconds: 180,
-        brief: 'Seated teaching session with gentle smiling nuances and warm eye contact.',
+        title: 'Mohan Sir - 360° Calibrated AI Clone',
+        videoUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
+        thumbnailUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg',
+        durationSeconds: 28,
+        brief: 'Full 360-degree rotational angle anchor recorded at 60fps for 3D body and posture mesh.',
         category: 'expression',
         subType: 'smile',
       },
@@ -2421,15 +2421,15 @@ export default function Module1VideoAvatar({
                 src={
                   previewSourceVideo.videoUrl && !previewSourceVideo.videoUrl.includes('unsplash')
                     ? previewSourceVideo.videoUrl
-                    : 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4'
+                    : 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4'
                 }
                 controls
                 autoPlay
                 playsInline
                 onError={(e) => {
                   const target = e.currentTarget;
-                  if (target.src !== 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4') {
-                    target.src = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+                  if (target.src !== 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4') {
+                    target.src = 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4';
                     target.play().catch(() => {});
                   }
                 }}

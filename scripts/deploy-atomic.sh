@@ -45,6 +45,11 @@ fi
 BUILD_ID=$(cat .next_staging/BUILD_ID)
 echo "✅ [Verify OK] Build verified successfully! (Build ID: $BUILD_ID)"
 
+# Ensure critical routing manifests exist in staging before swap
+if [ ! -f ".next_staging/routes-manifest.json" ] && [ -f ".next/routes-manifest.json" ]; then
+  cp ".next/routes-manifest.json" ".next_staging/routes-manifest.json"
+fi
+
 # 4. Snapshot current live build before switching (keep last 5 for instant rollback)
 if [ -d ".next" ]; then
   SNAPSHOT_DIR=".next_snapshots/snapshot_$(date +%Y%m%d_%H%M%S)"

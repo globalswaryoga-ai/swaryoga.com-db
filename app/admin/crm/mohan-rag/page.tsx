@@ -21,7 +21,7 @@ import {
 
 export default function MohanRagHubPage() {
   return (
-    <div className="min-h-screen bg-[#070b14] text-slate-100 p-4 md:p-8">
+    <div className="min-h-full bg-[#070b14] text-slate-100 p-4 md:p-8 pb-32">
       {/* Background ambient lighting */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-10 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />

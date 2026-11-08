@@ -153,12 +153,55 @@ export default function CanvaCrmSidePanel({
   const [overlayCrop, setOverlayCrop] = useState<'none' | 'rounded' | 'circle' | 'card'>('rounded');
   const [overlayPosition, setOverlayPosition] = useState<'right' | 'center' | 'left'>('right');
 
-  // 3) Mohan Sir Talking Screen (50% Split, Round, or Square, Zoom in/out)
+  // 3) Mohan Sir Talking Screen (50% Split, Round, or Square, Zoom in/out, Free Draggable)
   const [showMohanSir, setShowMohanSir] = useState<boolean>(true);
   const [mohanScreenType, setMohanScreenType] = useState<'round' | 'square' | 'split_50'>('round');
   const [mohanZoom, setMohanZoom] = useState<number>(100); // 50% to 200%
-  const [mohanPosition, setMohanPosition] = useState<'bottom-right' | 'bottom-left' | 'top-right'>('bottom-right');
+  const [mohanPosition, setMohanPosition] = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center' | 'custom'>('bottom-right');
+  const [mohanPosPercent, setMohanPosPercent] = useState<{ x: number; y: number }>({ x: 84, y: 76 });
+  const [isDraggingMohan, setIsDraggingMohan] = useState<boolean>(false);
+  const [mohanAvatarSize, setMohanAvatarSize] = useState<number>(140); // 80px to 260px
   const [mohanSirPhotoUrl, setMohanSirPhotoUrl] = useState<string>('/mohan.jpg');
+
+  // Drag and drop Mohan Sir avatar anywhere on the slide preview
+  const handleMohanDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (mohanScreenType === 'split_50') return;
+    e.preventDefault();
+    setIsDraggingMohan(true);
+
+    const moveHandler = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!canvasRef.current) return;
+      const clientX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const clientY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = Math.min(Math.max(((clientX - rect.left) / rect.width) * 100, 6), 94);
+      const y = Math.min(Math.max(((clientY - rect.top) / rect.height) * 100, 8), 92);
+      setMohanPosPercent({ x: Math.round(x), y: Math.round(y) });
+      setMohanPosition('custom');
+    };
+
+    const upHandler = () => {
+      setIsDraggingMohan(false);
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('mouseup', upHandler);
+      window.removeEventListener('touchmove', moveHandler);
+      window.removeEventListener('touchend', upHandler);
+    };
+
+    window.addEventListener('mousemove', moveHandler);
+    window.addEventListener('mouseup', upHandler);
+    window.addEventListener('touchmove', moveHandler);
+    window.addEventListener('touchend', upHandler);
+  };
+
+  const snapMohanTo = (pos: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center') => {
+    setMohanPosition(pos);
+    if (pos === 'bottom-right') setMohanPosPercent({ x: 84, y: 76 });
+    if (pos === 'bottom-left') setMohanPosPercent({ x: 16, y: 76 });
+    if (pos === 'top-right') setMohanPosPercent({ x: 84, y: 24 });
+    if (pos === 'top-left') setMohanPosPercent({ x: 16, y: 24 });
+    if (pos === 'center') setMohanPosPercent({ x: 50, y: 50 });
+  };
 
   // 4) Multi-Language Text Converter
   const [targetLang, setTargetLang] = useState<string>('mr');
@@ -661,27 +704,44 @@ export default function CanvaCrmSidePanel({
                     )}
                   </div>
 
-                  {/* 3) Mohan Sir Talking Screen */}
+                  {/* 3) Mohan Sir Talking Screen (Movable anywhere on the slide) */}
                   {showMohanSir && (
                     <div
-                      className={`transition-all z-20 ${
+                      onMouseDown={handleMohanDragStart}
+                      onTouchStart={handleMohanDragStart}
+                      className={`z-20 select-none group transition-shadow ${
+                        isDraggingMohan ? 'ring-4 ring-amber-400 scale-105 z-30 cursor-grabbing' : 'cursor-grab'
+                      } ${
                         mohanScreenType === 'split_50'
                           ? 'absolute right-0 top-0 bottom-0 w-[46%] h-full border-l border-amber-400/40 shadow-2xl overflow-hidden bg-slate-950 flex flex-col justify-end p-4'
-                          : `absolute ${
-                              mohanPosition === 'bottom-left'
-                                ? 'bottom-5 left-5'
-                                : mohanPosition === 'top-right'
-                                  ? 'top-5 right-5'
-                                  : 'bottom-5 right-5'
-                            } ${
+                          : `absolute shadow-2xl ${
                               mohanScreenType === 'round'
-                                ? 'w-24 h-24 sm:w-36 sm:h-36 rounded-full border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]'
-                                : 'w-28 h-32 sm:w-40 sm:h-44 rounded-2xl border border-amber-400/60 shadow-2xl'
+                                ? 'rounded-full border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.5)]'
+                                : 'rounded-2xl border-2 border-amber-400/80 shadow-2xl'
                             } overflow-hidden bg-slate-900`
                       }`}
+                      style={
+                        mohanScreenType === 'split_50'
+                          ? undefined
+                          : {
+                              left: `${mohanPosPercent.x}%`,
+                              top: `${mohanPosPercent.y}%`,
+                              transform: 'translate(-50%, -50%)',
+                              width: `${mohanAvatarSize}px`,
+                              height: `${mohanAvatarSize}px`,
+                            }
+                      }
+                      title="Click and drag Mohan Sir anywhere on the slide"
                     >
+                      {/* Floating Drag Indicator Pill */}
+                      {mohanScreenType !== 'split_50' && (
+                        <div className="absolute top-1.5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-30 pointer-events-none bg-black/85 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-400/60 text-[8px] font-bold text-amber-300 flex items-center gap-1 whitespace-nowrap shadow-md">
+                          <span>✥ Drag Anywhere</span>
+                        </div>
+                      )}
+
                       {/* Avatar Media Frame */}
-                      <div className="w-full h-full relative overflow-hidden">
+                      <div className="w-full h-full relative overflow-hidden pointer-events-none">
                         <img
                           src={mohanSirPhotoUrl}
                           alt="Mohan Sir Video Screen"
@@ -1150,33 +1210,127 @@ export default function CanvaCrmSidePanel({
                           </div>
                         </div>
 
-                        {/* Corner Position (if PiP mode) */}
-                        {mohanScreenType !== 'split_50' && (
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-slate-300 block">Corner Position:</label>
-                            <div className="flex gap-2">
+                        {/* Avatar Size Control */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px] font-bold">
+                            <span className="text-slate-300">Avatar Size on Slide:</span>
+                            <span className="text-amber-300 font-mono">{mohanAvatarSize}px</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min={80}
+                              max={260}
+                              step={5}
+                              value={mohanAvatarSize}
+                              onChange={(e) => setMohanAvatarSize(Number(e.target.value))}
+                              className="flex-1 accent-amber-500 cursor-pointer"
+                            />
+                            <div className="flex gap-1">
                               {[
-                                { id: 'bottom-right', label: 'Bottom Right' },
-                                { id: 'bottom-left', label: 'Bottom Left' },
-                                { id: 'top-right', label: 'Top Right' },
-                              ].map((pos) => (
+                                { label: 'S', size: 100 },
+                                { label: 'M', size: 140 },
+                                { label: 'L', size: 180 },
+                              ].map((sz) => (
                                 <button
-                                  key={pos.id}
+                                  key={sz.label}
                                   type="button"
-                                  onClick={() => setMohanPosition(pos.id as any)}
-                                  className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition ${
-                                    mohanPosition === pos.id
-                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
+                                  onClick={() => setMohanAvatarSize(sz.size)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                    mohanAvatarSize === sz.size
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-400'
                                       : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
                                   }`}
                                 >
-                                  {pos.label}
+                                  {sz.label}
                                 </button>
                               ))}
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
+
+                      {/* Position & Free Move Anywhere */}
+                      {mohanScreenType !== 'split_50' && (
+                        <div className="space-y-2 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                              <span>✥</span>
+                              <span>Movable Position (Drag Anywhere):</span>
+                            </label>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              X: {mohanPosPercent.x}% • Y: {mohanPosPercent.y}%
+                            </span>
+                          </div>
+
+                          {/* Quick Corner Snap Buttons */}
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {[
+                              { id: 'bottom-right', label: '↘ Bottom Right' },
+                              { id: 'bottom-left', label: '↙ Bottom Left' },
+                              { id: 'top-right', label: '↗ Top Right' },
+                              { id: 'top-left', label: '↖ Top Left' },
+                              { id: 'center', label: '⏺ Center' },
+                            ].map((pos) => (
+                              <button
+                                key={pos.id}
+                                type="button"
+                                onClick={() => snapMohanTo(pos.id as any)}
+                                className={`py-1 text-[9px] font-bold rounded-lg border transition truncate ${
+                                  mohanPosition === pos.id
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400 shadow-sm'
+                                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                                }`}
+                                title={pos.label}
+                              >
+                                {pos.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Fine-Tuning Sliders */}
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] text-slate-400">
+                                <span>Horizontal (X):</span>
+                                <span className="font-mono text-amber-400">{mohanPosPercent.x}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={6}
+                                max={94}
+                                value={mohanPosPercent.x}
+                                onChange={(e) => {
+                                  setMohanPosPercent((p) => ({ ...p, x: Number(e.target.value) }));
+                                  setMohanPosition('custom');
+                                }}
+                                className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] text-slate-400">
+                                <span>Vertical (Y):</span>
+                                <span className="font-mono text-amber-400">{mohanPosPercent.y}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={8}
+                                max={92}
+                                value={mohanPosPercent.y}
+                                onChange={(e) => {
+                                  setMohanPosPercent((p) => ({ ...p, y: Number(e.target.value) }));
+                                  setMohanPosition('custom');
+                                }}
+                                className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                              />
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-emerald-400/90 font-medium pt-0.5">
+                            💡 Tip: Click and drag Mohan Sir&apos;s avatar directly on the slide preview to move it anywhere!
+                          </p>
+                        </div>
+                      )}
 
                       {/* Custom Video / Photo Upload */}
                       <div>

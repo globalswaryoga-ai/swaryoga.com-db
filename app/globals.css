@@ -1,16 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Mukta:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
 /* ===== 27 WORLD & INDIC LANGUAGES BEST TYPOGRAPHY SYSTEM ===== */
 
-/* 1. Global Font Stack with Fallbacks */
-* {
-  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+/* 1. Global Font Stack: -apple-system / BlinkMacSystemFont / system-ui FIRST for authentic modern Marathi & Hindi ('र' modern glyph) */
+*, *::before, *::after {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Kohinoor Devanagari', 'SF Pro Display', 'Segoe UI', Roboto, 'Poppins', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) - Modern, crisp sans-serif matching native typography */
+/* 2. Devanagari (Hindi, Marathi, Sanskrit, Nepali) - Ultra-crisp, elegant sans-serif with modern 'र' glyph */
 :lang(hi), :lang(mr), :lang(sa), :lang(ne),
 [lang="hi"], [lang="mr"], [lang="sa"], [lang="ne"],
 [lang^="hi-"], [lang^="mr-"],
@@ -18,21 +20,24 @@
 pre.font-devanagari, textarea.font-devanagari,
 code.font-devanagari,
 [data-font="devanagari"] {
-  font-family: 'Noto Sans Devanagari', 'Mukta', 'Kohinoor Devanagari', 'Poppins', sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Kohinoor Devanagari', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif !important;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   letter-spacing: 0.005em;
 }
 
-/* Pre & Textarea handling: prevent fallback to monospace for Indic & Devanagari text */
-pre, textarea {
-  font-family: 'Noto Sans Devanagari', 'Mukta', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+/* Pre, Textarea, Inputs, Buttons handling: guarantee modern Devanagari font everywhere */
+pre, textarea, input, select, button {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Kohinoor Devanagari', 'SF Pro Text', 'Segoe UI', Roboto, 'Poppins', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 pre:lang(hi), pre:lang(mr),
-textarea:lang(hi), textarea:lang(mr) {
-  font-family: 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif !important;
+textarea:lang(hi), textarea:lang(mr),
+input:lang(hi), input:lang(mr) {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Kohinoor Devanagari', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif !important;
 }
 
 /* 3. Gujarati */
@@ -110,7 +115,7 @@ html {
 }
 
 body {
-  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Kohinoor Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Poppins', sans-serif;
   font-weight: 400;
   color: #111111;
   background-color: #F9FAF9;
@@ -127,7 +132,7 @@ body {
 h1, h2, h3, h4, h5, h6 {
   color: #111111;
   font-weight: 600;
-  font-family: 'Poppins', 'Noto Sans Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Kohinoor Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Poppins', sans-serif;
 }
 
 /* ===== VIDEO PROTECTION - Prevent download/share ===== */
@@ -204,7 +209,7 @@ input, textarea, select {
   border-radius: 0.5rem;
   padding: 0.75rem;
   font-size: 1rem;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Kohinoor Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Poppins', sans-serif;
   color: #111111;
   background-color: #FFFFFF;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -227,7 +232,7 @@ button, .btn {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Kohinoor Devanagari', 'Mukta', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Poppins', sans-serif;
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -1874,3 +1879,73 @@ input::-webkit-grammar-error {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
 }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* SWAR YOGA — GRAND DIWALI FESTIVE CELEBRATION KEYFRAMES          */
+/* ═══════════════════════════════════════════════════════════════ */
+@keyframes diyaFlameFlicker {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 28px rgba(239, 68, 68, 0.5));
+  }
+  25% {
+    transform: scale(1.08, 0.94) rotate(-1.5deg);
+    filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.95)) drop-shadow(0 0 34px rgba(245, 158, 11, 0.6));
+  }
+  50% {
+    transform: scale(0.96, 1.06) rotate(1.5deg);
+    filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.75)) drop-shadow(0 0 24px rgba(239, 68, 68, 0.45));
+  }
+  75% {
+    transform: scale(1.04, 0.98) rotate(-0.8deg);
+    filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.9)) drop-shadow(0 0 30px rgba(245, 158, 11, 0.55));
+  }
+}
+
+@keyframes diyaFlameCore {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.15, 0.9); opacity: 1; }
+}
+
+@keyframes rangoliRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes festiveFloat {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-8px) scale(1.02); }
+}
+
+@keyframes goldenAuraPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), inset 0 0 15px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(245, 158, 11, 0.6), inset 0 0 25px rgba(251, 191, 36, 0.4);
+  }
+}
+
+.animate-diya-flame {
+  animation: diyaFlameFlicker 1.8s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+.animate-diya-core {
+  animation: diyaFlameCore 0.9s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+.animate-rangoli-spin {
+  animation: rangoliRotate 80s linear infinite;
+  transform-origin: center center;
+}
+
+.animate-festive-float {
+  animation: festiveFloat 4s ease-in-out infinite;
+}
+
+.animate-golden-aura {
+  animation: goldenAuraPulse 3s ease-in-out infinite;
+}
+

@@ -1672,15 +1672,15 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                               if (!text.trim()) return;
                               const utterance = new SpeechSynthesisUtterance(text);
                               utterance.lang = formLang === 'hi' ? 'hi-IN' : 'en-IN';
-                              // Pick a female voice matching the language
+                              // Pick an authentic male voice matching Mohan Sir's tone
                               const voices = window.speechSynthesis.getVoices();
                               const targetLang = formLang === 'hi' ? 'hi' : 'en';
-                              const femaleVoice = voices.find(v => v.lang.startsWith(targetLang) && /female|woman|samantha|lekha|veena|rishi|moira|karen|fiona|victoria|zira/i.test(v.name))
-                                || voices.find(v => v.lang.startsWith(targetLang))
+                              const maleVoice = voices.find(v => v.lang.startsWith(targetLang) && !/female|woman|samantha|lekha|veena|moira|karen|fiona|victoria|zira/i.test(v.name))
+                                || voices[0]
                                 || null;
-                              if (femaleVoice) utterance.voice = femaleVoice;
+                              if (maleVoice) utterance.voice = maleVoice;
                               utterance.rate = 0.95;
-                              utterance.pitch = 1.1;
+                              utterance.pitch = 0.9; // Deeper baritone pitch
                               utterance.onend = () => setIsPlaying(false);
                               utterance.onerror = () => setIsPlaying(false);
                               speechRef.current = utterance;

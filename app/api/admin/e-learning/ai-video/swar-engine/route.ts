@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Execute job processing (multilingual audio -> neural lip-sync / motion -> Bunny CDN)
-    const processed = await SwarNeuralVideoService.processJob(job.jobId);
+    const processed = await SwarNeuralVideoService.processJob(job.jobId, (job as any).row);
 
     return NextResponse.json({
       success: true,

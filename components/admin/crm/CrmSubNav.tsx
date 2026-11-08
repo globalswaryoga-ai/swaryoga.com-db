@@ -384,7 +384,7 @@ export default function CrmSubNav({
     router.push(isCrm ? '/crm-site/login' : '/admin/login');
   };
 
-  const isDark = pathname?.includes('/e-learning');
+  const isDark = pathname?.includes('/e-learning') || pathname?.includes('/mohan-rag');
 
   return (
     <header className={`sticky top-0 z-30 shadow-2xs transition-colors ${

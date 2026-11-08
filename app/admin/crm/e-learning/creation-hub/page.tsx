@@ -87,7 +87,7 @@ const DEFAULT_MASTER_WORKSHOPS: MasterWorkshopCopy[] = [
     title: 'Introduction to Swara & Five Elements (पंचतत्व विज्ञान)',
     sourceLanguage: 'hi',
     durationMinutes: 45,
-    sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+    sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
     transcript:
       'नमस्ते साधकों, आज हम स्वर योग के पहले दिन में पंचतत्व - पृथ्वी, जल, अग्नि, वायु और आकाश का अपने श्वास के साथ संबंध समझेंगे। जब नासिका का दायाँ स्वर चलता है तो सूर्य नाड़ी सक्रिय होती है, और बायाँ स्वर चंद्र नाड़ी।',
     keyPoints: [
@@ -732,7 +732,7 @@ export default function CreationHubPage() {
     translatedScripts[selectedLanguageCode] || activeMaster.transcript;
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black">
+    <div className="min-h-full flex flex-col bg-[#070b14] text-slate-100 selection:bg-emerald-500 selection:text-black">
       {/* ========================================================================= */}
       {/* TOP HEADER & FACTORY CONTROL BAR */}
       {/* ========================================================================= */}
@@ -853,11 +853,11 @@ export default function CreationHubPage() {
       {/* ========================================================================= */}
       {/* WORKSPACE LAYOUT: SIDEBAR + MAIN CANVAS */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row">
         {/* ======================================================================= */}
         {/* LEFT SIDEBAR: 27+ WORLD LANGUAGES ROSTER */}
         {/* ======================================================================= */}
-        <aside className="w-full lg:w-80 bg-[#0a0f1d] border-b lg:border-b-0 lg:border-r border-slate-800/90 flex flex-col shrink-0">
+        <aside className="w-full lg:w-80 bg-[#0a0f1d] border-b lg:border-b-0 lg:border-r border-slate-800/90 flex flex-col shrink-0 lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
           {/* Sidebar Top: Search & Tabs */}
           <div className="p-4 border-b border-slate-800/80 space-y-3">
             <div className="flex items-center justify-between">
@@ -1033,7 +1033,7 @@ export default function CreationHubPage() {
         {/* ======================================================================= */}
         {/* MAIN WORKSPACE CANVAS */}
         {/* ======================================================================= */}
-        <main className="flex-1 flex flex-col bg-[#070b14] overflow-y-auto">
+        <main className="flex-1 flex flex-col bg-[#070b14] pb-28">
           {/* ===================================================================== */}
           {/* VIEW 1: FACTORY PIPELINE OVERVIEW */}
           {/* ===================================================================== */}
@@ -1696,7 +1696,7 @@ export default function CreationHubPage() {
           )}
 
           {/* ===================================================================== */}
-          {/* VIEW 4: MOHAN AI AVATAR & VOICE */}
+          {/* VIEW 4: MOHAN AI AVATAR & VOICE STUDIO */}
           {/* ===================================================================== */}
           {activeStep === 'avatar' && (
             <div className="p-4 sm:p-6 flex-1 flex flex-col">

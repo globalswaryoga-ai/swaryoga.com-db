@@ -171,7 +171,7 @@ export class InhouseVideoService {
       if (job.language === 'mr') {
         finalVideoUrl = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_marathi_real.mp4';
       } else {
-        finalVideoUrl = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4';
+        finalVideoUrl = 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4';
       }
 
       // If user configured Replicate fallback and provided token, run cog-wav2lip

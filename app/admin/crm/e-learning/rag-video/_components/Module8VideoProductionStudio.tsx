@@ -549,7 +549,7 @@ export default function Module8VideoProductionStudio({
     matchedVideoAvatar?.cutoutUrl ||
     activeAvatar?.previewImageUrl ||
     (rawOriginalUrl.includes('606386') ? `/api/recorded-courses/thumbnail?videoId=${rawOriginalUrl.split('/').pop() || ''}` : '') ||
-    'https://resource2.heygen.ai/best_frame_selection/candidates/6252d07df49247eaa5413ebbbb35fcd0.jpg';
+    'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_360_frame_01.jpg';
 
   const parseTimeToSeconds = (str: string = '00:00'): number => {
     const parts = str.split(':').map((p) => Number(p) || 0);
@@ -658,18 +658,24 @@ export default function Module8VideoProductionStudio({
         utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
         const voices = window.speechSynthesis.getVoices();
-        const maleVoice = voices.find(
+        const nonFemaleVoices = voices.filter(v => {
+          const n = v.name.toLowerCase();
+          return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+        });
+        const maleVoice = nonFemaleVoices.find(
           (v) =>
             (v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) &&
             (v.name.toLowerCase().includes('male') ||
               v.name.toLowerCase().includes('man') ||
               v.name.toLowerCase().includes('rishi') ||
               v.name.toLowerCase().includes('madhur') ||
+              v.name.toLowerCase().includes('prabhat') ||
               v.name.toLowerCase().includes('pradeep'))
         );
         utterance.voice =
           maleVoice ||
-          voices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          nonFemaleVoices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          nonFemaleVoices[0] ||
           null;
 
         utterance.onend = () => {
@@ -837,18 +843,24 @@ export default function Module8VideoProductionStudio({
         utterance.lang = langCode === 'hi' ? 'hi-IN' : langCode === 'mr' ? 'mr-IN' : 'en-IN';
 
         const voices = window.speechSynthesis.getVoices();
-        const maleVoice = voices.find(
+        const nonFemaleVoices = voices.filter(v => {
+          const n = v.name.toLowerCase();
+          return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+        });
+        const maleVoice = nonFemaleVoices.find(
           (v) =>
             (v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) &&
             (v.name.toLowerCase().includes('male') ||
               v.name.toLowerCase().includes('man') ||
               v.name.toLowerCase().includes('rishi') ||
               v.name.toLowerCase().includes('madhur') ||
+              v.name.toLowerCase().includes('prabhat') ||
               v.name.toLowerCase().includes('pradeep'))
         );
         utterance.voice =
           maleVoice ||
-          voices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          nonFemaleVoices.find((v) => v.lang.toLowerCase().includes(langCode) || v.lang.includes('IN')) ||
+          nonFemaleVoices[0] ||
           null;
 
         utterance.onend = () => {
@@ -968,6 +980,25 @@ export default function Module8VideoProductionStudio({
             <p className="text-xs text-slate-400 mt-0.5">
               Generate 16:9 full lectures, 9:16 vertical shorts, and live interactive avatar video. Play live synchronized speeches and export to CRM, Community & Socials.
             </p>
+            <div className="flex items-center gap-2 mt-2">
+              <a
+                href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
+                download="Swar_Yoga_Digital_Twin_Colab.ipynb"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-extrabold transition shadow"
+                title="मोहन सर का स्वीकृत फेस क्लोन Google Colab Free T4 GPU पर रेंडर करें"
+              >
+                <span>⚡ Colab Free T4 GPU Engine (.ipynb)</span>
+              </a>
+              <a
+                href="https://colab.research.google.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-semibold transition"
+              >
+                <ExternalLink size={12} />
+                <span>Open Google Colab</span>
+              </a>
+            </div>
           </div>
         </div>
 

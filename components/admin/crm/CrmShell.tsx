@@ -196,7 +196,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Page content - scrollable, guarded by compartment + plan */}
-        <main className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isMohanRagManagement ? 'bg-white' : isDarkSection ? 'bg-[#0b0f19]' : ''}`}>
+        <main className={`flex-1 flex flex-col min-h-0 overflow-y-auto overscroll-contain scroll-smooth ${isMohanRagManagement ? 'bg-white' : isDarkSection ? 'bg-[#0b0f19]' : ''}`}>
           {currentModule ? (
             <PlanGate module={currentModule} variant="page">
               {children}

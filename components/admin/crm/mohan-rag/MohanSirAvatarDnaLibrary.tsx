@@ -592,7 +592,7 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
             fabric_description: newWardrobeFabric || 'Handspun Organic Cotton',
             collar_style: newWardrobeCollar || 'Mandarin Collar',
             yogic_occasion: newWardrobeOccasion || 'Vedic Discourse & Lecture',
-            video_clip_url: newWardrobeVideoUrl || 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+            video_clip_url: newWardrobeVideoUrl || 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
             front_image_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/thumbnails/8f9280a32e94603307e5312213efd5465c5cbbddcdf9793026e0ce31c3b760b6.jpg',
             worn_in_videos_count: 1,
             is_selected: false,
@@ -2260,7 +2260,7 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                 <label className="text-xs font-bold text-slate-700">Sample Video URL (Zoom Recording MP4)</label>
                 <input
                   type="url"
-                  placeholder="https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4"
+                  placeholder="https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4"
                   value={newWardrobeVideoUrl}
                   onChange={(e) => setNewWardrobeVideoUrl(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs"

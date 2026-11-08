@@ -141,7 +141,7 @@ export class AvatarExtractionService {
           args: [
             'src_vid_vedic_twin_02',
             'Mohan Sir - Vedic Twin (Hindi Masterclass 1080p)',
-            'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+            'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
             'https://swaryogacrm.b-cdn.net/avatar-studio/thumbnails/8f9280a32e94603307e5312213efd5465c5cbbddcdf9793026e0ce31c3b760b6.jpg',
             120,
             '1080p Full HD',
@@ -179,7 +179,7 @@ export class AvatarExtractionService {
     try {
       await bunnyExecute({
         sql: `UPDATE studio_source_videos_sql 
-              SET video_url = 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
+              SET video_url = 'https://swaryogacrm.b-cdn.net/uploads/mohan-clone-360/mohan_clone_video_01.mp4',
                   thumbnail_url = 'https://swaryogacrm.b-cdn.net/avatar-studio/thumbnails/8f9280a32e94603307e5312213efd5465c5cbbddcdf9793026e0ce31c3b760b6.jpg'
               WHERE video_url LIKE '%unsplash.com%' AND id = 'src_vid_vedic_twin_02'`,
       });

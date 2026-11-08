@@ -663,9 +663,13 @@ function CourseLearnContent({ params: propParams }: { params?: { slug?: string }
     const clean = text.replace(/\[[a-zA-Z0-9_]+(?::[0-9.]+[a-z%]?)?\]/g, '').trim();
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.rate = 0.95;
-    utterance.pitch = 1.0;
+    utterance.pitch = 0.88; // Deep baritone pitch matching Mohan Sir
     const voices = window.speechSynthesis.getVoices();
-    const targetVoice = voices.find((v) => v.lang.startsWith(language) || v.lang.startsWith('hi') || v.lang.includes('IN'));
+    const nonFemaleVoices = voices.filter(v => {
+      const n = v.name.toLowerCase();
+      return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+    });
+    const targetVoice = nonFemaleVoices.find((v) => v.lang.startsWith(language) || v.lang.startsWith('hi') || v.lang.includes('IN')) || nonFemaleVoices[0];
     if (targetVoice) utterance.voice = targetVoice;
     utterance.onstart = () => {
       setIsSpeakingMohanSir(true);

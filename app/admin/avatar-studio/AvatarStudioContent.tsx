@@ -252,14 +252,19 @@ export default function AvatarStudioContent({ hideHeader = false }: { hideHeader
 
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.rate = speakingSpeed;
+    utterance.pitch = 0.88; // Deep baritone pitch for Mohan Sir
 
     const voices = window.speechSynthesis.getVoices();
-    let voice = voices.find((v) => v.lang.toLowerCase().startsWith(lang));
+    const nonFemale = voices.filter(vox => {
+      const n = vox.name.toLowerCase();
+      return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+    });
+    let voice = nonFemale.find((v) => v.lang.toLowerCase().startsWith(lang));
     if (!voice && lang !== 'en') {
-      voice = voices.find((v) => v.lang.toLowerCase().includes('in') || v.lang.toLowerCase().startsWith('hi'));
+      voice = nonFemale.find((v) => v.lang.toLowerCase().includes('in') || v.lang.toLowerCase().startsWith('hi'));
     }
-    if (voice) {
-      utterance.voice = voice;
+    if (voice || nonFemale[0]) {
+      utterance.voice = voice || nonFemale[0];
     }
     utterance.lang = lang === 'hi' ? 'hi-IN' : lang === 'mr' ? 'mr-IN' : lang === 'en' ? 'en-IN' : lang === 'gu' ? 'gu-IN' : lang === 'kn' ? 'kn-IN' : lang === 'ta' ? 'ta-IN' : lang === 'te' ? 'te-IN' : lang === 'bn' ? 'bn-IN' : 'hi-IN';
 

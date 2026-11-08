@@ -149,17 +149,24 @@ export default function PodcastsPage() {
     utterance.rate = playbackSpeed * (turn.speaker === 'mohan_sir' ? 0.95 : 1.05);
     utterance.pitch = turn.speaker === 'mohan_sir' ? 0.85 : 1.15; // deeper voice for Mohan Sir
 
-    // Try to match available system voices
+    // Try to match available system voices (strictly male for Mohan Sir)
     const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
+    const candidateVoices = turn.speaker === 'mohan_sir' 
+      ? voices.filter(v => {
+          const n = v.name.toLowerCase();
+          return !n.includes('female') && !n.includes('woman') && !n.includes('girl') && !n.includes('zira') && !n.includes('heera') && !n.includes('lekha') && !n.includes('samantha') && !n.includes('victoria');
+        })
+      : voices;
+
+    if (candidateVoices.length > 0) {
       if (episode.language === 'mr') {
-        const mrVoice = voices.find(v => v.lang.startsWith('mr') || v.lang.includes('IN'));
+        const mrVoice = candidateVoices.find(v => v.lang.startsWith('mr') || v.lang.includes('IN')) || candidateVoices[0];
         if (mrVoice) utterance.voice = mrVoice;
       } else if (episode.language === 'hi') {
-        const hiVoice = voices.find(v => v.lang.startsWith('hi') || v.lang.includes('IN'));
+        const hiVoice = candidateVoices.find(v => v.lang.startsWith('hi') || v.lang.includes('IN')) || candidateVoices[0];
         if (hiVoice) utterance.voice = hiVoice;
       } else {
-        const inVoice = voices.find(v => v.lang.includes('en-IN') || v.lang.includes('en_GB') || v.lang.includes('en-US'));
+        const inVoice = candidateVoices.find(v => v.lang.includes('en-IN') || v.lang.includes('en_GB') || v.lang.includes('en-US')) || candidateVoices[0];
         if (inVoice) utterance.voice = inVoice;
       }
     }
