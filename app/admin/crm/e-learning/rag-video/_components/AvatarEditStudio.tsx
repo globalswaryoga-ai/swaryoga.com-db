@@ -215,7 +215,7 @@ export default function AvatarEditStudio({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string>(
-    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_kaggle_1794129312.mp4'
+    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_real_lipsync_1794137668.mp4'
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -394,7 +394,7 @@ export default function AvatarEditStudio({
 
           <div className="flex items-center gap-2 shrink-0">
             <a
-              href="https://colab.research.google.com/github/globalswaryoga-ai/swaryoga.com-db/blob/main/public/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
+              href="https://colab.research.google.com/github/globalswaryoga-ai/swaryoga.com-db/blob/main/public/colab/Swar_Yoga_Neural_LipSync_Master.ipynb"
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition cursor-pointer"
@@ -403,8 +403,8 @@ export default function AvatarEditStudio({
               <span>Colab खोलें (1-Click)</span>
             </a>
             <a
-              href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
-              download="Swar_Yoga_Digital_Twin_Colab.ipynb"
+              href="/colab/Swar_Yoga_Neural_LipSync_Master.ipynb"
+              download="Swar_Yoga_Neural_LipSync_Master.ipynb"
               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
