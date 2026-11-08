@@ -381,9 +381,9 @@ export default function AvatarEditStudio({
             </div>
             <div>
               <h3 className="text-xs font-black text-white flex items-center gap-2">
-                <span>4 Google Accounts Multi-GPU Engine</span>
+                <span>5 Google Accounts Multi-GPU Engine</span>
                 <span className="bg-emerald-500/15 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  12+ Hours Free T4 GPU Daily
+                  15+ Hours Free T4 GPU Daily
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
@@ -413,13 +413,14 @@ export default function AvatarEditStudio({
           </div>
         </div>
 
-        {/* 4 Workers Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+        {/* 5 Workers Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
           {[
             { id: 'worker_1', email: 'swarsakshi9@gmail.com', label: 'swarsakshi9', desc: 'Account 1 (Primary T4)', status: 'Ready (Live)' },
             { id: 'worker_2', email: 'swarsakshi9999@gmail.com', label: 'swarsakshi9999', desc: 'Account 2 (T4 Active)', status: 'Rendering' },
             { id: 'worker_3', email: 'mt.mohan64@gmail.com', label: 'mt.mohan64', desc: 'Account 3 (Backup T4)', status: 'Standby' },
             { id: 'worker_4', email: 'allindiamohan@gmail.com', label: 'allindiamohan', desc: 'Account 4 (Backup T4)', status: 'Standby' },
+            { id: 'worker_5', email: 'globalswaryoga@gmail.com', label: 'globalswaryoga', desc: 'Account 5 (Backup T4)', status: 'Standby' },
           ].map((w, idx) => (
             <div
               key={w.id}

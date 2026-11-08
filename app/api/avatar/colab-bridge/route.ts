@@ -199,6 +199,13 @@ export async function GET(request: NextRequest) {
           status: 'standby',
           total_rendered: 0,
         },
+        {
+          worker_id: 'worker_5',
+          email: process.env.COLAB_WORKER_5_EMAIL || 'globalswaryoga@gmail.com',
+          account_label: 'globalswaryoga@gmail.com (Account 5)',
+          status: 'standby',
+          total_rendered: 0,
+        },
       ];
 
       const activeMap = new Map((res.rows || []).map((r: any) => [r.worker_id, r]));
