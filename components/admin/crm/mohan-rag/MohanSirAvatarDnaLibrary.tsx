@@ -29,7 +29,8 @@ import {
   Eye,
   Camera,
   Film,
-  Shirt
+  Shirt,
+  Copy
 } from 'lucide-react';
 import VoiceMicInputButton from './VoiceMicInputButton';
 import type {
@@ -1879,6 +1880,49 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
                           <span className="font-bold text-slate-700">🧘 Recommended Occasion:</span>{' '}
                           {item.yogic_occasion}
                         </div>
+
+                        {/* Direct Class Topics Mapping */}
+                        {item.matching_class_topics && (
+                          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 text-[11px] space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-emerald-900 flex items-center gap-1">
+                                <Sparkles className="h-3 w-3 text-emerald-600" /> Direct Class Topics:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(item.video_clip_url || item.videoClipUrl);
+                                  alert(`Copied GPU Anchor URL for "${item.clothing_name}"!`);
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 hover:text-emerald-950 hover:underline"
+                                title="Copy direct video URL for Kaggle / GPU inference"
+                              >
+                                <Copy className="h-2.5 w-2.5" />
+                                <span>Copy GPU Anchor</span>
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {(() => {
+                                try {
+                                  const topics = typeof item.matching_class_topics === 'string'
+                                    ? JSON.parse(item.matching_class_topics)
+                                    : (Array.isArray(item.matching_class_topics) ? item.matching_class_topics : []);
+                                  return topics.map((t: string, tidx: number) => (
+                                    <span
+                                      key={tidx}
+                                      className="inline-flex items-center rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200/80 shadow-2xs"
+                                    >
+                                      {t}
+                                    </span>
+                                  ));
+                                } catch {
+                                  return null;
+                                }
+                              })()}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Selection / Action Button */}

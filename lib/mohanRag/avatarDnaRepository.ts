@@ -67,6 +67,7 @@ export interface WardrobeDnaItem {
   video_clip_url: string;
   is_selected: boolean;
   worn_in_videos_count: number;
+  matching_class_topics?: string;
   created_at: string;
   updated_at: string;
 }
