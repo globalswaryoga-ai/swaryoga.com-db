@@ -450,37 +450,6 @@ export default function AvatarEditStudio({
             </div>
           ))}
         </div>
-            <div
-              key={w.id}
-              className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                idx === 1
-                  ? 'bg-amber-950/30 border-amber-500/40 ring-1 ring-amber-400/30'
-                  : idx === 0
-                  ? 'bg-emerald-950/30 border-emerald-500/40'
-                  : 'bg-slate-800/40 border-slate-700/60'
-              }`}
-            >
-              <div className="min-w-0 pr-2">
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${
-                    idx === 1 ? 'bg-amber-400 animate-pulse' : idx === 0 ? 'bg-emerald-400' : 'bg-slate-500'
-                  }`} />
-                  <span className="text-[11px] font-bold text-white truncate" title={w.email}>{w.email}</span>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{w.desc}</p>
-              </div>
-              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
-                idx === 1
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                  : idx === 0
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700'
-              }`}>
-                {w.status}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
