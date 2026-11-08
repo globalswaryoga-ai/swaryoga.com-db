@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
       language = 'hi',
       durationSeconds = 30,
       jobId,
+      workerId = 'worker_1',
+      accountLabel = 'Google Account T4',
     } = body;
 
     // Security check: verify webhook secret
@@ -56,6 +58,30 @@ export async function POST(request: NextRequest) {
         updated_at TEXT
       )`,
     });
+
+    // 2b. Track Multi-Account Colab Workers
+    await bunnyExecute({
+      sql: `CREATE TABLE IF NOT EXISTS colab_workers_sql (
+        worker_id TEXT PRIMARY KEY,
+        account_label TEXT,
+        status TEXT DEFAULT 'idle',
+        total_rendered INTEGER DEFAULT 0,
+        last_video_url TEXT,
+        last_seen_at TEXT
+      )`,
+    }).catch(() => {});
+
+    await bunnyExecute({
+      sql: `INSERT INTO colab_workers_sql (worker_id, account_label, status, total_rendered, last_video_url, last_seen_at)
+            VALUES (?, ?, 'ready', 1, ?, ?)
+            ON CONFLICT(worker_id) DO UPDATE SET
+              account_label = excluded.account_label,
+              status = 'ready',
+              total_rendered = colab_workers_sql.total_rendered + 1,
+              last_video_url = excluded.last_video_url,
+              last_seen_at = excluded.last_seen_at`,
+      args: [workerId, accountLabel, videoUrl, now],
+    }).catch(() => {});
 
     await bunnyExecute({
       sql: `INSERT OR REPLACE INTO avatar_digital_twins_sql (role_id, name_hi, video_url, language, duration_seconds, source_gpu, updated_at)
@@ -135,7 +161,30 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
     const roleId = searchParams.get('roleId');
+
+    if (action === 'workers') {
+      const res = await bunnyExecute({
+        sql: `SELECT * FROM colab_workers_sql ORDER BY worker_id ASC`,
+      }).catch(() => ({ rows: [] }));
+
+      // Return default 4 workers merged with active state
+      const defaultWorkers = [
+        { worker_id: 'worker_1', account_label: 'Google Account 1 (Primary T4)', status: 'ready', total_rendered: 0 },
+        { worker_id: 'worker_2', account_label: 'Google Account 2 (Backup T4)', status: 'standby', total_rendered: 0 },
+        { worker_id: 'worker_3', account_label: 'Google Account 3 (Backup T4)', status: 'standby', total_rendered: 0 },
+        { worker_id: 'worker_4', account_label: 'Google Account 4 (Backup T4)', status: 'standby', total_rendered: 0 },
+      ];
+
+      const activeMap = new Map((res.rows || []).map((r: any) => [r.worker_id, r]));
+      const merged = defaultWorkers.map((dw) => {
+        const found = activeMap.get(dw.worker_id);
+        return found ? { ...dw, ...found } : dw;
+      });
+
+      return NextResponse.json({ success: true, workers: merged });
+    }
 
     const res = await bunnyExecute({
       sql: roleId

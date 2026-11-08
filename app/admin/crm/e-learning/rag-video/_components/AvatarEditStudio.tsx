@@ -371,7 +371,82 @@ export default function AvatarEditStudio({
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. THE 3-STEP VIDEO GENERATOR (SIMPLE, CLEAN & POWERFUL)                  */}
+      {/* 1B. 4-GOOGLE ACCOUNT MULTI-GPU AUTO-SWITCH ENGINE                          */}
+      {/* ========================================================================= */}
+      <div className="rounded-2xl p-4 bg-slate-900 border border-emerald-500/30 shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <Cpu className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-white flex items-center gap-2">
+                <span>4 Google Accounts Multi-GPU Engine</span>
+                <span className="bg-emerald-500/15 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  12+ Hours Free T4 GPU Daily
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                जब एक Google अकाउंट का कोटा पूरा हो, दूसरा अकाउंट अपने आप स्विच होकर वीडियो बनाना जारी रखेगा।
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="https://colab.research.google.com/github/globalswaryoga-ai/swaryoga.com-db/blob/main/public/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Colab खोलें (1-Click)</span>
+            </a>
+            <a
+              href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
+              download="Swar_Yoga_Digital_Twin_Colab.ipynb"
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>.ipynb डाउनलोड</span>
+            </a>
+          </div>
+        </div>
+
+        {/* 4 Workers Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          {[
+            { id: 'worker_1', label: 'Google Account 1', desc: 'Primary GPU', status: 'Ready (Live)' },
+            { id: 'worker_2', label: 'Google Account 2', desc: 'Backup GPU', status: 'Standby' },
+            { id: 'worker_3', label: 'Google Account 3', desc: 'Backup GPU', status: 'Standby' },
+            { id: 'worker_4', label: 'Google Account 4', desc: 'Backup GPU', status: 'Standby' },
+          ].map((w, idx) => (
+            <div
+              key={w.id}
+              className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                idx === 0
+                  ? 'bg-emerald-950/30 border-emerald-500/40'
+                  : 'bg-slate-800/40 border-slate-700/60'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${idx === 0 ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                  <span className="text-[11px] font-bold text-white">{w.label}</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">{w.desc}</p>
+              </div>
+              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                idx === 0
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}>
+                {w.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* LEFT COLUMN: CONTROLS (8 COLS) */}
