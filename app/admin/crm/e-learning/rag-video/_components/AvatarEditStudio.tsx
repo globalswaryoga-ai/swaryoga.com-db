@@ -215,7 +215,7 @@ export default function AvatarEditStudio({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string>(
-    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_face_swap_live_1794111795.mp4'
+    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_kaggle_1794129312.mp4'
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -413,15 +413,43 @@ export default function AvatarEditStudio({
           </div>
         </div>
 
-        {/* 5 Workers Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
+        {/* Workers Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1">
           {[
-            { id: 'worker_1', email: 'swarsakshi9@gmail.com', label: 'swarsakshi9', desc: 'Account 1 (Primary T4)', status: 'Ready (Live)' },
-            { id: 'worker_2', email: 'swarsakshi9999@gmail.com', label: 'swarsakshi9999', desc: 'Account 2 (T4 Active)', status: 'Rendering' },
+            { id: 'worker_kaggle', email: 'Kaggle Dual GPU (T4 x2)', label: 'Kaggle GPU 1', desc: 'Dual T4 (30GB VRAM)', status: 'Live 1080p ✓' },
+            { id: 'worker_1', email: 'swarsakshi9@gmail.com', label: 'swarsakshi9', desc: 'Account 1 (Primary T4)', status: 'Ready' },
+            { id: 'worker_2', email: 'swarsakshi9999@gmail.com', label: 'swarsakshi9999', desc: 'Account 2 (Backup T4)', status: 'Ready' },
             { id: 'worker_3', email: 'mt.mohan64@gmail.com', label: 'mt.mohan64', desc: 'Account 3 (Backup T4)', status: 'Standby' },
             { id: 'worker_4', email: 'allindiamohan@gmail.com', label: 'allindiamohan', desc: 'Account 4 (Backup T4)', status: 'Standby' },
             { id: 'worker_5', email: 'globalswaryoga@gmail.com', label: 'globalswaryoga', desc: 'Account 5 (Backup T4)', status: 'Standby' },
           ].map((w, idx) => (
+            <div
+              key={w.id}
+              className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                idx === 0
+                  ? 'bg-emerald-950/40 border-emerald-500/50 ring-1 ring-emerald-400/40'
+                  : 'bg-slate-800/40 border-slate-700/60'
+              }`}
+            >
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    idx === 0 ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                  }`} />
+                  <span className="text-[11px] font-bold text-white truncate" title={w.email}>{w.label}</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{w.desc}</p>
+              </div>
+              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                idx === 0
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}>
+                {w.status}
+              </span>
+            </div>
+          ))}
+        </div>
             <div
               key={w.id}
               className={`p-2.5 rounded-xl border flex items-center justify-between ${
