@@ -215,7 +215,7 @@ export default function AvatarEditStudio({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string>(
-    'https://swaryogacrm.b-cdn.net/avatar-studio/3d-digital-twin/mohan_sir_3d_acceptance_1080p.mp4'
+    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_face_swap_live_1794111795.mp4'
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
