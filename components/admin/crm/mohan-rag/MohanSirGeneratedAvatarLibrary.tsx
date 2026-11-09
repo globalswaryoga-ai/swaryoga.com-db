@@ -937,6 +937,89 @@ export default function MohanSirGeneratedAvatarLibrary() {
         </div>
       </div>
 
+      {/* HeyGen Master Training Bundle Spotlight */}
+      <div className="rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-950 p-5 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-amber-500/20">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>Hollywood-Grade HeyGen Master Training Bundle</span>
+            </div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              Mohan Sir - Green Look (100% Natural Eyes & Hand Gestures Master)
+            </h3>
+            <p className="text-xs text-slate-300 max-w-3xl">
+              Pre-assembled 1080p full HD training dataset extracted from Swar Yoga Day-1 master footage. Includes 2.5-minute continuous eye-level video, natural blinking, micro-facial expressions, hand gestures, and clean 48kHz vocal DNA.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <a
+              href="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_heygen_training_master_1080p.mp4"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition shadow-lg shadow-amber-500/20"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Master Video (55MB)</span>
+            </a>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText('https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_heygen_training_master_1080p.mp4');
+                setCopiedId('heygen_master_link');
+                setTimeout(() => setCopiedId(null), 2500);
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-500/30 text-xs font-medium transition"
+            >
+              {copiedId === 'heygen_master_link' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedId === 'heygen_master_link' ? 'Copied CDN URL!' : 'Copy Video URL'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Feature Anchor Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 flex flex-col items-center text-center group">
+            <img
+              src="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_eyes_gaze_reference.jpg"
+              alt="Eyes & Pupil Gaze"
+              className="w-full h-24 object-cover rounded-lg border border-slate-700 mb-2 group-hover:scale-105 transition"
+            />
+            <div className="text-[11px] font-bold text-white">1. Eye Contact & Blinking</div>
+            <div className="text-[10px] text-slate-400">Direct 0° frontal lens focus</div>
+          </div>
+
+          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 flex flex-col items-center text-center group">
+            <img
+              src="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_speaking_expression.jpg"
+              alt="Speaking Expression"
+              className="w-full h-24 object-cover rounded-lg border border-slate-700 mb-2 group-hover:scale-105 transition"
+            />
+            <div className="text-[11px] font-bold text-white">2. Micro-Expressions</div>
+            <div className="text-[10px] text-slate-400">Authentic smile & warmth</div>
+          </div>
+
+          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 flex flex-col items-center text-center group">
+            <img
+              src="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_gestures_posture.jpg"
+              alt="Gestures & Posture"
+              className="w-full h-24 object-cover rounded-lg border border-slate-700 mb-2 group-hover:scale-105 transition"
+            />
+            <div className="text-[11px] font-bold text-white">3. Posture & Hand Gestures</div>
+            <div className="text-[10px] text-slate-400">Upright dignified guru stance</div>
+          </div>
+
+          <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 flex flex-col items-center text-center group">
+            <img
+              src="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_beard_hair_contour.jpg"
+              alt="Beard & Hair Contours"
+              className="w-full h-24 object-cover rounded-lg border border-slate-700 mb-2 group-hover:scale-105 transition"
+            />
+            <div className="text-[11px] font-bold text-white">4. Beard & Hair Contours</div>
+            <div className="text-[10px] text-slate-400">Sharp hairline & mustache edges</div>
+          </div>
+        </div>
+      </div>
+
       {/* Search & Filter Controls */}
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         <div className="relative flex-1 max-w-md">
