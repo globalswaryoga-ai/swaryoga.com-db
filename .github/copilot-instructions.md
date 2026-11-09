@@ -170,7 +170,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Mohan In-House Avatar Phase 2 Render Queue (Session: November 5, 2026) — Commit `working tree`
+### Mohan In-House Avatar Phase 2 Render Queue (Session: November 5, 2026) — Commit `02d6e467`
 
 - Replaced the fixed sample-video response with Bunny-backed render jobs that require a valid consented avatar profile, owner-scoped status access, and an authenticated external worker claim/heartbeat/complete/fail protocol.
 - Added the GPU worker polling client and documented its HTTPS adapter contract. Final renders preserve the preview voice, language, speed, and pitch; jobs that outlast the initial polling window can be checked again in the studio. Actual inference is still pending a separately configured GPU host, licensed model/weights, and adapter.
