@@ -2,6 +2,7 @@ import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export interface ExpressionBlendshapeRecord {
   id: string;
+  userId?: string;
   twinId?: string;
   expressionName: string;
   emotionCategory: string;
@@ -16,11 +17,17 @@ export interface ExpressionBlendshapeRecord {
   createdAt: string;
 }
 
-export async function getAllExpressions(): Promise<ExpressionBlendshapeRecord[]> {
+export async function getAllExpressions(userId?: string): Promise<ExpressionBlendshapeRecord[]> {
   try {
-    const res = await bunnyExecute('SELECT * FROM avatar_expressions_sql ORDER BY created_at ASC');
+    const sql = userId
+      ? 'SELECT * FROM avatar_expressions_sql WHERE user_id = ? OR user_id IS NULL ORDER BY created_at ASC'
+      : 'SELECT * FROM avatar_expressions_sql ORDER BY created_at ASC';
+    const args = userId ? [userId] : [];
+    const res = await bunnyExecute({ sql, args });
+
     return (res.rows || []).map((r: any) => ({
       id: r.id,
+      userId: r.user_id,
       twinId: r.twin_id,
       expressionName: r.expression_name,
       emotionCategory: r.emotion_category,
@@ -42,6 +49,7 @@ export async function getAllExpressions(): Promise<ExpressionBlendshapeRecord[]>
 
 export async function saveCustomExpression(params: {
   id: string;
+  userId: string;
   twinId?: string;
   expressionName: string;
   emotionCategory: string;
@@ -57,10 +65,11 @@ export async function saveCustomExpression(params: {
   const now = new Date().toISOString();
   await bunnyExecute({
     sql: `INSERT INTO avatar_expressions_sql (
-      id, twin_id, expression_name, emotion_category, intensity, blendshapes_json,
+      id, user_id, twin_id, expression_name, emotion_category, intensity, blendshapes_json,
       head_pitch, head_yaw, head_roll, eye_squint, mouth_smile, preview_image_url, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
+      user_id=excluded.user_id,
       expression_name=excluded.expression_name,
       intensity=excluded.intensity,
       blendshapes_json=excluded.blendshapes_json,
@@ -71,6 +80,7 @@ export async function saveCustomExpression(params: {
       mouth_smile=excluded.mouth_smile`,
     args: [
       params.id,
+      params.userId,
       params.twinId || null,
       params.expressionName,
       params.emotionCategory,
@@ -91,4 +101,3 @@ export async function saveCustomExpression(params: {
     createdAt: now,
   };
 }
-

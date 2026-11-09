@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllDigitalTwins } from '@/lib/avatarEngine/digitalTwinService';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { extractTokenFromRequest, verifyToken } from '@/lib/auth';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const decoded = verifyToken(extractTokenFromRequest(req));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
+  }
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) {
+    return NextResponse.json({ success: false, error: 'Admin identity is missing.' }, { status: 401 });
+  }
+
   try {
-    const userId = req.nextUrl.searchParams.get('userId') || undefined;
-    const twins = await getAllDigitalTwins(userId);
+    // Tenant isolation: Superadmins see all twins; standard admins only see their own
+    const filterUserId = isSuperAdmin(decoded) ? undefined : viewerId;
+    const twins = await getAllDigitalTwins(filterUserId);
     return NextResponse.json({
       success: true,
       total: twins.length,
@@ -22,13 +34,22 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const decoded = verifyToken(extractTokenFromRequest(req));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
+  }
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) {
+    return NextResponse.json({ success: false, error: 'Admin identity is missing.' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const {
-      userId,
       twinName,
       baseVideoUrl,
       thumbnailUrl,
+      profileId,
       headPoseRange,
       speakingCadenceWpm,
       dominantExpressions,
@@ -43,6 +64,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Verify parent profile ownership if profileId is passed
+    if (profileId && !isSuperAdmin(decoded)) {
+      const profileCheck = await bunnyExecute({
+        sql: 'SELECT user_id FROM avatar_identity_profiles_sql WHERE id = ?',
+        args: [profileId]
+      });
+      const owner = profileCheck.rows?.[0]?.user_id;
+      if (owner && owner !== viewerId) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: You do not own the referenced avatar profile.' },
+          { status: 403 }
+        );
+      }
+    }
+
     const id = `twin_${Date.now()}`;
     const now = new Date().toISOString();
 
@@ -55,6 +91,7 @@ export async function POST(req: NextRequest) {
       audio_snr: '29.2 dB',
     };
 
+    // Server-derived ownership: strictly viewerId, never trusting client body
     await bunnyExecute({
       sql: `INSERT INTO digital_twins_v3_sql (
         id, user_id, profile_id, twin_name, base_video_url, thumbnail_url,
@@ -64,8 +101,8 @@ export async function POST(req: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
-        userId || 'admincrm',
-        `profile_${id}`,
+        viewerId,
+        profileId || `profile_${id}`,
         twinName,
         baseVideoUrl,
         thumbnailUrl || null,
@@ -85,6 +122,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       twinId: id,
+      userId: viewerId,
       validationReport: report,
     });
   } catch (error: any) {
@@ -94,4 +132,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
