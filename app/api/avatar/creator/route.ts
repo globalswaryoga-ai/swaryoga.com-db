@@ -6,6 +6,7 @@ import { verifyAvatarConsent } from '@/lib/avatarEngine/consentService';
 import {
   analyzeFaceGeometry,
   createAvatarIdentityProfile,
+  FaceAnalysisUnavailableError,
 } from '@/lib/avatarEngine/faceIdentityService';
 
 export const dynamic = 'force-dynamic';
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 1: Pre-flight face geometry analysis
-    const analysis = analyzeFaceGeometry(1080, 1080);
+    const analysis = analyzeFaceGeometry();
 
     // Step 2: Create Avatar Identity Profile
     const profile = await createAvatarIdentityProfile({
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || 'Avatar creation failed' },
-      { status: 500 }
+      { status: error instanceof FaceAnalysisUnavailableError ? 503 : 500 }
     );
   }
 }

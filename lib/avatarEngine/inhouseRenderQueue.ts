@@ -20,6 +20,7 @@ export interface InhouseRenderJob {
   avatarName: string;
   avatarProfileId: string;
   sourceImageUrl: string;
+  sourceVideoUrl: string;
   script: string;
   voiceId: string;
   language: string;
@@ -42,6 +43,7 @@ export interface InhouseRenderClaim {
   job: InhouseRenderJob;
   claimToken: string;
   sourceImageUrl: string;
+  sourceVideoUrl: string;
 }
 
 export class AvatarRenderInputError extends Error {
@@ -58,6 +60,7 @@ function mapJob(row: Record<string, unknown>): InhouseRenderJob {
     avatarName: String(row.avatar_name),
     avatarProfileId: String(row.avatar_profile_id),
     sourceImageUrl: String(row.source_image_url),
+    sourceVideoUrl: String(row.source_video_url || ''),
     script: String(row.script_text),
     voiceId: String(row.voice_id),
     language: String(row.language),
@@ -91,6 +94,14 @@ function trustedBunnyUrl(value: string): URL {
   return url;
 }
 
+function trustedSourceVideoUrl(value: string): string {
+  const url = trustedBunnyUrl(value);
+  if (url.username || url.password || url.hash || !url.pathname.toLowerCase().endsWith('.mp4')) {
+    throw new Error('The source must be a Bunny-hosted MP4 URL without credentials or a fragment.');
+  }
+  return url.toString();
+}
+
 export class InhouseRenderQueue {
   private static schemaPromise: Promise<void> | null = null;
 
@@ -102,6 +113,7 @@ export class InhouseRenderQueue {
           avatar_name TEXT NOT NULL,
           avatar_profile_id TEXT NOT NULL,
           source_image_url TEXT NOT NULL,
+          source_video_url TEXT NOT NULL DEFAULT '',
           script_text TEXT NOT NULL,
           voice_id TEXT NOT NULL,
           language TEXT NOT NULL,
@@ -123,7 +135,7 @@ export class InhouseRenderQueue {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )`,
-      }]).then(() => undefined).catch((error) => {
+      }]).then(() => this.ensureSourceVideoColumn()).catch((error) => {
         this.schemaPromise = null;
         throw error;
       });
@@ -131,10 +143,27 @@ export class InhouseRenderQueue {
     await this.schemaPromise;
   }
 
+  private static async ensureSourceVideoColumn(): Promise<void> {
+    const columns = await bunnyExecute(`PRAGMA table_info(${TABLE})`);
+    if (columns.rows.some((row) => String(row.name) === 'source_video_url')) return;
+    try {
+      await bunnyExecute(`ALTER TABLE ${TABLE} ADD COLUMN source_video_url TEXT NOT NULL DEFAULT ''`);
+    } catch (error) {
+      const current = await bunnyExecute(`PRAGMA table_info(${TABLE})`);
+      if (current.rows.some((row) => String(row.name) === 'source_video_url')) return;
+      try {
+        await bunnyExecute(`SELECT source_video_url FROM ${TABLE} LIMIT 0`);
+      } catch {
+        throw error;
+      }
+    }
+  }
+
   public static async createAndPrepare(params: {
     requesterId: string;
     allowSharedProfile: boolean;
     avatarProfileId: string;
+    sourceVideoUrl: string;
     script: string;
     voiceId?: string;
     language?: string;
@@ -148,6 +177,12 @@ export class InhouseRenderQueue {
     const script = params.script?.trim();
     if (!script) throw new AvatarRenderInputError('Script text is required.');
     if (script.length > 10_000) throw new AvatarRenderInputError('Script text cannot exceed 10,000 characters.');
+    const requestedSourceVideoUrl = params.sourceVideoUrl?.trim();
+    if (!requestedSourceVideoUrl) {
+      throw new AvatarRenderInputError(
+        'A continuous Bunny-hosted MP4 source video is required; a still image cannot be used for talking-video rendering.',
+      );
+    }
 
     const profileId = params.avatarProfileId?.trim();
     if (!profileId) throw new AvatarRenderInputError('Choose a consented avatar profile before rendering.');
@@ -165,10 +200,12 @@ export class InhouseRenderQueue {
     }
 
     const sourceImageUrl = profile.bgRemovedUrl || profile.frontalFaceUrl;
+    let sourceVideoUrl: string;
     try {
       trustedBunnyUrl(sourceImageUrl);
+      sourceVideoUrl = trustedSourceVideoUrl(requestedSourceVideoUrl);
     } catch (error) {
-      throw new AvatarRenderInputError(error instanceof Error ? error.message : 'Invalid avatar source image.');
+      throw new AvatarRenderInputError(error instanceof Error ? error.message : 'Invalid avatar source media.');
     }
     const id = `inh_render_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
     const now = new Date().toISOString();
@@ -191,6 +228,7 @@ export class InhouseRenderQueue {
       ownerUserId: params.requesterId,
       avatarProfileId: profile.id,
       sourceImageUrl,
+      sourceVideoUrl,
       script,
       voiceId,
       language,
@@ -203,11 +241,11 @@ export class InhouseRenderQueue {
 
     await bunnyExecute({
       sql: `INSERT INTO ${TABLE} (
-        id, avatar_name, avatar_profile_id, source_image_url, script_text, voice_id, language, speech_speed, speech_pitch_hz,
+        id, avatar_name, avatar_profile_id, source_image_url, source_video_url, script_text, voice_id, language, speech_speed, speech_pitch_hz,
         background_id, clothing_id, posture, owner_user_id, status, progress_percent, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synthesizing_speech', 10, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synthesizing_speech', 10, ?, ?)`,
       args: [
-        id, values.avatarName, values.avatarProfileId, values.sourceImageUrl, values.script,
+        id, values.avatarName, values.avatarProfileId, values.sourceImageUrl, values.sourceVideoUrl, values.script,
         values.voiceId, values.language, values.speechSpeed, values.speechPitchHz,
         values.backgroundId, values.clothingId, values.posture,
         values.ownerUserId, now, now,
@@ -278,8 +316,9 @@ export class InhouseRenderQueue {
             lease_expires_at = ?, updated_at = ?
         WHERE id = (
           SELECT id FROM ${TABLE}
-          WHERE status = 'ready_for_worker'
-             OR (status = 'rendering_video' AND lease_expires_at < ?)
+          WHERE source_video_url <> ''
+            AND (status = 'ready_for_worker'
+              OR (status = 'rendering_video' AND lease_expires_at < ?))
           ORDER BY created_at ASC LIMIT 1
         )`,
       args: [id, claimToken, expires, now, now],
@@ -294,7 +333,8 @@ export class InhouseRenderQueue {
     if (!row) return null;
     const job = mapJob(row);
     if (!job.audioUrl) throw new Error(`Claimed render job ${job.id} has no audio URL.`);
-    return { job, claimToken, sourceImageUrl: job.sourceImageUrl };
+    if (!job.sourceVideoUrl) throw new Error(`Claimed render job ${job.id} has no source video.`);
+    return { job, claimToken, sourceImageUrl: job.sourceImageUrl, sourceVideoUrl: job.sourceVideoUrl };
   }
 
   public static async renewLease(jobId: string, claimToken: string): Promise<boolean> {

@@ -28,31 +28,18 @@ export interface AvatarIdentityProfile {
   createdAt: string;
 }
 
+export class FaceAnalysisUnavailableError extends Error {
+  constructor() {
+    super('Face analysis is not implemented on this server; no facial metrics were produced.');
+    this.name = 'FaceAnalysisUnavailableError';
+  }
+}
+
 /**
- * Validates facial framing, angle, and extracts identity landmark metrics
+ * Fail closed until a real, versioned face-analysis runtime is connected.
  */
-export function analyzeFaceGeometry(imageWidth: number, imageHeight: number, samplePoints?: { x: number; y: number }[]): FaceLandmarkAnalysis {
-  // Estimated center box
-  const boxWidth = Math.round(imageWidth * 0.45);
-  const boxHeight = Math.round(imageHeight * 0.55);
-  const boxX = Math.round((imageWidth - boxWidth) / 2);
-  const boxY = Math.round((imageHeight - boxHeight) / 3);
-
-  // Quality heuristics based on resolution and framing
-  const isHighRes = imageWidth >= 720 && imageHeight >= 720;
-  const qualityScore = isHighRes ? 0.96 : 0.75;
-
-  return {
-    faceDetected: true,
-    box: { x: boxX, y: boxY, width: boxWidth, height: boxHeight },
-    pitchAngle: 1.2,
-    yawAngle: -0.8,
-    rollAngle: 0.3,
-    isFrontal: true,
-    eyeDistancePx: Math.round(boxWidth * 0.42),
-    qualityScore,
-    facialEmbeddings: Array.from({ length: 128 }, (_, i) => Math.sin(i * 0.1) * 0.5)
-  };
+export function analyzeFaceGeometry(): FaceLandmarkAnalysis {
+  throw new FaceAnalysisUnavailableError();
 }
 
 /**
@@ -72,7 +59,7 @@ export async function createAvatarIdentityProfile(params: {
 }): Promise<AvatarIdentityProfile> {
   const id = `profile_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
   const now = new Date().toISOString();
-  const quality = params.qualityScore || 0.95;
+  const quality = params.qualityScore ?? 0;
 
   await bunnyExecute({
     sql: `INSERT INTO avatar_identity_profiles_sql (

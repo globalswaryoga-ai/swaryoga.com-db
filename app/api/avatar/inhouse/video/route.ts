@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     const {
       script,
       avatarProfileId,
+      sourceVideoUrl,
       voiceId,
       language,
       speed,
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
       requesterId,
       allowSharedProfile: isSuperAdmin(decoded),
       avatarProfileId: typeof avatarProfileId === 'string' ? avatarProfileId : '',
+      sourceVideoUrl: typeof sourceVideoUrl === 'string' ? sourceVideoUrl : '',
       script: script.trim(),
       voiceId: typeof voiceId === 'string' ? voiceId : undefined,
       language: language || 'hi',

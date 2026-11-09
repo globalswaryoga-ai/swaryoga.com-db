@@ -22,7 +22,7 @@ export interface Body3DModelRecord {
   backViewUrl?: string;
   leftViewUrl?: string;
   rightViewUrl?: string;
-  riggingStatus: 'rigged' | 'in_progress' | 'failed';
+  riggingStatus: 'rigged' | 'in_progress' | 'failed' | 'not_started' | 'not_verified';
   createdAt: string;
   updatedAt: string;
 }
@@ -49,13 +49,13 @@ export async function getAllBodyModels(userId?: string): Promise<Body3DModelReco
         hipsCircM: r.hips_circ_m,
       },
       rigType: r.rig_type || 'blender_rigify',
-      boneCount: r.bone_count || 52,
+      boneCount: Number(r.bone_count || 0),
       meshGlbUrl: r.mesh_glb_url,
       frontViewUrl: r.front_view_url,
       backViewUrl: r.back_view_url,
       leftViewUrl: r.left_view_url,
       rightViewUrl: r.right_view_url,
-      riggingStatus: r.rigging_status || 'rigged',
+      riggingStatus: r.rigging_status || 'not_verified',
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     }));
@@ -83,7 +83,7 @@ export async function createBodyModel(params: {
       id, user_id, twin_id, name, target_height_m, weight_kg, shoulder_width_m,
       chest_circ_m, waist_circ_m, hips_circ_m, rig_type, bone_count,
       mesh_glb_url, front_view_url, rigging_status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 52, ?, ?, "rigged", ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, "not_started", ?, ?)`,
     args: [
       id,
       params.userId,
@@ -110,12 +110,11 @@ export async function createBodyModel(params: {
     name: params.name,
     anthropometrics: a,
     rigType: params.rigType || 'blender_rigify',
-    boneCount: 52,
+    boneCount: 0,
     meshGlbUrl: params.meshGlbUrl,
     frontViewUrl: params.frontViewUrl,
-    riggingStatus: 'rigged',
+    riggingStatus: 'not_started',
     createdAt: now,
     updatedAt: now,
   };
 }
-

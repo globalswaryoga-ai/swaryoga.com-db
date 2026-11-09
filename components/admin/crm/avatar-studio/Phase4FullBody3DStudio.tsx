@@ -6,9 +6,6 @@ import {
   Box,
   Layers,
   Sliders,
-  Play,
-  Pause,
-  RotateCw,
   Compass,
   CheckCircle2,
   Download,
@@ -18,6 +15,7 @@ import {
   Activity,
   User,
   Heart,
+  Film,
 } from 'lucide-react';
 
 interface BodyModel {
@@ -64,8 +62,6 @@ export default function Phase4FullBody3DStudio() {
 
   // View Angle & Animation Playback State
   const [viewAngle, setViewAngle] = useState<'front' | 'left' | 'back' | 'right'>('front');
-  const [isRotating, setIsRotating] = useState(false);
-  const [isMotionPlaying, setIsMotionPlaying] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(false);
 
   useEffect(() => {
@@ -106,20 +102,20 @@ export default function Phase4FullBody3DStudio() {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-xs font-bold uppercase tracking-wider">
               <Box className="w-3.5 h-3.5" />
-              <span>Phase 4 • Full-Body 3D Avatar & Motion Rigging Engine</span>
+              <span>Phase 4 • Body model & motion profile records</span>
             </div>
             <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              Anatomical Calibration, Auto-Rigging & 3D Motion
+              3D Rigging and Motion Runtime Status
             </h2>
             <p className="text-sm text-slate-300 max-w-2xl">
-              Precision anthropometric bone structure generation (Blender Rigify 52-bone armature). Supports walking, running, Padmasana sitting, and authentic Swar Yoga breath-testing mudras with GLB export.
+              This studio stores anthropometric and motion metadata. Mesh generation, Blender rigging, GLB validation, and motion playback are not connected.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-purple-500/30 text-right">
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Armature Spec</div>
-              <div className="text-purple-400 font-bold text-sm">52 Bones Rigify (Bi-pedal)</div>
+              <div className="text-purple-400 font-bold text-sm">Rig status: {selectedBody?.riggingStatus || 'not generated'}</div>
             </div>
           </div>
         </div>
@@ -127,13 +123,13 @@ export default function Phase4FullBody3DStudio() {
 
       {/* Main 2-Column Studio Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: 360° Interactive 3D Viewport (6 cols) */}
+        {/* Left Column: illustrative reference preview (6 cols) */}
         <div className="lg:col-span-6 space-y-4">
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-xl space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Compass className="w-4 h-4 text-purple-400" />
-                <span>360° Anthropometric Mesh Viewport</span>
+                <span>Reference image (not a 3D mesh viewport)</span>
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -145,21 +141,21 @@ export default function Phase4FullBody3DStudio() {
                       : 'bg-slate-800 text-slate-300 border-slate-700'
                   }`}
                 >
-                  {showSkeleton ? 'Bone Armature Active' : 'Show 52-Bone Rig'}
+                  {showSkeleton ? 'Illustration visible' : 'Show illustrative overlay'}
                 </button>
               </div>
             </div>
 
-            {/* 3D Canvas / Viewport Simulation */}
+            {/* Reference image preview, not a rendered 3D viewport. */}
             <div className="relative w-full h-96 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center">
               {/* Studio Grid Plane */}
               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#a855f7_1px,transparent_1px)] [background-size:16px_16px]" />
 
-              {/* 3D Character Rendering Placeholder with Real Master Reference */}
+              {/* Static master reference image. */}
               <div className="relative z-10 flex flex-col items-center">
                 <img
                   src="https://swaryogacrm.b-cdn.net/avatar-studio/heygen-master-training/mohan_sir_green_look/mohan_sir_gestures_posture.jpg"
-                  alt="3D Avatar Master"
+                  alt="Static avatar reference"
                   className={`max-h-72 object-contain rounded-2xl drop-shadow-[0_20px_35px_rgba(168,85,247,0.35)] transition-all duration-500 ${
                     viewAngle === 'left' ? 'scale-x-[-1] -rotate-3' : viewAngle === 'back' ? 'brightness-50 grayscale' : viewAngle === 'right' ? 'rotate-3' : ''
                   }`}
@@ -195,32 +191,35 @@ export default function Phase4FullBody3DStudio() {
                 ))}
               </div>
 
-              {/* Active Motion Tag */}
+              {/* Stored motion profile metadata; no motion asset is played here. */}
               <div className="absolute bottom-3 left-3 bg-slate-950/90 border border-slate-800 px-3 py-1.5 rounded-xl z-20 flex items-center gap-2">
                 <Activity className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-xs font-bold text-white">{selectedMotion?.motionName || 'Locomotion'}</span>
+                <span className="text-xs font-bold text-white">{selectedMotion?.motionName || 'No motion profile selected'}</span>
               </div>
 
-              {/* Play/Pause Motion Overlay Button */}
-              <button
-                type="button"
-                onClick={() => setIsMotionPlaying(!isMotionPlaying)}
-                className="absolute bottom-3 right-3 p-2.5 rounded-xl bg-purple-500 text-slate-950 hover:bg-purple-400 transition shadow-lg shadow-purple-500/30 z-20"
-              >
-                {isMotionPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              </button>
+              <div className="absolute bottom-3 right-3 bg-slate-950/90 border border-slate-800 px-3 py-1.5 rounded-xl text-[10px] text-slate-400 z-20">
+                Motion playback not connected
+              </div>
             </div>
 
             {/* Export GLB & 3D Assets Button */}
-            <div className="pt-2 flex gap-2">
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
               <a
-                href="https://swaryogacrm.b-cdn.net/avatar-studio/3d-models/mohan_sir_3d_master.glb"
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition shadow-md shadow-purple-600/20 flex items-center justify-center gap-2"
+                href="/avatar-studio/3d-digital-twin/mohan_master_character.glb"
+                download="mohan_sir_master_character.glb"
+                className="flex-1 py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition shadow-md shadow-purple-600/20 flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>Export Standard GLB / GLTF 3D Mesh</span>
+                <span>Download stored GLB sample (validation not recorded)</span>
+              </a>
+              <a
+                href="/avatar-studio/3d-digital-twin/renders/mohan_sir_3d_acceptance_1080p.mp4"
+                target="_blank"
+                rel="noreferrer"
+                className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs transition border border-purple-500/30 flex items-center justify-center gap-2"
+              >
+                <Film className="w-4 h-4" />
+                <span>Stored sample video (not acceptance-certified)</span>
               </a>
             </div>
           </div>
@@ -318,7 +317,7 @@ export default function Phase4FullBody3DStudio() {
                 <Activity className="w-4 h-4 text-emerald-400" />
                 <span>Module 7 • Motion & Yogic Mudra Library</span>
               </h3>
-              <span className="text-[10px] text-slate-400">{motions.length} Clips Ready</span>
+              <span className="text-[10px] text-slate-400">{motions.length} stored profiles • motion assets unverified</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -348,4 +347,3 @@ export default function Phase4FullBody3DStudio() {
     </div>
   );
 }
-

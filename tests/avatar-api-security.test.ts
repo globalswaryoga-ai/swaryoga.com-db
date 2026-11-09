@@ -23,6 +23,11 @@ import { GET as getTwins, POST as createTwin } from '@/app/api/avatar/digital-tw
 import { GET as getBodies, POST as createBody } from '@/app/api/avatar/3d-body/route';
 import { GET as getExpressions, POST as createExpression } from '@/app/api/avatar/expressions/route';
 import { GET as getMotions, POST as createMotion } from '@/app/api/avatar/motion/route';
+import { POST as createAvatarJob } from '@/app/api/avatar/jobs/route';
+import { GET as getAvatarLibrary } from '@/app/api/avatar/library/route';
+import { GET as getLegacyColabBridge, POST as postLegacyColabBridge } from '@/app/api/avatar/colab-bridge/route';
+import { POST as postLegacyVoice } from '@/app/api/avatar/voice/generate/route';
+import { analyzeFaceGeometry, FaceAnalysisUnavailableError } from '@/lib/avatarEngine/faceIdentityService';
 import { generateToken } from '@/lib/auth';
 
 function makeMockRequest(urlStr: string, method: string, token?: string, body?: any): any {
@@ -122,6 +127,28 @@ describe('Avatar API Security & Tenant Isolation Tests', () => {
       const res = await getTwins(req);
       expect(res.status).toBe(401);
     });
+
+    it('rejects stored avatar-library access without a token', async () => {
+      const req = makeMockRequest('/api/avatar/library', 'GET');
+      const res = await getAvatarLibrary(req);
+      expect(res.status).toBe(401);
+    });
+
+    it('restricts stored avatar-library access to Super Admin', async () => {
+      const req = makeMockRequest('/api/avatar/library', 'GET', userAToken);
+      const res = await getAvatarLibrary(req);
+      expect(res.status).toBe(403);
+    });
+
+    it('retires the legacy Colab bridge for both methods', async () => {
+      const req = makeMockRequest('/api/avatar/colab-bridge', 'GET');
+      expect((await getLegacyColabBridge(req)).status).toBe(410);
+      expect((await postLegacyColabBridge(req)).status).toBe(410);
+    });
+
+    it('retires the legacy local-file voice generator', async () => {
+      expect((await postLegacyVoice()).status).toBe(410);
+    });
   });
 
   describe('2. Server-Derived Ownership & Spoofing Prevention', () => {
@@ -149,6 +176,12 @@ describe('Avatar API Security & Tenant Isolation Tests', () => {
       expect(insertCall).toBeDefined();
       const insertArgs = (insertCall![0] as any).args;
       expect(insertArgs[1]).toBe('tenant_user_a');
+      expect(insertArgs[7]).toBe(0);
+      expect(insertArgs[8]).toBe('[]');
+      expect(insertArgs[10]).toBe(0);
+      expect(insertArgs[11]).toBe(0);
+      expect(insertArgs[12]).toBe('not_trained');
+      expect(JSON.parse(insertArgs[13])).toMatchObject({ status: 'not_run', verified: false });
     });
 
     it('ignores client-supplied userId on 3D body POST and enforces authenticated viewerId', async () => {
@@ -173,6 +206,20 @@ describe('Avatar API Security & Tenant Isolation Tests', () => {
       expect(data.success).toBe(true);
       expect(data.body.userId).toBe('tenant_user_a');
       expect(data.body.userId).not.toBe('malicious_spoofed_admin');
+      expect(data.body.boneCount).toBe(0);
+      expect(data.body.riggingStatus).toBe('not_started');
+    });
+
+    it('does not report fabricated face-analysis metrics', () => {
+      expect(() => analyzeFaceGeometry()).toThrow(FaceAnalysisUnavailableError);
+    });
+
+    it('retires the legacy endpoint that returned source video as a completed render', async () => {
+      const res = await createAvatarJob();
+      expect(res.status).toBe(410);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('/api/avatar/inhouse/video');
     });
 
     it('rejects cross-user binding when user B attempts to attach 3D body to user A twin', async () => {

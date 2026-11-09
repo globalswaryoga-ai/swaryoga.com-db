@@ -80,6 +80,7 @@ export default function InhouseStudioView() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [avatarProfiles, setAvatarProfiles] = useState<AvatarProfileOption[]>([]);
   const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
+  const [sourceVideoUrl, setSourceVideoUrl] = useState('');
   const [activeRenderJobId, setActiveRenderJobId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -150,6 +151,7 @@ export default function InhouseStudioView() {
         body: JSON.stringify({
           script: currentScript.trim(),
           avatarProfileId: selectedAvatarProfileId,
+          sourceVideoUrl: sourceVideoUrl.trim(),
           voiceId: currentVoiceId,
           language: currentLanguage,
           speed: currentSpeechSpeed,
@@ -306,7 +308,7 @@ export default function InhouseStudioView() {
               <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 backdrop-blur-md flex items-center gap-1.5 shadow-lg">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  1080p In-House Video Ready (Bunny CDN)
+                  GPU worker output (Bunny CDN; quality not independently verified)
                 </span>
               </div>
               <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
@@ -342,7 +344,7 @@ export default function InhouseStudioView() {
               {/* Overlay Badge */}
               <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-900/80 text-white border border-slate-700 backdrop-blur-md">
-                  2D Photorealistic Twin • {activeBg.name}
+                  Static layout preview only • {activeBg.name}
                 </span>
               </div>
 
@@ -365,13 +367,13 @@ export default function InhouseStudioView() {
               <div>
                 <h4 className="text-xs font-bold text-slate-200">GPU Avatar Render</h4>
                 <p className="text-[11px] text-slate-400">
-                  Consent-checked portrait and speech are sent to the configured GPU render worker.
+                  The GPU renderer requires authorized, continuous source footage; the portrait preview is not used as a video substitute.
                 </p>
               </div>
 
               <button
                 onClick={handleRenderInhouseVideo}
-                disabled={isRenderingVideo || !selectedAvatarProfileId}
+                disabled={isRenderingVideo || !selectedAvatarProfileId || !sourceVideoUrl.trim()}
                 className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
               >
                 {isRenderingVideo ? (
@@ -414,6 +416,21 @@ export default function InhouseStudioView() {
                   ))}
                 </select>
               </label>
+              <label className="block text-xs font-semibold text-slate-300">
+                Authorized source footage (Bunny MP4 URL)
+                <input
+                  type="url"
+                  value={sourceVideoUrl}
+                  onChange={(event) => setSourceVideoUrl(event.target.value)}
+                  placeholder="https://swaryogacrm.b-cdn.net/…/authorized-source.mp4"
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                  disabled={isRenderingVideo}
+                  autoComplete="url"
+                />
+              </label>
+              <p className="text-xs text-slate-400">
+                Use continuous real footage of the consented avatar. Still images and the synthetic sample clips do not meet the render acceptance criteria.
+              </p>
               {!avatarProfiles.length && (
                 <p className="text-xs text-amber-300">
                   No consented profiles found. Create one in the Phase 1 Avatar Creator first.

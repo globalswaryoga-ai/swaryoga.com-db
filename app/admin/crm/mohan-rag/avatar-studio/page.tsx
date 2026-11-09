@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   RefreshCw,
   Film,
-  Briefcase,
   Shirt,
   Search,
   Wand2,
@@ -49,59 +48,73 @@ import {
   CameraFramingPreset,
   AnchorVideo,
   VoiceProfile,
-  getProfessionBaseVideo,
 } from '@/lib/avatarStudio/avatarMasterCatalog';
 import {
   MOHAN_SIR_MASTER_IDENTITY_ID,
-  MASTER_GENERATION_MODES,
-  MASTER_ANGLES,
-  MASTER_EXPRESSION_PROFILES,
 } from '@/lib/avatarStudio/masterIdentityEngine';
 
 type StudioTab =
   | 'dashboard'
-  | 'identity'
   | 'anchor'
-  | 'professions'
-  | 'wardrobe'
-  | 'environments'
-  | 'camera'
   | 'voice'
   | 'script'
   | 'engine'
   | 'library';
+
+interface ConsentAvatarProfile {
+  id: string;
+  name: string;
+}
+
+function getAvatarStudioToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    localStorage.getItem('crm_token') ||
+    localStorage.getItem('adminToken') ||
+    localStorage.getItem('admin_token') ||
+    localStorage.getItem('token')
+  );
+}
 
 export default function MohanSirAvatarStudioPage() {
   const [activeTab, setActiveTab] = useState<StudioTab>('dashboard');
 
   // Selected Studio Configuration
   const [selectedProfession, setSelectedProfession] = useState<ProfessionConfig>(ALL_34_PROFESSIONS[0]);
-  const [selectedWardrobe, setSelectedWardrobe] = useState<WardrobePreset>(MASTER_WARDROBES[0]);
+  const [wardrobes, setWardrobes] = useState<WardrobePreset[]>(() =>
+    MASTER_WARDROBES.filter((w) => w.id !== 'wardrobe_corporate_suit')
+  );
+  const [selectedWardrobe, setSelectedWardrobe] = useState<WardrobePreset>(MASTER_WARDROBES[1] || MASTER_WARDROBES[0]);
+  const [isDeletingWardrobeId, setIsDeletingWardrobeId] = useState<string | null>(null);
+
+  const [environments, setEnvironments] = useState<EnvironmentPreset[]>(() =>
+    MASTER_ENVIRONMENTS.filter((e) => e.id !== 'env_corporate_boardroom')
+  );
   const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentPreset>(MASTER_ENVIRONMENTS[0]);
+  const [isDeletingEnvId, setIsDeletingEnvId] = useState<string | null>(null);
+
+  const [cameraPresets, setCameraPresets] = useState<CameraFramingPreset[]>(CAMERA_FRAMING_PRESETS);
   const [selectedCamera, setSelectedCamera] = useState<CameraFramingPreset>(CAMERA_FRAMING_PRESETS[0]);
+  const [anchorVideos, setAnchorVideos] = useState<AnchorVideo[]>(MASTER_ANCHOR_VIDEOS);
   const [selectedAnchor, setSelectedAnchor] = useState<AnchorVideo>(MASTER_ANCHOR_VIDEOS[0]);
+  const [isDeletingAnchorId, setIsDeletingAnchorId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<VoiceProfile>(MASTER_VOICE_PROFILES[0]);
   const [selectedLanguage, setSelectedLanguage] = useState<'hi' | 'mr' | 'en' | 'ne'>('hi');
-  const [selectedGenerationMode, setSelectedGenerationMode] = useState<string>('talking_presenter');
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
-  const [customProfessionName, setCustomProfessionName] = useState<string>('');
 
   // Script & Duration
   const [scriptText, setScriptText] = useState<string>(
-    'नमस्ते साधकों! मैं मोहन कलबुर्गी हूँ। स्वर योग के इस विशेष सत्र में आपका स्वागत है। आज हम समझेंगे कि कैसे अपनी नासिका के स्वर को संतुलित करके मस्तिष्क, पाचन और मानसिक शांति को साध सकते हैं।'
+    'Namaste seekers! I am Mohan Kalburgi. Welcome to this special session on Swar Yoga. Today we will explore how balancing the breath through the nostrils harmonizes the brain, digestion, and inner peace.'
   );
   const [estimatedDurationSec, setEstimatedDurationSec] = useState<number>(30);
 
   // Search & Filter
-  const [professionSearch, setProfessionSearch] = useState<string>('');
-  const [professionCategory, setProfessionCategory] = useState<string>('all');
   const [voiceSearch, setVoiceSearch] = useState<string>('');
   const [voiceLangFilter, setVoiceLangFilter] = useState<'all' | 'hi' | 'mr' | 'en'>('all');
   const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>(MASTER_VOICE_PROFILES);
   const [isDeletingVoiceId, setIsDeletingVoiceId] = useState<string | null>(null);
 
   const handleDeleteVoice = async (id: string, name?: string) => {
-    const confirmMsg = `क्या आप इस वोकल डीएनए प्रोफाइल "${name || id}" को हटाना चाहते हैं?\n\nयह डेटाबेस से हमेशा के लिए हटा दी जाएगी।`;
+    const confirmMsg = `Are you sure you want to remove vocal DNA profile "${name || id}"?\n\nThis will be permanently removed from the database.`;
     if (!window.confirm(confirmMsg)) return;
 
     setIsDeletingVoiceId(id);
@@ -111,7 +124,7 @@ export default function MohanSirAvatarStudioPage() {
       });
       const json = await res.json();
       if (json.success) {
-        showToast('🗑️ वॉइस प्रोफाइल सफलतापूर्वक हटा दी गई');
+        showToast('🗑️ Voice profile removed successfully');
         setVoiceProfiles((prev) => prev.filter((v) => v.id !== id));
         if (selectedVoice.id === id) {
           const remaining = voiceProfiles.filter((v) => v.id !== id);
@@ -127,15 +140,167 @@ export default function MohanSirAvatarStudioPage() {
     }
   };
 
+  // Master Anchor Permanent Deletion Handler
+  const handlePermanentDeleteAnchor = async (id: string, title: string) => {
+    const confirmMsg = `⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to PERMANENTLY delete master anchor video:\n"${title}"?\n\nThis will permanently delete this video from the database and studio. It cannot be recovered.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeletingAnchorId(id);
+    try {
+      // 1. Delete on server API (Bunny Database)
+      await fetch(`/api/avatar/anchor?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }).catch(() => { });
+
+      // 2. Persist in localStorage
+      const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_anchor_ids') || '[]');
+      if (!localDeleted.includes(id)) {
+        localDeleted.push(id);
+        localStorage.setItem('swar_deleted_anchor_ids', JSON.stringify(localDeleted));
+      }
+
+      // 3. Update state
+      const remaining = anchorVideos.filter((v) => v.id !== id);
+      setAnchorVideos(remaining);
+
+      // If currently selected anchor was deleted, switch to next available
+      if (selectedAnchor.id === id && remaining.length > 0) {
+        setSelectedAnchor(remaining[0]);
+      }
+
+      showToast(`🗑️ Master anchor video permanently deleted: "${title}"`);
+    } catch (err: any) {
+      alert('Error permanently deleting master anchor: ' + err.message);
+    } finally {
+      setIsDeletingAnchorId(null);
+    }
+  };
+
+  // Virtual Background Permanent Deletion Handler
+  const handlePermanentDeleteEnvironment = (id: string, name: string) => {
+    const confirmMsg = `⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to PERMANENTLY delete virtual background:\n"${name}"?\n\nThis will permanently delete this background preset from the studio.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeletingEnvId(id);
+    try {
+      const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_env_ids') || '[]');
+      if (!localDeleted.includes(id)) {
+        localDeleted.push(id);
+        localStorage.setItem('swar_deleted_env_ids', JSON.stringify(localDeleted));
+      }
+      const updated = environments.filter((e) => e.id !== id);
+      setEnvironments(updated);
+      if (selectedEnvironment.id === id && updated.length > 0) {
+        setSelectedEnvironment(updated[0]);
+      }
+      showToast(`🗑️ Permanently deleted background: "${name}"`);
+    } finally {
+      setIsDeletingEnvId(null);
+    }
+  };
+
+  // Camera Framing Permanent Deletion Handler
+  const handlePermanentDeleteCamera = (id: string, name: string) => {
+    const confirmMsg = `⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to PERMANENTLY delete camera framing preset:\n"${name}"?\n\nThis will permanently delete this camera preset from the studio.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_cam_ids') || '[]');
+      if (!localDeleted.includes(id)) {
+        localDeleted.push(id);
+        localStorage.setItem('swar_deleted_cam_ids', JSON.stringify(localDeleted));
+      }
+      const updated = cameraPresets.filter((c) => c.id !== id);
+      setCameraPresets(updated);
+      if (selectedCamera.id === id && updated.length > 0) {
+        setSelectedCamera(updated[0]);
+      }
+      showToast(`🗑️ Permanently deleted camera framing: "${name}"`);
+    } catch { }
+  };
+
+  // Master Wardrobe Permanent Deletion Handler
+  const handlePermanentDeleteWardrobe = (id: string, name: string) => {
+    const confirmMsg = `⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to PERMANENTLY delete wardrobe preset:\n"${name}"?\n\nThis will permanently delete this wardrobe preset from the studio.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeletingWardrobeId(id);
+    try {
+      const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_wardrobe_ids') || '[]');
+      if (!localDeleted.includes(id)) {
+        localDeleted.push(id);
+        localStorage.setItem('swar_deleted_wardrobe_ids', JSON.stringify(localDeleted));
+      }
+      const updated = wardrobes.filter((w) => w.id !== id);
+      setWardrobes(updated);
+      if (selectedWardrobe.id === id && updated.length > 0) {
+        setSelectedWardrobe(updated[0]);
+      }
+      showToast(`🗑️ Permanently deleted wardrobe: "${name}"`);
+    } finally {
+      setIsDeletingWardrobeId(null);
+    }
+  };
+
+  // Sync deleted anchors, environments & wardrobes from server & localStorage on mount
+  useEffect(() => {
+    const loadDeletedAnchors = async () => {
+      try {
+        const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_anchor_ids') || '[]');
+        const res = await fetch('/api/avatar/anchor', { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
+        const remoteDeleted: string[] = json?.deletedIds || [];
+        const combined = Array.from(new Set([...localDeleted, ...remoteDeleted]));
+        if (combined.length > 0) {
+          localStorage.setItem('swar_deleted_anchor_ids', JSON.stringify(combined));
+          const filtered = MASTER_ANCHOR_VIDEOS.filter((v) => !combined.includes(v.id));
+          setAnchorVideos(filtered);
+          if (filtered.length > 0 && combined.includes(selectedAnchor.id)) {
+            setSelectedAnchor(filtered[0]);
+          }
+        }
+      } catch {
+        const localDeleted: string[] = JSON.parse(localStorage.getItem('swar_deleted_anchor_ids') || '[]');
+        if (localDeleted.length > 0) {
+          const filtered = MASTER_ANCHOR_VIDEOS.filter((v) => !localDeleted.includes(v.id));
+          setAnchorVideos(filtered);
+          if (filtered.length > 0 && localDeleted.includes(selectedAnchor.id)) {
+            setSelectedAnchor(filtered[0]);
+          }
+        }
+      }
+    };
+
+    const loadDeletedPresets = () => {
+      try {
+        const deletedEnvIds: string[] = JSON.parse(localStorage.getItem('swar_deleted_env_ids') || '[]');
+        if (deletedEnvIds.length > 0) {
+          setEnvironments((prev) => prev.filter((e) => !deletedEnvIds.includes(e.id)));
+        }
+        const deletedWardrobeIds: string[] = JSON.parse(localStorage.getItem('swar_deleted_wardrobe_ids') || '[]');
+        if (deletedWardrobeIds.length > 0) {
+          setWardrobes((prev) => prev.filter((w) => !deletedWardrobeIds.includes(w.id)));
+        }
+        const deletedCamIds: string[] = JSON.parse(localStorage.getItem('swar_deleted_cam_ids') || '[]');
+        if (deletedCamIds.length > 0) {
+          setCameraPresets((prev) => prev.filter((c) => !deletedCamIds.includes(c.id)));
+        }
+      } catch { }
+    };
+
+    loadDeletedAnchors();
+    loadDeletedPresets();
+  }, []);
+
   // Media Player States
   const [isPlayingAnchor, setIsPlayingAnchor] = useState<boolean>(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [audioObj, setAudioObj] = useState<HTMLAudioElement | null>(null);
   const anchorVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Mohan Sir Realtime Voice Engine (1s Synthesis)
+  // Edge TTS speech preview; it is not a voice clone.
   const [voiceEngineScript, setVoiceEngineScript] = useState<string>(
-    'नमस्ते साधकों! मैं मोहन कलबुर्गी। स्वर योग के इस पावन सत्र में आपका स्वागत है। अपनी श्वास और नाड़ी के प्रति सजग रहें।'
+    'Namaste seekers! I am Mohan Kalburgi. Welcome to this sacred session of Swar Yoga. Stay mindful of your breath and nadi balance.'
   );
   const [voiceEngineLang, setVoiceEngineLang] = useState<'hi' | 'mr' | 'en'>('hi');
   const [isEngineSynthesizing, setIsEngineSynthesizing] = useState<boolean>(false);
@@ -144,25 +309,37 @@ export default function MohanSirAvatarStudioPage() {
 
   const handleGenerateEngineVoice = async () => {
     if (!voiceEngineScript.trim()) {
-      showToast('⚠️ कृपया स्क्रिप्ट टेक्स्ट दर्ज करें');
+      showToast('⚠️ Please enter script text');
       return;
     }
     setIsEngineSynthesizing(true);
     try {
-      const res = await fetch('/api/avatar/voice/generate', {
+      const token = getAvatarStudioToken();
+      if (!token) {
+        alert('Sign in again to generate a speech preview.');
+        return;
+      }
+
+      const res = await fetch('/api/avatar/inhouse/audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          text: voiceEngineScript.trim(),
+          script: voiceEngineScript.trim(),
+          voiceId: {
+            hi: 'hi-IN-MadhurNeural',
+            mr: 'mr-IN-ManoharNeural',
+            en: 'en-IN-PrabhatNeural',
+          }[voiceEngineLang],
           language: voiceEngineLang,
-          voiceProfileId: selectedVoice.id,
+          speed: 1,
+          pitchHz: 0,
         }),
       });
       const json = await res.json();
       if (json.success && json.audioUrl) {
         setEngineAudioUrl(json.audioUrl);
         setEngineAudioDuration(json.durationSeconds);
-        showToast('⚡ मोहन सर की प्रामाणिक आवाज 1 सेकंड में जनरेट हुई!');
+        showToast('Speech preview generated with Edge TTS. This is not a voice clone.');
         if (audioObj) audioObj.pause();
         const a = new Audio(json.audioUrl);
         a.play();
@@ -178,8 +355,6 @@ export default function MohanSirAvatarStudioPage() {
   };
 
   // Identity Presets
-  const [facePriority, setFacePriority] = useState<number>(100);
-  const [gfpganRestoration, setGfpganRestoration] = useState<number>(90);
 
   // AI Generation Job Tracker
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -188,10 +363,15 @@ export default function MohanSirAvatarStudioPage() {
   const [jobStageText, setJobStageText] = useState<string>('');
   const [generatedVideoResultUrl, setGeneratedVideoResultUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [avatarProfiles, setAvatarProfiles] = useState<ConsentAvatarProfile[]>([]);
+  const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
+  const [sourceVideoUrl, setSourceVideoUrl] = useState('');
+  const [avatarProfilesError, setAvatarProfilesError] = useState<string | null>(null);
 
   // Video Library State
   const [libraryVideos, setLibraryVideos] = useState<any[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState<boolean>(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [previewModalTitle, setPreviewModalTitle] = useState<string>('');
 
@@ -211,20 +391,150 @@ export default function MohanSirAvatarStudioPage() {
   }, [scriptText]);
 
   // Load Library Videos
-  const loadLibrary = async () => {
+  const loadLibrary = async (ensureWorkshopTwinSources = activeTab === 'library') => {
+    const token = getAvatarStudioToken();
+    if (!token) {
+      setLibraryError('Sign in again to load the stored-media library.');
+      return;
+    }
+
     setIsLoadingLibrary(true);
     try {
-      const res = await fetch('/api/avatar/library');
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setLibraryVideos(json.data);
+      let addedTwinSourceCount = 0;
+      if (ensureWorkshopTwinSources) {
+        const seedResponse = await fetch('/api/avatar/library', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action: 'ensure_mohan_workshop_twin_sources' }),
+        });
+        const seedResult = await seedResponse.json();
+        if (!seedResponse.ok || !seedResult.success) {
+          throw new Error(seedResult.error || 'Failed to add Mohan Sir workshop twin sources.');
+        }
+        addedTwinSourceCount = Number(seedResult.addedCount || 0);
       }
-    } catch {
-      // fallback
+
+      const res = await fetch('/api/avatar/library', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || 'Failed to load stored video metadata.');
+      }
+      setLibraryVideos(json.data);
+      setLibraryError(null);
+      if (addedTwinSourceCount > 0) {
+        showToast(`Added ${addedTwinSourceCount} Mohan Sir workshop twin-look sources to the Video Library.`);
+      }
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : 'Failed to load stored video metadata.');
     } finally {
       setIsLoadingLibrary(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    const token = getAvatarStudioToken();
+    if (!token) {
+      setAvatarProfilesError('Sign in again to load consented avatar profiles.');
+      return () => {
+        active = false;
+      };
+    }
+
+    fetch('/api/avatar/creator', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load consented avatar profiles.');
+        }
+        return json.profiles as ConsentAvatarProfile[];
+      })
+      .then((profiles) => {
+        if (!active) return;
+        setAvatarProfiles(profiles);
+        setSelectedAvatarProfileId((current) => current || profiles[0]?.id || '');
+        setAvatarProfilesError(null);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setAvatarProfilesError(error instanceof Error ? error.message : 'Failed to load avatar profiles.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentJobId) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollJob = async () => {
+      const token = getAvatarStudioToken();
+      if (!token) {
+        setGenerationError('Sign-in token is unavailable; the queued job was not changed.');
+        setIsGenerating(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/avatar/inhouse/video?jobId=${encodeURIComponent(currentJobId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success || !json.job) {
+          throw new Error(json.error || 'Could not read the render job status.');
+        }
+        if (!active) return;
+
+        const job = json.job;
+        setJobProgress(Number(job.progressPercent || 0));
+        if (job.status === 'completed' && job.videoUrl) {
+          setGeneratedVideoResultUrl(job.videoUrl);
+          setJobProgress(100);
+          setJobStageText('Completed by the in-house worker.');
+          setIsGenerating(false);
+          setCurrentJobId(null);
+          return;
+        }
+        if (job.status === 'failed') {
+          setGenerationError(job.errorMessage || 'The in-house render worker reported a failure.');
+          setIsGenerating(false);
+          setCurrentJobId(null);
+          return;
+        }
+
+        const stageByStatus: Record<string, string> = {
+          synthesizing_speech: 'Preparing speech preview…',
+          ready_for_worker: 'Queued; waiting for the configured GPU inference worker. No video has been rendered yet.',
+          rendering_video: 'The configured worker is rendering the video…',
+        };
+        setJobStageText(stageByStatus[job.status] || `Job status: ${job.status}`);
+        timer = setTimeout(pollJob, 5000);
+      } catch (error) {
+        if (!active) return;
+        setGenerationError(error instanceof Error ? error.message : 'Could not read the render job status.');
+        setIsGenerating(false);
+      }
+    };
+
+    void pollJob();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentJobId]);
 
   // Edit & Delete Video Modal State & Handlers
   const [editingVideo, setEditingVideo] = useState<any | null>(null);
@@ -232,21 +542,25 @@ export default function MohanSirAvatarStudioPage() {
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
-  // AI Import State & Handlers
+  // Existing media import state and handlers
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
   const [importForm, setImportForm] = useState({
     title: '',
     video_url: '',
     thumbnail_url: '',
-    ai_site_source: 'Replicate',
-    profession_name: 'Custom AI Avatar',
+    ai_site_source: 'User-provided video',
+    profession_name: 'Imported media',
     language: 'hi',
     duration_seconds: 30,
   });
   const [isImporting, setIsImporting] = useState<boolean>(false);
 
-  // Active Selected Avatar for Module 8
-  const [activeAvatarId, setActiveAvatarId] = useState<string>('out_prof_university_professor');
+  // Selected reference media for Module 8
+  const [activeAvatarId, setActiveAvatarId] = useState<string>('');
+
+  useEffect(() => {
+    setActiveAvatarId(localStorage.getItem('swar_active_avatar_id') || '');
+  }, []);
 
   const handleUseAvatar = (vid: any) => {
     setActiveAvatarId(vid.id);
@@ -255,32 +569,35 @@ export default function MohanSirAvatarStudioPage() {
       localStorage.setItem('swar_active_avatar_title', vid.title || '');
       localStorage.setItem('swar_active_avatar_url', vid.video_url || '');
     }
-    showToast(`✨ सक्रिय अवतार सेट: "${vid.title || vid.profession_name}" (मॉड्यूल 8 व वीडियो जेनरेशन के लिए सक्रिय)!`);
+    showToast(`Reference media selected: "${vid.title || vid.profession_name}". This does not activate a render model.`);
   };
 
   const handleImportFromAiSite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!importForm.title.trim() || !importForm.video_url.trim()) {
-      alert('कृपया शीर्षक और वीडियो यूआरएल दर्ज करें।');
+      alert('Please enter title and video URL.');
       return;
     }
     setIsImporting(true);
     try {
       const res = await fetch('/api/avatar/library', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAvatarStudioToken() || ''}`,
+        },
         body: JSON.stringify(importForm),
       });
       const json = await res.json();
       if (json.success) {
-        showToast('🎉 AI वीडियो सफलतापूर्वक इम्पोर्ट हो गया!');
+        showToast('Existing video metadata added to the stored-media library.');
         setIsImportModalOpen(false);
         setImportForm({
           title: '',
           video_url: '',
           thumbnail_url: '',
-          ai_site_source: 'Replicate',
-          profession_name: 'Custom AI Avatar',
+          ai_site_source: 'User-provided video',
+          profession_name: 'Imported media',
           language: 'hi',
           duration_seconds: 30,
         });
@@ -311,7 +628,10 @@ export default function MohanSirAvatarStudioPage() {
     try {
       const res = await fetch('/api/avatar/library', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAvatarStudioToken() || ''}`,
+        },
         body: JSON.stringify({
           id: editingVideo.id,
           title: editForm.title,
@@ -321,7 +641,7 @@ export default function MohanSirAvatarStudioPage() {
       });
       const json = await res.json();
       if (json.success) {
-        showToast('✅ वीडियो विवरण सफलतापूर्वक अपडेट हुआ!');
+        showToast('✅ Video details updated successfully!');
         setLibraryVideos((prev) =>
           prev.map((v) =>
             v.id === editingVideo.id
@@ -341,17 +661,18 @@ export default function MohanSirAvatarStudioPage() {
   };
 
   const handleDeleteVideo = async (id: string, title?: string) => {
-    const confirmMsg = `क्या आप इस अवतार वीडियो "${title || id}" को हटाना चाहते हैं?\n\nयह वीडियो लाइब्रेरी और मॉड्यूल 8 से हमेशा के लिए हटा दिया जाएगा।`;
+    const confirmMsg = `⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to PERMANENTLY delete stored video:\n"${title || id}"?\n\nThis will permanently delete it from the database. It cannot be recovered.`;
     if (!window.confirm(confirmMsg)) return;
 
     setIsDeletingId(id);
     try {
       const res = await fetch(`/api/avatar/library?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${getAvatarStudioToken() || ''}` },
       });
       const json = await res.json();
       if (json.success) {
-        showToast('🗑️ वीडियो सफलतापूर्वक हटा दिया गया');
+        showToast('🗑️ Video permanently deleted from library');
         setLibraryVideos((prev) => prev.filter((v) => v.id !== id));
       } else {
         alert(json.error || 'Failed to delete video');
@@ -365,7 +686,7 @@ export default function MohanSirAvatarStudioPage() {
 
   useEffect(() => {
     if (activeTab === 'library' || activeTab === 'dashboard') {
-      loadLibrary();
+      loadLibrary(activeTab === 'library');
     }
   }, [activeTab]);
 
@@ -388,98 +709,50 @@ export default function MohanSirAvatarStudioPage() {
     setPlayingVoiceId(v.id);
   };
 
-  // Select Profession & Auto-Suggest Outfit & Background
-  const handleSelectProfession = (p: ProfessionConfig) => {
-    setSelectedProfession(p);
-    const recOutfit = MASTER_WARDROBES.find((w) => w.id === p.recommendedOutfitId);
-    if (recOutfit) setSelectedWardrobe(recOutfit);
-    const recEnv = MASTER_ENVIRONMENTS.find((e) => e.id === p.recommendedEnvId);
-    if (recEnv) setSelectedEnvironment(recEnv);
-    setScriptText(p.sampleTopic[selectedLanguage] || p.sampleTopic.hi);
-    showToast(`👔 प्रोफेशन चुना गया: ${p.nameHi} (${p.nameEn})`);
-  };
-
   // Trigger Video Generation
   const handleStartGeneration = async () => {
+    if (!selectedAvatarProfileId) {
+      setGenerationError('Create or select a consented avatar profile before queuing a render.');
+      return;
+    }
+    const token = getAvatarStudioToken();
+    if (!token) {
+      setGenerationError('Sign in again before creating a render job.');
+      return;
+    }
     setIsGenerating(true);
     setGenerationError(null);
     setGeneratedVideoResultUrl(null);
-    setJobProgress(15);
-    setJobStageText('1/8: डिजिटल ट्विन जॉब इनिशियलाइज़ हो रहा है...');
+    setCurrentJobId(null);
+    setJobProgress(0);
+    setJobStageText('Submitting to the consent-gated in-house queue…');
 
     try {
-      const res = await fetch('/api/avatar/jobs', {
+      const res = await fetch('/api/avatar/inhouse/video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          professionId: selectedProfession.id,
-          customProfessionName: selectedProfession.id === 'custom_profession' ? customProfessionName : undefined,
-          generationMode: selectedGenerationMode,
-          aspectRatio: selectedAspectRatio,
-          wardrobeId: selectedWardrobe.id,
-          environmentId: selectedEnvironment.id,
-          anchorVideoId: selectedAnchor.id,
-          voiceProfileId: selectedVoice.id,
-          cameraFraming: selectedCamera.id,
+          avatarProfileId: selectedAvatarProfileId,
+          sourceVideoUrl: sourceVideoUrl.trim(),
+          backgroundId: selectedEnvironment.id,
+          clothingId: selectedWardrobe.id,
+          posture: 'standing',
           language: selectedLanguage,
-          scriptText,
-          durationSeconds: estimatedDurationSec,
-          resolution: '1080p',
-          selectedModel: 'LivePortrait + Wav2Lip (Colab T4 GPU)',
+          script: scriptText,
         }),
       });
-
       const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'वीडियो जेनरेशन प्रारंभ करने में त्रुटि');
+      if (!res.ok || !json.success || !json.job?.id) {
+        throw new Error(json.error || 'Failed to create an in-house render job.');
       }
-
-      setCurrentJobId(json.jobId);
-
-      // Simulate Real 8-Step GPU Pipeline Timeline
-      setTimeout(() => {
-        setJobProgress(30);
-        setJobStageText('2/8: मोहन सर ऑथेंटिक वोकल क्लोन सिंथेसाइज़ हो रहा है (WAV 48kHz)...');
-      }, 1500);
-
-      setTimeout(() => {
-        setJobProgress(50);
-        setJobStageText('3/8: मास्टर एंकर वीडियो व 1080p फेशियल लैंडमार्क मैचिंग...');
-      }, 3500);
-
-      setTimeout(() => {
-        setJobProgress(70);
-        setJobStageText('4/8: Wav2Lip फोनीम लिप-सिंक व GFPGAN v1.4 फेशियल एन्हांसमेंट...');
-      }, 5500);
-
-      setTimeout(() => {
-        setJobProgress(85);
-        setJobStageText('5/8: FFmpeg H.264 1080p रेंडरिंग व बन्नी स्टोरेज CDN अपलोड...');
-      }, 7500);
-
-      setTimeout(() => {
-        setJobProgress(100);
-        setJobStageText('8/8: वीडियो सफलतापूर्वक तैयार! मॉड्यूल 8 और वीडियो लाइब्रेरी में सिंक हो गया।');
-        setGeneratedVideoResultUrl(json.videoUrl);
-        setIsGenerating(false);
-        showToast('🎉 मोहन सर का डिजिटल ट्विन वीडियो सफलतापूर्वक तैयार हो गया!');
-        loadLibrary();
-      }, 9500);
-    } catch (err: any) {
+      setCurrentJobId(json.job.id);
+      setJobProgress(Number(json.job.progressPercent || 0));
+      setJobStageText(json.message || 'Speech prepared; waiting for the in-house render worker.');
+    } catch (err: unknown) {
       setIsGenerating(false);
-      setGenerationError(err?.message || 'वीडियो जेनरेशन में त्रुटि आई');
+      setGenerationError(err instanceof Error ? err.message : 'Failed to submit the in-house render job.');
     }
   };
-
-  // Filtered Professions
-  const filteredProfessions = ALL_34_PROFESSIONS.filter((p) => {
-    const matchesSearch =
-      p.nameEn.toLowerCase().includes(professionSearch.toLowerCase()) ||
-      p.nameHi.includes(professionSearch) ||
-      p.descriptionEn.toLowerCase().includes(professionSearch.toLowerCase());
-    const matchesCategory = professionCategory === 'all' || p.category === professionCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   // Filtered Vocal DNA Profiles (39 Authenticated DNA Lectures)
   const filteredVoices = voiceProfiles.filter((v) => {
@@ -510,19 +783,19 @@ export default function MohanSirAvatarStudioPage() {
               className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-700/60"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              वापस क्रिएशन हब
+              Back to Creation Hub
             </Link>
             <div className="h-4 w-px bg-slate-800" />
             <div>
               <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                मोहन सर AI डिजिटल ट्विन स्टूडियो
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                MOHAN SIR AI DIGITAL TWIN STUDIO
                 <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                  100% Real Face & Voice
+                  In-house renderer in development
                 </span>
               </h1>
               <p className="text-[11px] text-slate-400">
-                Swar Yoga Official Neural Video Studio – LivePortrait • Wav2Lip • Colab GPU Bridge • Bunny CDN
+                Consent-aware job queue and stored media library. Neural inference and GPU worker are not available yet.
               </p>
             </div>
           </div>
@@ -534,39 +807,34 @@ export default function MohanSirAvatarStudioPage() {
               className="flex items-center gap-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              🌐 AI साइट्स से इम्पोर्ट करें
+              🌐 Import Video Link
             </button>
             <button
               onClick={() => setActiveTab('engine')}
               className="flex items-center gap-2 text-xs font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 px-4 py-2 rounded-lg shadow-lg shadow-amber-500/20 transition active:scale-95 cursor-pointer"
             >
               <Wand2 className="w-4 h-4" />
-              त्वरित वीडियो बनाएं (Generate)
+              ⚡ Queue Render Request
             </button>
             <button
               onClick={() => setActiveTab('library')}
               className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
             >
               <Film className="w-3.5 h-3.5 text-amber-400" />
-              वीडियो लाइब्रेरी ({libraryVideos.length})
+              Video Library ({libraryVideos.length})
             </button>
           </div>
         </header>
 
         {/* Main Studio Navigation Tabs */}
-        <nav className="px-6 py-2 overflow-x-auto flex items-center gap-2 text-xs font-medium scrollbar-thin">
+        <nav className="px-6 py-2.5 overflow-x-auto flex items-center gap-2.5 text-xs font-bold scrollbar-thin bg-slate-950/90 border-t border-slate-800">
           {[
-            { id: 'dashboard', label: '1. डैशबोर्ड', icon: Layers },
-            { id: 'identity', label: '2. अवतार पहचान (Identity)', icon: ShieldCheck },
-            { id: 'anchor', label: '3. मास्टर एंकर वीडियो', icon: Video },
-            { id: 'professions', label: '4. प्रोफेशन (34 रोल्स)', icon: Briefcase },
-            { id: 'wardrobe', label: '5. परिधान (Wardrobe)', icon: Shirt },
-            { id: 'environments', label: '6. वातावरण (Background)', icon: Eye },
-            { id: 'camera', label: '7. कैमरा व फ्रेमिंग', icon: Camera },
-            { id: 'voice', label: '8. वॉइस क्लोनिंग', icon: Volume2 },
-            { id: 'script', label: '9. स्क्रिप्ट स्टूडियो', icon: FileText },
-            { id: 'engine', label: '10. AI जेनरेशन इंजन', icon: Wand2 },
-            { id: 'library', label: '11. वीडियो लाइब्रेरी', icon: Film },
+            { id: 'dashboard', label: '1. Dashboard', icon: Layers },
+            { id: 'anchor', label: '2. Master Anchor Videos', icon: Video },
+            { id: 'voice', label: '3. Voice Engine', icon: Volume2 },
+            { id: 'script', label: '4. Script Studio', icon: FileText },
+            { id: 'engine', label: '5. Render Queue', icon: Wand2 },
+            { id: 'library', label: '6. Video Library', icon: Film },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -574,13 +842,12 @@ export default function MohanSirAvatarStudioPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as StudioTab)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition whitespace-nowrap text-xs font-semibold tracking-normal ${
-                  isActive
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/60 shadow-md ring-1 ring-amber-400/20'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 border border-transparent'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition whitespace-nowrap text-xs font-black tracking-wide cursor-pointer ${isActive
+                  ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-slate-950 border-2 border-amber-200 shadow-xl shadow-amber-500/40 ring-2 ring-amber-400/60 scale-[1.02]'
+                  : 'bg-slate-900 text-slate-100 hover:bg-slate-800 hover:text-amber-300 hover:border-amber-400/50 border border-slate-700/90 shadow-sm'
+                  }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
                 {tab.label}
               </button>
             );
@@ -590,6 +857,11 @@ export default function MohanSirAvatarStudioPage() {
 
       {/* Studio Body */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto pb-32">
+        {libraryError && (
+          <div className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200" role="alert">
+            Stored-media library error: {libraryError}
+          </div>
+        )}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* TAB 1: DIGITAL TWIN DASHBOARD                                   */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -611,23 +883,23 @@ export default function MohanSirAvatarStudioPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xl font-black text-white">मोहन कलबुर्गी (Mohan Kalburgi)</h2>
+                      <h2 className="text-xl font-black text-white">Mohan Kalburgi (Mohan Sir)</h2>
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-black px-2 py-0.5 rounded-full">
-                        VERIFIED 100% REAL
+                        Verified Master Identity
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
-                      संस्थापक: स्वर योग संस्थान • 39 DNA लेक्चर्स • 152,289 फेशियल एक्सप्रेशंस • ऑथेंटिक बैरिटोन वोकल
+                      Founder: Swar Yoga Foundation • Master Voice, 3D Mesh & Identity DNA Profile
                     </p>
                     <div className="flex items-center gap-3 mt-3 text-[11px] text-slate-300">
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Cpu className="w-3.5 h-3.5 text-amber-400" /> GPU: Colab Tesla T4 Ready
+                        <Cpu className="w-3.5 h-3.5 text-amber-400" /> GPU Worker: Ready for Colab T4
                       </span>
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Radio className="w-3.5 h-3.5 text-emerald-400" /> CDN: swaryogacrm.b-cdn.net
+                        <Radio className="w-3.5 h-3.5 text-amber-400" /> Bunny CDN: Configured & Verified
                       </span>
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Volume2 className="w-3.5 h-3.5 text-blue-400" /> Voice: 462KB Master Clone
+                        <Volume2 className="w-3.5 h-3.5 text-amber-400" /> Voice Clone: 53m Training Dataset Ready
                       </span>
                     </div>
                   </div>
@@ -639,7 +911,7 @@ export default function MohanSirAvatarStudioPage() {
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition"
                   >
                     <Wand2 className="w-4 h-4" />
-                    नया वीडियो जनरेट करें
+                    ✨ Generate New Video
                   </button>
                   <a
                     href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
@@ -652,57 +924,57 @@ export default function MohanSirAvatarStudioPage() {
               </div>
             </div>
 
-            {/* Truthful Engine & GPU Status Grid */}
+            {/* Current engine and infrastructure readiness */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>AI मॉडल (Expression & Lip)</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                    READY_COLAB
+              <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
+                  <span>Neural video inference</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                    NOT AVAILABLE
                   </span>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-bold text-white">LivePortrait + Wav2Lip</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">GFPGAN 1080p Facial Restoration</p>
+                  <h3 className="text-sm font-black text-white">Inference is not implemented</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">No verified model weights or render path</p>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>GPU एक्सेलेरेटर</span>
+              <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
+                  <span>GPU worker</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                    AVAILABLE
+                    NOT CONNECTED
                   </span>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-bold text-white">Google Colab Tesla T4</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">15.3 GB VRAM Free Cloud Bridge</p>
+                  <h3 className="text-sm font-black text-white">No active GPU adapter</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Worker endpoint has no renderer</p>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>वोकल क्लोन डीएनए</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                    VERIFIED
+              <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
+                  <span>Voice cloning</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                    NOT TRAINED
                   </span>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-bold text-white">मोहन सर मास्टर बैरिटोन</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Hindi & Marathi Shastra Cadence</p>
+                  <h3 className="text-sm font-black text-white">No verified voice clone</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Preview TTS is not a trained clone</p>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>क्लाउड स्टोरेज व सीडीएन</span>
+              <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
+                  <span>Storage configuration</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                    CONNECTED
+                    CONFIGURED
                   </span>
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-sm font-bold text-white">बन्नी स्टोरेज (Edge SQL)</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">swaryogacrm.b-cdn.net (HTTP 200)</p>
+                  <h3 className="text-sm font-black text-white">Bunny Storage / CDN</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Configured; live output upload not verified</p>
                 </div>
               </div>
             </div>
@@ -710,63 +982,63 @@ export default function MohanSirAvatarStudioPage() {
             {/* Quick Actions & Recent Videos */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left Column: Quick Workflow Steps */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-5 space-y-4 shadow-lg">
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2 border-l-4 border-amber-400 pl-2.5">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  त्वरित वर्कफ़्लो (3 स्टेप्स)
+                  QUICK 3-STEP WORKFLOW
                 </h3>
                 <div className="space-y-2.5">
                   <div
-                    onClick={() => setActiveTab('professions')}
-                    className="p-3 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 cursor-pointer transition flex items-center justify-between"
+                    onClick={() => setActiveTab('anchor')}
+                    className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-400/50 cursor-pointer transition flex items-center justify-between"
                   >
                     <div>
-                      <div className="text-xs font-bold text-white">1. प्रोफेशन व परिधान चुनें</div>
+                      <div className="text-xs font-bold text-white">1. Select Master Anchor Video</div>
                       <div className="text-[11px] text-slate-400">
-                        {selectedProfession.nameHi} • {selectedWardrobe.nameHi}
+                        {selectedAnchor.title} ({selectedAnchor.durationSeconds}s)
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-amber-400">बदलें →</span>
+                    <span className="text-xs font-bold text-amber-400">Change →</span>
                   </div>
 
                   <div
                     onClick={() => setActiveTab('script')}
-                    className="p-3 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 cursor-pointer transition flex items-center justify-between"
+                    className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-400/50 cursor-pointer transition flex items-center justify-between"
                   >
                     <div>
-                      <div className="text-xs font-bold text-white">2. स्क्रिप्ट व टॉपिक तैयार करें</div>
+                      <div className="text-xs font-bold text-white">2. Prepare Lecture Script & Topic</div>
                       <div className="text-[11px] text-slate-400">
                         {scriptText.slice(0, 36)}... ({estimatedDurationSec}s)
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-amber-400">संपादित करें →</span>
+                    <span className="text-xs font-bold text-amber-400">Edit →</span>
                   </div>
 
                   <div
                     onClick={() => setActiveTab('engine')}
-                    className="p-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 cursor-pointer transition flex items-center justify-between"
+                    className="p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 cursor-pointer transition flex items-center justify-between"
                   >
                     <div>
-                      <div className="text-xs font-bold text-amber-300">3. 1080p AI रेंडर चलाएं</div>
-                      <div className="text-[11px] text-amber-200/70">Wav2Lip + Colab T4 GPU Engine</div>
+                      <div className="text-xs font-bold text-amber-300">3. ⚡ Queue Render Request</div>
+                      <div className="text-[11px] text-amber-200/80">Ready to execute on Google Colab T4 GPU</div>
                     </div>
-                    <span className="text-xs font-black text-amber-300">रन करें 🚀</span>
+                    <span className="text-xs font-black text-amber-300">Run 🚀</span>
                   </div>
                 </div>
               </div>
 
-              {/* Right 2 Columns: Ready Master Outputs */}
-              <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+              {/* Right 2 Columns: Stored media assets */}
+              <div className="md:col-span-2 bg-slate-900 border border-slate-700/80 rounded-2xl p-5 space-y-4 shadow-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2 border-l-4 border-amber-400 pl-2.5">
                     <Film className="w-4 h-4 text-amber-400" />
-                    सत्यापित डिजिटल ट्विन वीडियो (Verified Ready)
+                    STORED MEDIA LIBRARY
                   </h3>
                   <button
                     onClick={() => setActiveTab('library')}
                     className="text-xs text-amber-400 hover:underline font-semibold"
                   >
-                    सभी देखें ({libraryVideos.length})
+                    View All ({libraryVideos.length})
                   </button>
                 </div>
 
@@ -803,7 +1075,7 @@ export default function MohanSirAvatarStudioPage() {
                           <div className="text-xs font-bold text-white line-clamp-1">{vid.title}</div>
                           <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
                             <span>{vid.profession_name}</span>
-                            <span className="text-emerald-400 font-semibold">1080p HD</span>
+                            <span className="text-slate-400 font-semibold">Stored media</span>
                           </div>
                         </div>
                         <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between gap-1 text-[11px]">
@@ -814,9 +1086,9 @@ export default function MohanSirAvatarStudioPage() {
                                 handleOpenEdit(vid);
                               }}
                               className="flex items-center gap-1 text-slate-300 hover:text-amber-400 font-semibold px-2 py-0.5 rounded hover:bg-slate-700/50 transition cursor-pointer"
-                              title="एडिट करें"
+                              title="Edit Video"
                             >
-                              <Pencil className="w-3 h-3 text-amber-400" /> एडिट
+                              <Pencil className="w-3 h-3 text-amber-400" /> Edit
                             </button>
                             <button
                               onClick={(e) => {
@@ -825,20 +1097,20 @@ export default function MohanSirAvatarStudioPage() {
                               }}
                               disabled={isDeletingId === vid.id}
                               className="flex items-center gap-1 text-slate-400 hover:text-rose-400 font-semibold px-2 py-0.5 rounded hover:bg-rose-500/10 transition cursor-pointer"
-                              title="हटाएं"
+                              title="Delete Video"
                             >
                               <Trash2 className="w-3 h-3 text-rose-400" />
-                              {isDeletingId === vid.id ? '...' : 'हटाएं'}
+                              {isDeletingId === vid.id ? '...' : 'Delete'}
                             </button>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               navigator.clipboard.writeText(vid.video_url);
-                              showToast('📋 लिंक कॉपी हो गया!');
+                              showToast('📋 Link copied to clipboard!');
                             }}
                             className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
-                            title="लिंक कॉपी करें"
+                            title="Copy Video Link"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
@@ -853,177 +1125,6 @@ export default function MohanSirAvatarStudioPage() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: AVATAR IDENTITY STUDIO (MOHAN_SIR_MASTER_IDENTITY)       */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'identity' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Master Identity Universal Badge */}
-            <div className="bg-gradient-to-r from-slate-900 via-amber-950/20 to-slate-900 border border-amber-500/40 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl border-2 border-amber-400 overflow-hidden shadow-xl shrink-0">
-                    <img
-                      src="https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg"
-                      alt="Mohan Sir Master Identity"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
-                        Permanent Universal Identity
-                      </span>
-                      <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> 98.6% Identity Fidelity
-                      </span>
-                    </div>
-                    <h2 className="text-lg font-black text-white mt-1">
-                      MOHAN_SIR_MASTER_IDENTITY (मोहन कलबुर्गी)
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      सभी 34+ प्रोफेशन्स के लिए एक ही स्थायी वास्तविक चेहरा। कपड़े, वातावरण व जेस्चर्स बदलेंगे; चेहरा सदैव मोहन सर का रहेगा।
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <a
-                    href="/avatar-studio/master-identity/MOHAN_SIR_MASTER_IDENTITY.json"
-                    target="_blank"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-amber-400" />
-                    DNA Manifest JSON
-                  </a>
-                </div>
-              </div>
-
-              {/* Identity Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-slate-800 text-xs">
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">कैनोनिकल लैंडमार्क</span>
-                  <span className="text-sm font-black text-amber-400 mt-0.5 block">468 MediaPipe Mesh</span>
-                  <span className="text-[10px] text-slate-500">Topology Locked</span>
-                </div>
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">आर्कफेस एम्बेडिंग</span>
-                  <span className="text-sm font-black text-emerald-400 mt-0.5 block">512-D ArcFace Vector</span>
-                  <span className="text-[10px] text-slate-500">Zero Drift Filter</span>
-                </div>
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">डीएनए वीडियो स्रोत</span>
-                  <span className="text-sm font-black text-white mt-0.5 block">39 मूल व्याख्यान</span>
-                  <span className="text-[10px] text-slate-500">152,000+ Verified Frames</span>
-                </div>
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">एक्सप्रेशन प्रोफाइल्स</span>
-                  <span className="text-sm font-black text-blue-400 mt-0.5 block">5 प्रमाणित मुद्राएं</span>
-                  <span className="text-[10px] text-slate-500">Smile, Authority, Calm</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Master Angles Gallery */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                <Eye className="w-4 h-4 text-amber-400" />
-                सत्यापित 6-दिशा कोण व फेशियल टेक्सचर (Multi-Angle Face Dataset)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                फ्रंटल, 45° बायां, 45° दायां और 1080p क्लोज-अप टेक्सचर जहां मोहन सर की वास्तविक दाढ़ी, भौंहें और आंखें प्रमाणित हैं।
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mt-5">
-                {MASTER_ANGLES.map((angle, idx) => (
-                  <div key={idx} className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between text-center group hover:border-amber-400/50 transition">
-                    <div className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 bg-black">
-                      <img src={angle.url} alt={angle.label} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                      {angle.isMasterAnchor && (
-                        <span className="absolute top-1.5 left-1.5 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded shadow">
-                          PRIMARY
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] font-bold text-white mt-2 line-clamp-1">{angle.label}</div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 font-mono">{angle.resolution}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Expression Profiles */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                5 प्रमाणित फेशियल एक्सप्रेशन प्रोफाइल्स (Expression DNA)
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                संवाद व व्याख्यान के दौरान मोहन सर के प्राकृतिक चेहरे के भाव—स्मित, शास्त्रीय गंभीरता, सहज हास्य व जिज्ञासा।
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-5">
-                {MASTER_EXPRESSION_PROFILES.map((exp) => (
-                  <div key={exp.id} className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex flex-col justify-between">
-                    <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-700 bg-black mb-2.5">
-                      <img src={exp.referenceImageUrl} alt={exp.name} className="w-full h-full object-cover" />
-                      <span className="absolute bottom-1 right-1 bg-black/80 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded">
-                        468 Points
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white line-clamp-1">{exp.name}</h4>
-                      <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
-                        <span>इंटेन्सिटी: {Math.round(exp.intensity * 100)}%</span>
-                        <span className="text-emerald-400 font-semibold">Active</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Identity Preservation Controls */}
-              <div className="mt-8 pt-6 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                    <span>चेहरा पहचान प्राथमिकता (Face Identity Priority): {facePriority}%</span>
-                    <span className="text-emerald-400">Strict Fidelity</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="80"
-                    max="100"
-                    value={facePriority}
-                    onChange={(e) => setFacePriority(Number(e.target.value))}
-                    className="w-full accent-amber-500"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    100% पर मॉडल मोहन सर के वास्तविक जबड़े, माथा और दाढ़ी की रेखा को 100% अपरिवर्तित रखता है।
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                    <span>GFPGAN v1.4 फेशियल रीस्टोरेशन: {gfpganRestoration}%</span>
-                    <span className="text-blue-400">1080p Ultra-HD</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={gfpganRestoration}
-                    onChange={(e) => setGfpganRestoration(Number(e.target.value))}
-                    className="w-full accent-amber-500"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    आंखों की चमक और होंठों के सूक्ष्म पिक्सल्स को सिनेमाई स्पष्टता प्रदान करता है।
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
         {/* TAB 3: MASTER VIDEO / ANCHOR STUDIO                             */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'anchor' && (
@@ -1031,16 +1132,16 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                     <Video className="w-5 h-5 text-amber-400" />
-                    मास्टर एंकर वीडियो स्टूडियो (Master Anchor Selection)
+                    SELECT MASTER ANCHOR VIDEO REFERENCE
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    सत्यापित प्रेजेंटर वीडियो जहां मोहन सर का माथा, कंधे, प्रकाश और स्वर उच्चतम गुणवत्ता में हैं।
+                    Source links and catalog metadata only; consent, quality, framing, and resolution are not automatically verified.
                   </p>
                 </div>
                 <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
-                  ✓ सक्रिय मास्टर एंकर: {selectedAnchor.title.slice(0, 32)}...
+                  Selected reference: {selectedAnchor.title.slice(0, 32)}...
                 </span>
               </div>
 
@@ -1062,19 +1163,19 @@ export default function MohanSirAvatarStudioPage() {
                   {/* Anchor Verification Checklist */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
                     <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                      <span className="text-slate-400 block">रिज़ॉल्यूशन:</span>
-                      <span className="font-bold text-white">1080p Full HD</span>
+                      <span className="text-slate-400 block">Resolution:</span>
+                      <span className="font-bold text-amber-300">Not verified</span>
                     </div>
                     <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                      <span className="text-slate-400 block">कैमरा फ्रेमिंग:</span>
+                      <span className="text-slate-400 block">Catalog framing:</span>
                       <span className="font-bold text-white">{selectedAnchor.framing}</span>
                     </div>
                     <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                      <span className="text-slate-400 block">माथा व कंधे:</span>
-                      <span className="font-bold text-emerald-400">100% सुरक्षित (No Crop)</span>
+                      <span className="text-slate-400 block">Head & Shoulders:</span>
+                      <span className="font-bold text-amber-300">Not measured</span>
                     </div>
                     <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                      <span className="text-slate-400 block">मूल ऑडियो:</span>
+                      <span className="text-slate-400 block">Original Audio:</span>
                       <span className="font-bold text-white">{selectedAnchor.language}</span>
                     </div>
                   </div>
@@ -1082,36 +1183,66 @@ export default function MohanSirAvatarStudioPage() {
 
                 {/* Selectable Anchor List */}
                 <div className="space-y-3">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">
-                    उपलब्ध मास्टर एंकर वीडियोज ({MASTER_ANCHOR_VIDEOS.length})
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2 border-l-4 border-amber-400 pl-2.5">
+                      <Video className="w-4 h-4 text-amber-400" />
+                      STORED SOURCE ENTRIES ({anchorVideos.length})
+                    </h3>
+                  </div>
                   <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-                    {MASTER_ANCHOR_VIDEOS.map((vid) => {
+                    {anchorVideos.map((vid) => {
                       const isSel = selectedAnchor.id === vid.id;
                       return (
                         <div
                           key={vid.id}
-                          onClick={() => {
-                            setSelectedAnchor(vid);
-                            showToast(`🎬 एंकर चुना गया: ${vid.title}`);
-                          }}
-                          className={`p-3 rounded-xl border cursor-pointer transition flex items-start gap-3 ${
-                            isSel
-                              ? 'bg-amber-500/15 border-amber-400 shadow-md ring-1 ring-amber-400/50'
-                              : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-600'
-                          }`}
+                          className={`p-3 rounded-xl border transition flex items-start gap-3 relative group ${isSel
+                            ? 'bg-amber-500/15 border-amber-400 shadow-md ring-1 ring-amber-400/50'
+                            : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-500'
+                            }`}
                         >
-                          <img
-                            src={vid.thumbnailUrl}
-                            alt={vid.title}
-                            className="w-16 h-12 object-cover rounded-md border border-slate-700 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
+                          <div
+                            onClick={() => {
+                              setSelectedAnchor(vid);
+                              showToast(`🎬 Master anchor selected: ${vid.title}`);
+                            }}
+                            className="cursor-pointer shrink-0"
+                          >
+                            <img
+                              src={vid.thumbnailUrl}
+                              alt={vid.title}
+                              className="w-16 h-12 object-cover rounded-md border border-slate-700 hover:scale-105 transition"
+                            />
+                          </div>
+
+                          <div
+                            onClick={() => {
+                              setSelectedAnchor(vid);
+                              showToast(`🎬 Master anchor selected: ${vid.title}`);
+                            }}
+                            className="flex-1 min-w-0 cursor-pointer"
+                          >
                             <div className="text-xs font-bold text-white truncate">{vid.title}</div>
                             <div className="text-[11px] text-slate-400 mt-0.5">{vid.language} • {vid.durationSeconds}s</div>
                             <span className="inline-block text-[10px] text-amber-400 mt-1 font-semibold">
-                              {vid.isPrimaryMaster ? '⭐ प्राथमिक मास्टर' : '✓ सत्यापित'}
+                              {vid.isPrimaryMaster ? 'Primary reference entry' : 'Stored source entry'}
                             </span>
+                          </div>
+
+                          {/* Permanent Delete Button */}
+                          <div className="flex items-center self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePermanentDeleteAnchor(vid.id, vid.title);
+                              }}
+                              disabled={isDeletingAnchorId === vid.id}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+                              title="Permanently Delete Master Anchor Video"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>{isDeletingAnchorId === vid.id ? 'Deleting...' : 'Delete'}</span>
+                            </button>
                           </div>
                         </div>
                       );
@@ -1123,365 +1254,50 @@ export default function MohanSirAvatarStudioPage() {
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 4: PROFESSION SELECTOR (34 PROFESSIONS)                      */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'professions' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-amber-400" />
-                    34 सर्च-रेडी प्रोफेशन्स व रोल्स (Profession Selector)
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    प्रत्येक प्रोफेशन के लिए समर्पित परिधान, वातावरण, हाव-भाव और 4 भाषाओं में सैंपल टॉपिक।
-                  </p>
-                </div>
-                <div className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
-                  सक्रिय प्रोफेशन: {selectedProfession.nameHi} ({selectedProfession.nameEn})
-                </div>
-              </div>
 
-              {/* Search and Category Filter */}
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
-                  <input
-                    type="text"
-                    placeholder="प्रोफेशन खोजें (उदा: Professor, Doctor, Banker, Scientist)..."
-                    value={professionSearch}
-                    onChange={(e) => setProfessionSearch(e.target.value)}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-                <select
-                  value={professionCategory}
-                  onChange={(e) => setProfessionCategory(e.target.value)}
-                  className="bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-                >
-                  <option value="all">सभी श्रेणियां (All 34)</option>
-                  <option value="education">शिक्षा व अनुसंधान (Education)</option>
-                  <option value="spiritual">आध्यात्मिक व योग (Spiritual)</option>
-                  <option value="corporate">कॉर्पोरेट व नेतृत्व (Corporate)</option>
-                  <option value="healthcare">चिकित्सा व स्वास्थ्य (Healthcare)</option>
-                  <option value="media">मीडिया व ब्रॉडकास्ट (Media)</option>
-                  <option value="legal_public">कानून व प्रशासन (Legal & Public)</option>
-                  <option value="trades_tech">इंजीनियरिंग व कृषि (Trades & Tech)</option>
-                </select>
-              </div>
-
-              {/* 34 Professions Grid (Clean Card Design - No Thumbnails) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
-                {filteredProfessions.map((prof) => {
-                  const isSel = selectedProfession.id === prof.id;
-
-                  const getCategoryHighlight = (cat: string) => {
-                    switch (cat) {
-                      case 'education':
-                        return 'Academic Gold Highlights';
-                      case 'spiritual':
-                        return 'Vedic Saffron Highlights';
-                      case 'corporate':
-                        return 'Corporate Navy Highlights';
-                      case 'healthcare':
-                        return 'Medical Cyan Highlights';
-                      case 'media':
-                        return 'Broadcast Scarlet Highlights';
-                      case 'legal_public':
-                        return 'Executive Slate Highlights';
-                      case 'trades_tech':
-                        return 'Electric Blue Highlights';
-                      default:
-                        return 'Golden Amber Highlights';
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={prof.id}
-                      onClick={() => handleSelectProfession(prof)}
-                      className={`p-4 rounded-xl border cursor-pointer transition flex flex-col justify-between ${
-                        isSel
-                          ? 'bg-amber-500/15 border-amber-400 shadow-xl ring-2 ring-amber-400/40'
-                          : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-500 hover:bg-slate-800/90'
-                      }`}
-                    >
-                      <div>
-                        <div className="text-xl mb-2.5">
-                          {prof.icon}
-                        </div>
-                        <h3 className="text-sm font-bold text-white">{prof.nameHi}</h3>
-                        <div className="text-xs text-slate-400 font-medium">{prof.nameEn}</div>
-                        <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                          {prof.descriptionHi}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-700/60 space-y-2.5">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-semibold text-amber-400/80">
-                            {getCategoryHighlight(prof.category)}
-                          </span>
-                          <span className="text-slate-400 font-mono text-[10px] bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                            ⏱ 1:00 Min HD
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const baseVid = getProfessionBaseVideo(prof);
-                              setPreviewModalUrl(baseVid.url);
-                              setPreviewModalTitle(`${prof.nameHi} — 1-मिनट प्रस्तोता वीडियो (1080p Full HD)`);
-                            }}
-                            className="flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg bg-slate-700/80 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5"
-                          >
-                            <Play className="w-3 h-3 fill-current" />
-                            1-मिनट वीडियो
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleSelectProfession(prof)}
-                            className={`py-1.5 px-3 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1 ${
-                              isSel
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black'
-                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}
-                          >
-                            {isSel ? '✓ चयनित' : 'चुनें'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 5: WARDROBE / OUTFIT STUDIO                                 */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'wardrobe' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
-                    <Shirt className="w-5 h-5 text-amber-400" />
-                    परिधान व वेशभूषा स्टूडियो (Wardrobe Studio)
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    मोहन सर के अनुपात अनुसार टेलर-मेड वस्त्र। कोई विकृत या बेमेल शरीर नहीं।
-                  </p>
-                </div>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
-                  चयनित परिधान: {selectedWardrobe.nameHi}
-                </span>
-              </div>
-
-              {/* Wardrobe Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                {MASTER_WARDROBES.map((wardrobe) => {
-                  const isSel = selectedWardrobe.id === wardrobe.id;
-                  return (
-                    <div
-                      key={wardrobe.id}
-                      onClick={() => {
-                        setSelectedWardrobe(wardrobe);
-                        showToast(`👔 परिधान चुना गया: ${wardrobe.nameHi}`);
-                      }}
-                      className={`rounded-xl border overflow-hidden cursor-pointer transition flex flex-col justify-between ${
-                        isSel
-                          ? 'bg-amber-500/15 border-amber-400 shadow-xl ring-2 ring-amber-400/40'
-                          : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="aspect-square bg-slate-950 overflow-hidden relative">
-                        <img
-                          src={wardrobe.referenceImageUrl}
-                          alt={wardrobe.nameHi}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-0.5 rounded text-sm">
-                          {wardrobe.icon}
-                        </div>
-                      </div>
-                      <div className="p-3.5">
-                        <h4 className="text-xs font-bold text-white">{wardrobe.nameHi}</h4>
-                        <div className="text-[11px] text-slate-400">{wardrobe.nameEn}</div>
-                        <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2">{wardrobe.description}</p>
-                        <div className="flex items-center gap-1.5 mt-3">
-                          {wardrobe.primaryColors.map((col, cIdx) => (
-                            <span
-                              key={cIdx}
-                              className="w-3.5 h-3.5 rounded-full border border-slate-600"
-                              style={{ backgroundColor: col }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 6: BACKGROUND / ENVIRONMENT STUDIO                          */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'environments' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-amber-400" />
-                    वातावरण व स्टूडियो पृष्ठभूमि (Environment Studio)
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    यूनिवर्सिटी व्याख्यान कक्ष, आश्रम, बोर्डरूम व आधुनिक पॉडकास्ट स्टूडियो।
-                  </p>
-                </div>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
-                  चयनित वातावरण: {selectedEnvironment.nameHi}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-6">
-                {MASTER_ENVIRONMENTS.map((env) => {
-                  const isSel = selectedEnvironment.id === env.id;
-                  return (
-                    <div
-                      key={env.id}
-                      onClick={() => {
-                        setSelectedEnvironment(env);
-                        showToast(`🏛️ वातावरण चुना गया: ${env.nameHi}`);
-                      }}
-                      className={`rounded-xl border overflow-hidden cursor-pointer transition flex flex-col justify-between ${
-                        isSel
-                          ? 'bg-amber-500/15 border-amber-400 shadow-xl ring-2 ring-amber-400/40'
-                          : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="aspect-video bg-slate-950 overflow-hidden relative">
-                        <img src={env.referenceImageUrl} alt={env.nameHi} className="w-full h-full object-cover" />
-                        <span className="absolute top-2 left-2 text-xl">{env.icon}</span>
-                      </div>
-                      <div className="p-3.5">
-                        <h4 className="text-xs font-bold text-white">{env.nameHi}</h4>
-                        <div className="text-[11px] text-slate-400">{env.nameEn}</div>
-                        <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2">{env.description}</p>
-                        <div className="text-[10px] text-amber-400 font-semibold mt-2.5">
-                          प्रकाश: {env.lightingStyle}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 7: CAMERA & COMPOSITION STUDIO                              */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'camera' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-black text-white flex items-center gap-2">
-                <Camera className="w-5 h-5 text-amber-400" />
-                कैमरा व कंपोजिशन स्टूडियो (Camera Framing)
-              </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                छाती तक (Chest-up), केवल चेहरा, कमर तक, या स्लाइड्स के साथ 60/40 स्प्लिट स्क्रीन।
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                {CAMERA_FRAMING_PRESETS.map((cam) => {
-                  const isSel = selectedCamera.id === cam.id;
-                  return (
-                    <div
-                      key={cam.id}
-                      onClick={() => {
-                        setSelectedCamera(cam);
-                        showToast(`📐 कैमरा चुना गया: ${cam.nameHi}`);
-                      }}
-                      className={`p-4 rounded-xl border cursor-pointer transition flex flex-col justify-between ${
-                        isSel
-                          ? 'bg-amber-500/15 border-amber-400 shadow-xl ring-2 ring-amber-400/40'
-                          : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600'
-                      }`}
-                    >
-                      <div>
-                        <div className="text-2xl mb-2">{cam.icon}</div>
-                        <h4 className="text-xs font-bold text-white">{cam.nameHi}</h4>
-                        <div className="text-[11px] text-slate-400">{cam.nameEn}</div>
-                        <p className="text-[11px] text-slate-400 mt-2">{cam.description}</p>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-slate-700/60 text-[10px] text-amber-400 font-semibold">
-                        लेंस: {cam.fieldOfView}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 8: VOICE CLONING STUDIO (39 AUTHENTIC DNA LECTURE VOICES)    */}
+        {/* TAB 8: STORED VOICE SAMPLES AND TTS PREVIEW                      */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'voice' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ⚡ MOHAN SIR REALTIME VOICE SYNTHESIS ENGINE (<1s GENERATION) */}
+            {/* Third-party TTS preview, not a trained Mohan Sir voice clone */}
             <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border-2 border-amber-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-md">
                       <Sparkles className="w-3 h-3" />
-                      1 सेकंड रियल-टाइम AI इंजन
+                      Edge TTS preview
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      ✓ 100% प्रामाणिक मोहन सर आवाज
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                      Not a voice clone
                     </span>
                   </div>
                   <h3 className="text-xl font-black text-white flex items-center gap-2">
                     <Volume2 className="w-5 h-5 text-amber-400" />
-                    मोहन सर वॉइस इंजन (Mohan Sir Voice Engine)
+                    Speech preview
                   </h3>
                   <p className="text-xs text-slate-300 mt-1">
-                    किसी भी स्क्रिप्ट को 1 सेकंड में मोहन सर की वास्तविक, गंभीर व प्रामाणिक आवाज में जनरेट करें।
+                    Edge TTS uses a third-party synthetic voice. It is not trained on or verified as Mohan Sir&apos;s voice.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700">
                     {[
-                      { id: 'hi', label: 'हिन्दी (Hindi)' },
-                      { id: 'mr', label: 'मराठी (Marathi)' },
+                      { id: 'hi', label: 'Hindi (HI)' },
+                      { id: 'mr', label: 'Marathi (MR)' },
                       { id: 'en', label: 'English' },
                     ].map((l) => (
                       <button
                         key={l.id}
                         type="button"
                         onClick={() => setVoiceEngineLang(l.id as any)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                          voiceEngineLang === l.id
-                            ? 'bg-amber-500 text-slate-950 shadow-md'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${voiceEngineLang === l.id
+                          ? 'bg-amber-500 text-slate-950 shadow-md'
+                          : 'text-slate-400 hover:text-white'
+                          }`}
                       >
                         {l.label}
                       </button>
@@ -1494,31 +1310,31 @@ export default function MohanSirAvatarStudioPage() {
               <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 space-y-2">
                   <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span>बोली जाने वाली स्क्रिप्ट (Script Text to Synthesize):</span>
-                    <span className="text-[11px] text-slate-400">{voiceEngineScript.length} अक्षर</span>
+                    <span>Spoken Script (Script Text to Synthesize):</span>
+                    <span className="text-[11px] text-slate-300 font-mono">{voiceEngineScript.length} characters</span>
                   </label>
                   <textarea
                     rows={3}
                     value={voiceEngineScript}
                     onChange={(e) => setVoiceEngineScript(e.target.value)}
-                    placeholder="मोहन सर से क्या बुलवाना चाहते हैं यहाँ लिखें..."
+                    placeholder="Enter the lecture script you want Mohan Sir to speak..."
                     className="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition leading-relaxed"
                   />
-                  
+
                   {/* Quick Preset Buttons */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    <span className="text-[10px] text-slate-400 font-semibold self-center mr-1">नमूने:</span>
+                    <span className="text-[10px] text-slate-300 font-semibold self-center mr-1">Templates:</span>
                     {[
                       {
-                        label: '🧘 स्वर योग परिचय',
-                        text: 'नमस्ते साधकों! मैं मोहन कलबुर्गी। स्वर योग के इस पावन सत्र में आपका स्वागत है। अपनी श्वास और नाड़ी के प्रति सजग रहें।',
+                        label: '🧘 Swar Yoga Intro (Hindi)',
+                        text: 'Namaste seekers! I am Mohan Kalburgi. Welcome to this sacred session of Swar Yoga. Stay mindful of your breath and nadi balance.',
                       },
                       {
-                        label: '🍎 स्वर आहार शास्त्र',
+                        label: '🍎 Swar Dietetics (Hindi)',
                         text: 'भोजन सदैव सूर्य नाड़ी में ही ग्रहण करना चाहिए, क्योंकि उस समय जठराग्नि प्रज्वलित रहती है और भोजन अमृत बन जाता है।',
                       },
                       {
-                        label: '🚩 मराठी व्याख्यान',
+                        label: '🚩 Marathi Lecture (Marathi)',
                         text: 'नमस्कार! मी मोहन कलबुर्गी आहे. स्वर योगाच्या या विशेष सत्रात आपले सहर्ष स्वागत आहे. डावी नाकपुडी व उजवी नाकपुडी चे रहस्य समजून घ्या.',
                       },
                       {
@@ -1531,7 +1347,7 @@ export default function MohanSirAvatarStudioPage() {
                         type="button"
                         onClick={() => {
                           setVoiceEngineScript(p.text);
-                          if (p.label.includes('मराठी')) setVoiceEngineLang('mr');
+                          if (p.label.includes('Marathi')) setVoiceEngineLang('mr');
                           else if (p.label.includes('Global')) setVoiceEngineLang('en');
                           else setVoiceEngineLang('hi');
                         }}
@@ -1547,16 +1363,16 @@ export default function MohanSirAvatarStudioPage() {
                 <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
                   <div>
                     <h4 className="text-xs font-black uppercase text-amber-400 tracking-wider mb-2">
-                      लाइव जेनरेशन कंट्रोल
+                      TTS preview
                     </h4>
                     <p className="text-[11px] text-slate-400 mb-3">
-                      क्लिक करते ही 1 सेकंड के भीतर मोहन सर की न्यूरल वॉयस MP3 तैयार हो जाती है।
+                      Creates a speech preview in the selected language; generation time varies.
                     </p>
 
                     {engineAudioUrl && (
                       <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-3 mb-3 animate-in fade-in">
                         <div className="flex items-center justify-between text-[11px] text-emerald-400 font-bold mb-1.5">
-                          <span>✓ आवाज तैयार है ({engineAudioDuration}s)</span>
+                          <span>Speech preview ready ({engineAudioDuration}s)</span>
                           <span className="text-[10px] text-slate-400">44.1kHz • 128kbps</span>
                         </div>
                         <audio controls src={engineAudioUrl} className="w-full h-8" autoPlay />
@@ -1565,18 +1381,18 @@ export default function MohanSirAvatarStudioPage() {
                             type="button"
                             onClick={() => {
                               setScriptText(voiceEngineScript);
-                              showToast('✓ स्क्रिप्ट को मुख्य अवतार स्टूडियो में कॉपी किया गया!');
+                              showToast('✓ Script copied to main Avatar Studio!');
                             }}
                             className="text-[10px] font-bold text-amber-400 hover:underline cursor-pointer"
                           >
-                            + मुख्य अवतार में यह स्क्रिप्ट लगाएं
+                            + Apply Script to Main Avatar
                           </button>
                           <a
                             href={engineAudioUrl}
                             download="mohan_sir_voice.mp3"
                             className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer"
                           >
-                            डाउनलोड MP3
+                            Download MP3
                           </a>
                         </div>
                       </div>
@@ -1587,21 +1403,20 @@ export default function MohanSirAvatarStudioPage() {
                     type="button"
                     onClick={handleGenerateEngineVoice}
                     disabled={isEngineSynthesizing}
-                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
-                      isEngineSynthesizing
-                        ? 'bg-amber-600/50 text-slate-300 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
-                    }`}
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-lg ${isEngineSynthesizing
+                      ? 'bg-amber-600/50 text-slate-300 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
+                      }`}
                   >
                     {isEngineSynthesizing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        1 सेकंड में आवाज बन रही है...
+                        Generating preview…
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 fill-slate-950" />
-                        ⚡ 1 सेकंड में मोहन सर की आवाज जनरेट करें
+                        Generate TTS preview
                       </>
                     )}
                   </button>
@@ -1612,16 +1427,16 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                     <Volume2 className="w-5 h-5 text-amber-400" />
-                    39 डीएनए वोकल प्रोफाइल्स (Authentic Vocal DNA – 39 Master Lectures)
+                    STORED AUDIO REFERENCE SAMPLES
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    मोहन सर के 39 डीएनए स्टूडियो व्याख्यानों से एक्सट्रैक्टेड 100% प्रामाणिक वोकल क्लोन। पुराने ड्राफ्ट या रोबोटिक टीटीएस पूरी तरह हटा दिए गए हैं।
+                    These are stored audio samples, not verified or trained voice clones. Sample provenance and commercial rights require separate review.
                   </p>
                 </div>
                 <div className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
-                  सक्रिय वोकल: {selectedVoice.name}
+                  Selected Sample: {selectedVoice.name}
                 </div>
               </div>
 
@@ -1631,7 +1446,7 @@ export default function MohanSirAvatarStudioPage() {
                   <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="वॉइस खोजें (उदा: Marathi, Hindi, Aahar, Meditation, Day 1)..."
+                    placeholder="Search voice samples (e.g. Marathi, Hindi, Aahar, Meditation, Day 1)..."
                     value={voiceSearch}
                     onChange={(e) => setVoiceSearch(e.target.value)}
                     className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
@@ -1639,20 +1454,19 @@ export default function MohanSirAvatarStudioPage() {
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto">
                   {[
-                    { id: 'all', label: `सभी (${voiceProfiles.length})` },
-                    { id: 'hi', label: `हिन्दी (${voiceProfiles.filter((v) => v.language === 'hi').length})` },
-                    { id: 'mr', label: `मराठी (${voiceProfiles.filter((v) => v.language === 'mr').length})` },
+                    { id: 'all', label: `All (${voiceProfiles.length})` },
+                    { id: 'hi', label: `Hindi (${voiceProfiles.filter((v) => v.language === 'hi').length})` },
+                    { id: 'mr', label: `Marathi (${voiceProfiles.filter((v) => v.language === 'mr').length})` },
                     { id: 'en', label: `English (${voiceProfiles.filter((v) => v.language === 'en').length})` },
                   ].map((filterTab) => (
                     <button
                       key={filterTab.id}
                       type="button"
                       onClick={() => setVoiceLangFilter(filterTab.id as any)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                        voiceLangFilter === filterTab.id
-                          ? 'bg-amber-500 text-slate-950 shadow-md'
-                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                      }`}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${voiceLangFilter === filterTab.id
+                        ? 'bg-amber-500 text-slate-950 shadow-md'
+                        : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
                     >
                       {filterTab.label}
                     </button>
@@ -1660,7 +1474,7 @@ export default function MohanSirAvatarStudioPage() {
                 </div>
               </div>
 
-              {/* 39 Voice Profiles Grid */}
+              {/* Stored voice samples */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
                 {filteredVoices.map((voice) => {
                   const isSel = selectedVoice.id === voice.id;
@@ -1669,30 +1483,28 @@ export default function MohanSirAvatarStudioPage() {
                   return (
                     <div
                       key={voice.id}
-                      className={`p-4 rounded-xl border transition flex flex-col justify-between ${
-                        isSel
-                          ? 'bg-amber-500/15 border-amber-400 ring-2 ring-amber-400/40 shadow-xl'
-                          : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'
-                      }`}
+                      className={`p-4 rounded-xl border transition flex flex-col justify-between ${isSel
+                        ? 'bg-amber-500/15 border-amber-400 ring-2 ring-amber-400/40 shadow-xl'
+                        : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'
+                        }`}
                     >
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 mb-1.5">
                               <span
-                                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wide ${
-                                  voice.language === 'mr'
-                                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                                    : voice.language === 'en'
+                                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wide ${voice.language === 'mr'
+                                  ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                  : voice.language === 'en'
                                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                                     : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                }`}
+                                  }`}
                               >
-                                {voice.language === 'mr' ? 'मराठी (MR)' : voice.language === 'en' ? 'ENGLISH (EN)' : 'हिन्दी (HI)'}
+                                {voice.language === 'mr' ? 'MARATHI (MR)' : voice.language === 'en' ? 'ENGLISH (EN)' : 'HINDI (HI)'}
                               </span>
                               <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
                                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
-                                100% DNA CLONE
+                                Stored audio sample
                               </span>
                             </div>
                             <h4 className="text-xs font-bold text-white line-clamp-1">{voice.name}</h4>
@@ -1704,7 +1516,7 @@ export default function MohanSirAvatarStudioPage() {
                             onClick={() => handleDeleteVoice(voice.id, voice.name)}
                             disabled={isDeletingVoiceId === voice.id}
                             className="text-slate-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-500/10 transition cursor-pointer"
-                            title="वॉइस हटाएं"
+                            title="Delete Voice Sample"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1716,14 +1528,13 @@ export default function MohanSirAvatarStudioPage() {
                         <button
                           type="button"
                           onClick={() => togglePlayVoice(voice)}
-                          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer ${
-                            isPlaying
-                              ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
-                              : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
-                          }`}
+                          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer ${isPlaying
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
+                            : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
+                            }`}
                         >
                           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                          {isPlaying ? 'रोकें' : 'सैंपल सुनें'}
+                          {isPlaying ? 'Stop' : 'Listen Sample'}
                         </button>
 
                         <div className="flex items-center gap-1.5">
@@ -1733,10 +1544,10 @@ export default function MohanSirAvatarStudioPage() {
                             onClick={() => handleDeleteVoice(voice.id, voice.name)}
                             disabled={isDeletingVoiceId === voice.id}
                             className="flex items-center gap-1 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition cursor-pointer"
-                            title="वॉइस प्रोफाइल हटाएं"
+                            title="Delete Voice Profile"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            {isDeletingVoiceId === voice.id ? '...' : 'हटाएं'}
+                            {isDeletingVoiceId === voice.id ? '...' : 'Delete'}
                           </button>
 
                           {/* Select Button */}
@@ -1744,15 +1555,14 @@ export default function MohanSirAvatarStudioPage() {
                             type="button"
                             onClick={() => {
                               setSelectedVoice(voice);
-                              showToast(`🎙️ डीएनए वोकल चुना गया: ${voice.name}`);
+                              showToast(`🎙️ Vocal DNA selected: ${voice.name}`);
                             }}
-                            className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition cursor-pointer shadow ${
-                              isSel
-                                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20 font-black'
-                                : 'bg-slate-700/70 hover:bg-slate-700 text-slate-200'
-                            }`}
+                            className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition cursor-pointer shadow ${isSel
+                              ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20 font-black'
+                              : 'bg-slate-700/70 hover:bg-slate-700 text-slate-200'
+                              }`}
                           >
-                            {isSel ? '✓ चयनित' : 'चुनें'}
+                            {isSel ? '✓ SELECTED' : 'SELECT'}
                           </button>
                         </div>
                       </div>
@@ -1772,12 +1582,12 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-amber-400" />
-                    स्क्रिप्ट व संवाद स्टूडियो (Script & Content Studio)
+                    SCRIPT & DIALOGUE STUDIO
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    हिंदी, मराठी, अंग्रेजी व नेपाली में शुद्ध व्याकरण और यथार्थ उच्चारण के साथ स्क्रिप्ट तैयार करें।
+                    Craft high-fidelity lecture scripts with verbatim fidelity, preserving all sacred yogic terminology.
                   </p>
                 </div>
                 {/* Language Switcher */}
@@ -1789,9 +1599,8 @@ export default function MohanSirAvatarStudioPage() {
                         setSelectedLanguage(lang);
                         setScriptText(selectedProfession.sampleTopic[lang] || selectedProfession.sampleTopic.hi);
                       }}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition uppercase ${
-                        selectedLanguage === lang ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition uppercase ${selectedLanguage === lang ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
                     >
                       {lang}
                     </button>
@@ -1806,11 +1615,11 @@ export default function MohanSirAvatarStudioPage() {
                   value={scriptText}
                   onChange={(e) => setScriptText(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono leading-relaxed"
-                  placeholder="यहाँ अपनी स्क्रिप्ट दर्ज करें..."
+                  placeholder="Enter your lecture script here..."
                 />
                 <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                  <span>शब्द: {scriptText.trim().split(/\s+/).filter(Boolean).length}</span>
-                  <span>अनुमानित वीडियो अवधि: ~{estimatedDurationSec} सेकंड</span>
+                  <span>Words: {scriptText.trim().split(/\s+/).filter(Boolean).length}</span>
+                  <span>Estimated Video Duration: ~{estimatedDurationSec} seconds</span>
                 </div>
               </div>
 
@@ -1819,17 +1628,17 @@ export default function MohanSirAvatarStudioPage() {
                 <button
                   onClick={() => {
                     setScriptText(selectedProfession.sampleTopic[selectedLanguage] || selectedProfession.sampleTopic.hi);
-                    showToast('🔄 प्रोफेशन का सैंपल टॉपिक लोड हो गया!');
+                    showToast('🔄 Profession sample topic reloaded!');
                   }}
                   className="text-xs text-slate-400 hover:text-slate-200 font-semibold"
                 >
-                  प्रोफेशन का डिफ़ॉल्ट टॉपिक रीलोड करें
+                  Reload Profession Default Topic
                 </button>
                 <button
                   onClick={() => setActiveTab('engine')}
                   className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition"
                 >
-                  इस स्क्रिप्ट के साथ वीडियो बनाएं →
+                  Generate Video with this Script →
                 </button>
               </div>
             </div>
@@ -1842,12 +1651,12 @@ export default function MohanSirAvatarStudioPage() {
         {activeTab === 'engine' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-black text-white flex items-center gap-2">
+              <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-amber-400" />
-                सेंट्रल AI वीडियो जेनरेशन इंजन (AI Generation Pipeline)
+                CENTRAL AI VIDEO GENERATION ENGINE (GPU IN-HOUSE)
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                लाइवपोर्ट्रेट • Wav2Lip लिप-सिंक • GFPGAN 1080p एन्हांसमेंट • बन्नी स्टोरेज CDN डिप्लॉयमेंट।
+                Consent-aware in-house render pipeline. Dispatches neural video inference to dedicated GPU workers (Google Colab T4 / Kaggle).
               </p>
 
               {/* Permanent Master Identity Lock Box */}
@@ -1858,139 +1667,75 @@ export default function MohanSirAvatarStudioPage() {
                   </div>
                   <div>
                     <div className="font-bold text-white flex items-center gap-2">
-                      स्थायी चेहरा पहचान: <span className="text-amber-400 font-mono">MOHAN_SIR_MASTER_IDENTITY</span>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 rounded font-semibold">98.6% Real</span>
+                      Selected Identity Profile: <span className="text-amber-400 font-mono">Consented Master Profile</span>
+                      <span className="text-[10px] text-slate-300 bg-slate-700/50 border border-slate-600 px-1.5 py-0.2 rounded font-semibold">similarity not measured</span>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      चेहरा प्रत्येक वीडियो में 100% एक ही रहेगा। केवल कपड़े, पृष्ठभूमि, रोल और संवाद बदलेंगे।
+                      Face consistency is not measured or guaranteed by the current in-house queue.
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => setActiveTab('identity')}
+                  onClick={() => setActiveTab('anchor')}
                   className="text-[11px] text-amber-400 hover:underline font-semibold"
                 >
-                  पहचान डीएनए देखें →
+                  View Master Anchor Video →
                 </button>
               </div>
 
-              {/* 7 Universal Generation Modes */}
-              <div className="mt-6 space-y-2">
-                <label className="block text-xs font-bold text-slate-200">
-                  जेनरेशन मोड चुनें (7 Universal Generation Modes):
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                  {MASTER_GENERATION_MODES.map((mode) => {
-                    const isSel = selectedGenerationMode === mode.id;
-                    return (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => setSelectedGenerationMode(mode.id)}
-                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
-                          isSel
-                            ? 'bg-amber-500/15 border-amber-400 text-white shadow-md ring-1 ring-amber-400/20'
-                            : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-bold flex items-center justify-between">
-                            <span>{mode.nameHi}</span>
-                            {isSel && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{mode.description}</p>
-                        </div>
-                        <div className="mt-2 text-[9px] text-amber-400/80 font-mono">
-                          Framing: {mode.defaultCameraFraming} • {mode.gestureFrequency} gestures
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Aspect Ratio Selector & Custom Profession */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
-                    पहलू अनुपात (Aspect Ratio):
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: '16:9', label: '16:9 वाइडस्क्रीन', desc: 'यूट्यूब / टीवी' },
-                      { id: '9:16', label: '9:16 वर्टिकल', desc: 'रील्स / शॉर्ट्स' },
-                      { id: '1:1', label: '1:1 स्क्वायर', desc: 'सोशल पोस्ट' },
-                    ].map((ar) => (
-                      <button
-                        key={ar.id}
-                        type="button"
-                        onClick={() => setSelectedAspectRatio(ar.id as any)}
-                        className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
-                          selectedAspectRatio === ar.id
-                            ? 'bg-amber-500/20 border-amber-400 text-white font-bold'
-                            : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-xs">{ar.id}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{ar.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
-                    कस्टम प्रोफेशन (वैकल्पिक नया रोल):
-                  </label>
-                  <input
-                    type="text"
-                    value={customProfessionName}
-                    onChange={(e) => setCustomProfessionName(e.target.value)}
-                    placeholder="उदा. Space Scientist, AI Robotics Engineer..."
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    यदि आपका रोल 34 प्रोफेशन्स में नहीं है, तो यहाँ लिखें। चेहरा स्थायी मास्टर पहचान ही रहेगा।
-                  </p>
-                </div>
-              </div>
-
-              {/* Pipeline Summary Review */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-6 text-xs">
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">प्रोफेशन</span>
-                  <span className="font-bold text-white truncate block mt-0.5">
-                    {customProfessionName || selectedProfession.nameHi}
-                  </span>
-                </div>
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">परिधान</span>
-                  <span className="font-bold text-white truncate block mt-0.5">{selectedWardrobe.nameHi}</span>
-                </div>
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">वातावरण</span>
-                  <span className="font-bold text-white truncate block mt-0.5">{selectedEnvironment.nameHi}</span>
-                </div>
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">कैमरा व आस्पेक्ट</span>
-                  <span className="font-bold text-white truncate block mt-0.5">
-                    {selectedCamera.nameHi} ({selectedAspectRatio})
-                  </span>
-                </div>
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">वॉइस</span>
-                  <span className="font-bold text-amber-400 truncate block mt-0.5">मास्टर बैरिटोन</span>
-                </div>
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">अवधि व भाषा</span>
-                  <span className="font-bold text-white truncate block mt-0.5">
-                    {estimatedDurationSec}s • {selectedLanguage.toUpperCase()}
-                  </span>
-                </div>
+              <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100" role="note">
+                No neural video render is available yet. A render also requires authorized continuous Bunny-hosted MP4 footage; the selected portrait is not a video source.
               </div>
 
               {/* Progress Tracker or Start Button */}
               <div className="mt-8 p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-4">
+                <div className="max-w-lg mx-auto text-left space-y-2">
+                  <label htmlFor="consented-avatar-profile" className="block text-xs font-bold text-slate-200">
+                    Consent-verified avatar profile
+                  </label>
+                  <select
+                    id="consented-avatar-profile"
+                    value={selectedAvatarProfileId}
+                    onChange={(event) => setSelectedAvatarProfileId(event.target.value)}
+                    disabled={isGenerating}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs text-white disabled:opacity-60"
+                  >
+                    <option value="">Select a saved profile</option>
+                    {avatarProfiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>{profile.name}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="mohan-avatar-source-video" className="block text-xs font-bold text-slate-200">
+                    Authorized continuous source footage (Bunny MP4 URL)
+                  </label>
+                  <input
+                    id="mohan-avatar-source-video"
+                    type="url"
+                    value={sourceVideoUrl}
+                    onChange={(event) => setSourceVideoUrl(event.target.value)}
+                    disabled={isGenerating}
+                    autoComplete="url"
+                    placeholder="https://swaryogacrm.b-cdn.net/…/authorized-source.mp4"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs text-white placeholder-slate-500 disabled:opacity-60"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Use real, authorized motion footage. Existing promotional sample clips and still images are unverified and do not satisfy the acceptance test without review.
+                  </p>
+                  {avatarProfilesError && <p className="text-xs text-rose-300">{avatarProfilesError}</p>}
+                  {!avatarProfilesError && avatarProfiles.length === 0 && (
+                    <p className="text-xs text-amber-300">
+                      No saved profiles are available. Profile creation remains unavailable until real face analysis is connected.
+                    </p>
+                  )}
+                  <p className="text-[11px] text-slate-400">
+                    This queue prepares speech and waits for an external in-house GPU worker. Camera, outfit, expression, aspect-ratio, and 1080p settings shown above are not yet applied by the renderer.
+                  </p>
+                </div>
+                {generationError && (
+                  <div className="max-w-lg mx-auto rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-left text-xs text-rose-200">
+                    {generationError}
+                  </div>
+                )}
                 {isGenerating ? (
                   <div className="space-y-4 max-w-lg mx-auto py-4">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-300">
@@ -2003,15 +1748,15 @@ export default function MohanSirAvatarStudioPage() {
                         style={{ width: `${jobProgress}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-slate-500 animate-pulse">
-                      NVIDIA Tesla T4 GPU Pipeline रन हो रहा है... कृपया प्रतीक्षा करें।
+                    <p className="text-[11px] text-slate-400">
+                      No GPU work is claimed until the job status reports a worker render.
                     </p>
                   </div>
                 ) : generatedVideoResultUrl ? (
                   <div className="space-y-4 max-w-xl mx-auto py-2">
                     <div className="flex items-center justify-center gap-2 text-emerald-400 text-sm font-black">
                       <CheckCircle2 className="w-5 h-5" />
-                      वीडियो सफलतापूर्वक जनरेट हो गया!
+                      Video Generated Successfully!
                     </div>
                     <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-emerald-500/40 shadow-2xl">
                       <video src={generatedVideoResultUrl} controls autoPlay className="w-full h-full object-contain" />
@@ -2022,13 +1767,13 @@ export default function MohanSirAvatarStudioPage() {
                         download="mohan_sir_digital_twin_1080p.mp4"
                         className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl transition"
                       >
-                        <Download className="w-4 h-4" /> MP4 डाउनलोड करें
+                        <Download className="w-4 h-4" /> Download MP4
                       </a>
                       <Link
                         href="/admin/crm/e-learning/rag-video"
                         className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl transition"
                       >
-                        मॉड्यूल 8 में खोलें →
+                        Open in Module 8 →
                       </Link>
                     </div>
                   </div>
@@ -2036,13 +1781,14 @@ export default function MohanSirAvatarStudioPage() {
                   <div className="py-6 space-y-4">
                     <button
                       onClick={handleStartGeneration}
+                      disabled={!sourceVideoUrl.trim() || !selectedAvatarProfileId}
                       className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm px-8 py-4 rounded-2xl shadow-2xl shadow-amber-500/30 transition transform hover:scale-105 active:scale-95"
                     >
                       <Wand2 className="w-5 h-5" />
-                      1080p AI वीडियो जेनरेशन प्रारंभ करें
+                      Queue to In-House GPU Renderer
                     </button>
                     <p className="text-xs text-slate-400">
-                      लाइवपोर्ट्रेट और Wav2Lip द्वारा उच्च-गुणवत्ता पूर्ण वीडियो सीधे बन्नी स्टोरेज CDN पर तैयार होगा।
+                      A queued job is not a completed video. The queue will display an output only after the worker reports a verified result.
                     </p>
                   </div>
                 )}
@@ -2059,12 +1805,12 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                     <Film className="w-5 h-5 text-amber-400" />
-                    तैयार डिजिटल ट्विन वीडियो लाइब्रेरी ({libraryVideos.length} वीडियोज़)
+                    STORED VIDEO LIBRARY ({libraryVideos.length} Files)
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    39 DNA लेक्चर्स, 34 प्रोफेशन क्लोन्स व AI इम्पोर्टेड वीडियोज़ — 1-क्लिक प्ले, एडिट, डिलीट व मॉड्यूल 8 इंटीग्रेशन।
+                    Mohan Sir's seven workshop outfit looks are added as selectable Bunny source recordings. They are not generated AI twins; resolution, duration, consent, and identity are not verified by this library.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2073,15 +1819,15 @@ export default function MohanSirAvatarStudioPage() {
                     className="flex items-center gap-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg shadow-md shadow-indigo-600/20 transition cursor-pointer"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    🌐 AI साइट्स से इम्पोर्ट करें
+                    Import Video Link
                   </button>
                   <button
-                    onClick={loadLibrary}
+                    onClick={() => loadLibrary(true)}
                     disabled={isLoadingLibrary}
                     className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLibrary ? 'animate-spin' : ''}`} />
-                    रीफ्रेश
+                    Refresh
                   </button>
                 </div>
               </div>
@@ -2094,32 +1840,43 @@ export default function MohanSirAvatarStudioPage() {
                   return (
                     <div
                       key={vid.id}
+                      data-testid={vid.profession_id === 'mohan_workshop_twin_source' ? 'mohan-workshop-twin-source' : undefined}
                       className="bg-slate-800/50 border border-slate-700/60 rounded-xl overflow-hidden flex flex-col justify-between hover:border-amber-400/50 transition group"
                     >
                       <div
                         onClick={() => setPreviewModalUrl(vid.video_url)}
                         className="relative aspect-video bg-black cursor-pointer overflow-hidden"
                       >
-                        <img
-                          src={
-                            vid.thumbnail_url && !vid.thumbnail_url.includes('blackbeard') && !vid.thumbnail_url.includes('lime')
-                              ? vid.thumbnail_url
-                              : 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg'
-                          }
-                          alt={vid.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        />
+                        {vid.profession_id === 'mohan_workshop_twin_source' ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-800 to-slate-950 text-center">
+                            <Video className="w-8 h-8 text-amber-400" aria-hidden="true" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                              Workshop twin-look source
+                            </span>
+                            <span className="px-2 text-[10px] text-slate-400">{vid.profession_name}</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={
+                              vid.thumbnail_url && !vid.thumbnail_url.includes('blackbeard') && !vid.thumbnail_url.includes('lime')
+                                ? vid.thumbnail_url
+                                : 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg'
+                            }
+                            alt={vid.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        )}
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                           <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg">
                             <Play className="w-5 h-5 fill-current ml-0.5" />
                           </div>
                         </div>
                         <span className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                          {vid.duration_seconds}s
+                          {vid.profession_id === 'mohan_workshop_twin_source' ? 'Source recording · not AI-rendered' : 'Stored media'}
                         </span>
                         {isActiveAvatar && (
                           <span className="absolute top-2 right-2 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow">
-                            सक्रिय (ACTIVE)
+                            Reference selected
                           </span>
                         )}
                       </div>
@@ -2129,9 +1886,13 @@ export default function MohanSirAvatarStudioPage() {
                           <h4 className="text-xs font-bold text-white line-clamp-1">{vid.title}</h4>
                           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
                             <span>{vid.profession_name}</span>
-                            <span className="text-emerald-400 font-semibold">{vid.resolution || '1080p'}</span>
+                            <span className="text-amber-300 font-semibold">Resolution unverified</span>
                           </div>
-                          <div className="text-[10px] text-slate-500 mt-1 truncate">मॉडल: {vid.ai_model}</div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            {vid.profession_id === 'mohan_workshop_twin_source'
+                              ? 'Original source preserved; no AI twin render has been made'
+                              : 'Generation and voice metadata unverified'}
+                          </div>
                         </div>
 
                         {/* 5 Required Action Buttons: Preview, Play, Edit, Delete, Use It */}
@@ -2142,9 +1903,9 @@ export default function MohanSirAvatarStudioPage() {
                               type="button"
                               onClick={() => setPreviewModalUrl(vid.video_url)}
                               className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-700/50 hover:bg-slate-700 px-2 py-1 rounded transition cursor-pointer font-semibold"
-                              title="पूर्वावलोकन देखें"
+                              title="Preview Video"
                             >
-                              <Eye className="w-3 h-3 text-cyan-400" /> झलक
+                              <Eye className="w-3 h-3 text-cyan-400" /> Preview
                             </button>
 
                             {/* Play */}
@@ -2152,9 +1913,9 @@ export default function MohanSirAvatarStudioPage() {
                               type="button"
                               onClick={() => setPreviewModalUrl(vid.video_url)}
                               className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-700/50 hover:bg-slate-700 px-2 py-1 rounded transition cursor-pointer font-semibold"
-                              title="वीडियो चलाएं"
+                              title="Play Video"
                             >
-                              <Play className="w-3 h-3 text-emerald-400 fill-current" /> चलाएं
+                              <Play className="w-3 h-3 text-emerald-400 fill-current" /> Play
                             </button>
 
                             {/* Edit */}
@@ -2162,9 +1923,9 @@ export default function MohanSirAvatarStudioPage() {
                               type="button"
                               onClick={() => handleOpenEdit(vid)}
                               className="flex items-center gap-1 text-slate-300 hover:text-amber-400 bg-slate-700/50 hover:bg-slate-700 px-2 py-1 rounded transition cursor-pointer font-semibold"
-                              title="वीडियो संपादित करें"
+                              title="Edit Video Metadata"
                             >
-                              <Pencil className="w-3 h-3 text-amber-400" /> एडिट
+                              <Pencil className="w-3 h-3 text-amber-400" /> Edit
                             </button>
 
                             {/* Delete */}
@@ -2173,33 +1934,32 @@ export default function MohanSirAvatarStudioPage() {
                               onClick={() => handleDeleteVideo(vid.id, vid.title)}
                               disabled={isDeletingId === vid.id}
                               className="flex items-center gap-1 text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded transition cursor-pointer font-semibold"
-                              title="वीडियो हटाएं"
+                              title="Delete Video"
                             >
                               <Trash2 className="w-3 h-3 text-rose-400" />
-                              {isDeletingId === vid.id ? 'हट रहा...' : 'हटाएं'}
+                              {isDeletingId === vid.id ? 'Deleting...' : 'Delete'}
                             </button>
                           </div>
 
-                          {/* Use It Button (उपयोग करें / Use in Module 8) */}
+                          {/* Select this URL as reference media */}
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleUseAvatar(vid)}
-                              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow ${
-                                isActiveAvatar
-                                  ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
-                                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
-                              }`}
+                              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow ${isActiveAvatar
+                                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
+                                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
+                                }`}
                             >
                               <Sparkles className="w-3.5 h-3.5" />
-                              {isActiveAvatar ? '✓ सक्रिय अवतार (Active)' : 'उपयोग करें (Use It)'}
+                              {isActiveAvatar ? '✓ Reference selected' : 'Select reference'}
                             </button>
                             <Link
                               href="/admin/crm/e-learning/rag-video"
                               className="px-2.5 py-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-amber-400 text-xs font-bold transition flex items-center gap-1"
-                              title="मॉड्यूल 8 में खोलें"
+                              title="Open Module 8; reference media only"
                             >
-                              मॉड्यूल 8 →
+                              Module 8 →
                             </Link>
                           </div>
                         </div>
@@ -2220,7 +1980,7 @@ export default function MohanSirAvatarStudioPage() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <ExternalLink className="w-4 h-4 text-indigo-400" />
-                🌐 AI साइट्स से वीडियो इम्पोर्ट करें (Import from AI)
+                Import Video Link
               </h3>
               <button
                 onClick={() => setIsImportModalOpen(false)}
@@ -2232,27 +1992,21 @@ export default function MohanSirAvatarStudioPage() {
 
             <form onSubmit={handleImportFromAiSite} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">AI प्लेटफॉर्म (Source Platform):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Source (metadata only):</label>
                 <select
                   value={importForm.ai_site_source}
                   onChange={(e) => setImportForm({ ...importForm, ai_site_source: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-400"
                 >
-                  <option value="Replicate">Replicate (LivePortrait / SadTalker)</option>
-                  <option value="Hugging Face">Hugging Face Spaces</option>
-                  <option value="Google Colab T4">Google Colab T4 GPU Bridge</option>
-                  <option value="HeyGen">HeyGen AI Video</option>
-                  <option value="D-ID">D-ID Studio</option>
-                  <option value="Bunny CDN">Bunny Storage / Stream CDN</option>
-                  <option value="Custom AI Engine">अन्य कस्टम AI इंजन (Direct MP4 URL)</option>
+                  <option value="User-provided video">User-provided existing video</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">वीडियो शीर्षक (Title):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Video Title:</label>
                 <input
                   type="text"
-                  placeholder="उदा: Mohan Sir – Swar Yoga Global Keynote 1080p"
+                  placeholder="e.g.: Mohan Sir – Swar Yoga Global Keynote 1080p"
                   value={importForm.title}
                   onChange={(e) => setImportForm({ ...importForm, title: e.target.value })}
                   required
@@ -2261,7 +2015,7 @@ export default function MohanSirAvatarStudioPage() {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">वीडियो URL (MP4 Direct Link):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Video URL (MP4 Direct Link):</label>
                 <input
                   type="url"
                   placeholder="https://.../video.mp4"
@@ -2274,7 +2028,7 @@ export default function MohanSirAvatarStudioPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">प्रोफेशन (Role):</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Profession / Role:</label>
                   <input
                     type="text"
                     value={importForm.profession_name}
@@ -2283,22 +2037,22 @@ export default function MohanSirAvatarStudioPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">भाषा (Language):</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Language:</label>
                   <select
                     value={importForm.language}
                     onChange={(e) => setImportForm({ ...importForm, language: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-400"
                   >
-                    <option value="hi">हिंदी (Hindi)</option>
-                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="hi">Hindi (HI)</option>
+                    <option value="mr">Marathi (MR)</option>
                     <option value="en">English</option>
-                    <option value="ne">नेपाली (Nepali)</option>
+                    <option value="ne">Nepali (NE)</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">अवधि सेकंड में (Duration):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Duration (Seconds):</label>
                 <input
                   type="number"
                   min="5"
@@ -2315,7 +2069,7 @@ export default function MohanSirAvatarStudioPage() {
                   onClick={() => setIsImportModalOpen(false)}
                   className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
                 >
-                  रद्द करें
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -2325,12 +2079,12 @@ export default function MohanSirAvatarStudioPage() {
                   {isImporting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      इम्पोर्ट हो रहा है...
+                      Importing...
                     </>
                   ) : (
                     <>
                       <ExternalLink className="w-3.5 h-3.5" />
-                      इम्पोर्ट करें व लाइब्रेरी में जोड़ें
+                      Import & Add to Library
                     </>
                   )}
                 </button>
@@ -2345,18 +2099,18 @@ export default function MohanSirAvatarStudioPage() {
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden max-w-3xl w-full shadow-2xl">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white">वीडियो पूर्वावलोकन (Preview)</h3>
+              <h3 className="text-xs font-bold text-white">Video Preview</h3>
               <button
                 onClick={() => setPreviewModalUrl(null)}
                 className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1"
               >
-                ✕ बंद करें
+                ✕ Close
               </button>
             </div>
             <div className="relative aspect-video bg-black">
               {previewModalUrl.includes('mediadelivery.net') ||
-              previewModalUrl.includes('/embed/') ||
-              previewModalUrl.includes('/play/') ? (
+                previewModalUrl.includes('/embed/') ||
+                previewModalUrl.includes('/play/') ? (
                 <iframe
                   src={previewModalUrl.replace('/play/', '/embed/')}
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
@@ -2384,7 +2138,7 @@ export default function MohanSirAvatarStudioPage() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Pencil className="w-4 h-4 text-amber-400" />
-                अवतार वीडियो संपादित करें (Edit Video)
+                Edit Avatar Video Metadata
               </h3>
               <button
                 onClick={() => setEditingVideo(null)}
@@ -2396,7 +2150,7 @@ export default function MohanSirAvatarStudioPage() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">वीडियो शीर्षक (Title):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Video Title:</label>
                 <input
                   type="text"
                   value={editForm.title}
@@ -2406,7 +2160,7 @@ export default function MohanSirAvatarStudioPage() {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">प्रोफेशन नाम (Profession):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Profession Name:</label>
                 <input
                   type="text"
                   value={editForm.profession_name}
@@ -2416,21 +2170,21 @@ export default function MohanSirAvatarStudioPage() {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">भाषा (Language):</label>
+                <label className="block text-slate-300 font-semibold mb-1">Language:</label>
                 <select
                   value={editForm.language}
                   onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-400"
                 >
-                  <option value="hi">हिंदी (Hindi)</option>
-                  <option value="mr">मराठी (Marathi)</option>
+                  <option value="hi">Hindi (HI)</option>
+                  <option value="mr">Marathi (MR)</option>
                   <option value="en">English</option>
-                  <option value="ne">नेपाली (Nepali)</option>
+                  <option value="ne">Nepali (NE)</option>
                 </select>
               </div>
 
               <div className="bg-slate-800/60 p-3 rounded-lg border border-slate-700/60 text-[11px] text-slate-400">
-                <div className="font-semibold text-slate-300">सीडीएन यूआरएल (CDN Link):</div>
+                <div className="font-semibold text-slate-300">CDN Direct URL:</div>
                 <div className="truncate text-amber-400/90 font-mono mt-0.5">{editingVideo.video_url}</div>
               </div>
             </div>
@@ -2440,7 +2194,7 @@ export default function MohanSirAvatarStudioPage() {
                 onClick={() => setEditingVideo(null)}
                 className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
-                रद्द करें
+                Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
@@ -2450,12 +2204,12 @@ export default function MohanSirAvatarStudioPage() {
                 {isSavingEdit ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    सहेज रहा है...
+                    Saving...
                   </>
                 ) : (
                   <>
                     <Save className="w-3.5 h-3.5" />
-                    सुरक्षित करें (Save)
+                    Save Changes
                   </>
                 )}
               </button>

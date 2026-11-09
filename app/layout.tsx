@@ -3,7 +3,6 @@ import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import SwarCalendarNightCard from '@/components/SwarCalendarNightCard';
-import DiwaliCelebrationExperience from '@/components/DiwaliCelebrationExperience';
 import AppInitializer from '@/components/AppInitializer';
 import AppUniversalBackButton from '@/components/AppUniversalBackButton';
 import VisitorTracker from '@/components/VisitorTracker';
@@ -361,7 +360,6 @@ export default function RootLayout({
             {children}
             <WhatsAppWidget />
             <SwarCalendarNightCard />
-            <DiwaliCelebrationExperience />
           </CartProvider>
         </RootErrorBoundary>
       </body>

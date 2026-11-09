@@ -48,11 +48,12 @@ function fakeExecute(statement: { sql: string; args?: unknown[] } | string) {
   const args = typeof statement === 'string' ? [] : statement.args || [];
 
   if (sql.startsWith('INSERT INTO studio_inhouse_render_jobs_sql')) {
-    const [id, avatarName, avatarProfileId, sourceImageUrl, script, voiceId, language, speechSpeed,
+    const [id, avatarName, avatarProfileId, sourceImageUrl, sourceVideoUrl, script, voiceId, language, speechSpeed,
       speechPitchHz, backgroundId,
       clothingId, posture, ownerUserId, createdAt, updatedAt] = args;
     rows.set(String(id), {
       id, avatar_name: avatarName, avatar_profile_id: avatarProfileId, source_image_url: sourceImageUrl,
+      source_video_url: sourceVideoUrl,
       owner_user_id: ownerUserId,
       script_text: script, voice_id: voiceId, language, speech_speed: speechSpeed,
       speech_pitch_hz: speechPitchHz, background_id: backgroundId,
@@ -123,6 +124,7 @@ describe('InhouseRenderQueue', () => {
       requesterId: 'admincrm',
       allowSharedProfile: true,
       avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4',
       script: 'A short demonstration.',
       speed: 0.98,
       pitchHz: 2,
@@ -130,7 +132,11 @@ describe('InhouseRenderQueue', () => {
 
     expect(job.status).toBe('ready_for_worker');
     expect(job.audioUrl).toContain('.mp3');
+    expect(job.sourceVideoUrl).toBe('https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4');
     expect(job.videoUrl).toBeUndefined();
+    expect(bunnyExecute).toHaveBeenCalledWith(
+      'ALTER TABLE studio_inhouse_render_jobs_sql ADD COLUMN source_video_url TEXT NOT NULL DEFAULT \'\'',
+    );
     expect(job.speechSpeed).toBe(0.98);
     expect(job.speechPitchHz).toBe(2);
     expect(InhouseAudioService.synthesizeSpeech).toHaveBeenCalledWith(
@@ -150,8 +156,29 @@ describe('InhouseRenderQueue', () => {
       requesterId: 'admincrm',
       allowSharedProfile: true,
       avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4',
       script: 'No consent.',
     })).rejects.toThrow('Avatar consent is invalid');
+
+    expect(rows.size).toBe(0);
+  });
+
+  it('rejects missing or non-Bunny MP4 footage instead of falling back to the profile image', async () => {
+    await expect(InhouseRenderQueue.createAndPrepare({
+      requesterId: 'admincrm',
+      allowSharedProfile: true,
+      avatarProfileId: profile.id,
+      sourceVideoUrl: '',
+      script: 'Still images are not motion footage.',
+    })).rejects.toThrow('continuous Bunny-hosted MP4 source video is required');
+
+    await expect(InhouseRenderQueue.createAndPrepare({
+      requesterId: 'admincrm',
+      allowSharedProfile: true,
+      avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/portrait.jpg',
+      script: 'A still image must not be accepted.',
+    })).rejects.toThrow('Bunny-hosted MP4 URL');
 
     expect(rows.size).toBe(0);
   });
@@ -161,12 +188,14 @@ describe('InhouseRenderQueue', () => {
       requesterId: 'admincrm',
       allowSharedProfile: true,
       avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4',
       script: 'Render this.',
     });
     const claim = await InhouseRenderQueue.claimNextJob('gpu-worker-1');
 
     expect(claim?.job.id).toBe(queued.id);
     expect(claim?.job.status).toBe('rendering_video');
+    expect(claim?.sourceVideoUrl).toBe('https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4');
 
     if (!claim) throw new Error('Expected the GPU worker to claim the prepared job.');
     await expect(InhouseRenderQueue.completeJob({

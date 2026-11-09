@@ -13,14 +13,17 @@ export interface DigitalTwinRecord {
   handGesturesEnabled: boolean;
   eyeBlinkRateBpm: number;
   identityConsistencyScore: number;
-  trainingStatus: 'completed' | 'training' | 'queued' | 'failed';
+  trainingStatus: 'completed' | 'training' | 'queued' | 'failed' | 'not_trained';
   validationReport: {
-    framing: string;
-    resolution: string;
-    fps: number;
-    confidence_pct: number;
-    bilabial_accuracy: string;
-    audio_snr: string;
+    status?: string;
+    verified?: boolean;
+    reason?: string;
+    framing?: string;
+    resolution?: string;
+    fps?: number;
+    confidence_pct?: number;
+    bilabial_accuracy?: string;
+    audio_snr?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -42,12 +45,12 @@ export async function getAllDigitalTwins(userId?: string): Promise<DigitalTwinRe
       baseVideoUrl: r.base_video_url,
       thumbnailUrl: r.thumbnail_url,
       headPoseRange: JSON.parse(r.head_pose_range_json || '{"yaw_range":[-15,15],"pitch_range":[-10,10],"roll_range":[-5,5]}'),
-      speakingCadenceWpm: r.speaking_cadence_wpm || 120,
+      speakingCadenceWpm: Number(r.speaking_cadence_wpm || 0),
       dominantExpressions: JSON.parse(r.dominant_expressions_json || '["teaching","smiling"]'),
       handGesturesEnabled: Boolean(r.hand_gestures_enabled),
-      eyeBlinkRateBpm: r.eye_blink_rate_bpm || 18,
-      identityConsistencyScore: r.identity_consistency_score || 0.98,
-      trainingStatus: r.training_status || 'completed',
+      eyeBlinkRateBpm: Number(r.eye_blink_rate_bpm || 0),
+      identityConsistencyScore: Number(r.identity_consistency_score || 0),
+      trainingStatus: r.training_status || 'not_trained',
       validationReport: JSON.parse(r.validation_report_json || '{}'),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -75,12 +78,12 @@ export async function getDigitalTwinById(twinId: string): Promise<DigitalTwinRec
       baseVideoUrl: r.base_video_url,
       thumbnailUrl: r.thumbnail_url,
       headPoseRange: JSON.parse(r.head_pose_range_json || '{"yaw_range":[-15,15],"pitch_range":[-10,10],"roll_range":[-5,5]}'),
-      speakingCadenceWpm: r.speaking_cadence_wpm || 120,
+      speakingCadenceWpm: Number(r.speaking_cadence_wpm || 0),
       dominantExpressions: JSON.parse(r.dominant_expressions_json || '["teaching","smiling"]'),
       handGesturesEnabled: Boolean(r.hand_gestures_enabled),
-      eyeBlinkRateBpm: r.eye_blink_rate_bpm || 18,
-      identityConsistencyScore: r.identity_consistency_score || 0.98,
-      trainingStatus: r.training_status || 'completed',
+      eyeBlinkRateBpm: Number(r.eye_blink_rate_bpm || 0),
+      identityConsistencyScore: Number(r.identity_consistency_score || 0),
+      trainingStatus: r.training_status || 'not_trained',
       validationReport: JSON.parse(r.validation_report_json || '{}'),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -89,4 +92,3 @@ export async function getDigitalTwinById(twinId: string): Promise<DigitalTwinRec
     return null;
   }
 }
-

@@ -51,10 +51,7 @@ export async function POST(req: NextRequest) {
       thumbnailUrl,
       profileId,
       headPoseRange,
-      speakingCadenceWpm,
-      dominantExpressions,
       handGesturesEnabled,
-      eyeBlinkRateBpm,
     } = body;
 
     if (!twinName || !baseVideoUrl) {
@@ -83,12 +80,9 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
 
     const report = {
-      framing: 'Chest-Up 0° Frontal',
-      resolution: '1920x1080 Full HD',
-      fps: 25,
-      confidence_pct: 99.4,
-      bilabial_accuracy: '100%',
-      audio_snr: '29.2 dB',
+      status: 'not_run',
+      verified: false,
+      reason: 'No training or video-quality validation pipeline is connected.',
     };
 
     // Server-derived ownership: strictly viewerId, never trusting client body
@@ -107,12 +101,12 @@ export async function POST(req: NextRequest) {
         baseVideoUrl,
         thumbnailUrl || null,
         JSON.stringify(headPoseRange || { yaw_range: [-15, 15], pitch_range: [-10, 10], roll_range: [-5, 5] }),
-        speakingCadenceWpm || 120,
-        JSON.stringify(dominantExpressions || ['teaching', 'smiling']),
+        0,
+        JSON.stringify([]),
         handGesturesEnabled !== false ? 1 : 0,
-        eyeBlinkRateBpm || 18,
-        0.992,
-        'completed',
+        0,
+        0,
+        'not_trained',
         JSON.stringify(report),
         now,
         now,

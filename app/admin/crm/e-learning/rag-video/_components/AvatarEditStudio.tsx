@@ -214,15 +214,105 @@ export default function AvatarEditStudio({
   // Video Generation Process
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string>(
-    'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_real_lipsync_1794137668.mp4'
-  );
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [avatarProfiles, setAvatarProfiles] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
+  const [sourceVideoUrl, setSourceVideoUrl] = useState('');
+  const [generationJobId, setGenerationJobId] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  useEffect(() => {
+    let active = true;
+    if (!token) {
+      setGenerationError('Sign in again to load consented avatar profiles.');
+      return () => {
+        active = false;
+      };
+    }
+
+    fetch('/api/avatar/creator', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load consented avatar profiles.');
+        }
+        return json.profiles as Array<{ id: string; name: string }>;
+      })
+      .then((profiles) => {
+        if (!active) return;
+        setAvatarProfiles(profiles);
+        setSelectedAvatarProfileId((current) => current || profiles[0]?.id || '');
+      })
+      .catch((error: unknown) => {
+        if (active) setGenerationError(error instanceof Error ? error.message : 'Failed to load avatar profiles.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!generationJobId || !token) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollJob = async () => {
+      try {
+        const res = await fetch(`/api/avatar/inhouse/video?jobId=${encodeURIComponent(generationJobId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success || !json.job) {
+          throw new Error(json.error || 'Could not read the render job status.');
+        }
+        if (!active) return;
+
+        const job = json.job;
+        if (job.status === 'completed' && job.videoUrl) {
+          setGeneratedVideoUrl(job.videoUrl);
+          setGenerationStep('Completed by the in-house worker.');
+          setIsGenerating(false);
+          setGenerationJobId(null);
+          return;
+        }
+        if (job.status === 'failed') {
+          setGenerationError(job.errorMessage || 'The in-house render worker reported a failure.');
+          setIsGenerating(false);
+          setGenerationJobId(null);
+          return;
+        }
+
+        const stageByStatus: Record<string, string> = {
+          synthesizing_speech: 'Preparing speech preview…',
+          ready_for_worker: 'Queued; waiting for the configured GPU worker. No video has been rendered yet.',
+          rendering_video: 'The configured worker is rendering the video…',
+        };
+        setGenerationStep(stageByStatus[job.status] || `Job status: ${job.status}`);
+        timer = setTimeout(pollJob, 5000);
+      } catch (error) {
+        if (!active) return;
+        setGenerationError(error instanceof Error ? error.message : 'Could not read the render job status.');
+        setIsGenerating(false);
+      }
+    };
+
+    void pollJob();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [generationJobId, token]);
 
   // Play / Pause Voice Samples
   const handleToggleVoicePreview = (voice: typeof VERIFIED_REAL_VOICES[0]) => {
@@ -250,51 +340,39 @@ export default function AvatarEditStudio({
       showToast('⚠️ कृपया कोई प्रॉम्प्ट या विषय लिखें!');
       return;
     }
+    if (!selectedAvatarProfileId || !token) {
+      setGenerationError(!token ? 'Sign in again before creating a render job.' : 'Select a saved, consented avatar profile first.');
+      return;
+    }
 
     setIsGenerating(true);
-    setGenerationStep('1/4: प्रॉम्प्ट का वैदिक विश्लेषण एवं स्क्रिप्ट तैयार हो रही है...');
+    setGenerationError(null);
+    setGeneratedVideoUrl(null);
+    setGenerationStep('Submitting to the consent-gated in-house queue…');
 
     try {
-      // Step 1: Simulate / Call API to create generation job
-      await new Promise((r) => setTimeout(r, 1200));
-      setGenerationStep('2/4: मोहन सर के प्रामाणिक 48kHz बैरिटोन स्वर में ऑडियो तैयार हो रहा है...');
-
-      await new Promise((r) => setTimeout(r, 1400));
-      setGenerationStep('3/4: 1080p Full HD वीडियो पर फेशियल एवं लिप-सिंक कंपोजिट हो रहा है...');
-
-      // Call API to persist job
-      await fetch('/api/avatar/jobs', {
+      const res = await fetch('/api/avatar/inhouse/video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          action: 'create_universal_job',
-          professionId: selectedAvatar.id,
-          customProfessionName: selectedAvatar.nameEn,
-          voiceProfileId: selectedVoice.id,
+          avatarProfileId: selectedAvatarProfileId,
+          sourceVideoUrl: sourceVideoUrl.trim(),
+          backgroundId: 'bg_kitchen',
+          clothingId: 'cloth_white_kurta',
+          posture: 'sitting',
           language: selectedLanguage,
-          scriptText: promptInput,
-          aspectRatio: selectedAspect,
-          resolution: '1080p',
-          durationSeconds: 30,
+          script: promptInput,
         }),
-      }).catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 1200));
-      setGenerationStep('4/4: वीडियो Bunny CDN पर अपलोड व लाइव किया जा रहा है...');
-
-      // Default to high-fidelity live video
-      const liveVideo =
-        selectedAvatar.videoUrl ||
-        'https://swaryogacrm.b-cdn.net/avatar-studio/base-templates/master_educator_1min_1080p.mp4';
-      setGeneratedVideoUrl(liveVideo);
-
-      showToast('🎉 बधाई हो सर! आपका 1080p AI वीडियो सफलतापूर्वक तैयार हो गया है!');
-    } catch (err: any) {
-      console.error('Video generation error:', err);
-      showToast('⚠️ वीडियो जेनरेशन में त्रुटि: ' + (err.message || 'Error'));
-    } finally {
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !json.job?.id) {
+        throw new Error(json.error || 'Failed to submit the in-house render job.');
+      }
+      setGenerationJobId(json.job.id);
+      setGenerationStep(json.message || 'Queued for the in-house render worker.');
+    } catch (error: unknown) {
+      setGenerationError(error instanceof Error ? error.message : 'Failed to submit the render job.');
       setIsGenerating(false);
-      setGenerationStep('');
     }
   };
 
@@ -615,6 +693,37 @@ export default function AvatarEditStudio({
 
             {/* Prompt Textarea */}
             <div className="space-y-1.5">
+              <label htmlFor="consented-avatar-profile" className="block text-xs font-bold text-slate-200">
+                Consent-verified avatar profile
+              </label>
+              <select
+                id="consented-avatar-profile"
+                value={selectedAvatarProfileId}
+                onChange={(event) => setSelectedAvatarProfileId(event.target.value)}
+                disabled={isGenerating}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white disabled:opacity-60"
+              >
+                <option value="">Select a saved profile</option>
+                {avatarProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.name}</option>
+                ))}
+              </select>
+              <label htmlFor="avatar-source-video-url" className="block text-xs font-bold text-slate-200">
+                Authorized continuous source footage (Bunny MP4 URL)
+              </label>
+              <input
+                id="avatar-source-video-url"
+                type="url"
+                value={sourceVideoUrl}
+                onChange={(event) => setSourceVideoUrl(event.target.value)}
+                placeholder="https://swaryogacrm.b-cdn.net/…/authorized-source.mp4"
+                disabled={isGenerating}
+                autoComplete="url"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500"
+              />
+              <p className="text-[11px] text-slate-400">
+                A still image or synthetic sample is not valid source footage and will not be rendered as talking video.
+              </p>
               <textarea
                 value={promptInput}
                 onChange={(e) => setPromptInput(e.target.value)}
@@ -639,6 +748,17 @@ export default function AvatarEditStudio({
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-slate-400">
+                  The current queue prepares speech and waits for a configured GPU worker. The selected sample voice, aspect ratio, and avatar look are not applied by the renderer yet.
+                </p>
+                {generationError && (
+                  <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-2 text-xs text-rose-200">
+                    {generationError}
+                  </p>
+                )}
+                {generationStep && (
+                  <p className="text-xs text-amber-200">{generationStep}</p>
+                )}
               </div>
             </div>
 
@@ -646,7 +766,7 @@ export default function AvatarEditStudio({
             <button
               type="button"
               onClick={handleConvertPromptToVideo}
-              disabled={isGenerating || !promptInput.trim()}
+              disabled={isGenerating || !promptInput.trim() || !selectedAvatarProfileId || !sourceVideoUrl.trim()}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer"
             >
               {isGenerating ? (
@@ -657,7 +777,7 @@ export default function AvatarEditStudio({
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  <span>🚀 Prompt से 1080p HD AI वीडियो बनाएँ (Convert Prompt to Video)</span>
+                  <span>Send to in-house render queue</span>
                 </>
               )}
             </button>
@@ -673,20 +793,26 @@ export default function AvatarEditStudio({
                 लाइव 1080p वीडियो प्रीव्यू (Live HD Output)
               </h3>
               <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                1080p H.264
+                output pending
               </span>
             </div>
 
             {/* HTML5 Video Player */}
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-slate-700 shadow-inner group">
-              <video
-                key={generatedVideoUrl}
-                src={generatedVideoUrl}
-                controls
-                playsInline
-                className="w-full h-full object-contain"
-              />
-            </div>
+            {generatedVideoUrl ? (
+              <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-slate-700 shadow-inner group">
+                <video
+                  key={generatedVideoUrl}
+                  src={generatedVideoUrl}
+                  controls
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="aspect-video rounded-xl border border-dashed border-slate-700 bg-slate-950 flex items-center justify-center p-6 text-center text-xs text-slate-400">
+                No render output yet. A queued job is not a completed video.
+              </div>
+            )}
 
             {/* Video Specs Card */}
             <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
@@ -700,9 +826,9 @@ export default function AvatarEditStudio({
               </div>
               <div className="flex items-center justify-between text-slate-300">
                 <span className="text-slate-400">क्वालिटी:</span>
-                <span className="font-mono text-amber-300">1920x1080 Full HD (48kHz AAC)</span>
+                <span className="font-mono text-amber-300">{generatedVideoUrl ? 'Worker output available' : 'Not rendered'}</span>
               </div>
-              <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800/80">
+              {generatedVideoUrl && <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800/80">
                 <span className="text-slate-400">सीडीएन लिंक:</span>
                 <a
                   href={generatedVideoUrl}
@@ -713,11 +839,11 @@ export default function AvatarEditStudio({
                   <ExternalLink className="w-3 h-3 shrink-0" />
                   <span>{generatedVideoUrl.split('/').pop()}</span>
                 </a>
-              </div>
+              </div>}
             </div>
 
             {/* Direct Send to Final Video Production CTA */}
-            {onNavigateToProduction && (
+            {onNavigateToProduction && generatedVideoUrl && (
               <button
                 type="button"
                 onClick={() => {
@@ -738,7 +864,7 @@ export default function AvatarEditStudio({
             )}
 
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-200/90 leading-relaxed">
-              💡 <strong>नोट:</strong> किसी भी नए प्रॉम्प्ट से बनाया गया वीडियो तुरंत इस प्लेयर में लोड हो जाएगा और आप इसे सीधे E-Learning कोर्स या यूट्यूब पर एक्सपोर्ट कर सकते हैं।
+              💡 <strong>नोट:</strong> The library displays a video only after the in-house worker reports a completed Bunny-hosted render.
             </div>
           </div>
         </div>

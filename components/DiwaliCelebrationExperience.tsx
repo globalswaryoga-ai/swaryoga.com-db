@@ -44,6 +44,10 @@ const DIYA_BLESSINGS: DiyaBlessing[] = [
 ];
 
 export default function DiwaliCelebrationExperience() {
+  return null;
+}
+
+function _DisabledDiwaliCelebrationExperience() {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [activeBlessing, setActiveBlessing] = useState<DiyaBlessing | null>(null);

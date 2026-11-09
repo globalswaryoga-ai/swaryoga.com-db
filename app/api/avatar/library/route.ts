@@ -1,111 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extractTokenFromRequest, verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { initAvatarStudioDb } from '@/lib/avatarStudio/avatarStudioDb';
+import { MOHAN_WORKSHOP_TWIN_SOURCES } from '@/lib/avatarStudio/mohanWorkshopTwinSources';
 
 export const dynamic = 'force-dynamic';
 
+function authorize(request: NextRequest): NextResponse | null {
+  const decoded = verifyToken(extractTokenFromRequest(request));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
+  if (!isSuperAdmin(decoded)) {
+    return NextResponse.json({ success: false, error: 'Super Admin access is required.' }, { status: 403 });
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
+  const authorizationError = authorize(request);
+  if (authorizationError) return authorizationError;
+
   try {
     await initAvatarStudioDb();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('q')?.toLowerCase() || '';
 
-    // 1. Fetch generated outputs
-    const genRes = await bunnyExecute(
+    const result = await bunnyExecute(
       `SELECT * FROM avatar_generation_outputs_sql ORDER BY created_at DESC LIMIT 100`
     );
-    const genRows = (genRes.rows || []) as any[];
-
-    // 2. Fetch all 39+ DNA video avatars from studio_video_avatars_sql
-    const dnaRes = await bunnyExecute(
-      `SELECT * FROM studio_video_avatars_sql ORDER BY created_at DESC LIMIT 100`
-    ).catch(() => ({ rows: [] }));
-    const dnaRows = (dnaRes.rows || []) as any[];
-
-    // 3. Fetch all raw DNA looks from mohan_avatar_dna_looks_sql
-    const looksRes = await bunnyExecute(
-      `SELECT * FROM mohan_avatar_dna_looks_sql LIMIT 100`
-    ).catch(() => ({ rows: [] }));
-    const looksRows = (looksRes.rows || []) as any[];
-
-    // Map DNA rows to library format if not already in genRows
-    const seenUrls = new Set(genRows.map((r) => r.video_url));
-    const seenIds = new Set(genRows.map((r) => r.id));
-
-    const mappedDnaRows = dnaRows
-      .filter((d) => !seenIds.has(d.id) && !seenUrls.has(d.original_video_url))
-      .map((d) => {
-        seenIds.add(d.id);
-        if (d.original_video_url) seenUrls.add(d.original_video_url);
-        const title = d.name || 'Mohan Sir DNA Master Avatar';
-        const isMarathi = title.toLowerCase().includes('marathi');
-        return {
-          id: d.id,
-          job_id: `dna_${d.id}`,
-          title: title,
-          profession_id: 'swar_yoga_master',
-          profession_name: 'Swar Yoga Master',
-          language: isMarathi ? 'mr' : 'hi',
-          duration_seconds: 180,
-          resolution: '1080p',
-          video_url: d.original_video_url,
-          thumbnail_url: d.thumbnail_url || 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
-          ai_model: 'Mohan Sir DNA 39 Master Video (LivePortrait + Wav2Lip)',
-          voice_type: 'mohan_authentic_clone',
-          is_module8_synced: 1,
-          created_at: d.created_at || new Date().toISOString(),
-        };
-      });
-
-    const mappedLooksRows = looksRows
-      .filter((l) => !seenIds.has(l.id) && !seenUrls.has(l.video_url))
-      .map((l, idx) => {
-        seenIds.add(l.id);
-        if (l.video_url) seenUrls.add(l.video_url);
-        const title = l.title || `Mohan Sir DNA Master Class ${idx + 1}`;
-        const isMarathi = title.toLowerCase().includes('marathi');
-        return {
-          id: l.id,
-          job_id: `look_${l.id}`,
-          title: title,
-          profession_id: 'spiritual_teacher',
-          profession_name: 'Spiritual Guru & Acharya',
-          language: isMarathi ? 'mr' : 'hi',
-          duration_seconds: 154,
-          resolution: '1080p',
-          video_url: l.video_url,
-          thumbnail_url: l.thumbnail_url || 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
-          ai_model: 'Official DNA Master Class (Bunny Library 606386)',
-          voice_type: 'mohan_authentic_clone',
-          is_module8_synced: 1,
-          created_at: new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
-        };
-      });
-
-    let allVideos = [...genRows, ...mappedDnaRows, ...mappedLooksRows];
-
-    // Seed default if empty
-    if (allVideos.length === 0) {
-      const initialSeed = [
-        {
-          id: 'out_prof_whiteboard_01',
-          job_id: 'job_seed_01',
-          title: 'Mohan Sir – University Professor (Academic Presentation)',
-          profession_id: 'university_professor',
-          profession_name: 'University Professor',
-          language: 'hi',
-          duration_seconds: 180,
-          resolution: '1080p',
-          video_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-          thumbnail_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
-          ai_model: 'LivePortrait + Wav2Lip (1080p GFPGAN)',
-          voice_type: 'mohan_authentic_clone',
-          is_module8_synced: 1,
-          created_at: new Date().toISOString(),
-        },
-      ];
-      allVideos = initialSeed;
-    }
+    let allVideos = (result.rows || []) as any[];
 
     if (search) {
       allVideos = allVideos.filter(
@@ -131,76 +56,170 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authorizationError = authorize(request);
+  if (authorizationError) return authorizationError;
+
   try {
     await initAvatarStudioDb();
-    const body = await request.json().catch(() => ({}));
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: 'Request body must be a JSON object.' }, { status: 400 });
+    }
+    if (body.action === 'ensure_mohan_workshop_twin_sources') {
+      const seedStatus = await bunnyExecute({
+        sql: `SELECT seed_key FROM avatar_library_seed_state_sql WHERE seed_key = ? LIMIT 1`,
+        args: ['mohan_workshop_twin_sources_v1'],
+      });
+      if (seedStatus.rows?.length) {
+        return NextResponse.json({
+          success: true,
+          addedCount: 0,
+          alreadyPresentCount: MOHAN_WORKSHOP_TWIN_SOURCES.length,
+          total: MOHAN_WORKSHOP_TWIN_SOURCES.length,
+          message: 'Workshop twin-look sources were already initialized. Removed entries will stay removed.',
+        });
+      }
+
+      let addedCount = 0;
+      let alreadyPresentCount = 0;
+      const createdAt = new Date().toISOString();
+
+      for (const source of MOHAN_WORKSHOP_TWIN_SOURCES) {
+        const existing = await bunnyExecute({
+          sql: `SELECT id FROM avatar_generation_outputs_sql WHERE id = ? OR video_url = ? LIMIT 1`,
+          args: [source.id, source.videoUrl],
+        });
+        if (existing.rows?.length) {
+          alreadyPresentCount += 1;
+          continue;
+        }
+
+        const inserted = await bunnyExecute({
+          sql: `INSERT INTO avatar_generation_outputs_sql (
+            id, job_id, title, profession_id, profession_name, language,
+            duration_seconds, resolution, video_url, thumbnail_url, ai_model,
+            voice_type, is_module8_synced, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO NOTHING`,
+          args: [
+            source.id,
+            source.id,
+            `Mohan Sir Twin Look — ${source.lookLabel}`,
+            'mohan_workshop_twin_source',
+            source.lookLabel,
+            'not_verified',
+            0,
+            'not_verified',
+            source.videoUrl,
+            null,
+            'User-provided Bunny workshop source; AI generation not performed',
+            'unverified',
+            0,
+            createdAt,
+          ],
+        });
+        if (inserted.rowsAffected) {
+          addedCount += 1;
+        } else {
+          alreadyPresentCount += 1;
+        }
+      }
+
+      await bunnyExecute({
+        sql: `INSERT INTO avatar_library_seed_state_sql (seed_key, completed_at)
+              VALUES (?, ?)
+              ON CONFLICT(seed_key) DO NOTHING`,
+        args: ['mohan_workshop_twin_sources_v1', createdAt],
+      });
+
+      return NextResponse.json({
+        success: true,
+        addedCount,
+        alreadyPresentCount,
+        total: MOHAN_WORKSHOP_TWIN_SOURCES.length,
+        message: 'Workshop twin-look source videos are in the library. They are source recordings, not generated AI twins.',
+      });
+    }
+
     const {
       title,
       video_url,
       thumbnail_url,
       ai_site_source = 'AI Import',
-      profession_name = 'Custom AI Avatar',
+      profession_name = 'Imported media',
       language = 'hi',
       duration_seconds = 30,
     } = body;
 
-    if (!video_url || !title) {
+    let parsedVideoUrl: URL;
+    try {
+      parsedVideoUrl = new URL(video_url);
+    } catch {
       return NextResponse.json(
-        { error: 'शीर्षक (Title) और वीडियो यूआरएल (Video URL) अनिवार्य हैं।' },
+        { success: false, error: 'A valid HTTPS video URL is required.' },
+        { status: 400 }
+      );
+    }
+    if (
+      parsedVideoUrl.protocol !== 'https:' ||
+      typeof title !== 'string' ||
+      !title.trim() ||
+      title.trim().length > 200 ||
+      (typeof profession_name === 'string' && profession_name.length > 120) ||
+      !['hi', 'mr', 'en'].includes(language)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Provide a title (up to 200 characters), HTTPS video URL, and supported language.' },
         { status: 400 }
       );
     }
 
     const id = `import_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const finalThumbnail =
-      thumbnail_url || 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg';
+    let finalThumbnail: string | null = null;
+    if (thumbnail_url) {
+      try {
+        const parsedThumbnail = new URL(thumbnail_url);
+        if (parsedThumbnail.protocol !== 'https:') throw new Error('Thumbnail must use HTTPS.');
+        finalThumbnail = parsedThumbnail.toString();
+      } catch {
+        return NextResponse.json({ success: false, error: 'Thumbnail URL must be a valid HTTPS URL.' }, { status: 400 });
+      }
+    }
+    const sourceLabel = typeof ai_site_source === 'string' ? ai_site_source.trim().slice(0, 80) : 'unspecified';
 
-    // Insert into avatar_generation_outputs_sql
+    // Imported media is cataloged without claiming that it was generated by this engine.
     await bunnyExecute({
       sql: `INSERT INTO avatar_generation_outputs_sql 
             (id, job_id, title, profession_id, profession_name, language, duration_seconds, resolution, video_url, thumbnail_url, ai_model, voice_type, is_module8_synced, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
-        `job_${id}`,
-        title,
+        `import_${id}`,
+        title.trim(),
         'custom_ai_import',
-        profession_name,
+        typeof profession_name === 'string' ? profession_name.trim() : 'Imported media',
         language,
-        Number(duration_seconds) || 30,
-        '1080p',
-        video_url,
+        Number.isFinite(Number(duration_seconds)) && Number(duration_seconds) > 0
+          ? Math.min(Number(duration_seconds), 86400)
+          : 0,
+        'not_verified',
+        parsedVideoUrl.toString(),
         finalThumbnail,
-        `Imported from ${ai_site_source}`,
-        'mohan_authentic_clone',
-        1,
+        `User-provided media; source ${sourceLabel || 'unspecified'}; generation unverified`,
+        'unverified',
+        0,
         new Date().toISOString(),
       ],
     });
 
-    // Also register in studio_video_avatars_sql so Module 8 sees it immediately
-    await bunnyExecute({
-      sql: `INSERT OR REPLACE INTO studio_video_avatars_sql (
-              id, name, original_video_url, thumbnail_url, cutout_url, transparent_avatar_url,
-              language_capabilities_json, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id,
-        title,
-        video_url,
-        finalThumbnail,
-        finalThumbnail,
-        video_url,
-        JSON.stringify([language]),
-        'ready',
-        new Date().toISOString(),
-        new Date().toISOString(),
-      ],
-    }).catch(() => {});
-
     return NextResponse.json({
       success: true,
-      message: 'AI वीडियो सफलतापूर्वक इम्पोर्ट हो गया और लाइब्रेरी में जुड़ गया!',
+      message: 'Existing video metadata was added to the library. Generation and source rights are not verified.',
       id,
     });
   } catch (error: any) {
@@ -212,12 +231,38 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const authorizationError = authorize(request);
+  if (authorizationError) return authorizationError;
+
   try {
-    const body = await request.json().catch(() => ({}));
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: 'Request body must be a JSON object.' }, { status: 400 });
+    }
     const { id, title, profession_name, language } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing output ID' }, { status: 400 });
+    if (typeof id !== 'string' || !id.trim()) {
+      return NextResponse.json({ success: false, error: 'A valid output ID is required.' }, { status: 400 });
+    }
+    if (
+      (title !== undefined && (typeof title !== 'string' || !title.trim() || title.length > 200)) ||
+      (profession_name !== undefined && (typeof profession_name !== 'string' || profession_name.length > 120)) ||
+      (language !== undefined && !['hi', 'mr', 'en'].includes(language))
+    ) {
+      return NextResponse.json({ success: false, error: 'Video metadata is invalid.' }, { status: 400 });
+    }
+
+    const exists = await bunnyExecute({
+      sql: `SELECT id FROM avatar_generation_outputs_sql WHERE id = ? LIMIT 1`,
+      args: [id],
+    });
+    if (!exists.rows?.length) {
+      return NextResponse.json({ success: false, error: 'Stored video entry was not found.' }, { status: 404 });
     }
 
     await bunnyExecute({
@@ -226,45 +271,37 @@ export async function PATCH(request: NextRequest) {
                 profession_name = COALESCE(?, profession_name),
                 language = COALESCE(?, language)
             WHERE id = ?`,
-      args: [title || null, profession_name || null, language || null, id],
+      args: [title?.trim() || null, profession_name?.trim() || null, language || null, id],
     });
-
-    // Also update studio_video_avatars_sql name if title changed
-    if (title) {
-      await bunnyExecute({
-        sql: `UPDATE studio_video_avatars_sql SET name = ? WHERE id = ?`,
-        args: [title, id],
-      }).catch(() => {});
-    }
 
     return NextResponse.json({ success: true, message: 'Video metadata updated successfully' });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to update video' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || 'Failed to update video' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const authorizationError = authorize(request);
+  if (authorizationError) return authorizationError;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing output ID' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'A valid output ID is required.' }, { status: 400 });
     }
 
-    await bunnyExecute({
+    const result = await bunnyExecute({
       sql: `DELETE FROM avatar_generation_outputs_sql WHERE id = ?`,
       args: [id],
     });
+    if (!result.rowsAffected) {
+      return NextResponse.json({ success: false, error: 'Stored video entry was not found.' }, { status: 404 });
+    }
 
-    await bunnyExecute({
-      sql: `DELETE FROM studio_video_avatars_sql WHERE id = ?`,
-      args: [id],
-    }).catch(() => {});
-
-    return NextResponse.json({ success: true, message: 'Video removed from library and Module 8' });
+    return NextResponse.json({ success: true, message: 'Video removed from the stored-media library.' });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Failed to delete' }, { status: 500 });
   }
 }
-

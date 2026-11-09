@@ -30,6 +30,7 @@ interface AIModel {
   function_category: string;
   health_status: string;
   gpu_min_vram_gb: number;
+  evidenceStatus?: string;
 }
 
 interface BackgroundEnvironment {
@@ -71,9 +72,6 @@ export default function Phase1AvatarCreatorStudio() {
   const [selectedEnv, setSelectedEnv] = useState<string>('bg_studio_white_brick_03');
 
   const [hasConsent, setHasConsent] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   // Load registered commercial models and background environments
@@ -93,61 +91,8 @@ export default function Phase1AvatarCreatorStudio() {
     initData();
   }, []);
 
-  const handleCreateAvatar = async () => {
-    if (!avatarName.trim()) {
-      setErrorMessage('Please provide a name for this avatar.');
-      return;
-    }
-    if (!hasConsent) {
-      setErrorMessage('Mandatory identity verification: You must check the legal consent authorization box.');
-      return;
-    }
-
-    setIsSaving(true);
-    setErrorMessage('');
-
-    try {
-      // Step 1: Record cryptographic digital consent
-      const consentRes = await fetch('/api/avatar/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-        body: JSON.stringify({
-          avatarName,
-          declarationText: `I hereby grant full legal authorization to Swar Yoga AI Platform to synthesize, store, and utilize the digital likeness, face landmarks, and visual identity for avatar ${avatarName}.`,
-        }),
-      });
-      const consentData = await consentRes.json();
-      if (!consentRes.ok || !consentData.success || !consentData.consent?.id) {
-        throw new Error(consentData.error || 'Consent could not be recorded.');
-      }
-
-      // Step 2: Create Avatar Identity Profile
-      const createRes = await fetch('/api/avatar/creator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-        body: JSON.stringify({
-          name: avatarName,
-          gender,
-          ageGroup,
-          defaultClothing: clothing,
-          defaultHair: hair,
-          frontalFaceUrl: photoUrl,
-          consentRecordId: consentData.consent?.id,
-        }),
-      });
-      const createData = await createRes.json();
-
-      if (createRes.ok && createData.success) {
-        setSavedSuccess(true);
-        setTimeout(() => setSavedSuccess(false), 4000);
-      } else {
-        setErrorMessage(createData.error || 'Failed to create avatar.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Network error occurred while saving.');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleCreateAvatar = () => {
+    setErrorMessage('Avatar profile creation is unavailable until a real face-analysis runtime is connected.');
   };
 
   const activeBg = environments.find(e => e.id === selectedEnv);
@@ -166,14 +111,14 @@ export default function Phase1AvatarCreatorStudio() {
               Photo Avatar Creation & Identity Isolation
             </h2>
             <p className="text-sm text-slate-300 max-w-2xl">
-              100% self-hosted, independent AI avatar creation platform. Extract facial landmarks, isolate foregrounds, preserve facial geometry, and change environments with zero external API fees.
+              Consent and profile metadata are available, but face detection, landmark extraction, background removal, and identity scoring are not connected.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 text-right">
-              <div className="text-[10px] text-slate-400 uppercase font-semibold">Commercial Permitted</div>
-              <div className="text-emerald-400 font-bold text-sm">7 Open-Source Models Ready</div>
+              <div className="text-[10px] text-slate-400 uppercase font-semibold">Model evidence</div>
+              <div className="text-amber-300 font-bold text-sm">Not verified</div>
             </div>
           </div>
         </div>
@@ -187,10 +132,10 @@ export default function Phase1AvatarCreatorStudio() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Camera className="w-4 h-4 text-emerald-400" />
-                <span>Primary Frontal Photo (0° Eye Level)</span>
+                <span>Photo preview (face alignment not analyzed)</span>
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-semibold">
-                1080×1080 HD
+                Source dimensions not inspected
               </span>
             </div>
 
@@ -211,15 +156,15 @@ export default function Phase1AvatarCreatorStudio() {
                 className="max-h-full object-contain relative z-10 drop-shadow-2xl transition"
               />
 
-              {/* Landmark & Eye-Alignment Overlay Box */}
+              {/* Static overlay only; the server does not analyze facial landmarks. */}
               <div className="absolute inset-x-12 inset-y-10 border-2 border-dashed border-emerald-400/80 rounded-2xl pointer-events-none z-20 flex flex-col justify-between p-2">
                 <div className="flex justify-between items-center text-[10px] font-mono text-emerald-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-emerald-500/40">
-                  <span>PUPIL GAZE: 0.0° FRONTAL</span>
-                  <span>CONFIDENCE: 98.4%</span>
+                  <span>PREVIEW ONLY</span>
+                  <span>NO FACE ANALYSIS</span>
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-mono text-emerald-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-emerald-500/40">
-                  <span>EYE DIST: 182px</span>
-                  <span>YAW: -0.4°</span>
+                  <span>LANDMARKS: NOT AVAILABLE</span>
+                  <span>QUALITY: NOT SCORED</span>
                 </div>
               </div>
             </div>
@@ -369,7 +314,7 @@ export default function Phase1AvatarCreatorStudio() {
                   className="mt-1 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
                 />
                 <label htmlFor="consentCheckbox" className="text-xs text-amber-200 leading-relaxed cursor-pointer">
-                  <strong>Legal Authorization & Consent Guarantee:</strong> I certify that I own or hold explicit written consent to synthesize and train a digital twin replica of this person&apos;s face and identity. This consent is cryptographically recorded with a SHA-256 hash.
+                  <strong>Consent declaration:</strong> I confirm that I own or hold explicit written consent for the requested use. This records the administrator&apos;s declaration and SHA-256 integrity hash; it is not external identity verification or legal advice.
                 </label>
               </div>
             </div>
@@ -382,33 +327,20 @@ export default function Phase1AvatarCreatorStudio() {
               </div>
             )}
 
-            {/* Success Notification */}
-            {savedSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Avatar identity profile successfully created and saved in Bunny Database!</span>
-              </div>
-            )}
+            <div className="p-3 rounded-xl bg-amber-950/70 border border-amber-500/40 text-amber-200 text-xs">
+              Profile creation is paused until a real face-analysis runtime is connected. No profile will be saved from this preview.
+            </div>
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={handleCreateAvatar}
-                disabled={isSaving}
+                disabled
                 className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Extracting Landmarks & Saving Profile...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>Save & Register Avatar Identity</span>
-                  </>
-                )}
+                <Check className="w-4 h-4" />
+                <span>Face analysis runtime unavailable</span>
               </button>
             </div>
           </div>
@@ -418,10 +350,10 @@ export default function Phase1AvatarCreatorStudio() {
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-emerald-400" />
-                <span>Self-Hosted Commercial Model Registry</span>
+                <span>Model registry metadata</span>
               </h3>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
-                100% Commercial Permitted
+                Licensing and installation unverified
               </span>
             </div>
 
@@ -434,13 +366,13 @@ export default function Phase1AvatarCreatorStudio() {
                   <div className="space-y-0.5">
                     <div className="text-xs font-bold text-white line-clamp-1">{m.name}</div>
                     <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                      <span className="font-mono text-emerald-400">{m.license}</span>
+                      <span className="font-mono text-amber-300">{m.license}</span>
                       <span>•</span>
                       <span>{m.function_category}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/40 text-emerald-300">
-                    {m.health_status}
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-950 border border-amber-500/40 text-amber-300">
+                    {m.evidenceStatus || m.health_status}
                   </span>
                 </div>
               ))}

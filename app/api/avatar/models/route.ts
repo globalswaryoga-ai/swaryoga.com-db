@@ -9,8 +9,15 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       total: models.length,
-      commercial_ready_count: models.filter(m => m.commercial_permitted === 1).length,
-      models,
+      commercial_ready_count: 0,
+      license_review_required_count: models.length,
+      models: models.map((model) => ({
+        ...model,
+        commercial_permitted: 0,
+        install_status: 'unknown',
+        health_status: 'unverified',
+        evidenceStatus: 'not_verified',
+      })),
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -19,4 +26,3 @@ export async function GET() {
     );
   }
 }
-

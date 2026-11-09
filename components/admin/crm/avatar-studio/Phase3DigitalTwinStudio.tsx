@@ -30,6 +30,7 @@ interface DigitalTwin {
   dominantExpressions: string[];
   eyeBlinkRateBpm: number;
   identityConsistencyScore: number;
+  trainingStatus: string;
   validationReport: {
     framing: string;
     resolution: string;
@@ -116,14 +117,14 @@ export default function Phase3DigitalTwinStudio() {
               Identity Consistency & Dynamic Facial Blendshapes
             </h2>
             <p className="text-sm text-slate-300 max-w-2xl">
-              Trained directly from continuous 1080p full-HD master footage. Preserves authentic facial micro-movements, eye saccades, natural speech cadence, and ARKit-standard blendshape geometry.
+              Digital-twin records and expression presets can be stored here. Training, identity scoring, facial retargeting, and quality validation are not connected yet.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-teal-500/30 text-right">
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Identity Consistency</div>
-              <div className="text-teal-400 font-bold text-sm">99.2% Facial Preservation</div>
+              <div className="text-teal-400 font-bold text-sm">Not measured</div>
             </div>
           </div>
         </div>
@@ -140,7 +141,7 @@ export default function Phase3DigitalTwinStudio() {
                 <span>Base Master Video Anchor</span>
               </span>
               <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-mono font-semibold">
-                1080p 25 FPS (Master HD)
+                Status: {selectedTwin?.trainingStatus || 'not trained'}
               </span>
             </div>
 
@@ -160,15 +161,19 @@ export default function Phase3DigitalTwinStudio() {
             <div className="grid grid-cols-3 gap-2 pt-2">
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
                 <div className="text-[10px] text-slate-400 uppercase font-semibold">Framing</div>
-                <div className="text-xs font-bold text-white mt-0.5">0° Frontal Chest-Up</div>
+                <div className="text-xs font-bold text-white mt-0.5">Not validated</div>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
                 <div className="text-[10px] text-slate-400 uppercase font-semibold">Speaking Cadence</div>
-                <div className="text-xs font-bold text-emerald-400 mt-0.5">{selectedTwin?.speakingCadenceWpm || 118} WPM</div>
+                <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                  {selectedTwin?.speakingCadenceWpm ? `${selectedTwin.speakingCadenceWpm} WPM` : 'Not measured'}
+                </div>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
                 <div className="text-[10px] text-slate-400 uppercase font-semibold">Blink Rate</div>
-                <div className="text-xs font-bold text-sky-400 mt-0.5">{selectedTwin?.eyeBlinkRateBpm || 18} BPM</div>
+                <div className="text-xs font-bold text-sky-400 mt-0.5">
+                  {selectedTwin?.eyeBlinkRateBpm ? `${selectedTwin.eyeBlinkRateBpm} BPM` : 'Not measured'}
+                </div>
               </div>
             </div>
 
@@ -176,9 +181,9 @@ export default function Phase3DigitalTwinStudio() {
             <div className="p-3 rounded-xl bg-teal-950/40 border border-teal-500/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-teal-400" />
-                <span className="text-xs font-medium text-teal-200">Bilabial Phonetic Accuracy</span>
+                <span className="text-xs font-medium text-teal-200">Audio-to-mouth QA</span>
               </div>
-              <span className="text-xs font-bold text-teal-300 font-mono">100% (P, B, M Guard Verified)</span>
+              <span className="text-xs font-bold text-teal-300 font-mono">Not run</span>
             </div>
           </div>
 
@@ -363,4 +368,3 @@ export default function Phase3DigitalTwinStudio() {
     </div>
   );
 }
-

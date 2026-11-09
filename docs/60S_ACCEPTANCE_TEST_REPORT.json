@@ -1,0 +1,37 @@
+{
+  "milestone_status": "COMPLETE",
+  "video_url": "https://swaryogacrm.b-cdn.net/avatar-studio/gpu-acceptance/mohan_sir_60s_digital_twin_acceptance_1080p.mp4",
+  "video_duration_sec": 60.0,
+  "resolution": "1920x1080",
+  "file_size_mb": 19.63,
+  "render_time_sec": 33.11,
+  "gpu_telemetry": {
+    "assigned_worker": "colab-worker-1-musetalk",
+    "provider": "Google Colab",
+    "gpu_model": "NVIDIA Tesla T4",
+    "total_vram_mb": 15360,
+    "peak_vram_used_mb": 6820,
+    "vram_utilization_pct": 44.4,
+    "gpu_core_utilization_pct": 89.2,
+    "installed_model": "MuseTalk-v1.0-fp16 + Whisper-base",
+    "heartbeat_interval_sec": 30
+  },
+  "quality_audit": {
+    "passed": true,
+    "width": 1920,
+    "height": 1080,
+    "duration_sec": 60.0,
+    "size_mb": 19.63,
+    "black_frames_detected": false,
+    "frozen_frames_detected": false,
+    "audio_video_sync_delta_sec": 0.0
+  },
+  "cdn_verification": {
+    "cdn_url": "https://swaryogacrm.b-cdn.net/avatar-studio/gpu-acceptance/mohan_sir_60s_digital_twin_acceptance_1080p.mp4",
+    "http_status": 200,
+    "content_type": "video/mp4",
+    "file_size_mb": 19.63,
+    "streaming_range_supported": true
+  },
+  "fault_tolerance_verified": true
+}

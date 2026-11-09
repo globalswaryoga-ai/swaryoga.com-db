@@ -72,8 +72,8 @@ export async function initAvatarStudioDb(): Promise<void> {
         caption_style TEXT DEFAULT 'default',
         resolution TEXT DEFAULT '1080p',
         duration_seconds REAL DEFAULT 30,
-        selected_model TEXT DEFAULT 'LivePortrait + Wav2Lip',
-        gpu_provider TEXT DEFAULT 'google_colab_t4',
+        selected_model TEXT DEFAULT 'not_verified',
+        gpu_provider TEXT DEFAULT 'not_configured',
         status TEXT DEFAULT 'created',
         progress_pct INTEGER DEFAULT 0,
         output_video_url TEXT,
@@ -96,10 +96,17 @@ export async function initAvatarStudioDb(): Promise<void> {
         resolution TEXT DEFAULT '1080p',
         video_url TEXT NOT NULL,
         thumbnail_url TEXT,
-        ai_model TEXT DEFAULT 'LivePortrait + Wav2Lip',
-        voice_type TEXT DEFAULT 'mohan_authentic_clone',
-        is_module8_synced INTEGER DEFAULT 1,
+        ai_model TEXT DEFAULT 'not_verified',
+        voice_type TEXT DEFAULT 'unverified',
+        is_module8_synced INTEGER DEFAULT 0,
         created_at TEXT NOT NULL
+      )
+    `);
+
+    await bunnyExecute(`
+      CREATE TABLE IF NOT EXISTS avatar_library_seed_state_sql (
+        seed_key TEXT PRIMARY KEY,
+        completed_at TEXT NOT NULL
       )
     `);
 
@@ -120,30 +127,9 @@ export async function initAvatarStudioDb(): Promise<void> {
       )
     `);
 
-    // 4. Seed initial known models if table is empty
-    const checkModels = await bunnyExecute(`SELECT COUNT(*) as cnt FROM avatar_model_registry_sql`);
-    const count = Number(checkModels.rows?.[0]?.cnt || 0);
-
-    if (count === 0) {
-      const now = new Date().toISOString();
-      const models = [
-        ['liveportrait', 'LivePortrait (Kuaishou)', 'Kuaishou / Open Source', 'MIT License (Commercial Friendly)', 'NVIDIA T4 / A10G', '12 GB VRAM', 'READY_COLAB', 1, 'VERIFIED_GPU', 'High fidelity facial motion and expression transfer', now],
-        ['wav2lip_gan', 'Wav2Lip + GFPGAN 1080p', 'Rudrabha / Open Source', 'MIT / Academic & Commercial', 'NVIDIA T4 / CPU', '6 GB VRAM', 'READY_COLAB', 1, 'VERIFIED_GPU', 'Precise phoneme lip synchronization with GFPGAN face restoration', now],
-        ['indic_f5_tts', 'IndicF5-TTS Voice Cloning', 'AI4Bharat / Open Source', 'CC-BY-4.0', 'NVIDIA T4 / CPU', '8 GB VRAM', 'PROTOTYPE', 1, 'TESTED', 'Few-shot Indian accent voice cloning for Hindi & Marathi', now],
-        ['sadtalker', 'SadTalker (Talking Head)', 'OpenAvatar / Open Source', 'CC BY-NC 4.0', 'NVIDIA T4', '8 GB VRAM', 'AVAILABLE', 0, 'UNTESTED', 'Still photo to talking animation', now],
-      ];
-
-      for (const m of models) {
-        await bunnyExecute({
-          sql: `INSERT OR REPLACE INTO avatar_model_registry_sql (id, model_name, provider, license, gpu_requirement, vram_requirement, installation_status, is_active, test_status, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: m,
-        });
-      }
-    }
-
     isInitialized = true;
   } catch (err) {
     console.error('Failed to init avatar studio DB:', err);
+    throw err;
   }
 }
-

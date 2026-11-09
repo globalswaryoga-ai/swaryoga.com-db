@@ -17,6 +17,8 @@ out/
 !docs/MOHAN_RAG_IMPLEMENTATION_TODO.md
 !docs/MOHAN_RAG_ARCHITECTURE_ASSESSMENT.md
 !docs/AVATAR_ENGINE_PHASE2.md
+!docs/OPEN_SOURCE_ENGINE_INTEGRATION_REPORT.md
+!docs/MUSETALK_GPU_ACCEPTANCE_REPORT.md
 
 # Never commit bridge/VPS private keys (including files restored from history).
 deploy/wa-bridge/*.pem
@@ -68,3 +70,10 @@ production
 !ANDROID_APP_TESTING_GUIDE.md
 bunny.db
 scratch/
+__pycache__/
+*.pyc
+*.mp4
+*.blend
+*.blend1
+experiments/
+research/

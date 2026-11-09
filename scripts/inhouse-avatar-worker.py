@@ -72,11 +72,15 @@ def render_with_gpu_adapter(job):
         raise RuntimeError("AVATAR_INFERENCE_URL is not configured on this GPU worker.")
     if not INFERENCE_TOKEN:
         raise RuntimeError("AVATAR_INFERENCE_TOKEN is not configured on this GPU worker.")
+    source_video_url = job.get("sourceVideoUrl")
+    if not isinstance(source_video_url, str) or not source_video_url.startswith("https://"):
+        raise RuntimeError("A continuous HTTPS source video is required; the worker will not substitute a still image.")
 
     payload = {
         "job_id": job["id"],
         "avatar_profile_id": job["avatarProfileId"],
         "source_image_url": job["sourceImageUrl"],
+        "source_video_url": source_video_url,
         "audio_url": job["audioUrl"],
         "script": job["script"],
         "voice_id": job["voiceId"],

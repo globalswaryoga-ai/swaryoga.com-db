@@ -170,6 +170,86 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Preventing False Avatar Acceptance Outputs (Session: November 10, 2026) — Commit `working tree`
+
+- Replaced three local “acceptance” scripts that only muxed audio or compiled static frames with fail-closed notices; they did not perform MuseTalk/neural inference and could upload misleading MP4s.
+- Removed the scripts' former executable paths, including embedded Bunny credential defaults. No script was run, no output was generated/uploaded, and existing render files were left untouched.
+- Checked the local host: macOS ARM with no PyTorch or NVIDIA GPU; the actual adapter remains HTTP 501. User confirmed likeness/voice authorization and an approved speech recording, but the Colab GPU/preflight has not yet been started.
+
+### Mohan Sir Twin Pilot Preflight Notebook (Session: November 10, 2026) — Commit `working tree`
+
+- Added `colab/Mohan_Sir_Workshop_Twin_Pilot_Preflight.ipynb` as a new, safe Colab setup notebook; the retired/disabled worker notebook is unchanged.
+- The notebook checks GPU availability and resolves the seven user-provided Bunny Stream links through the authenticated Stream API using Colab Secrets, with optional single-source MP4 download and SHA-256 verification.
+- Model installation, checkpoint downloads, inference, worker launch, and Bunny output upload are deliberately disabled pending the documented license/provenance review and authorized GPU session. No inference or Bunny write was run.
+
+### Bunny Preview and Twin-Generation Preparation (Session: November 10, 2026) — Commit `working tree`
+
+- User clarified that the expected result is actual Mohan Sir talking-avatar videos, not the original source recordings. The selected pilot is lip-syncing new workshop speech to each corresponding outfit recording; it preserves the recorded outfit and does not synthesize clothing.
+- Fixed Bunny Stream preview URLs to use `iframe.mediadelivery.net/embed/...` instead of retaining the `player.mediadelivery.net` host after changing the path. Added regression tests for URL conversion and host validation.
+- All seven embed endpoints returned HTTP 200, which does not prove video playback/access. No Colab session, NVIDIA GPU, inference/worker configuration, or Bunny Stream API credentials are available here. The GPU adapter still returns 501; no inference or Bunny upload occurred.
+
+### Mohan Sir Workshop Twin-Look Video Library Entries (Session: November 10, 2026) — Commit `working tree`
+
+- Added the seven user-supplied Bunny workshop recordings to the Avatar Studio Video Library through an authenticated, idempotent Super Admin action. Library load runs the ensure action once and then reads the saved rows.
+- Added a seed-state record so removing an entry later does not cause it to be re-added on refresh. Existing unrelated library items and source videos are preserved.
+- Marked each item as a workshop twin-look source, not a generated AI twin. No model inference, video copy, Bunny upload, or deployment is claimed.
+- Added a focused API regression confirming all seven IDs/URLs are inserted once and removed entries stay removed after initialization.
+
+### Avatar Studio Library Session/Error Display Repair (Session: current worktree) — Commit `working tree`
+
+- The Video Library no longer displays a misleading `(0)` count until an authenticated API read succeeds.
+- Library API responses now report invalid/expired sessions, missing Super Admin access, and non-JSON server responses clearly instead of exposing a JSON parsing exception.
+- Local reproduction confirmed the browser had an invalid local token and received HTTP 401; no authenticated Bunny seed/write or production deployment was performed.
+
+### MuseTalk GPU Acceptance Pilot Status (Session: November 9, 2026) — Commit `working tree`
+
+- Added `docs/MUSETALK_GPU_ACCEPTANCE_REPORT.md` with an explicit BLOCKED verdict, required checkpoint/source/license inventory, dependency/runtime notes, available local GPU evidence, and Bunny/quality acceptance status.
+- No model weights or packages were downloaded/installed. The report identifies unresolved S3FD and face-parsing checkpoint rights and the absence of an authorized NVIDIA worker/input pair; no GPU inference or Bunny upload/read-back was performed.
+- A pre-existing untracked 10-second 1080p MP4 was checked for container metadata only; without provenance, inference logs, and Bunny verification it is not counted as MuseTalk output.
+- Updated `docs/AVATAR_ENGINE_PHASE2.md` with the acceptance report link. Production frontend, database, authentication, queue, GPU scripts, and Blender assets remain unchanged.
+
+### MuseTalk License Replacement Review (Session: November 9, 2026) — Commit `working tree`
+
+- Reviewed OpenCV Zoo YuNet's model-directory MIT license and its cited source revision's MIT license as a possible replacement for MuseTalk's unlicensed S3FD detector. MuseTalk preprocessing consumes the detector's face box separately from DWPose face landmarks, so an adapter is plausible but untested; no model was downloaded and no hash is claimed.
+- Confirmed SyncNet is used in MuseTalk training/sync-loss code but is not imported by the standard `scripts/inference.py` path; exclude its OpenRAIL++ checkpoint from the inference-only pilot unless runtime evidence changes.
+- The face-parsing checkpoint remains rights-unverified. User approved a DWPose-landmark-derived geometric mask as an experimental alternative for this isolated pilot only; it is unvalidated and requires visual QA. No parser weights or replacement code were added.
+- User confirms approved video/audio inputs are available and selected Colab, but no files or active authorized GPU session are accessible here. Updated the pilot report and Phase 2 documentation; no inference, upload, or production changes occurred.
+
+### Open-Source Avatar Engine Research (Session: current worktree) — Commit `working tree`
+
+- Shallow-cloned AvatarAI, Mynah, MuseTalk, LivePortrait, PoseCap, MMPose, and LiveTalking into `research/open-source-avatar-engines/`, recording each upstream revision. No installers, dependencies, or model downloads were run.
+- Added `docs/OPEN_SOURCE_ENGINE_INTEGRATION_REPORT.md` with architecture fit, source/model licensing caveats, hardware claims, installation/test status, and a proposed modular combination. It is explicitly a research recommendation, not an integration or inference claim.
+- No production code, database, credentials, or Blender assets were changed. The new report is explicitly unignored so it can be tracked.
+
+### First Neural Inference Pipeline Readiness Check (Session: November 9, 2026) — Commit `working tree`
+
+- A read-only tracked-file/history scan found hardcoded Meta Graph credentials in `.claude/settings.json`, including reachable history commit `7f80b353df762a823f3f55d8afbbd55673ccc37c`. Removed eight credential-bearing allow-list entries from the current file without reproducing values; provider-side rotation and history rewrite remain outstanding and require account-owner action/approval.
+- Evaluated MuseTalk 1.5 upstream sources: code/model metadata identify MIT and upstream says the model can be used commercially; CUDA 11.7/Python >=3.10 are documented and 30+ fps on V100 is an upstream claim. S3FD has no license identifier in MuseTalk’s dependency inventory; HDTF/private training-data provenance remains a review item. No weights or dependencies were installed.
+- The environment has no PyTorch/CUDA device, connected GPU host, avatar worker/inference endpoint credentials, or approved continuous input footage. No real inference, GPU selection, Bunny output, or video acceptance test occurred; the 30-second/10-second render requirement remains BLOCKED.
+- Kept the Colab notebook disabled. Updated `docs/AVATAR_ENGINE_PHASE2.md` and `docs/AVATAR_ENGINE_EVIDENCE_AUDIT.md` with source-linked evidence, checksums from upstream metadata (not locally verified), credential remediation status, and exact blockers.
+
+### Avatar High-Fidelity Pipeline Claims and Colab Safety (Session: current worktree) — Commit `working tree`
+
+- Disabled executable setup/worker cells in `colab/Swar_AI_Avatar_Neural_GPU_Worker.ipynb`, removing embedded credential assignments and preventing package installs, remote code downloads, or startup against the HTTP 501 adapter. Any previously exposed credentials still require provider-side rotation.
+- Reframed `restorationService.ts` as planning/diagnostics only: no CodeFormer selection, pixel processing, mask/seam inference, or production acceptance claim. Caller-supplied metric thresholds cannot certify a rendered video.
+- Marked generated head-motion trajectories as procedural previews, not LivePortrait/EchoMimic inference or rig-driven motion. Updated tests and avatar evidence docs to state the actual limitations.
+- Validation: 8 focused restoration/head-motion Jest tests pass; notebook JSON validates, credential assignments are absent, and install/download/worker cells are disabled. No notebook execution, GPU inference, Bunny write, deployment, or credential rotation was performed.
+
+### Avatar Render Source-Video Contract (Session: current worktree) — Commit `working tree`
+
+- Added a required Bunny-hosted MP4 source-video URL to every new in-house render job. The queue migrates the existing table in place and leaves source-image-only legacy jobs unclaimable; the GPU worker now forwards source video and audio instead of implying a portrait is sufficient.
+- Added source-video inputs and explicit static-preview/unverified-output labels to all three render surfaces. The source URL is host/type checked but footage continuity, provenance, and authorization still require human review.
+- MuseTalk 1.5 is documented only as a candidate (upstream MIT label, Python 3.10/CUDA 11.8 setup; upstream claims 30+ fps on V100); dependency/checkpoint terms and VRAM need review. An untracked Colab notebook contains hardcoded credential-like values, starts the 501 adapter, and uses an HTTP inference URL rejected by the worker; it is documented as unsafe to run/commit and requires secret rotation.
+- The adapter still returns 501, no GPU render was run, and the 30-second acceptance test remains incomplete.
+- Validation: 4 focused queue tests and 3 GPU-adapter tests pass; worker syntax/bytecode compilation and `git diff --check` pass. Repository type-check exits on pre-existing `.next/types` diagnostics; no diagnostics match the changed TypeScript files. No deployment, Bunny write, or inference occurred.
+
+### Avatar Platform Evidence and Legacy Workflow Hardening (Session: current worktree) — Commit `working tree`
+
+- Replaced unsupported avatar readiness, identity, voice-clone, and generated-output claims with explicit unavailable, unverified, or queued states. Profile creation now fails closed until actual face analysis is integrated; the GPU adapter does not pretend a still-image mux is a neural render.
+- Restricted the legacy avatar output library to Super Admin because its table lacks tenant ownership; imports stay unverified source metadata. Retired fake-success voice/Colab endpoints and replaced public legacy GPU notebooks with retirement notices.
+- Removed embedded storage/webhook credentials from notebook generators and public notebook files. These exposed values still require provider-side revocation and rotation before republishing; no Bunny writes, deployment, or inference were performed.
+- Validation: 23 focused Jest tests and 3 GPU-adapter Python tests pass; notebook generators compile and all four tracked public avatar notebooks are inert retirement notices. The local Next.js build compiles and generates 508 pages; `git diff --check` passes. Repository TypeScript still reports diagnostics in untouched modules, with none in the changed TypeScript paths. No deployment, Bunny write, or inference was performed; exposed provider credentials still need rotation.
+
 ### Mohan In-House Avatar Phase 2 Render Queue (Session: November 5, 2026) — Commit `02d6e467`
 
 - Replaced the fixed sample-video response with Bunny-backed render jobs that require a valid consented avatar profile, owner-scoped status access, and an authenticated external worker claim/heartbeat/complete/fail protocol.
