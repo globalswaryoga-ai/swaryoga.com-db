@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MohanSirGeneratedAvatarLibrary from './MohanSirGeneratedAvatarLibrary';
 import Phase1AvatarCreatorStudio from '@/components/admin/crm/avatar-studio/Phase1AvatarCreatorStudio';
+import Phase3DigitalTwinStudio from '@/components/admin/crm/avatar-studio/Phase3DigitalTwinStudio';
 import {
   Dna,
   Play,
@@ -45,7 +46,7 @@ import type {
 import { summarizeFacialExtractionError } from '@/lib/mohanRag/facialExpressionErrors';
 import FaceToChestLiveTalkModal from './FaceToChestLiveTalkModal';
 
-type DnaSubTab = 'all_avatars' | 'phase1_creator' | 'looks' | 'facial' | 'vocal' | 'postures' | 'wardrobe' | 'deploy';
+type DnaSubTab = 'all_avatars' | 'phase1_creator' | 'phase3_twin' | 'looks' | 'facial' | 'vocal' | 'postures' | 'wardrobe' | 'deploy';
 
 interface Props {
   token: string | null;
@@ -757,6 +758,19 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
 
           <button
             type="button"
+            onClick={() => setActiveTab('phase3_twin')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+              activeTab === 'phase3_twin'
+                ? 'bg-teal-400 text-slate-950 shadow-md shadow-teal-500/20 ring-2 ring-teal-400/50'
+                : 'bg-white/5 text-teal-200 hover:bg-white/10'
+            }`}
+          >
+            <Activity className="h-4 w-4 text-teal-300" />
+            <span>⚡ Video Digital Twin & Expressions (Phase 3)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('looks')}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               activeTab === 'looks'
@@ -855,6 +869,11 @@ export default function MohanSirAvatarDnaLibrary({ token }: Props) {
       {/* ── SUB-PAGE 0.5: IN-HOUSE AI AVATAR ENGINE (PHASE 1) ── */}
       {activeTab === 'phase1_creator' && (
         <Phase1AvatarCreatorStudio />
+      )}
+
+      {/* ── SUB-PAGE 0.6: DIGITAL TWIN & EXPRESSIONS (PHASE 3) ── */}
+      {activeTab === 'phase3_twin' && (
+        <Phase3DigitalTwinStudio />
       )}
 
 {activeTab === 'looks' && duplicateLookCount > 0 && (

@@ -1,86 +1,70 @@
-import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
-import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAllExpressions, saveCustomExpression } from '@/lib/avatarEngine/expressionService';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId') || 'mohan_master_clone_proj_v1';
-
-    const res = await bunnyExecute({
-      sql: `SELECT * FROM mohan_expression_library_sql WHERE training_project_id = ? ORDER BY created_at DESC`,
-      args: [projectId],
+    const expressions = await getAllExpressions();
+    return NextResponse.json({
+      success: true,
+      total: expressions.length,
+      expressions,
     });
-
-    return NextResponse.json({ success: true, expressions: res.rows || [] });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to fetch expressions' },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const {
-      training_project_id = 'mohan_master_clone_proj_v1',
-      expression_name,
-      category = 'teaching',
-      source_video_id,
-      source_timestamp_start = 0,
-      source_timestamp_end = 0,
-      intensity = 1.0,
-      landmark_deltas_json,
-      reference_thumbnail_key,
-      confidence_score = 0.9,
-      human_verification_status = 'pending',
+      expressionName,
+      emotionCategory,
+      intensity,
+      blendshapes,
+      headPitch,
+      headYaw,
+      headRoll,
+      eyeSquint,
+      mouthSmile,
+      previewImageUrl,
     } = body;
 
-    if (!expression_name) {
-      return NextResponse.json({ success: false, error: 'expression_name is required' }, { status: 400 });
+    if (!expressionName || !blendshapes) {
+      return NextResponse.json(
+        { success: false, error: 'expressionName and blendshapes are required.' },
+        { status: 400 }
+      );
     }
 
-    const id = body.id || `expr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const now = new Date().toISOString();
-
-    await bunnyExecute({
-      sql: `INSERT INTO mohan_expression_library_sql
-            (id, training_project_id, expression_name, category, source_video_id,
-             source_timestamp_start, source_timestamp_end, intensity, landmark_deltas_json,
-             reference_thumbnail_key, confidence_score, human_verification_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              expression_name = excluded.expression_name,
-              category = excluded.category,
-              intensity = excluded.intensity,
-              confidence_score = excluded.confidence_score,
-              human_verification_status = excluded.human_verification_status`,
-      args: [
-        id,
-        training_project_id,
-        expression_name,
-        category,
-        source_video_id || null,
-        Number(source_timestamp_start),
-        Number(source_timestamp_end),
-        Number(intensity),
-        typeof landmark_deltas_json === 'string' ? landmark_deltas_json : JSON.stringify(landmark_deltas_json || {}),
-        reference_thumbnail_key || null,
-        Number(confidence_score),
-        human_verification_status,
-        now,
-      ],
+    const id = `expr_${Date.now()}`;
+    const saved = await saveCustomExpression({
+      id,
+      expressionName,
+      emotionCategory: emotionCategory || 'custom',
+      intensity: intensity || 1.0,
+      blendshapes,
+      headPitch: headPitch || 0.0,
+      headYaw: headYaw || 0.0,
+      headRoll: headRoll || 0.0,
+      eyeSquint: eyeSquint || 0.0,
+      mouthSmile: mouthSmile || 0.0,
+      previewImageUrl,
     });
 
-    const res = await bunnyExecute({
-      sql: `SELECT * FROM mohan_expression_library_sql WHERE id = ? LIMIT 1`,
-      args: [id],
+    return NextResponse.json({
+      success: true,
+      expression: saved,
     });
-
-    return NextResponse.json({ success: true, expression: res.rows[0] });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to save expression' },
+      { status: 500 }
+    );
   }
 }
-
