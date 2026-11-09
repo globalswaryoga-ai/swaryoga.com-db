@@ -27,7 +27,8 @@ export interface EdgeTtsOptions {
 /**
  * Native, zero-expense Microsoft Edge TTS client using modern Sec-MS-GEC v2 protocol.
  * Requires NO API key, runs on any Node.js server, and captures
- * high-fidelity MP3 audio with synthesized word-boundary timing for realistic lip-sync.
+ * MP3 audio. Word timings are estimated from text and duration; this is not
+ * phoneme alignment or a voice-cloning model.
  */
 export async function synthesizeEdgeTts(
   text: string,

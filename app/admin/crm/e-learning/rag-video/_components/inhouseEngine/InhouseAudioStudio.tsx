@@ -20,13 +20,23 @@ import {
 import { InhouseVoiceOption } from '@/lib/avatarEngine/inhouseAudioService';
 import { VisemeFrame } from '@/lib/avatarEngine/visemeMapper';
 
+function getAdminAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('adminToken')
+    || localStorage.getItem('admin_token')
+    || localStorage.getItem('crm_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 interface InhouseAudioStudioProps {
   onAudioSynthesized?: (data: {
     audioUrl: string;
     durationSeconds: number;
     visemeFrames: VisemeFrame[];
     voiceId: string;
+    language: string;
     script: string;
+    speed: number;
+    pitchHz: number;
   }) => void;
   initialScript?: string;
 }
@@ -85,7 +95,7 @@ export default function InhouseAudioStudio({
     try {
       const res = await fetch('/api/avatar/inhouse/audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
           script: scriptText.trim(),
           voiceId: selectedVoiceId,
@@ -110,7 +120,10 @@ export default function InhouseAudioStudio({
           durationSeconds: data.durationSeconds,
           visemeFrames: data.visemeFrames || [],
           voiceId: data.voiceId,
+          language: selectedVoice?.langCode || 'hi',
           script: scriptText,
+          speed,
+          pitchHz,
         });
       }
     } catch (err: any) {
@@ -144,18 +157,18 @@ export default function InhouseAudioStudio({
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-white">In-House Neural Voice Studio</h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                100% Free • $0 Expense
+                Preview TTS • not a voice clone
               </span>
             </div>
             <p className="text-sm text-slate-400">
-              High-definition Indian & global voices with millisecond phoneme alignment for lip-sync.
+              Preview voices with approximate text-driven mouth cues. Trained voice cloning and phoneme alignment are not enabled yet.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
-            Cost: <span className="font-bold text-emerald-400">$0.00 / min</span>
+            Provider: <span className="font-bold text-emerald-400">Edge TTS preview</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+import { extractTokenFromRequest, verifyToken } from '@/lib/auth';
+import { verifyAvatarConsent } from '@/lib/avatarEngine/consentService';
 import {
   analyzeFaceGeometry,
   createAvatarIdentityProfile,
@@ -7,9 +10,22 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const decoded = verifyToken(extractTokenFromRequest(req));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) {
+    return NextResponse.json({ success: false, error: 'Admin user identity is missing.' }, { status: 401 });
+  }
   try {
-    const res = await bunnyExecute('SELECT * FROM avatar_identity_profiles_sql WHERE is_active = 1 ORDER BY created_at DESC');
+    const res = await bunnyExecute({
+      sql: isSuperAdmin(decoded)
+        ? 'SELECT * FROM avatar_identity_profiles_sql WHERE is_active = 1 ORDER BY created_at DESC'
+        : 'SELECT * FROM avatar_identity_profiles_sql WHERE is_active = 1 AND user_id = ? ORDER BY created_at DESC',
+      args: isSuperAdmin(decoded) ? [] : [viewerId],
+    });
     return NextResponse.json({
       success: true,
       total: res.rows?.length || 0,
@@ -24,10 +40,17 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const decoded = verifyToken(extractTokenFromRequest(req));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) {
+    return NextResponse.json({ success: false, error: 'Admin user identity is missing.' }, { status: 401 });
+  }
   try {
     const body = await req.json();
     const {
-      userId,
       name,
       gender,
       ageGroup,
@@ -39,9 +62,19 @@ export async function POST(req: NextRequest) {
       additionalPhotos,
     } = body;
 
-    if (!name || !frontalFaceUrl) {
+    if (typeof name !== 'string' || !name.trim() || typeof frontalFaceUrl !== 'string' || !frontalFaceUrl.trim()) {
       return NextResponse.json(
         { success: false, error: 'Avatar name and frontalFaceUrl are required.' },
+        { status: 400 }
+      );
+    }
+    if (typeof consentRecordId !== 'string' || !(await verifyAvatarConsent({
+      consentId: consentRecordId,
+      userId: viewerId,
+      avatarName: name.trim(),
+    }))) {
+      return NextResponse.json(
+        { success: false, error: 'A valid consent record for this avatar name is required.' },
         { status: 400 }
       );
     }
@@ -51,15 +84,15 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Create Avatar Identity Profile
     const profile = await createAvatarIdentityProfile({
-      userId: userId || 'admincrm',
-      name,
+      userId: viewerId,
+      name: name.trim(),
       gender: gender || 'male',
       ageGroup: ageGroup || 'adult',
       defaultClothing: defaultClothing || 'Traditional Kurta',
       defaultHair: defaultHair || 'Natural Tied',
       frontalFaceUrl,
       bgRemovedUrl: bgRemovedUrl || null,
-      consentRecordId: consentRecordId || null,
+      consentRecordId,
       qualityScore: analysis.qualityScore,
     });
 
@@ -122,4 +155,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

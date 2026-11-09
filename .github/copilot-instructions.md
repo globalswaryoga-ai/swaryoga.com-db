@@ -170,6 +170,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Mohan In-House Avatar Phase 2 Render Queue (Session: November 5, 2026) — Commit `working tree`
+
+- Replaced the fixed sample-video response with Bunny-backed render jobs that require a valid consented avatar profile, owner-scoped status access, and an authenticated external worker claim/heartbeat/complete/fail protocol.
+- Added the GPU worker polling client and documented its HTTPS adapter contract. Final renders preserve the preview voice, language, speed, and pitch; jobs that outlast the initial polling window can be checked again in the studio. Actual inference is still pending a separately configured GPU host, licensed model/weights, and adapter.
+- Clarified that the current Edge TTS voices are previews and text-derived viseme cues are approximate, not voice clones or phoneme alignment.
+- Validation: 3 focused queue tests pass and the worker compiles; changed Phase 2 files have no reported TypeScript diagnostics. Full TypeScript validation remains blocked by unrelated existing diagnostics; no deployment or live inference was performed.
+
 ### Mohan RAG Library Language Filter Repair (Session: November 5, 2026) — Commit `working tree`
 
 - Bunny SQL showed 71 Level 1 sources total but only 3 tagged English; the overview cards were counting from the unfiltered source list, so their totals did not respond to the selected language.

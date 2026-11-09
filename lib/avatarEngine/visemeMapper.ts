@@ -39,7 +39,7 @@ const DEFAULT_NEUTRAL_BLENDSHAPES: ARKitBlendshapes = {
 };
 
 /**
- * Maps word text and character distributions to phoneme mouth shapes (visemes)
+ * Approximates mouth cues from written characters; this is not phoneme alignment.
  */
 function estimateWordVisemes(word: string): Array<{ relativeFraction: number; shapes: Partial<ARKitBlendshapes> }> {
   const clean = word.toLowerCase().trim();

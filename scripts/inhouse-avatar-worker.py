@@ -1,83 +1,193 @@
 #!/usr/bin/env python3
-"""
-Swar Yoga In-House AI Avatar Video Worker (100% Free / $0 Expense)
-Runs locally on your computer with NVIDIA CUDA GPU or Apple Silicon Mac.
-Polls pending avatar rendering jobs from Swar Yoga API, runs LivePortrait/Wav2Lip,
-and uploads the finished 1080p MP4 directly to Bunny CDN Storage.
-"""
+"""Poll Bunny-backed render jobs and forward them to a dedicated GPU inference adapter."""
 
-import os
-import sys
-import time
 import json
-import urllib.request
+import os
+import socket
+import sys
+import threading
+import time
 import urllib.error
+import urllib.request
 
-API_BASE_URL = os.environ.get("SWAR_API_BASE_URL", "https://swaryoga.com")
-BUNNY_API_KEY = os.environ.get("BUNNY_STORAGE_API_KEY", "")
-BUNNY_ZONE_NAME = os.environ.get("BUNNY_STORAGE_ZONE_NAME", "swaryogadb")
-BUNNY_CDN_HOST = os.environ.get("BUNNY_STORAGE_CDN_HOST", "swaryogacrm.b-cdn.net")
-POLL_INTERVAL_SECONDS = 5
+API_BASE_URL = os.environ.get("SWAR_API_BASE_URL", "https://swaryoga.com").rstrip("/")
+WORKER_TOKEN = os.environ.get("AVATAR_WORKER_TOKEN", "")
+INFERENCE_URL = os.environ.get("AVATAR_INFERENCE_URL", "")
+INFERENCE_TOKEN = os.environ.get("AVATAR_INFERENCE_TOKEN", "")
+POLL_INTERVAL_SECONDS = max(3, int(os.environ.get("AVATAR_WORKER_POLL_SECONDS", "10")))
+INFERENCE_TIMEOUT_SECONDS = max(60, int(os.environ.get("AVATAR_INFERENCE_TIMEOUT_SECONDS", "7200")))
+WORKER_ID = os.environ.get("AVATAR_WORKER_ID", socket.gethostname())
+WORKER_ENDPOINT = f"{API_BASE_URL}/api/avatar/inhouse/worker"
 
-def log(msg):
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [InhouseWorker] {msg}")
 
-def upload_to_bunny(file_path, file_name):
-    if not BUNNY_API_KEY:
-        log("Warning: BUNNY_STORAGE_API_KEY not set in environment.")
-        return None
-    url = f"https://storage.bunnycdn.com/{BUNNY_ZONE_NAME}/materials/{file_name}"
-    with open(file_path, 'rb') as f:
-        data = f.read()
-    req = urllib.request.Request(url, data=data, method='PUT')
-    req.add_header('AccessKey', BUNNY_API_KEY)
-    req.add_header('Content-Type', 'video/mp4')
+def log(message):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [AvatarGPUWorker] {message}", flush=True)
+
+
+def request_json(url, payload, token, timeout=30):
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        data = response.read(2_000_001)
+        if len(data) > 2_000_000:
+            raise RuntimeError("API response exceeded the 2 MB limit.")
+        return json.loads(data.decode("utf-8"))
+
+
+class LeaseHeartbeat(threading.Thread):
+    def __init__(self, job_id, claim_token):
+        super().__init__(daemon=True)
+        self.job_id = job_id
+        self.claim_token = claim_token
+        self.stop_event = threading.Event()
+        self.claim_lost = threading.Event()
+
+    def run(self):
+        while not self.stop_event.wait(180):
+            try:
+                result = request_json(
+                    WORKER_ENDPOINT,
+                    {"action": "heartbeat", "jobId": self.job_id, "claimToken": self.claim_token},
+                    WORKER_TOKEN,
+                )
+                if not result.get("success"):
+                    self.claim_lost.set()
+                    log(f"Claim lease was lost for job {self.job_id}.")
+                    return
+            except Exception as error:
+                log(f"Heartbeat failed for {self.job_id}: {error}")
+
+
+def render_with_gpu_adapter(job):
+    if not INFERENCE_URL:
+        raise RuntimeError("AVATAR_INFERENCE_URL is not configured on this GPU worker.")
+    if not INFERENCE_TOKEN:
+        raise RuntimeError("AVATAR_INFERENCE_TOKEN is not configured on this GPU worker.")
+
+    payload = {
+        "job_id": job["id"],
+        "avatar_profile_id": job["avatarProfileId"],
+        "source_image_url": job["sourceImageUrl"],
+        "audio_url": job["audioUrl"],
+        "script": job["script"],
+        "voice_id": job["voiceId"],
+        "language": job["language"],
+        "speech_speed": job["speechSpeed"],
+        "speech_pitch_hz": job["speechPitchHz"],
+        "background_id": job["backgroundId"],
+        "clothing_id": job["clothingId"],
+        "posture": job["posture"],
+        "output_requirement": {
+            "format": "mp4",
+            "storage": "Bunny CDN",
+            "https_required": True,
+        },
+    }
+    return request_json(
+        INFERENCE_URL,
+        payload,
+        INFERENCE_TOKEN,
+        timeout=INFERENCE_TIMEOUT_SECONDS,
+    )
+
+
+def process_claim(claim):
+    job = claim["job"]
+    job_id = job["id"]
+    claim_token = claim["claimToken"]
+    heartbeat = LeaseHeartbeat(job_id, claim_token)
+    heartbeat.start()
+
     try:
-        with urllib.request.urlopen(req) as response:
-            if response.status in (200, 201):
-                cdn_url = f"https://{BUNNY_CDN_HOST}/materials/{file_name}"
-                log(f"Uploaded successfully to Bunny CDN: {cdn_url}")
-                return cdn_url
-    except Exception as e:
-        log(f"Bunny CDN upload failed: {e}")
-    return None
+        log(f"Rendering job {job_id} with profile {job['avatarProfileId']}.")
+        output = render_with_gpu_adapter(job)
+        if heartbeat.claim_lost.is_set():
+            return
 
-def check_queue():
-    url = f"{API_BASE_URL}/api/avatar/inhouse/video"
-    req = urllib.request.Request(url)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if data.get("success") and data.get("jobs"):
-                for job in data["jobs"]:
-                    if job.get("status") == "queued":
-                        return job
-    except Exception as e:
-        log(f"Error checking job queue: {e}")
-    return None
+        video_url = output.get("video_url") or output.get("output_video_url")
+        if not isinstance(video_url, str) or not video_url.startswith("https://"):
+            raise RuntimeError("GPU adapter response must include an HTTPS Bunny CDN video_url.")
+
+        request_json(
+            WORKER_ENDPOINT,
+            {
+                "action": "complete",
+                "jobId": job_id,
+                "claimToken": claim_token,
+                "videoUrl": video_url,
+                "durationSeconds": output.get("duration_seconds"),
+            },
+            WORKER_TOKEN,
+        )
+        log(f"Completed job {job_id}.")
+    except Exception as error:
+        message = str(error)[:1000]
+        log(f"Job {job_id} failed: {message}")
+        try:
+            request_json(
+                WORKER_ENDPOINT,
+                {
+                    "action": "fail",
+                    "jobId": job_id,
+                    "claimToken": claim_token,
+                    "errorMessage": message,
+                },
+                WORKER_TOKEN,
+            )
+        except Exception as report_error:
+            log(f"Could not persist failure for {job_id}: {report_error}")
+    finally:
+        heartbeat.stop_event.set()
+        heartbeat.join(timeout=2)
+
 
 def main():
-    log("==================================================================")
-    log("  Swar Yoga In-House Avatar Render Worker Started ($0 Expense)    ")
-    log("  Connected to: " + API_BASE_URL)
-    log("  Ready to process LivePortrait & Wav2Lip high-definition jobs.    ")
-    log("==================================================================")
+    if not WORKER_TOKEN:
+        log("AVATAR_WORKER_TOKEN is required.")
+        sys.exit(2)
+    if not INFERENCE_URL or not INFERENCE_TOKEN:
+        log("AVATAR_INFERENCE_URL and AVATAR_INFERENCE_TOKEN are required.")
+        sys.exit(2)
+    if not INFERENCE_URL.startswith("https://"):
+        log("AVATAR_INFERENCE_URL must use HTTPS.")
+        sys.exit(2)
+    if not API_BASE_URL.startswith("https://"):
+        log("SWAR_API_BASE_URL must use HTTPS.")
+        sys.exit(2)
 
+    log(f"Worker {WORKER_ID} polling {API_BASE_URL}.")
     while True:
         try:
-            job = check_queue()
-            if job:
-                job_id = job.get("id")
-                log(f"Found pending job: {job_id} | Language: {job.get('language')}")
-                log(f"Script: {job.get('script')[:60]}...")
-                # Processing pipeline runs here...
-            time.sleep(POLL_INTERVAL_SECONDS)
+            response = request_json(
+                WORKER_ENDPOINT,
+                {"action": "claim", "workerId": WORKER_ID},
+                WORKER_TOKEN,
+            )
+            claim = response.get("claim")
+            if claim:
+                process_claim(claim)
+            else:
+                time.sleep(POLL_INTERVAL_SECONDS)
         except KeyboardInterrupt:
-            log("Worker stopped by user.")
-            sys.exit(0)
-        except Exception as e:
-            log(f"Unexpected worker loop exception: {e}")
+            log("Worker stopped.")
+            return
+        except urllib.error.HTTPError as error:
+            details = error.read(500).decode("utf-8", errors="replace")
+            log(f"API returned HTTP {error.code}: {details}")
             time.sleep(POLL_INTERVAL_SECONDS)
+        except Exception as error:
+            log(f"Polling failed: {error}")
+            time.sleep(POLL_INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     main()

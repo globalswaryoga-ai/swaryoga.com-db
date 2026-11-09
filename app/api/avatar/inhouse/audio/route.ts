@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extractTokenFromRequest, verifyToken } from '@/lib/auth';
 import { InhouseAudioService } from '@/lib/avatarEngine/inhouseAudioService';
 
 export const dynamic = 'force-dynamic';
@@ -6,15 +7,15 @@ export const maxDuration = 60;
 
 /**
  * GET /api/avatar/inhouse/audio
- * Returns all available 100% free neural Indian and international voices.
+ * Returns available preview TTS voices. These are not trained voice clones.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const catalog = InhouseAudioService.getVoiceCatalog();
     return NextResponse.json({
       success: true,
       voices: catalog,
-      message: 'Zero-expense in-house neural voices loaded successfully.',
+      message: 'Preview TTS voice catalog loaded.',
     });
   } catch (error: any) {
     console.error('[API inhouse-audio GET] Error:', error);
@@ -27,15 +28,24 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/avatar/inhouse/audio
- * Synthesizes speech with 100% zero external cost, uploads MP3 to Bunny CDN,
- * and calculates exact phoneme/viseme timing frames for real-time lip-sync.
+ * Synthesizes preview speech, stores the MP3 on Bunny CDN, and returns approximate
+ * text-driven viseme frames for the browser preview.
  */
 export async function POST(request: NextRequest) {
+  const decoded = verifyToken(extractTokenFromRequest(request));
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
   try {
-    const body = await request.json().catch(() => ({}));
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
     const { script, voiceId, language, speed, pitchHz } = body;
 
-    if (!script || !script.trim()) {
+    if (typeof script !== 'string' || !script.trim()) {
       return NextResponse.json(
         { success: false, error: 'Script text is required for audio synthesis.' },
         { status: 400 }
@@ -46,8 +56,8 @@ export async function POST(request: NextRequest) {
       script: script.trim(),
       voiceId,
       language: language || 'hi',
-      speed: speed ? Number(speed) : 1.0,
-      pitchHz: pitchHz ? Number(pitchHz) : 0,
+      speed: speed === undefined ? 1 : Number(speed),
+      pitchHz: pitchHz === undefined ? 0 : Number(pitchHz),
     });
 
     return NextResponse.json({
@@ -61,7 +71,7 @@ export async function POST(request: NextRequest) {
       visemeFrames: result.visemeFrames,
       provider: result.provider,
       costExpenseUsd: result.costExpenseUsd,
-      message: 'Zero-expense neural audio synthesized and uploaded to Bunny CDN successfully!',
+      message: 'Preview speech synthesized and stored on Bunny CDN.',
     });
   } catch (error: any) {
     console.error('[API inhouse-audio POST] Error:', error);

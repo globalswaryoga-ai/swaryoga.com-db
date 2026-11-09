@@ -14,8 +14,7 @@ export interface ConsentRecord {
 }
 
 /**
- * Generate a cryptographically signed digital consent record
- * Ensures full legal compliance against unauthorized face/voice deepfakes.
+ * Record an explicit administrator consent declaration with a SHA-256 integrity hash.
  */
 export async function recordAvatarConsent(params: {
   userId: string;
@@ -63,19 +62,33 @@ export async function recordAvatarConsent(params: {
 }
 
 export async function verifyConsentHash(consentId: string): Promise<boolean> {
-  try {
-    const res = await bunnyExecute({
-      sql: 'SELECT * FROM consent_records_sql WHERE id = ?',
-      args: [consentId]
-    });
-    const record = res.rows?.[0] as any;
-    if (!record) return false;
+  const res = await bunnyExecute({
+    sql: 'SELECT * FROM consent_records_sql WHERE id = ?',
+    args: [consentId]
+  });
+  const record = res.rows?.[0] as any;
+  if (!record) return false;
 
-    const payloadToHash = `${record.user_id}|${record.avatar_name}|${record.authorized_by}|${record.declaration_text}|${record.timestamp}`;
-    const calculatedHash = crypto.createHash('sha256').update(payloadToHash).digest('hex');
+  const payloadToHash = `${record.user_id}|${record.avatar_name}|${record.authorized_by}|${record.declaration_text}|${record.timestamp}`;
+  const calculatedHash = crypto.createHash('sha256').update(payloadToHash).digest('hex');
 
-    return calculatedHash === record.consent_hash;
-  } catch {
+  return calculatedHash === record.consent_hash;
+}
+
+export async function verifyAvatarConsent(params: {
+  consentId: string;
+  userId: string;
+  avatarName: string;
+}): Promise<boolean> {
+  const res = await bunnyExecute({
+    sql: `SELECT * FROM consent_records_sql WHERE id = ?`,
+    args: [params.consentId],
+  });
+  const record = res.rows?.[0] as any;
+  if (!record || record.user_id !== params.userId || record.avatar_name !== params.avatarName) {
     return false;
   }
+  const payloadToHash = `${record.user_id}|${record.avatar_name}|${record.authorized_by}|${record.declaration_text}|${record.timestamp}`;
+  const calculatedHash = crypto.createHash('sha256').update(payloadToHash).digest('hex');
+  return calculatedHash === record.consent_hash;
 }

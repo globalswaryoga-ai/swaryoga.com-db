@@ -114,28 +114,24 @@ export async function createAvatarIdentityProfile(params: {
 }
 
 export async function getAvatarProfileById(profileId: string): Promise<AvatarIdentityProfile | null> {
-  try {
-    const res = await bunnyExecute({
-      sql: 'SELECT * FROM avatar_identity_profiles_sql WHERE id = ?',
-      args: [profileId]
-    });
-    const row = res.rows?.[0] as any;
-    if (!row) return null;
-    return {
-      id: row.id,
-      userId: row.user_id,
-      name: row.name,
-      gender: row.gender,
-      ageGroup: row.age_group,
-      defaultClothing: row.default_clothing,
-      defaultHair: row.default_hair,
-      frontalFaceUrl: row.frontal_face_url,
-      bgRemovedUrl: row.bg_removed_url,
-      qualityScore: row.quality_score,
-      consentRecordId: row.consent_record_id,
-      createdAt: row.created_at
-    };
-  } catch {
-    return null;
-  }
+  const res = await bunnyExecute({
+    sql: 'SELECT * FROM avatar_identity_profiles_sql WHERE id = ?',
+    args: [profileId]
+  });
+  const row = res.rows?.[0] as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    gender: row.gender,
+    ageGroup: row.age_group,
+    defaultClothing: row.default_clothing,
+    defaultHair: row.default_hair,
+    frontalFaceUrl: row.frontal_face_url,
+    bgRemovedUrl: row.bg_removed_url,
+    qualityScore: row.quality_score,
+    consentRecordId: row.consent_record_id,
+    createdAt: row.created_at
+  };
 }

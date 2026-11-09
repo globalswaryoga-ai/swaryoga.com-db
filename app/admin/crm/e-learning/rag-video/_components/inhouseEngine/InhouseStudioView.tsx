@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sparkles,
   Sliders,
@@ -38,6 +38,19 @@ import {
   ClothingItem,
 } from '@/lib/avatarStudioMasterConfig';
 
+interface AvatarProfileOption {
+  id: string;
+  name: string;
+  consent_record_id?: string | null;
+}
+
+function getAdminAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('adminToken')
+    || localStorage.getItem('admin_token')
+    || localStorage.getItem('crm_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export default function InhouseStudioView() {
   // Mode: '3d_stage' (Three.js WebGL Real-time Viseme Stage) vs '2d_video' (Photorealistic Twin)
   const [activeStageMode, setActiveStageMode] = useState<'3d_stage' | '2d_video'>('3d_stage');
@@ -47,6 +60,10 @@ export default function InhouseStudioView() {
   const [visemeFrames, setVisemeFrames] = useState<VisemeFrame[]>([]);
   const [currentScript, setCurrentScript] = useState<string>('');
   const [currentDuration, setCurrentDuration] = useState<number>(0);
+  const [currentVoiceId, setCurrentVoiceId] = useState('hi-IN-MadhurNeural');
+  const [currentLanguage, setCurrentLanguage] = useState('hi');
+  const [currentSpeechSpeed, setCurrentSpeechSpeed] = useState(0.98);
+  const [currentSpeechPitchHz, setCurrentSpeechPitchHz] = useState(0);
 
   // Background & Appearance
   const [selectedBgId, setSelectedBgId] = useState<string>('bg_kitchen');
@@ -61,6 +78,33 @@ export default function InhouseStudioView() {
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [avatarProfiles, setAvatarProfiles] = useState<AvatarProfileOption[]>([]);
+  const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
+  const [activeRenderJobId, setActiveRenderJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/avatar/creator', { headers: getAdminAuthHeaders() })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Could not load consented avatar profiles.');
+        }
+        const profiles = (data.profiles || []).filter(
+          (profile: AvatarProfileOption) => profile.consent_record_id,
+        );
+        if (active) {
+          setAvatarProfiles(profiles);
+          setSelectedAvatarProfileId(profiles[0]?.id || '');
+        }
+      })
+      .catch((error) => {
+        if (active) setVideoError(error instanceof Error ? error.message : 'Could not load avatar profiles.');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Callback when audio is synthesized
   const handleAudioSynthesized = (data: {
@@ -68,53 +112,120 @@ export default function InhouseStudioView() {
     durationSeconds: number;
     visemeFrames: VisemeFrame[];
     voiceId: string;
+    language: string;
     script: string;
+    speed: number;
+    pitchHz: number;
   }) => {
     setAudioUrl(data.audioUrl);
     setVisemeFrames(data.visemeFrames);
     setCurrentScript(data.script);
     setCurrentDuration(data.durationSeconds);
+    setCurrentVoiceId(data.voiceId);
+    setCurrentLanguage(data.language);
+    setCurrentSpeechSpeed(data.speed);
+    setCurrentSpeechPitchHz(data.pitchHz);
   };
 
-  // Trigger In-House 2D Video Generation ($0 API Cost)
+  // Queue a consent-checked render and wait for the external GPU worker.
   const handleRenderInhouseVideo = async () => {
     if (!currentScript.trim()) {
       alert('Please enter a script text and click Synthesize Voice Audio first.');
       return;
     }
+    if (!selectedAvatarProfileId) {
+      setVideoError('Create or select a consented avatar profile before rendering.');
+      return;
+    }
 
     setIsRenderingVideo(true);
-    setRenderProgress(20);
+    setRenderProgress(10);
     setVideoError(null);
+    setRenderedVideoUrl(null);
 
     try {
-      setRenderProgress(45);
       const res = await fetch('/api/avatar/inhouse/video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
           script: currentScript.trim(),
-          avatarName: 'Mohan Sir (Vedic Twin)',
-          voiceId: 'hi-IN-MadhurNeural',
+          avatarProfileId: selectedAvatarProfileId,
+          voiceId: currentVoiceId,
+          language: currentLanguage,
+          speed: currentSpeechSpeed,
+          pitchHz: currentSpeechPitchHz,
           backgroundId: selectedBgId,
           clothingId: selectedClothId,
           posture,
         }),
       });
 
-      setRenderProgress(80);
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to render in-house video');
+        throw new Error(data.error || 'Failed to queue the in-house video render.');
       }
+      if (!data.job?.id) throw new Error('Render API did not return a job ID.');
+      setActiveRenderJobId(data.job.id);
+      setRenderProgress(data.job.progressPercent || 40);
 
-      setRenderProgress(100);
-      if (data.job?.videoUrl) {
-        setRenderedVideoUrl(data.job.videoUrl);
-        setActiveStageMode('2d_video');
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        const statusResponse = await fetch(
+          `/api/avatar/inhouse/video?jobId=${encodeURIComponent(data.job.id)}`,
+          { headers: getAdminAuthHeaders() },
+        );
+        const statusData = await statusResponse.json();
+        if (!statusResponse.ok || !statusData.success) {
+          throw new Error(statusData.error || 'Unable to check GPU render status.');
+        }
+        const job = statusData.job;
+        setRenderProgress(job.progressPercent || 40);
+        if (job.status === 'completed' && job.videoUrl) {
+          setRenderedVideoUrl(job.videoUrl);
+          setRenderProgress(100);
+          setActiveStageMode('2d_video');
+          return;
+        }
+        if (job.status === 'failed') {
+          setActiveRenderJobId(null);
+          throw new Error(job.errorMessage || 'GPU worker could not render this video.');
+        }
       }
-    } catch (err: any) {
-      setVideoError(err.message || 'Error occurred while rendering video');
+      throw new Error(`Render job ${data.job.id} is still queued. Use “Check job status” to refresh it.`);
+    } catch (err) {
+      setVideoError(err instanceof Error ? err.message : 'Error occurred while rendering video.');
+    } finally {
+      setIsRenderingVideo(false);
+    }
+  };
+
+  const handleCheckRenderStatus = async () => {
+    if (!activeRenderJobId) return;
+    setIsRenderingVideo(true);
+    setVideoError(null);
+    try {
+      const response = await fetch(
+        `/api/avatar/inhouse/video?jobId=${encodeURIComponent(activeRenderJobId)}`,
+        { headers: getAdminAuthHeaders() },
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to check GPU render status.');
+      }
+      const job = data.job;
+      setRenderProgress(job.progressPercent || 40);
+      if (job.status === 'completed' && job.videoUrl) {
+        setRenderedVideoUrl(job.videoUrl);
+        setRenderProgress(100);
+        setActiveStageMode('2d_video');
+      } else if (job.status === 'failed') {
+        setActiveRenderJobId(null);
+        throw new Error(job.errorMessage || 'GPU worker could not render this video.');
+      } else {
+        setVideoError(`Render job ${job.id} is ${job.status.replaceAll('_', ' ')}. Check again later.`);
+      }
+    } catch (error) {
+      setVideoError(error instanceof Error ? error.message : 'Unable to check GPU render status.');
     } finally {
       setIsRenderingVideo(false);
     }
@@ -135,11 +246,11 @@ export default function InhouseStudioView() {
               <h1 className="text-2xl font-black text-white">In-House HeyGen Digital Twin Engine</h1>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 shadow-md">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                100% In-House • $0 API Cost
+                GPU worker render queue
               </span>
             </div>
             <p className="text-sm text-slate-300 mt-1">
-              Isolated studio engine: Indian Neural Voice Synthesis, 3D WebGL Viseme Lip-Sync & 20 Photorealistic Scenes.
+              Browser-based 3D preview, approximate speech cues, and a consent-checked queue for the external GPU renderer.
             </p>
           </div>
         </div>
@@ -252,29 +363,63 @@ export default function InhouseStudioView() {
           {activeStageMode === '2d_video' && (
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-bold text-slate-200">2D Photorealistic Video Compositor</h4>
+                <h4 className="text-xs font-bold text-slate-200">GPU Avatar Render</h4>
                 <p className="text-[11px] text-slate-400">
-                  Renders high-definition speech video merged with the selected background scene.
+                  Consent-checked portrait and speech are sent to the configured GPU render worker.
                 </p>
               </div>
 
               <button
                 onClick={handleRenderInhouseVideo}
-                disabled={isRenderingVideo}
+                disabled={isRenderingVideo || !selectedAvatarProfileId}
                 className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
               >
                 {isRenderingVideo ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Rendering Video ({renderProgress}%)...
+                    GPU Render ({renderProgress}%)...
                   </>
                 ) : (
                   <>
                     <Video className="w-3.5 h-3.5 fill-current" />
-                    Render 2D Video ($0 Cost)
+                    Queue GPU Render
                   </>
                 )}
               </button>
+              {activeRenderJobId && !renderedVideoUrl && (
+                <button
+                  onClick={handleCheckRenderStatus}
+                  disabled={isRenderingVideo}
+                  className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-200 text-xs font-bold disabled:opacity-50"
+                >
+                  Check job status
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeStageMode === '2d_video' && (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-300">
+                Consented avatar identity
+                <select
+                  value={selectedAvatarProfileId}
+                  onChange={(event) => setSelectedAvatarProfileId(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                  disabled={isRenderingVideo}
+                >
+                  <option value="">Select an avatar profile</option>
+                  {avatarProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.name}</option>
+                  ))}
+                </select>
+              </label>
+              {!avatarProfiles.length && (
+                <p className="text-xs text-amber-300">
+                  No consented profiles found. Create one in the Phase 1 Avatar Creator first.
+                </p>
+              )}
+              {videoError && <p role="alert" className="text-xs text-red-300">{videoError}</p>}
             </div>
           )}
 

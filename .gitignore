@@ -16,6 +16,7 @@ out/
 !docs/REPO_GUIDE.md
 !docs/MOHAN_RAG_IMPLEMENTATION_TODO.md
 !docs/MOHAN_RAG_ARCHITECTURE_ASSESSMENT.md
+!docs/AVATAR_ENGINE_PHASE2.md
 
 # Never commit bridge/VPS private keys (including files restored from history).
 deploy/wa-bridge/*.pem

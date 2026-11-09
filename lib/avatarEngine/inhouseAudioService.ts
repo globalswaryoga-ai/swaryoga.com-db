@@ -17,42 +17,40 @@ export interface InhouseVoiceOption {
 }
 
 export const INHOUSE_NEURAL_VOICES: InhouseVoiceOption[] = [
-  // Hindi Voices (Mohan Sir Master Baritone)
+  // These are hosted neural TTS voices, not trained voice clones.
   {
     id: 'hi-IN-MadhurNeural',
-    name: 'Mohan Sir (Calm Vedic Guru - Madhur)',
+    name: 'Hindi neural voice (Madhur)',
     langCode: 'hi',
     language: 'Hindi (हिन्दी)',
     gender: 'male',
     tone: 'Deep, Resonant, Meditative Guru Cadence',
     styleDesc: 'Ideal for Swar Sadhana, meditation guidance, and Vedic scriptures.',
-    badge: '⭐ Mohan Sir Official Voice',
+    badge: 'Preview voice • not a clone',
     sampleText: 'नमस्ते! मैं मोहन कलबुर्गी हूँ। स्वर योग के इस पावन सत्र में आपका स्वागत है।',
   },
 
-  // Marathi Voices (Mohan Sir Authentic Native Tongue)
   {
     id: 'mr-IN-ManoharNeural',
-    name: 'Mohan Sir (Ashram Masterclass - Manohar)',
+    name: 'Marathi neural voice (Manohar)',
     langCode: 'mr',
     language: 'Marathi (मराठी)',
     gender: 'male',
     tone: 'Authoritative, Articulate, Soulful Marathi',
     styleDesc: 'Official voice for Marathi Swar Yoga workshops and retreats.',
-    badge: '🚩 Official Marathi Voice',
+    badge: 'Preview voice • not a clone',
     sampleText: 'नमस्कार! मी मोहन कलबुर्गी आहे. स्वर योगाच्या या विशेष सत्रात आपले सहर्ष स्वागत आहे.',
   },
 
-  // English (Indian Accent - Mohan Sir Global Keynote)
   {
     id: 'en-IN-PrabhatNeural',
-    name: 'Mohan Sir (Universal Indian English - Prabhat)',
+    name: 'Indian English neural voice (Prabhat)',
     langCode: 'en',
     language: 'English (Indian)',
     gender: 'male',
     tone: 'Clear, Calm, Scholarly English',
     styleDesc: 'Global lectures, scientific respiration studies, and international attendees.',
-    badge: '🇬🇧 Global English Voice',
+    badge: 'Preview voice • not a clone',
     sampleText: 'Namaste! Welcome to this Swar Yoga masterclass on the sacred science of breath.',
   },
 
@@ -146,40 +144,52 @@ export class InhouseAudioService {
   }
 
   /**
-   * Synthesize speech using Microsoft Edge-TTS with 100% zero expense,
-   * uploads MP3 directly to Bunny CDN, and generates viseme frames.
+   * Synthesize preview speech with Edge-TTS, store the audio on Bunny, and
+   * generate approximate text-driven viseme frames.
    */
   public static async synthesizeSpeech(params: InhouseSpeechParams): Promise<InhouseSpeechResult> {
-    try {
-      await this.initSchema();
-    } catch (e: any) {
-      console.warn('[InhouseAudioService] Schema init warning (non-fatal):', e.message);
-    }
+    await this.initSchema();
 
     const script = params.script?.trim();
     if (!script) {
       throw new Error('Script text is required for audio synthesis.');
     }
+    if (script.length > 10_000) {
+      throw new Error('Script text cannot exceed 10,000 characters.');
+    }
 
-    // Resolve voice
-    let voice = params.voiceId;
-    if (!voice) {
-      const lang = params.language || 'hi';
-      const defaultOption = INHOUSE_NEURAL_VOICES.find((v) => v.langCode === lang) || INHOUSE_NEURAL_VOICES[0];
-      voice = defaultOption.id;
+    const language = params.language || 'hi';
+    const defaultOption = INHOUSE_NEURAL_VOICES.find((v) => v.langCode === language);
+    const selectedVoice = params.voiceId
+      ? INHOUSE_NEURAL_VOICES.find((v) => v.id === params.voiceId)
+      : defaultOption;
+    if (!selectedVoice) {
+      throw new Error(params.voiceId ? 'Selected voice is not supported.' : `No in-house voice is configured for language "${language}".`);
+    }
+    if (selectedVoice.langCode !== language) {
+      throw new Error(`Voice "${selectedVoice.id}" does not match language "${language}".`);
+    }
+    const voice = selectedVoice.id;
+    const speedMultiplier = params.speed ?? 1;
+    const pitchDiff = params.pitchHz ?? 0;
+    if (!Number.isFinite(speedMultiplier) || speedMultiplier < 0.8 || speedMultiplier > 1.3) {
+      throw new Error('Speech speed must be between 0.8 and 1.3.');
+    }
+    if (!Number.isFinite(pitchDiff) || pitchDiff < -10 || pitchDiff > 10) {
+      throw new Error('Speech pitch must be between -10Hz and +10Hz.');
     }
 
     // Speed to prosody rate string (e.g. 1.05 -> "+5%", 0.95 -> "-5%")
-    const speedMultiplier = params.speed || 1.0;
     const rateDiff = Math.round((speedMultiplier - 1.0) * 100);
     const rateStr = rateDiff >= 0 ? `+${rateDiff}%` : `${rateDiff}%`;
 
     // Pitch to prosody pitch string
-    const pitchDiff = params.pitchHz || 0;
     const pitchStr = pitchDiff >= 0 ? `+${pitchDiff}Hz` : `${pitchDiff}Hz`;
 
     // Check cache in Bunny DB to avoid re-generating identical audio
-    const hash = crypto.createHash('md5').update(`${voice}_${rateStr}_${pitchStr}_${script}`).digest('hex');
+    const hash = crypto.createHash('sha256')
+      .update(`${voice}_${language}_${rateStr}_${pitchStr}_${script}`)
+      .digest('hex');
     try {
       const cached = await bunnyExecute({
         sql: `SELECT * FROM studio_inhouse_voices_sql WHERE script_hash = ? LIMIT 1`,
@@ -188,11 +198,14 @@ export class InhouseAudioService {
 
       if (cached.rows.length > 0) {
         const row: any = cached.rows[0];
+        if (typeof row.audio_url !== 'string' || !row.audio_url.startsWith('https://')) {
+          throw new Error('Cached audio record does not contain a durable HTTPS URL.');
+        }
         const visemes: VisemeFrame[] = row.visemes_json ? JSON.parse(row.visemes_json) : [];
         return {
           audioUrl: row.audio_url,
           voiceId: row.voice_id,
-          language: row.language,
+          language,
           durationSeconds: Number(row.duration_seconds),
           wordCount: script.split(/\s+/).length,
           wordBoundaries: [],
@@ -214,16 +227,12 @@ export class InhouseAudioService {
       pitch: pitchStr,
     });
 
-    // Upload MP3 buffer directly to Bunny CDN Storage or fallback to base64 Data URL
-    let audioUrl = '';
-    try {
-      const fileName = `inhouse_avatar_${Date.now()}_${crypto.randomUUID().substring(0, 8)}.mp3`;
-      audioUrl = await uploadToBunnyStorage(synthesis.audioBuffer, fileName, { contentType: 'audio/mpeg' });
-      console.log(`[InhouseAudioService] Permanent Bunny CDN Audio created: ${audioUrl}`);
-    } catch (upErr: any) {
-      console.warn('[InhouseAudioService] Storage upload fallback to Data URI:', upErr.message);
-      audioUrl = `data:audio/mp3;base64,${synthesis.audioBuffer.toString('base64')}`;
+    const fileName = `inhouse_avatar_${Date.now()}_${crypto.randomUUID().substring(0, 8)}.mp3`;
+    const audioUrl = await uploadToBunnyStorage(synthesis.audioBuffer, fileName, { contentType: 'audio/mpeg' });
+    if (!audioUrl || !audioUrl.startsWith('https://')) {
+      throw new Error('Audio was synthesized but Bunny Storage did not return a durable HTTPS URL.');
     }
+    console.log(`[InhouseAudioService] Permanent Bunny CDN Audio created: ${audioUrl}`);
 
     // Generate ARKit 52 blendshape viseme timeline for real-time lip-sync
     const totalDurationMs = Math.round(synthesis.durationSeconds * 1000);
@@ -242,7 +251,7 @@ export class InhouseAudioService {
           hash,
           script,
           voice,
-          params.language || 'hi',
+          language,
           audioUrl,
           synthesis.durationSeconds,
           JSON.stringify(visemeFrames),
@@ -258,7 +267,7 @@ export class InhouseAudioService {
     return {
       audioUrl,
       voiceId: voice,
-      language: params.language || 'hi',
+      language,
       durationSeconds: synthesis.durationSeconds,
       wordCount: script.split(/\s+/).length,
       wordBoundaries: synthesis.wordBoundaries,

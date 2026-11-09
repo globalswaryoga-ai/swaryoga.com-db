@@ -41,6 +41,13 @@ interface BackgroundEnvironment {
   cssFilter?: string;
 }
 
+function getAdminAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('adminToken')
+    || localStorage.getItem('admin_token')
+    || localStorage.getItem('crm_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export default function Phase1AvatarCreatorStudio() {
   // Pre-configured Mohan Sir presets or custom upload
   const PRESET_MOHAN_SIR_GREEN = {
@@ -103,22 +110,22 @@ export default function Phase1AvatarCreatorStudio() {
       // Step 1: Record cryptographic digital consent
       const consentRes = await fetch('/api/avatar/consent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
-          userId: 'admincrm',
           avatarName,
-          authorizedBy: 'Mohan Kalburgi (Swar Yoga Founder)',
           declarationText: `I hereby grant full legal authorization to Swar Yoga AI Platform to synthesize, store, and utilize the digital likeness, face landmarks, and visual identity for avatar ${avatarName}.`,
         }),
       });
       const consentData = await consentRes.json();
+      if (!consentRes.ok || !consentData.success || !consentData.consent?.id) {
+        throw new Error(consentData.error || 'Consent could not be recorded.');
+      }
 
       // Step 2: Create Avatar Identity Profile
       const createRes = await fetch('/api/avatar/creator', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
-          userId: 'admincrm',
           name: avatarName,
           gender,
           ageGroup,
@@ -130,7 +137,7 @@ export default function Phase1AvatarCreatorStudio() {
       });
       const createData = await createRes.json();
 
-      if (createData.success) {
+      if (createRes.ok && createData.success) {
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 4000);
       } else {
@@ -444,4 +451,3 @@ export default function Phase1AvatarCreatorStudio() {
     </div>
   );
 }
-
