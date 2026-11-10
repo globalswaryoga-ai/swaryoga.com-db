@@ -58,7 +58,7 @@ export default function JoinPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-black uppercase tracking-widest text-fuchsia-700">Diwali Offer · Join</span>
+        <span className="text-xs font-black uppercase tracking-widest text-fuchsia-700">Investment Registration</span>
         <Link href="/investment-portal/login" className="text-sm font-semibold text-slate-700 hover:underline">Already invested? Sign in →</Link>
       </div>
       <h1 className="mt-3 text-4xl font-black text-slate-900">Join the Swar Yoga Education investment</h1>

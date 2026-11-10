@@ -1,5 +1,5 @@
 /**
- * Diwali Offer - Investment Page (ADMIN PREVIEW, NOT PUBLISHED)
+ * Investment Offer Page (ADMIN PREVIEW, NOT PUBLISHED)
  * Lives under /admin so it is not reachable by the public. Move it to /invest
  * only when it is approved for publishing.
  */
@@ -16,7 +16,7 @@ interface Stats {
   remainingSlots: number;
 }
 
-export default function DiwaliOfferPreviewPage() {
+export default function InvestmentOfferPreviewPage() {
   const token = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [seatError, setSeatError] = useState('');
@@ -54,11 +54,11 @@ export default function DiwaliOfferPreviewPage() {
         <div className="absolute -bottom-24 left-1/3 w-96 h-96 rounded-full bg-green-400/30 blur-3xl" />
         <div className="relative max-w-5xl mx-auto px-6 py-20 text-center">
           <span className="inline-block px-4 py-1 rounded-full bg-yellow-300 text-black text-xs font-black tracking-widest uppercase">
-            Diwali Special
+            Swar Yoga Education Investment
           </span>
           <h1 className="mt-6 text-5xl md:text-7xl font-black tracking-tight">
             <span className="bg-gradient-to-r from-pink-400 via-purple-300 to-green-300 bg-clip-text text-transparent">
-              Diwali offer!!
+              Investment offer
             </span>
           </h1>
           <p className="mt-6 text-lg md:text-2xl text-white/90 max-w-3xl mx-auto">
@@ -84,7 +84,7 @@ export default function DiwaliOfferPreviewPage() {
           <div className="grid md:grid-cols-3 gap-6 mt-8">
             <ProfitCard label="Annual profit" value="16%" color="bg-pink-500" text="text-white" />
             <ProfitCard label="Minimum guaranteed" value="16% p.a." color="bg-purple-300" text="text-black" />
-            <ProfitCard label="Offer" value="Diwali" color="bg-green-400" text="text-black" />
+            <ProfitCard label="Offer" value="Investment" color="bg-green-400" text="text-black" />
           </div>
         </section>
 

@@ -52,9 +52,11 @@ import {
 import {
   MOHAN_SIR_MASTER_IDENTITY_ID,
 } from '@/lib/avatarStudio/masterIdentityEngine';
+import MohanSir3DAvatarStage from '@/components/admin/crm/avatar-studio/MohanSir3DAvatarStage';
 
 type StudioTab =
   | 'dashboard'
+  | '3d_twin'
   | 'anchor'
   | 'voice'
   | 'script'
@@ -857,11 +859,12 @@ export default function MohanSirAvatarStudioPage() {
         <nav className="px-6 py-2.5 overflow-x-auto flex items-center gap-2.5 text-xs font-bold scrollbar-thin bg-slate-950/90 border-t border-slate-800">
           {[
             { id: 'dashboard', label: '1. Dashboard', icon: Layers },
-            { id: 'anchor', label: '2. Master Anchor Videos', icon: Video },
-            { id: 'voice', label: '3. Voice Engine', icon: Volume2 },
-            { id: 'script', label: '4. Script Studio', icon: FileText },
-            { id: 'engine', label: '5. Render Queue', icon: Wand2 },
-            { id: 'library', label: '6. Video Library', icon: Film },
+            { id: '3d_twin', label: '2. 3D Avatar Twin (Live Stage)', icon: Sparkles },
+            { id: 'anchor', label: '3. Master Anchor Videos', icon: Video },
+            { id: 'voice', label: '4. Voice Engine', icon: Volume2 },
+            { id: 'script', label: '5. Script Studio', icon: FileText },
+            { id: 'engine', label: '6. Render Queue (Colab GPU)', icon: Wand2 },
+            { id: 'library', label: '7. Video Library', icon: Film },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -934,11 +937,18 @@ export default function MohanSirAvatarStudioPage() {
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
                   <button
-                    onClick={() => setActiveTab('engine')}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition"
+                    onClick={() => setActiveTab('3d_twin')}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/25 transition cursor-pointer"
                   >
-                    <Wand2 className="w-4 h-4" />
-                    ✨ Generate New Video
+                    <Sparkles className="w-4 h-4 fill-current" />
+                    👤 3D Live Avatar Twin
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('engine')}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition"
+                  >
+                    <Wand2 className="w-4 h-4 text-amber-400" />
+                    GPU Render Queue
                   </button>
                   <a
                     href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
@@ -1015,6 +1025,19 @@ export default function MohanSirAvatarStudioPage() {
                   QUICK 3-STEP WORKFLOW
                 </h3>
                 <div className="space-y-2.5">
+                  <div
+                    onClick={() => setActiveTab('3d_twin')}
+                    className="p-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-slate-800 hover:border-amber-400 border border-amber-500/40 cursor-pointer transition flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-amber-300">★ 3D Avatar Twin (Live Stage)</div>
+                      <div className="text-[11px] text-slate-400">
+                        Test speech lip-sync & 360° avatar gestures
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-amber-400">View 👤 →</span>
+                  </div>
+
                   <div
                     onClick={() => setActiveTab('anchor')}
                     className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-400/50 cursor-pointer transition flex items-center justify-between"
@@ -1149,6 +1172,24 @@ export default function MohanSirAvatarStudioPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB 2: 3D DIGITAL TWIN (LIVE AVATAR STAGE)                     */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === '3d_twin' && (
+          <MohanSir3DAvatarStage
+            onTransferScript={(txt) => {
+              setScriptText(txt);
+              setActiveTab('script');
+              showToast('✨ Script transferred to Script Studio');
+            }}
+            onGoToRenderQueue={(txt) => {
+              setScriptText(txt);
+              setActiveTab('engine');
+              showToast('🚀 Ready to queue render on Google Colab GPU');
+            }}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}

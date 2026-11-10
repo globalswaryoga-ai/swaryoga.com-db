@@ -170,6 +170,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Removing Diwali Banner from Web and App (Session: November 10, 2026) — Commit `working tree`
+
+- Removed the unused Diwali celebration overlay component and its dedicated festive animation styles.
+- Replaced the public investment join page's “Diwali Offer” banner with a neutral “Investment Registration” label; neutralized Diwali-only branding in the admin offer preview while preserving its offer details.
+- The Android app loads the website in a WebView, so the public web change applies there too. Calendar festival names and investment/payment terms were left unchanged.
+
 ### Preventing False Avatar Acceptance Outputs (Session: November 10, 2026) — Commit `working tree`
 
 - Replaced three local “acceptance” scripts that only muxed audio or compiled static frames with fail-closed notices; they did not perform MuseTalk/neural inference and could upload misleading MP4s.
