@@ -17,6 +17,7 @@ out/
 !docs/MOHAN_RAG_IMPLEMENTATION_TODO.md
 !docs/MOHAN_RAG_ARCHITECTURE_ASSESSMENT.md
 !docs/AVATAR_ENGINE_PHASE2.md
+!docs/AVATAR_ENGINE_EVIDENCE_AUDIT.md
 !docs/OPEN_SOURCE_ENGINE_INTEGRATION_REPORT.md
 !docs/MUSETALK_GPU_ACCEPTANCE_REPORT.md
 
@@ -73,7 +74,9 @@ scratch/
 __pycache__/
 *.pyc
 *.mp4
+!public/avatar-twins/*.mp4
 *.blend
 *.blend1
+!public/avatar-studio/3d-digital-twin/mohan_jalidar_body_prototype.blend
 experiments/
 research/
