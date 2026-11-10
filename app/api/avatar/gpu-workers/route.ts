@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { GpuWorkerRegistry } from '@/lib/avatarEngine/gpuWorkerRegistry';
 import { GpuScheduler } from '@/lib/avatarEngine/gpuScheduler';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ function isAdminAuthorized(request: NextRequest): boolean {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     request.cookies.get('token')?.value;
   if (!token) return false;
-  const payload = verifyAuthToken(token);
+  const payload = verifyToken(token);
   return Boolean(payload?.isAdmin || payload?.userId);
 }
 
