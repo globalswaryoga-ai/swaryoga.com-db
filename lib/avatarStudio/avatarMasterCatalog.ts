@@ -107,7 +107,7 @@ export const MASTER_ANCHOR_VIDEOS: AnchorVideo[] = [
     durationSeconds: 154,
     resolution: '1080p',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
     description: 'Deep authoritative lecture on Swar Shastra and Prana activation.',
     framing: 'Chest-Up Seated',
     isPrimaryMaster: false,
@@ -595,7 +595,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Sharp tailored navy blue blazer, crisp white shirt, silk tie. Proportionate slim athletic fit.',
     promptConditioning: 'wearing tailored navy blue executive business suit with crisp white collared shirt and elegant tie, slim athletic fit, immaculate tailoring',
     primaryColors: ['#0F172A', '#FFFFFF', '#1E3A8A'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
   },
   {
     id: 'wardrobe_charcoal_bandhgala',
@@ -711,7 +711,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Sleek glass high-rise boardroom overlooking city skyline with polished conference table.',
     promptConditioning: 'luxury executive boardroom on high-rise floor with panoramic city skyline window, modern minimalist interior, cinematic shallow depth of field',
     lightingStyle: 'Balanced Architectural Softbox & Cool Rim',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
   },
   {
     id: 'env_interactive_classroom',

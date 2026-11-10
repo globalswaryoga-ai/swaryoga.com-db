@@ -9,10 +9,20 @@ export const dynamic = 'force-dynamic';
 function authorize(request: NextRequest): NextResponse | null {
   const token = extractTokenFromRequest(request);
   const decoded = verifyToken(token);
-  if (!decoded || (!decoded.isAdmin && decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-    return NextResponse.json({ success: false, error: 'Unauthorized: Admin access required.' }, { status: 401 });
+
+  // Accept any valid admin or CRM user token
+  if (decoded && (decoded.isAdmin || decoded.role === 'admin' || decoded.role === 'superadmin' || decoded.userId || decoded.username)) {
+    return null;
   }
-  return null;
+
+  // Allow requests originating from the internal CRM domain or referer
+  const host = request.headers.get('host') || '';
+  const referer = request.headers.get('referer') || '';
+  if (host.includes('crm.swaryoga.com') || referer.includes('/admin/crm/')) {
+    return null;
+  }
+
+  return NextResponse.json({ success: false, error: 'Unauthorized: Admin access required.' }, { status: 401 });
 }
 
 export async function GET(request: NextRequest) {

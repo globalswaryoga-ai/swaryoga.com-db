@@ -95,8 +95,8 @@ export const MASTER_ANGLES: FacialAngleReference[] = [
   },
   {
     angle: 'three_quarter_right',
-    label: 'एग्जीक्यूटिव कॉर्पोरेट पोस्चर (Waist-Up Executive Suit)',
-    url: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    label: 'एग्जीक्यूटिव व्याख्याता पोस्चर (Waist-Up Executive Master)',
+    url: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
     resolution: '1920x1080',
     isMasterAnchor: false,
   },
@@ -127,7 +127,7 @@ export const MASTER_EXPRESSION_PROFILES: ExpressionProfile[] = [
     emotion: 'teaching_authority',
     landmarkPoints: 468,
     sampleVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
     intensity: 0.9,
   },
   {
@@ -260,7 +260,7 @@ export async function initMasterIdentityDatabase(): Promise<void> {
       dna_video_references: dnaVideos,
       body_anchor_assets: {
         chest_up: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
-        waist_up_suit: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+        waist_up_suit: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
         handshake_gesture: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_handshake.jpg',
         khadi_sadhana: 'https://swaryogacrm.b-cdn.net/avatar-studio/looks/mohan_white_khadi_1080p.jpg',
       },
