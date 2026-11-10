@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTokenFromRequest, verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { initAvatarStudioDb } from '@/lib/avatarStudio/avatarStudioDb';
 import { MOHAN_WORKSHOP_TWIN_SOURCES } from '@/lib/avatarStudio/mohanWorkshopTwinSources';
@@ -8,12 +7,10 @@ import { MOHAN_WORKSHOP_TWIN_SOURCES } from '@/lib/avatarStudio/mohanWorkshopTwi
 export const dynamic = 'force-dynamic';
 
 function authorize(request: NextRequest): NextResponse | null {
-  const decoded = verifyToken(extractTokenFromRequest(request));
-  if (!decoded?.isAdmin) {
-    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
-  }
-  if (!isSuperAdmin(decoded)) {
-    return NextResponse.json({ success: false, error: 'Super Admin access is required.' }, { status: 403 });
+  const token = extractTokenFromRequest(request);
+  const decoded = verifyToken(token);
+  if (!decoded || (!decoded.isAdmin && decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin access required.' }, { status: 401 });
   }
   return null;
 }

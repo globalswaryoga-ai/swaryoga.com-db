@@ -68,12 +68,41 @@ interface ConsentAvatarProfile {
 
 function getAvatarStudioToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return (
-    localStorage.getItem('crm_token') ||
-    localStorage.getItem('adminToken') ||
-    localStorage.getItem('admin_token') ||
-    localStorage.getItem('token')
-  );
+  const keys = ['crm_token', 'adminToken', 'admin_token', 'token', 'auth_token', 'swar_admin_token'];
+  for (const k of keys) {
+    try {
+      const v = localStorage.getItem(k);
+      if (v && v !== 'null' && v !== 'undefined' && v.trim()) return v.trim();
+    } catch {}
+  }
+  for (const k of keys) {
+    try {
+      const v = sessionStorage.getItem(k);
+      if (v && v !== 'null' && v !== 'undefined' && v.trim()) return v.trim();
+    } catch {}
+  }
+  if (typeof document !== 'undefined' && document.cookie) {
+    const parts = document.cookie.split(';');
+    for (const part of parts) {
+      const [k, ...v] = part.trim().split('=');
+      const key = k?.trim();
+      if (keys.includes(key)) {
+        const val = decodeURIComponent(v.join('=')).trim();
+        if (val && val !== 'null' && val !== 'undefined') return val;
+      }
+    }
+  }
+  return null;
+}
+
+function getAvatarAuthHeaders(): Record<string, string> {
+  const token = getAvatarStudioToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['x-admin-token'] = token;
+  }
+  return headers;
 }
 
 export default function MohanSirAvatarStudioPage() {
@@ -314,15 +343,11 @@ export default function MohanSirAvatarStudioPage() {
     }
     setIsEngineSynthesizing(true);
     try {
-      const token = getAvatarStudioToken();
-      if (!token) {
-        alert('Sign in again to generate a speech preview.');
-        return;
-      }
-
+      const authHeaders = getAvatarAuthHeaders();
       const res = await fetch('/api/avatar/inhouse/audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        credentials: 'include',
         body: JSON.stringify({
           script: voiceEngineScript.trim(),
           voiceId: {
@@ -392,13 +417,10 @@ export default function MohanSirAvatarStudioPage() {
 
   // Load Library Videos
   const loadLibrary = async (ensureWorkshopTwinSources = activeTab === 'library') => {
-    const token = getAvatarStudioToken();
-    if (!token) {
-      setLibraryError('Sign in again to load the stored-media library.');
-      return;
-    }
-
     setIsLoadingLibrary(true);
+    setLibraryError(null);
+    const authHeaders = getAvatarAuthHeaders();
+
     try {
       let addedTwinSourceCount = 0;
       if (ensureWorkshopTwinSources) {
@@ -406,22 +428,33 @@ export default function MohanSirAvatarStudioPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
+          credentials: 'include',
           body: JSON.stringify({ action: 'ensure_mohan_workshop_twin_sources' }),
         });
-        const seedResult = await seedResponse.json();
-        if (!seedResponse.ok || !seedResult.success) {
-          throw new Error(seedResult.error || 'Failed to add Mohan Sir workshop twin sources.');
+        if (seedResponse.status === 401 || seedResponse.status === 403) {
+          setLibraryError('Sign in again to load the stored-media library.');
+          setIsLoadingLibrary(false);
+          return;
         }
-        addedTwinSourceCount = Number(seedResult.addedCount || 0);
+        const seedResult = await seedResponse.json().catch(() => ({}));
+        if (seedResponse.ok && seedResult.success) {
+          addedTwinSourceCount = Number(seedResult.addedCount || 0);
+        }
       }
 
       const res = await fetch('/api/avatar/library', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders,
+        credentials: 'include',
         cache: 'no-store',
       });
-      const json = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        setLibraryError('Sign in again to load the stored-media library.');
+        setIsLoadingLibrary(false);
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success || !Array.isArray(json.data)) {
         throw new Error(json.error || 'Failed to load stored video metadata.');
       }
@@ -439,20 +472,18 @@ export default function MohanSirAvatarStudioPage() {
 
   useEffect(() => {
     let active = true;
-    const token = getAvatarStudioToken();
-    if (!token) {
-      setAvatarProfilesError('Sign in again to load consented avatar profiles.');
-      return () => {
-        active = false;
-      };
-    }
+    const authHeaders = getAvatarAuthHeaders();
 
     fetch('/api/avatar/creator', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders,
+      credentials: 'include',
       cache: 'no-store',
     })
       .then(async (res) => {
-        const json = await res.json();
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Sign in again to load consented avatar profiles.');
+        }
+        const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.success) {
           throw new Error(json.error || 'Failed to load consented avatar profiles.');
         }
@@ -480,16 +511,12 @@ export default function MohanSirAvatarStudioPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollJob = async () => {
-      const token = getAvatarStudioToken();
-      if (!token) {
-        setGenerationError('Sign-in token is unavailable; the queued job was not changed.');
-        setIsGenerating(false);
-        return;
-      }
+      const authHeaders = getAvatarAuthHeaders();
 
       try {
         const res = await fetch(`/api/avatar/inhouse/video?jobId=${encodeURIComponent(currentJobId)}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: authHeaders,
+          credentials: 'include',
           cache: 'no-store',
         });
         const json = await res.json();
@@ -584,8 +611,9 @@ export default function MohanSirAvatarStudioPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${getAvatarStudioToken() || ''}`,
+          ...getAvatarAuthHeaders(),
         },
+        credentials: 'include',
         body: JSON.stringify(importForm),
       });
       const json = await res.json();
@@ -630,8 +658,9 @@ export default function MohanSirAvatarStudioPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${getAvatarStudioToken() || ''}`,
+          ...getAvatarAuthHeaders(),
         },
+        credentials: 'include',
         body: JSON.stringify({
           id: editingVideo.id,
           title: editForm.title,
@@ -668,7 +697,8 @@ export default function MohanSirAvatarStudioPage() {
     try {
       const res = await fetch(`/api/avatar/library?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${getAvatarStudioToken() || ''}` },
+        headers: getAvatarAuthHeaders(),
+        credentials: 'include',
       });
       const json = await res.json();
       if (json.success) {
@@ -715,11 +745,7 @@ export default function MohanSirAvatarStudioPage() {
       setGenerationError('Create or select a consented avatar profile before queuing a render.');
       return;
     }
-    const token = getAvatarStudioToken();
-    if (!token) {
-      setGenerationError('Sign in again before creating a render job.');
-      return;
-    }
+    const authHeaders = getAvatarAuthHeaders();
     setIsGenerating(true);
     setGenerationError(null);
     setGeneratedVideoResultUrl(null);
@@ -730,7 +756,8 @@ export default function MohanSirAvatarStudioPage() {
     try {
       const res = await fetch('/api/avatar/inhouse/video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        credentials: 'include',
         body: JSON.stringify({
           avatarProfileId: selectedAvatarProfileId,
           sourceVideoUrl: sourceVideoUrl.trim(),
