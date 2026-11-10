@@ -82,6 +82,10 @@ export default function InhouseStudioView() {
   const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
   const [sourceVideoUrl, setSourceVideoUrl] = useState('');
   const [activeRenderJobId, setActiveRenderJobId] = useState<string | null>(null);
+  const [speechInputMode, setSpeechInputMode] = useState<'recorded' | 'tts'>('recorded');
+  const [recordedAudioStoragePath, setRecordedAudioStoragePath] = useState('');
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState('');
+  const [isUploadingRecordedAudio, setIsUploadingRecordedAudio] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -129,9 +133,38 @@ export default function InhouseStudioView() {
   };
 
   // Queue a consent-checked render and wait for the external GPU worker.
+  const handleRecordedAudioUpload = async (file?: File) => {
+    if (!file) return;
+    setIsUploadingRecordedAudio(true);
+    setVideoError(null);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      const response = await fetch('/api/avatar/inhouse/audio/upload', {
+        method: 'POST',
+        headers: getAdminAuthHeaders(),
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.audioStoragePath || !result.audioUrl) {
+        throw new Error(result.error || 'Could not upload recorded speech.');
+      }
+      setRecordedAudioStoragePath(result.audioStoragePath);
+      setRecordedAudioUrl(result.audioUrl);
+    } catch (error) {
+      setVideoError(error instanceof Error ? error.message : 'Could not upload recorded speech.');
+    } finally {
+      setIsUploadingRecordedAudio(false);
+    }
+  };
+
   const handleRenderInhouseVideo = async () => {
-    if (!currentScript.trim()) {
+    if (speechInputMode === 'tts' && !currentScript.trim()) {
       alert('Please enter a script text and click Synthesize Voice Audio first.');
+      return;
+    }
+    if (speechInputMode === 'recorded' && !recordedAudioStoragePath) {
+      setVideoError('Upload your recorded MP3/WAV speech before queuing this job.');
       return;
     }
     if (!selectedAvatarProfileId) {
@@ -149,7 +182,8 @@ export default function InhouseStudioView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
-          script: currentScript.trim(),
+          script: speechInputMode === 'recorded' ? '' : currentScript.trim(),
+          audioStoragePath: speechInputMode === 'recorded' ? recordedAudioStoragePath : undefined,
           avatarProfileId: selectedAvatarProfileId,
           sourceVideoUrl: sourceVideoUrl.trim(),
           voiceId: currentVoiceId,
@@ -365,15 +399,20 @@ export default function InhouseStudioView() {
           {activeStageMode === '2d_video' && (
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-bold text-slate-200">GPU Avatar Render</h4>
+                <h4 className="text-xs font-bold text-slate-200">In-house render job</h4>
                 <p className="text-[11px] text-slate-400">
-                  The GPU renderer requires authorized, continuous source footage; the portrait preview is not used as a video substitute.
+                  The GPU adapter is not implemented (HTTP 501); this queues a job but does not produce a video.
                 </p>
               </div>
 
               <button
                 onClick={handleRenderInhouseVideo}
-                disabled={isRenderingVideo || !selectedAvatarProfileId || !sourceVideoUrl.trim()}
+                disabled={
+                  isRenderingVideo ||
+                  !selectedAvatarProfileId ||
+                  !sourceVideoUrl.trim() ||
+                  (speechInputMode === 'recorded' && (!recordedAudioStoragePath || isUploadingRecordedAudio))
+                }
                 className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
               >
                 {isRenderingVideo ? (
@@ -384,7 +423,7 @@ export default function InhouseStudioView() {
                 ) : (
                   <>
                     <Video className="w-3.5 h-3.5 fill-current" />
-                    Queue GPU Render
+                    Queue render job
                   </>
                 )}
               </button>
@@ -428,6 +467,36 @@ export default function InhouseStudioView() {
                   autoComplete="url"
                 />
               </label>
+              <fieldset className="space-y-2 rounded-xl border border-slate-800 p-3">
+                <legend className="px-1 text-xs font-semibold text-slate-300">Speech input</legend>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setSpeechInputMode('recorded')} aria-pressed={speechInputMode === 'recorded'} className="rounded-lg border border-slate-700 px-3 py-2 text-xs">
+                    My recorded speech
+                  </button>
+                  <button type="button" onClick={() => setSpeechInputMode('tts')} aria-pressed={speechInputMode === 'tts'} className="rounded-lg border border-slate-700 px-3 py-2 text-xs">
+                    TTS preview
+                  </button>
+                </div>
+                {speechInputMode === 'recorded' ? (
+                  <>
+                    <label className="block text-xs text-slate-300">
+                      Upload MP3/WAV recording (max 25 MB)
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,audio/mpeg,audio/wav"
+                        onChange={(event) => void handleRecordedAudioUpload(event.currentTarget.files?.[0])}
+                        disabled={isUploadingRecordedAudio || isRenderingVideo}
+                        className="mt-1 block w-full text-xs"
+                      />
+                    </label>
+                    {isUploadingRecordedAudio && <p className="text-xs text-slate-400">Uploading recording…</p>}
+                    {recordedAudioUrl && <audio controls src={recordedAudioUrl} className="w-full" />}
+                    <p className="text-xs text-amber-300">Upload and queue only; no video is rendered while the GPU adapter is unavailable.</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400">Use the Audio Studio to synthesize a preview before queuing.</p>
+                )}
+              </fieldset>
               <p className="text-xs text-slate-400">
                 Use continuous real footage of the consented avatar. Still images and the synthetic sample clips do not meet the render acceptance criteria.
               </p>

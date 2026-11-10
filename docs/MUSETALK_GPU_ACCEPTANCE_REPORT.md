@@ -63,7 +63,7 @@ The cloned MuseTalk `requirements.txt` contains pins including `diffusers==0.30.
 
 ## Existing MP4 candidate (not accepted)
 
-The pre-existing, untracked file [`mohan_sir_musetalk_acceptance_1080p.mp4`](../public/avatar-studio/3d-digital-twin/renders/mohan_sir_musetalk_acceptance_1080p.mp4) was inspected read-only with `ffprobe`: H.264 video, AAC audio, 1920×1080, 30 fps, 300 frames, 10.0 seconds, 3,386,470 bytes. This establishes only container metadata. No corresponding authorized source/audio record, model/checkpoint manifest, GPU logs, generation command, visual review, Bunny upload receipt, or Bunny read-back evidence was found for this acceptance task. It is **not counted as a MuseTalk acceptance result** and was not modified.
+The previously untracked local file `mohan_sir_musetalk_acceptance_1080p.mp4` was inspected read-only with `ffprobe`: H.264 video, AAC audio, 1920×1080, 30 fps, 300 frames, 10.0 seconds, 3,386,470 bytes. This establishes only container metadata. No corresponding authorized source/audio record, model/checkpoint manifest, GPU logs, generation command, visual review, Bunny upload receipt, or Bunny read-back evidence was found for this acceptance task. The local file was later removed as part of the owner's retirement of the entire old local 3D prototype folder. It is **not counted as a MuseTalk acceptance result**; no Bunny copy was deleted.
 
 ## Quality, output, and Bunny acceptance
 

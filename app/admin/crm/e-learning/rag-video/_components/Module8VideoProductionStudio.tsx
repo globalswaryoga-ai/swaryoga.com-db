@@ -982,12 +982,12 @@ export default function Module8VideoProductionStudio({
             </p>
             <div className="flex items-center gap-2 mt-2">
               <a
-                href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
-                download="Swar_Yoga_Digital_Twin_Colab.ipynb"
+                href="/colab/Mohan_Sir_Multilingual_LipSync_Pilot.ipynb"
+                download="Mohan_Sir_Multilingual_LipSync_Pilot.ipynb"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-extrabold transition shadow"
-                title="मोहन सर का स्वीकृत फेस क्लोन Google Colab Free T4 GPU पर रेंडर करें"
+                title="Multilingual lip-sync pilot preflight; model inference is not enabled"
               >
-                <span>⚡ Colab Free T4 GPU Engine (.ipynb)</span>
+                <span>⚡ Lip-Sync Pilot Preflight (.ipynb)</span>
               </a>
               <a
                 href="https://colab.research.google.com/"

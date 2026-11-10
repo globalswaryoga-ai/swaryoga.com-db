@@ -77,6 +77,5 @@ __pycache__/
 !public/avatar-twins/*.mp4
 *.blend
 *.blend1
-!public/avatar-studio/3d-digital-twin/mohan_jalidar_body_prototype.blend
 experiments/
 research/

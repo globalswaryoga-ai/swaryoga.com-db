@@ -95,7 +95,7 @@ export const MASTER_ANCHOR_VIDEOS: AnchorVideo[] = [
     durationSeconds: 180,
     resolution: '1080p',
     videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    thumbnailUrl: '',
     description: 'Executive waistcoat, collared shirt, direct teaching eye contact, clear articulation.',
     framing: 'Chest-Up Seated / Standing at Board',
     isPrimaryMaster: true,
@@ -107,7 +107,7 @@ export const MASTER_ANCHOR_VIDEOS: AnchorVideo[] = [
     durationSeconds: 154,
     resolution: '1080p',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+    thumbnailUrl: '',
     description: 'Deep authoritative lecture on Swar Shastra and Prana activation.',
     framing: 'Chest-Up Seated',
     isPrimaryMaster: false,
@@ -119,7 +119,7 @@ export const MASTER_ANCHOR_VIDEOS: AnchorVideo[] = [
     durationSeconds: 165,
     resolution: '1080p',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_marathi_real.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    thumbnailUrl: '',
     description: 'Warm, conversational Marathi teaching on health and breath rhythm.',
     framing: 'Chest-Up Seated',
     isPrimaryMaster: false,
@@ -131,7 +131,7 @@ export const MASTER_ANCHOR_VIDEOS: AnchorVideo[] = [
     durationSeconds: 240,
     resolution: '1080p',
     videoUrl: 'https://swaryogacrm.b-cdn.net/users/mohan-rag-avatar/training-vault/1793151988088-hgfwl8-Shad_Ripu_Explained___6_Enemies_of_the_Mind_That_Destroy_Peace.mp4',
-    thumbnailUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    thumbnailUrl: '',
     description: 'Spiritual discourse with hand mudras and calm facial expressions.',
     framing: 'Chest-Up Presenter',
     isPrimaryMaster: false,
@@ -595,7 +595,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Sharp tailored navy blue blazer, crisp white shirt, silk tie. Proportionate slim athletic fit.',
     promptConditioning: 'wearing tailored navy blue executive business suit with crisp white collared shirt and elegant tie, slim athletic fit, immaculate tailoring',
     primaryColors: ['#0F172A', '#FFFFFF', '#1E3A8A'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_charcoal_bandhgala',
@@ -606,7 +606,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Sophisticated dark grey bandhgala jacket with Mandarin collar over light shirt. Mohan Sir keynote style.',
     promptConditioning: 'wearing charcoal grey tailored Indian bandhgala Nehru jacket over buttoned shirt, clean neck collar, dignified keynote speaker',
     primaryColors: ['#334155', '#475569', '#F8FAFC'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_white_khadi',
@@ -617,7 +617,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Signature handspun white khadi cotton kurta with natural 5-mukhi rudraksha mala. Serene Vedic yogi.',
     promptConditioning: 'wearing pure white cotton khadi kurta with mandarin collar, authentic rudraksha bead necklace around neck, pristine yogic attire',
     primaryColors: ['#FFFFFF', '#F8FAFC', '#78350F'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_tweed_blazer',
@@ -628,7 +628,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Scholarly navy/brown textured blazer over collared button-down shirt. Distinguished university academic.',
     promptConditioning: 'wearing distinguished academic textured navy blazer over light blue pressed dress shirt, scholarly look',
     primaryColors: ['#1E293B', '#3B82F6', '#CBD5E1'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_saffron_silk',
@@ -639,7 +639,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Rich royal saffron silk kurta with subtle gold thread border. Symbolizes Surya Nadi solar mastery.',
     promptConditioning: 'wearing vibrant royal saffron silk kurta with gold zari trim on collar, radiant spiritual scholar',
     primaryColors: ['#EA580C', '#F59E0B', '#FEF3C7'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_doctor_coat',
@@ -650,7 +650,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Crisp medical doctor consultation coat with professional ID badge and neck stethoscope.',
     promptConditioning: 'wearing clean pressed white medical doctor lab coat over formal shirt, medical stethoscope around neck',
     primaryColors: ['#FFFFFF', '#0284C7', '#0F172A'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_lawyer_coat',
@@ -661,7 +661,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Formal black legal coat and white barrister advocate neck tabs.',
     promptConditioning: 'wearing black advocate court coat with traditional white neck collar tabs, legal jurisprudence expert',
     primaryColors: ['#000000', '#18181B', '#FFFFFF'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'wardrobe_traditional_farmer',
@@ -672,7 +672,7 @@ export const MASTER_WARDROBES: WardrobePreset[] = [
     description: 'Earthy unbleached khadi kurta with cotton shoulder towel (gamcha). Grounded agrarian expert.',
     promptConditioning: 'wearing simple earth-tone cotton kurta with cotton gamcha towel over shoulder, honest rural advisor',
     primaryColors: ['#F5F5DC', '#B45309', '#D97706'],
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    referenceImageUrl: '',
   },
 ];
 
@@ -689,7 +689,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Wood-paneled tiered university auditorium with soft ambient ceiling lighting and presentation podium.',
     promptConditioning: 'grand academic university lecture amphitheater with tiered seating, warm wood panels, blurred soft student seating in background, high-end 8k cinematography',
     lightingStyle: '5600K Clean Studio Daylight with Warm Accent Rims',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'env_himalayan_ashram',
@@ -700,7 +700,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Sunlit stone and cedarwood ashram hall with brass oil lamps, mountain views through arched windows.',
     promptConditioning: 'serene Himalayan yoga ashram sanctum with hand-carved cedarwood arches, distant misty mountains, soft morning golden hour sunlight, subtle brass diya flame',
     lightingStyle: 'Vedic Warm Golden Hour (3200K)',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'env_corporate_boardroom',
@@ -711,7 +711,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Sleek glass high-rise boardroom overlooking city skyline with polished conference table.',
     promptConditioning: 'luxury executive boardroom on high-rise floor with panoramic city skyline window, modern minimalist interior, cinematic shallow depth of field',
     lightingStyle: 'Balanced Architectural Softbox & Cool Rim',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'env_interactive_classroom',
@@ -722,7 +722,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Clean bright teaching studio with interactive digital blackboard displaying nadi anatomy charts.',
     promptConditioning: 'modern bright education studio with large digital whiteboard displaying scientific diagrams, professional clean lighting',
     lightingStyle: '5400K Even Broadcast Lighting',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'env_podcast_studio',
@@ -733,7 +733,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Dark acoustic slat-wall studio with neon amber halo glow and broadcast boom microphone.',
     promptConditioning: 'modern high-end podcast studio with wooden acoustic slat walls, warm amber LED accent backlighting, broadcast studio boom mic',
     lightingStyle: 'Cinematic Moody Key + Amber Neon Backlight',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    referenceImageUrl: '',
   },
   {
     id: 'env_nature_grove',
@@ -744,7 +744,7 @@ export const MASTER_ENVIRONMENTS: EnvironmentPreset[] = [
     description: 'Lush green sacred grove with morning sunbeams piercing through ancient banyan leaves.',
     promptConditioning: 'ancient banyan tree sacred forest grove with morning sun rays piercing through lush foliage, peaceful natural sanctuary',
     lightingStyle: 'Natural Dappled Sunbeams',
-    referenceImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    referenceImageUrl: '',
   },
 ];
 
@@ -1598,6 +1598,5 @@ export const MOHAN_SIR_MASTER_ANTHROPOMETRICS: MohanMasterPhysicalMeasurements =
   hairStyle: 'Natural black hair with authentic side part',
   facialHair: 'Groomed natural black beard and moustache matching master identity reference',
 };
-
 
 

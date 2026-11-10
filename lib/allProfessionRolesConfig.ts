@@ -52,7 +52,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'दृढ़, दूरदर्शी, आत्मविश्वासी और नेतृत्वकारी स्वर',
     gestures: 'मजबूत व्यावसायिक हाव-भाव, सीधा आत्मविश्वासी पोश्चर, स्पष्ट दृष्टिसंपर्क',
     videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'प्रीमियम बिज़नेस सूट व कोट (Navy Suit & Tie)',
       titleEn: 'Tailored Bespoke Executive Suit & Tie',
@@ -67,7 +67,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'Modern Corporate Boardroom',
       description: 'आधुनिक कॉर्पोरेट बोर्डरूम व कॉन्फ्रेंस हॉल परिप्रेक्ष्य।',
       promptText: 'Modern luxury corporate boardroom with soft ambient depth',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+      imageUrl: '',
       icon: '🏙️',
     },
     sampleTopics: {
@@ -89,7 +89,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'प्रभावी, अधिकारपूर्ण, संतुलित व ओजस्वी स्वर',
     gestures: 'ज्ञान मुद्रा, सहज हस्तसंकेत और शांत गरिमापूर्ण शिक्षण शैली',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'सद्गुरु चारकोल बंदगला नेहरू जैकेट व कुर्ता',
       titleEn: 'Charcoal Bandhgala Nehru Jacket over Kurta',
@@ -104,7 +104,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'Grand Auditorium Stage',
       description: 'अंतर्राष्ट्रीय योग व स्वास्थ्य शिखर सम्मेलन की-नोट मंच।',
       promptText: 'Grand auditorium stage with warm subtle spotlights',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+      imageUrl: '',
       icon: '🏛️',
     },
     sampleTopics: {
@@ -126,7 +126,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'शांत, गंभीर, शास्त्रीय प्रवाह व आध्यात्मिक मिठास',
     gestures: 'चिन मुद्रा, शांत श्वसन गति, स्थिर आँखें',
     videoUrl: 'https://swaryogacrm.b-cdn.net/users/mohan-rag-avatar/training-vault/1793151988088-hgfwl8-Shad_Ripu_Explained___6_Enemies_of_the_Mind_That_Destroy_Peace.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'पवित्र श्वेत खादी कुर्ता व रुद्राक्ष (White Khadi & Rudraksha)',
       titleEn: 'Pure White Handspun Khadi Kurta & Rudraksha',
@@ -141,7 +141,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'Himalayan Ashram Sanctum',
       description: 'शांत आश्रम, प्राकृतिक प्रकाश और सात्विक साधना कक्ष।',
       promptText: 'Serene Himalayan ashram room with morning sunrise glow',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
+      imageUrl: '',
       icon: '🕉️',
     },
     sampleTopics: {
@@ -163,7 +163,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'अकादमिक स्पष्टता, शोधपरक तर्क और गंभीर शिक्षण स्वर',
     gestures: 'तर्कसंगत हस्तसंकेत, स्पष्ट आरेख निरूपण, स्थिर दृष्टि',
     videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'अकादमिक ट्वीड ब्लेज़र व फॉर्मल शर्ट (Academic Tweed Blazer)',
       titleEn: 'Academic Tweed Blazer & Pressed Shirt',
@@ -178,7 +178,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'University Lecture Hall & Library',
       description: 'क्लासिकल लाइब्रेरी व एकेडमिक पोडियम।',
       promptText: 'Grand university lecture hall with classical oak bookshelves',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
+      imageUrl: '',
       icon: '📚',
     },
     sampleTopics: {
@@ -200,7 +200,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'गहरा, शास्त्रीय संस्कृत श्लोक वाचन और ओजस्वी व्याख्यान',
     gestures: 'शास्त्र निर्देश, शांत मुस्कान, गंभीर वैदिक उपदेश',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_hindi_real.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'केसरिया रेशमी कुर्ता व स्वर्ण बॉर्डर (Saffron Silk with Gold Zari)',
       titleEn: 'Sacred Saffron Silk with Gold Border',
@@ -215,7 +215,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'Ancient Vedic Sanctum',
       description: 'शिव स्वरोदय शास्त्र व्याख्यान के लिए पावन मंदिर वातावरण।',
       promptText: 'Ancient stone temple courtyard with brass oil lamps',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg',
+      imageUrl: '',
       icon: '🛕',
     },
     sampleTopics: {
@@ -237,7 +237,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
     speakingStyle: 'सरल, व्यावहारिक, आत्मीय और रोजमर्रा के उदाहरणों से भरपूर',
     gestures: 'सहज क्लासरूम हाथ के इशारे, गर्मजोशी भरी मुस्कान',
     videoUrl: 'https://swaryogacrm.b-cdn.net/materials/mohan_sir_marathi_real.mp4',
-    avatarImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    avatarImageUrl: '',
     defaultOutfit: {
       titleHi: 'वैदिक नेचुरल खादी कुर्ता व लिनेन स्टोल (Natural Khadi & Linen Stole)',
       titleEn: 'Natural Cream Khadi Kurta & Linen Stole',
@@ -252,7 +252,7 @@ export const ALL_PROFESSION_ROLES: ProfessionRoleConfig[] = [
       titleEn: 'Swar Yoga Classroom Studio',
       description: 'इंटरैक्टिव क्लासरूम बोर्ड, लाइव स्टूडेंट इंटरेक्शन सेटअप।',
       promptText: 'Bright minimalist classroom studio with interactive white board',
-      imageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+      imageUrl: '',
       icon: '🏫',
     },
     sampleTopics: {

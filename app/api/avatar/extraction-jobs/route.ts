@@ -54,10 +54,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const selectedProvider = provider || 'swar_neural';
+      if (!['swar_neural', 'heygen', 'replicate'].includes(selectedProvider)) {
+        return NextResponse.json(
+          { success: false, error: 'Unsupported avatar extraction provider.' },
+          { status: 400 }
+        );
+      }
+
+      if (selectedProvider === 'swar_neural') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'In-house facial extraction is unavailable: no inference pipeline is configured.',
+          },
+          { status: 503 }
+        );
+      }
+
       const job = await createAvatarExtractionJob({
         source_video_id: sourceVideoId,
         avatar_name: avatarName.trim(),
-        provider: provider || 'swar_neural',
+        provider: selectedProvider,
         consent_verified: Boolean(consentVerified),
       });
 

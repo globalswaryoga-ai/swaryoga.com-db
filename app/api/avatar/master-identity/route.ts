@@ -31,7 +31,9 @@ export async function GET() {
         name: row.name,
         version: row.version,
         status: row.status,
-        identity_quality_score: row.identity_quality_score,
+        identity_quality_score: row.identity_quality_score == null
+          ? null
+          : Number(row.identity_quality_score),
         dataset_manifest: JSON.parse(row.dataset_manifest_json || '{}'),
         landmark_embedding: JSON.parse(row.landmark_embedding_json || '{}'),
         approved_reference_images: JSON.parse(row.approved_reference_images_json || '[]'),
@@ -59,7 +61,10 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await validateVideoIdentityConsistency(video_url);
-      return NextResponse.json({ success: true, validation: result });
+      return NextResponse.json(
+        { success: false, validation: result, error: result.message },
+        { status: 503 },
+      );
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
@@ -67,4 +72,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: error?.message || 'Server error' }, { status: 500 });
   }
 }
-

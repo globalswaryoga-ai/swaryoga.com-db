@@ -27,10 +27,10 @@
     ]
   },
   "calibrated_assets": {
-    "frontal": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg",
-    "left_angle": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_left_1080p.jpg",
-    "right_angle": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_right_1080p.jpg",
-    "chest_up_anchor": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg",
+    "frontal": "",
+    "left_angle": "",
+    "right_angle": "",
+    "chest_up_anchor": "",
     "voice_master": "https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_vocal_clone_master.mp3"
   },
   "dna_profiles_count": 39,

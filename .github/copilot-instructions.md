@@ -170,6 +170,164 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Bunny Talking-Twin Motion Preview Face Redaction (Session: November 10, 2026) — Commit `working tree`
+
+- Created a local 29.96-second H.264 preview of the selected Bunny Stream interval `02:20–02:50`. A black head-region mask prevents the face from being used; one-frame-per-second review confirms torso and intermittent hand gestures remain visible.
+- Removed the unmasked local draft. The mask also obscures the neck and central upper chest, so this remains an experimental, partially obscured motion reference—not a pose track, full-body source, or render-ready MP4.
+- Updated the Phase 2 roadmap and evidence audit. No Video Library/Twins Library entry, Bunny upload, inference, avatar render, or deployment was performed.
+
+### Talking-Twin Body Source Clarification (Session: November 10, 2026) — Commit `working tree`
+
+- The owner clarified that Bunny Stream `02:20–02:50` is for the talking twin's body/motion source, not a full-face photo set. Keep the WhatsApp reference crops body-only as originally instructed.
+- Removed the mistakenly generated full-frame face-reference ZIP; no such face pack is retained. The source interval is chest-up and cannot support full-body motion.
+- Updated the Phase 2 roadmap and evidence audit. No inference, twin generation, Bunny upload, or deployment occurred.
+
+### Bunny Avatar Motion Source Window Review (Session: November 10, 2026) — Commit `working tree`
+
+- Recorded the owner's selected Bunny Stream sample window `02:20–02:50` (video `5fd3882c-d768-4335-a33e-229a057f37d7`, library `606386`). Read-only player metadata reports a 1h40, 1920×1080 video; a limited visual review found chest-up torso/arm/hand gestures, with the face visible and legs out of frame.
+- Confirmed the source playlist requires a player referrer and the large Stream MP4 rendition was not fully downloaded. The current queue requires a direct MP4 on the configured Bunny Storage CDN; no trimmed clip or Bunny upload was made.
+- Production renderer status reports no configured inference/worker endpoint; the adapter remains HTTP 501. No inference, new twin, code deployment, or Bunny write occurred.
+
+### Body-Only Avatar Build Scope (Session: November 10, 2026) — Commit `working tree`
+
+- The owner confirmed the new archive is for body references only; clothing and the face may be added separately, and delegated the implementation choice.
+- Chose the safe approach: use the crops only as body references, add clothing separately, and leave the face blank/neutral until new approved face references arrive. Do not infer identity or facial features from body footage.
+- Updated the Phase 2 roadmap and evidence audit. The low-resolution crops are not a full body scan or a generated 3D model. No avatar build, Bunny/database mutation, or deployment was performed.
+
+### Body-Only Avatar Reference Crops (Session: November 10, 2026) — Commit `working tree`
+
+- Inspected the user-provided WhatsApp archive without extracting original media. Created 15 sampled body crops from five of its seven short MP4s, cropping out the upper frame; excluded the face/close-up and head-focused clips.
+- One preliminary crop from a close-up clip retained part of the lower face; that clip was excluded and its temporary review images discarded. The final ZIP contains only reviewed body crops at `~/Downloads/Mohan_Sir_body_only_reference_crops.zip`.
+- The low-resolution crops do not provide a complete measured front/side/back set. No face image, raw clip, Bunny record, or model output was included or changed; no new twin or deployment resulted.
+
+### New Twin Roadmap Status (Session: November 10, 2026) — Commit `working tree`
+
+- Clarified that the source-catalog metadata inventory is complete but the head/shoulder pilot failed and rights/provenance review remains unresolved.
+- Listed six downstream milestones and their blockers in the Phase 2 and evidence-audit docs. The identity rig and motion retargeting require new owner-approved face/body captures and a clean 20–30-second motion video; GPU inference has no cleared model/worker.
+- The owner has supplied an authorized Bunny Stream candidate video (library `606386`, ID `5fd3882c-d768-4335-a33e-229a057f37d7`); its player page returns HTTP 200, but content/suitability remain unreviewed. Fresh face/body captures are still missing.
+- No new twin, Bunny write, or deployment was performed. A consent profile or uploaded image alone is not model training or a generated twin.
+
+### Retiring Rejected Local Avatar Assets (Session: current worktree) — Commit `working tree`
+
+- Removed the 271 local files in `public/avatar-studio/3d-digital-twin/` and 13 old master-clone JPGs; preserved `mohan_test_real_video.mp4`, `mohan_vocal_clone_master.mp3`, and `mohan_dna_spec.json`.
+- Removed unused legacy 2D/3D preview components, prototype and portrait generators, and a script that inserted unverified outputs as completed jobs. Retired old photo fallbacks from active UI/catalogs and made avatar video-job creation require an explicit source image.
+- Updated avatar evidence/Phase 2 and MuseTalk documentation. No Bunny CDN files, Bunny SQL rows, database records, or deployment were changed; a new twin remains blocked on newly approved source materials.
+
+### Bounded Head/Shoulder Landmark Pilot Result (Session: November 10, 2026) — Commit `working tree`
+
+- Reviewed the owner's Colab output CSV for the approved 20-second Marathi October 26 Speaker View sample. It contains 360 raw peak rows (18 joints × 20 frames); visual landmarks are unstable/misplaced, with frame 0 showing near-zero peaks.
+- Marked the exploratory landmark check unsuccessful. Raw peak values are not calibrated confidence scores; no validated tracking, 3D motion, facial animation, or talking-video render resulted.
+- Updated the Phase 2 and evidence-audit docs. The CSV remains in the owner's Downloads folder; no Bunny write occurred.
+
+### Avatar Audio CDN Signing and Deployment Check (Session: November 10, 2026) — Commit `working tree`
+
+- Added dedicated `BUNNY_AVATAR_AUDIO_CDN_HOST` and `BUNNY_AVATAR_AUDIO_TOKEN_KEY` handling so recorded-audio links do not change the existing public site CDN configuration.
+- Aligned signed URL generation with Bunny Basic token authentication (MD5 + Base64URL) after checking Bunny's official token-authentication documentation; added dedicated-zone signing, missing-config, and site-isolation regression coverage.
+- Focused upload, queue, and URL-signing suites pass. The dedicated settings were configured on Contabo without printing their values, and the recorded-speech files were deployed using atomic build `9Wlkv0-642ykeDUHh_RiB`; build verification, PM2 reload, and the live HTTP 200 health check succeeded.
+- The upload route returned HTTP 401 without a session, as expected for its authenticated API. No audio was uploaded and no inference/render was run. The screenshot-exposed Bunny key should be rotated in Bunny and replaced in Contabo.
+
+### Avatar Studio Twins Library (Session: November 10, 2026) — Commit `working tree`
+
+- Added a dedicated Twins Library tab to Avatar Studio using the existing authenticated, consent-verified avatar profile list.
+- Profiles can be selected into render setup; cards explicitly distinguish saved identity profiles from trained/generated twins and disclose that video rendering is unavailable.
+- Updated the Phase 2 and evidence-audit docs. Four focused avatar/audio suites pass (15 tests); Contabo atomic build `wSaVNu4pZooK7Eeq9t13J` succeeded, PM2 is online, Studio and health routes return HTTP 200, and the served JavaScript bundle contains the Twins Library UI.
+- A broader existing avatar API security test still fails because its stored-video-library mock returns no Bunny result (expected 403, got 500); that endpoint is not used by this profile library. No GPU render or inference was started; production still reports the GPU worker as not configured.
+
+### Dedicated Avatar Audio Bunny Pull Zone (Session: November 10, 2026) — Commit `working tree`
+
+- Avatar MP3/WAV preview and worker-claim links now use the dedicated `BUNNY_AVATAR_AUDIO_CDN_HOST` and `BUNNY_AVATAR_AUDIO_TOKEN_KEY` settings, separate from the website CDN host/key.
+- Added the dedicated variables to `.env.example` and documented that AvatarMohan must use the existing `swaryogadb` Storage Zone origin with Bunny token authentication enabled. No existing public asset hostname or global token setting was changed.
+- Added signing-isolation and fail-closed configuration regressions. The dedicated configuration and feature are deployed, but an authenticated audio upload/playback has not been tested; no media upload or render was run.
+
+### Recorded-Speech Avatar Queue Input (Session: current worktree) — Commit `working tree`
+
+- Added an authenticated MP3/WAV upload endpoint with a 25 MB cap, basic file-signature checks, user-scoped Bunny storage, and signed preview links; upload fails closed when the CDN token key is unavailable or suspended.
+- Avatar Studio and both in-house queue views now default to the user's own recorded speech and can queue it without TTS. The queue checks storage-path ownership and issues a two-hour token URL only when an authenticated worker claims the job.
+- Removed stale verified-likeness, voice-clone, 1080p, and ready/live multi-GPU claims from the related Avatar Edit screen; it now clearly shows that the renderer is not connected.
+- This is only an audio upload/queue path: no phoneme alignment, GPU inference, or talking video is implemented. Bunny Pull Zone token authentication must be enabled independently; no media upload, inference, Bunny write, or deployment was performed.
+- Validation: 10 focused upload/queue tests pass and the production build generated all 508 pages. Repository type-check still reports baseline errors in unrelated files, with no diagnostics in the changed avatar files; no live upload or render was run.
+
+### Pre-recorded Talking-Twin Target (Session: November 10, 2026) — Commit `working tree`
+
+- The owner confirmed the first usable twin deliverable should be pre-recorded talking videos from text/audio for upcoming work, not a live Zoom/OBS avatar.
+- The owner selected his own recorded speech as the first audio source, not a standard TTS voice. At that time the queue only supported preview TTS; recorded-audio intake has since been added, but phoneme alignment remains unimplemented.
+- The approved 20-second Colab head/shoulder pilot remains only an experimental motion-input check; it does not create a face likeness or talking video.
+- No render or inference has been run. The GPU adapter still returns HTTP 501, and the Colab browser session is not accessible from this workspace; a usable talking-video pipeline remains blocked on a rights-reviewed renderer and authorized GPU runtime.
+
+### Bunny Speaker View Sample Review (Session: November 10, 2026) — Commit `working tree`
+
+- The owner confirmed the Bunny catalog contains their live Zoom class recordings, directed that only Speaker View footage be considered, and approved `00:00–00:30` of Marathi October 26 video `3246a191-7f93-4002-ab2d-4d7916410577`.
+- Read-only metadata lookup completed for all 39 catalogued Bunny videos. A 20-second, one-frame-per-second HLS contact sheet was generated temporarily for visual suitability review; no raw clip, pose data, or model output was retained.
+- The selected recording is a chest-up shot with little arm/hand visibility; a second participant appears in an inset near 00:24–00:25 and is excluded. The owner chose a limited face/head/shoulder pilot, not full upper-body retargeting.
+- Reviewed OpenVINO Model Zoo `human-pose-estimation-0001` at pinned revision `af810de42bcf460a18610481f639dcdc86249e69`; its model descriptor declares Apache-2.0 and documents 18 2D joints, while training-data provenance remains incomplete.
+- Added a fail-closed Colab pilot notebook with pinned OpenVINO/artifact hashes and a strict 20-second, 1-FPS Bunny CDN input. It outputs experimental raw heatmap peaks only; PAF person matching, facial animation, 3D pose, and retargeting are not implemented.
+- No model weights were downloaded, no inference or render occurred, and no Bunny write or deployment was performed. The notebook requires the owner to enable its explicit authorization gates before running.
+
+### Multilingual Lip-Sync Pilot Preflight (Session: current worktree) — Commit `working tree`
+
+- Added `public/colab/Mohan_Sir_Multilingual_LipSync_Pilot.ipynb` as a separate Colab preflight for authorized English A–Z, Hindi, and Marathi source/audio samples. It checks runtime and media metadata only; model installation/download, inference, and Bunny access are explicitly gated off.
+- Repointed Avatar Studio and the related video-production links from retired/general notebooks to this new preflight; labels clarify it is not an inference engine.
+- Documented that MuseTalk rights review and the YuNet/geometric-mask adapter remain unresolved. No model or dependencies were installed, no media was uploaded, and no render or deployment occurred.
+
+### Full 3D Twin Roadmap and Dependency Todos (Session: November 10, 2026) — Commit `working tree`
+
+- Added seven dependency-linked todos for Bunny source/provenance audit, identity-aware rigging, recorded movement retargeting, English A–Z/Hindi/Marathi phoneme lip sync, rights-cleared GPU inference, real-time/OBS, and measurable acceptance. Source audit is in progress.
+- Updated `docs/AVATAR_ENGINE_PHASE2.md` and `docs/AVATAR_ENGINE_EVIDENCE_AUDIT.md` to distinguish the user's full 3D target from the blocked video lip-sync preflight and current generic 19-bone body prototype.
+- Recorded Bunny video movement as a hypothesis to validate, not guaranteed motion capture. No media was downloaded/processed; no model, inference, Bunny write, HD/realism claim, or deployment occurred.
+
+### Bunny Motion Source Metadata Audit (Session: November 10, 2026) — Commit `working tree`
+
+- Queried Bunny SQL read-only: `mohan_rag_sources_sql` has 39 `bunny_stream` rows, 39 distinct valid player IDs in library `606386`, language tags English 8 / Hindi 13 / Marathi 18. No Stream API key is configured locally, so media duration, resolution, and playback were not queried or claimed.
+- Added `public/colab/Mohan_Sir_Bunny_Motion_Source_Audit.ipynb`, which checks metadata for only those 39 catalogued videos through Bunny's read-only API using a Colab Secret and writes a local CSV. It does not download videos or extract motion.
+- Linked the audit notebook from Avatar Studio and documented the required owner visual review before selecting a specific sample for any download/processing. No media content was accessed or changed.
+
+### Bunny Avatar Source Inventory Reconciliation (Session: current worktree) — Commit `working tree`
+
+- A read-only Bunny SQL snapshot found 39 DNA-reference rows with 39 unique media IDs, all matching the RAG and Studio source catalogs. The RAG catalog has 125 rows: 122 media (76 YouTube, 39 Bunny Stream, 7 MP4) and 3 non-media. The user's 124-video count is outdated; the master identity initializer now reads catalog counts dynamically from Bunny SQL.
+- Studio metadata labels all 39 Bunny Stream sources “1080p Full HD,” but playback, actual resolution, brightness, and visual quality were not verified. All 39 are marked approved in the catalog; that status is not a consent or rights determination.
+- The user confirmed to proceed with the 122 catalogued media rows and treat 124 as outdated unless another catalog is identified.
+- No source video or legacy avatar output was downloaded or used, and no Bunny records were changed. The local environment has no Bunny Stream API key or connected Colab/inference worker, so media inspection and 3D reconstruction remain blocked.
+
+### Multilingual Lip-Sync Requirement and Legacy Preview Labeling (Session: current worktree) — Commit `working tree`
+
+- User requires accurate speech-driven mouth movements in English, Hindi, and Marathi, including spoken English A–Z letter names.
+- Current `edgeTtsClient.ts` estimates word timing from MP3 size, and `visemeMapper.ts` spreads written characters evenly through each word; this is approximate only, not phoneme alignment or acceptance-quality lip sync.
+- Updated the Avatar Studio stage and dashboard to label existing video playback as legacy/unverified, remove unsupported 2K/generated/verified-lip-sync and worker-readiness claims, and clarify that opening render setup does not queue a render. The clips are not inputs to the new 3D twin.
+- Accurate lip sync remains blocked on language-aware phoneme timing/alignment, viseme mapping with coarticulation, and audio/video QA. No model or checkpoint was installed or run.
+
+### Master Identity Reference-Only Correction (Session: current worktree) — Commit `working tree`
+
+- Removed fabricated identity scores, GPU/training history, model readiness, and validation timestamps from the Bunny master-identity initializer and public manifest. DNA rows are metadata-only references; the Bunny SQL catalog count replaces the outdated 124-video report and is not media analysis or identity validation.
+- Identity consistency checks now fail closed with no score or sampled timestamps, and the API returns HTTP 503 while inference is unavailable.
+- Disabled the legacy in-house facial extraction path that generated synthetic landmarks and identity scores; new jobs return HTTP 503 and unfinished in-house jobs fail explicitly. Generation mode records are marked planned, not implemented.
+- Retired `scripts/verify_universal_master_identity.js`, which previously registered source recordings as generated twins. Added regressions for the reference-only state and unavailable validation.
+- The real-time 3D likeness remains unbuilt; no source videos were downloaded, processed, or sent to external services.
+
+### Organic Measurement-Based Body Mesh Pass (Session: November 10, 2026) — Commit `working tree`
+
+- Updated `scripts/build_mohan_body_mesh.py` to Catmull-Rom smooth limb tubes, shape the shoulder transition, add simple hands/fingers and generic non-likeness facial features, and preserve the original material assignments through wireframe rendering and GLB export.
+- Regenerated the editable `.blend`, skinned `.glb`, and solid/wireframe previews. The mesh has 12,870 vertices, 12,448 faces, 19 bones, and full vertex weights; the forearm deformation check passes at 0.0182 m. GLB validation confirms 19 joints, `JOINTS_0`/`WEIGHTS_0`, and six materials.
+- Updated `docs/AVATAR_ENGINE_PHASE2.md` and `docs/AVATAR_ENGINE_EVIDENCE_AUDIT.md`. This remains a generic procedural approximation, not Mohan Sir's photo likeness; no production deployment or inference was performed.
+
+### Avatar Studio Interactive 3D Body Preview (Session: November 10, 2026) — Commit `working tree`
+
+- Added a separate “3D Body Prototype” tab to Avatar Studio without replacing the existing 2D twin stage.
+- Added a Three.js viewer for the measurement-built GLB with orbit/zoom, front/left/back/right presets, wireframe toggle, reset view, and GLB download. A static preview and explicit error are shown if WebGL or model loading fails.
+- Documented that the viewer is only an inspection surface for the clothed body prototype; it does not provide facial likeness, validated animation, or neural video rendering.
+- Validation/deployment: Contabo atomic build `mocXXzdncMpcd2hdUquW-` compiled successfully, generated all 508 pages, swapped the production build, reloaded PM2, and returned HTTP 200 from its health check. `swaryoga.com` and `crm.swaryoga.com` both return HTTP 200 for the Studio route and GLB asset; the served Studio JavaScript bundle contains the new tab and model URL. No TypeScript diagnostics matched the changed Studio files. Interactive browser visual verification remains unavailable because its CDP connection timed out.
+
+### Mohan Sir Jalidar Body Mesh Prototype (Session: November 10, 2026) — Commit `working tree`
+
+- Added `scripts/build_mohan_body_mesh.py` to generate a separate, editable Blender body-mesh prototype from the user's confirmed measurements; the original Blender assets remain untouched.
+- Generated and inspected a solid preview, wireframe preview, and skinned GLB. The mesh has 6,904 vertices, 6,460 faces, and a 19-bone armature; the saved Blender project passes a forearm pose-deformation check.
+- Applied: 167 cm height; 18.5 in shoulder width; 41 in chest; 37 in stomach; 32 in waist/lumbar; 38 in buttock/hip; 22 in thigh and head circumference at forehead; 16 in neck circumference. Circumferences map to approximate elliptical cross-sections; the former 80 kg studio value remains unconfirmed metadata only.
+- Added the user's further measurements to the regenerated mesh: shoulder-to-wrist arm 23 in; inseam 30 in; waist-to-crotch 10 in; knee-center-to-floor 19 in; shoulder-to-head-top 10 in; upper arm 13.5 in; forearm 11 in; calf 14.5 in; wrist 6.75 in. Shoulder-to-waist 23 in is recorded as an outer surface-path measurement, not interpreted as vertical height.
+- Rebuilt and rechecked the model after these measurements: 1.67 m overall height, 19 bones/joints in the skinned GLB, complete vertex weighting, and the forearm pose test passes.
+- Added the newest measures: shoulder outer circumference 47 in (upper chest circumference remains 41 in), waist-to-ankle straight length 39 in, knee circumference 15 in, ankle circumference 11 in, and foot length 10 in. At the user's choice, 39 in waist-to-ankle and 10 in waist-to-crotch set the vertical geometry; the conflicting 30 in inseam is preserved separately, while the implied crotch-to-floor geometry length is 32.94 in.
+- Verified the regenerated Blender file, measurement metadata, skin weights/deformation, and GLB skin/joint export. No Studio-page integration or deployment was done.
+- Explicitly documented that this is a clothed proportion/topology prototype with a neutral blank-face placeholder, not a photo-accurate Mohan Sir twin. The body parts are separate shells and production deformation, retargeting, and animation are not validated.
+- Corrected the visually protruding trouser thighs by deriving a shared leg-center offset from the hip/garment hem and measured thigh circumference; updated thigh profiles and leg-bone centers together. Regenerated Blender/GLB/previews; visual review shows the legs tucked beneath the garment, while the 22 in thigh circumference and full vertex weights remain. The saved 19-bone rig and forearm deformation check still pass.
+
 ### Removing Diwali Banner from Web and App (Session: November 10, 2026) — Commit `working tree`
 
 - Removed the unused Diwali celebration overlay component and its dedicated festive animation styles.

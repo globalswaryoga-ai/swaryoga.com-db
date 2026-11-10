@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
+import { generateAvatarAudioPresignedUrl, isUserKey } from '@/lib/bunny-storage';
 import { InhouseAudioService, INHOUSE_NEURAL_VOICES } from './inhouseAudioService';
 import { verifyAvatarConsent } from './consentService';
 import { getAvatarProfileById } from './faceIdentityService';
@@ -21,6 +22,7 @@ export interface InhouseRenderJob {
   avatarProfileId: string;
   sourceImageUrl: string;
   sourceVideoUrl: string;
+  audioSource: 'synthesized' | 'recorded';
   script: string;
   voiceId: string;
   language: string;
@@ -61,6 +63,7 @@ function mapJob(row: Record<string, unknown>): InhouseRenderJob {
     avatarProfileId: String(row.avatar_profile_id),
     sourceImageUrl: String(row.source_image_url),
     sourceVideoUrl: String(row.source_video_url || ''),
+    audioSource: row.audio_source === 'recorded' ? 'recorded' : 'synthesized',
     script: String(row.script_text),
     voiceId: String(row.voice_id),
     language: String(row.language),
@@ -126,6 +129,8 @@ export class InhouseRenderQueue {
           status TEXT NOT NULL,
           progress_percent INTEGER NOT NULL DEFAULT 0,
           audio_url TEXT,
+          audio_source TEXT NOT NULL DEFAULT 'synthesized',
+          audio_storage_path TEXT,
           video_url TEXT,
           duration_seconds REAL,
           worker_id TEXT,
@@ -135,7 +140,7 @@ export class InhouseRenderQueue {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )`,
-      }]).then(() => this.ensureSourceVideoColumn()).catch((error) => {
+      }]).then(() => this.ensureColumns()).catch((error) => {
         this.schemaPromise = null;
         throw error;
       });
@@ -143,18 +148,26 @@ export class InhouseRenderQueue {
     await this.schemaPromise;
   }
 
-  private static async ensureSourceVideoColumn(): Promise<void> {
+  private static async ensureColumns(): Promise<void> {
     const columns = await bunnyExecute(`PRAGMA table_info(${TABLE})`);
-    if (columns.rows.some((row) => String(row.name) === 'source_video_url')) return;
-    try {
-      await bunnyExecute(`ALTER TABLE ${TABLE} ADD COLUMN source_video_url TEXT NOT NULL DEFAULT ''`);
-    } catch (error) {
-      const current = await bunnyExecute(`PRAGMA table_info(${TABLE})`);
-      if (current.rows.some((row) => String(row.name) === 'source_video_url')) return;
+    const existing = new Set(columns.rows.map((row) => String(row.name)));
+    const migrations = [
+      ['source_video_url', `ALTER TABLE ${TABLE} ADD COLUMN source_video_url TEXT NOT NULL DEFAULT ''`],
+      ['audio_source', `ALTER TABLE ${TABLE} ADD COLUMN audio_source TEXT NOT NULL DEFAULT 'synthesized'`],
+      ['audio_storage_path', `ALTER TABLE ${TABLE} ADD COLUMN audio_storage_path TEXT`],
+    ] as const;
+    for (const [name, sql] of migrations) {
+      if (existing.has(name)) continue;
       try {
-        await bunnyExecute(`SELECT source_video_url FROM ${TABLE} LIMIT 0`);
-      } catch {
-        throw error;
+        await bunnyExecute(sql);
+      } catch (error) {
+        const current = await bunnyExecute(`PRAGMA table_info(${TABLE})`);
+        if (current.rows.some((row) => String(row.name) === name)) continue;
+        try {
+          await bunnyExecute(`SELECT ${name} FROM ${TABLE} LIMIT 0`);
+        } catch {
+          throw error;
+        }
       }
     }
   }
@@ -164,6 +177,7 @@ export class InhouseRenderQueue {
     allowSharedProfile: boolean;
     avatarProfileId: string;
     sourceVideoUrl: string;
+    audioStoragePath?: string;
     script: string;
     voiceId?: string;
     language?: string;
@@ -175,8 +189,20 @@ export class InhouseRenderQueue {
   }): Promise<InhouseRenderJob> {
     await this.initSchema();
     const script = params.script?.trim();
-    if (!script) throw new AvatarRenderInputError('Script text is required.');
+    const audioStoragePath = params.audioStoragePath?.trim();
+    if (!script && !audioStoragePath) throw new AvatarRenderInputError('Script text or a recorded speech file is required.');
     if (script.length > 10_000) throw new AvatarRenderInputError('Script text cannot exceed 10,000 characters.');
+    if (audioStoragePath) {
+      if (!process.env.BUNNY_AVATAR_AUDIO_TOKEN_KEY || !process.env.BUNNY_AVATAR_AUDIO_CDN_HOST) {
+        throw new AvatarRenderInputError('The dedicated AvatarMohan Bunny CDN host and token key are required for recorded speech uploads.');
+      }
+      if (
+        !isUserKey(audioStoragePath, params.requesterId) ||
+        !/^users\/[^/]+\/avatar-audio\/[^/]+\.(mp3|wav)$/i.test(audioStoragePath)
+      ) {
+        throw new AvatarRenderInputError('Recorded speech must be uploaded to your own Avatar Studio audio folder as MP3 or WAV.');
+      }
+    }
     const requestedSourceVideoUrl = params.sourceVideoUrl?.trim();
     if (!requestedSourceVideoUrl) {
       throw new AvatarRenderInputError(
@@ -242,17 +268,27 @@ export class InhouseRenderQueue {
     await bunnyExecute({
       sql: `INSERT INTO ${TABLE} (
         id, avatar_name, avatar_profile_id, source_image_url, source_video_url, script_text, voice_id, language, speech_speed, speech_pitch_hz,
-        background_id, clothing_id, posture, owner_user_id, status, progress_percent, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synthesizing_speech', 10, ?, ?)`,
+        background_id, clothing_id, posture, owner_user_id, status, progress_percent, audio_source, audio_storage_path, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, values.avatarName, values.avatarProfileId, values.sourceImageUrl, values.sourceVideoUrl, values.script,
         values.voiceId, values.language, values.speechSpeed, values.speechPitchHz,
         values.backgroundId, values.clothingId, values.posture,
-        values.ownerUserId, now, now,
+        values.ownerUserId,
+        audioStoragePath ? 'ready_for_worker' : 'synthesizing_speech',
+        audioStoragePath ? 40 : 10,
+        audioStoragePath ? 'recorded' : 'synthesized',
+        audioStoragePath || null,
+        now, now,
       ],
     });
 
     try {
+      if (audioStoragePath) {
+        const job = await this.getJob(id);
+        if (!job) throw new Error(`Recorded-audio render job ${id} could not be reloaded.`);
+        return job;
+      }
       const audio = await InhouseAudioService.synthesizeSpeech({
         script: values.script,
         voiceId: values.voiceId,
@@ -317,6 +353,7 @@ export class InhouseRenderQueue {
         WHERE id = (
           SELECT id FROM ${TABLE}
           WHERE source_video_url <> ''
+            AND (audio_url IS NOT NULL OR audio_storage_path IS NOT NULL)
             AND (status = 'ready_for_worker'
               OR (status = 'rendering_video' AND lease_expires_at < ?))
           ORDER BY created_at ASC LIMIT 1
@@ -332,6 +369,18 @@ export class InhouseRenderQueue {
     const row = claimed.rows[0] as Record<string, unknown> | undefined;
     if (!row) return null;
     const job = mapJob(row);
+    if (row.audio_storage_path) {
+      try {
+        job.audioUrl = await generateAvatarAudioPresignedUrl(String(row.audio_storage_path), { expiresIn: 7200 });
+      } catch (error) {
+        await this.failJob({
+          jobId: job.id,
+          claimToken,
+          errorMessage: error instanceof Error ? error.message : 'Could not sign recorded speech for the worker.',
+        });
+        throw error;
+      }
+    }
     if (!job.audioUrl) throw new Error(`Claimed render job ${job.id} has no audio URL.`);
     if (!job.sourceVideoUrl) throw new Error(`Claimed render job ${job.id} has no source video.`);
     return { job, claimToken, sourceImageUrl: job.sourceImageUrl, sourceVideoUrl: job.sourceVideoUrl };

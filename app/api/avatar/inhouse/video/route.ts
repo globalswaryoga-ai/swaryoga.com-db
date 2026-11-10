@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       script,
       avatarProfileId,
       sourceVideoUrl,
+      audioStoragePath,
       voiceId,
       language,
       speed,
@@ -36,9 +37,9 @@ export async function POST(request: NextRequest) {
       posture,
     } = body;
 
-    if (typeof script !== 'string' || !script.trim()) {
+    if ((!audioStoragePath && typeof script !== 'string') || (typeof script === 'string' && !script.trim() && !audioStoragePath)) {
       return NextResponse.json(
-        { success: false, error: 'Script text is required to render avatar video.' },
+        { success: false, error: 'Script text or an uploaded recorded-speech file is required to queue avatar video.' },
         { status: 400 }
       );
     }
@@ -48,7 +49,8 @@ export async function POST(request: NextRequest) {
       allowSharedProfile: isSuperAdmin(decoded),
       avatarProfileId: typeof avatarProfileId === 'string' ? avatarProfileId : '',
       sourceVideoUrl: typeof sourceVideoUrl === 'string' ? sourceVideoUrl : '',
-      script: script.trim(),
+      audioStoragePath: typeof audioStoragePath === 'string' ? audioStoragePath : undefined,
+      script: typeof script === 'string' ? script.trim() : '',
       voiceId: typeof voiceId === 'string' ? voiceId : undefined,
       language: language || 'hi',
       speed: speed === undefined ? undefined : Number(speed),

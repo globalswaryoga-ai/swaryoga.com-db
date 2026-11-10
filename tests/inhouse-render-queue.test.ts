@@ -19,6 +19,11 @@ jest.mock('@/lib/avatarEngine/faceIdentityService', () => ({
   getAvatarProfileById: jest.fn(),
 }));
 
+jest.mock('@/lib/bunny-storage', () => ({
+  generateAvatarAudioPresignedUrl: jest.fn().mockResolvedValue('https://avatarmohan.b-cdn.net/private/audio.mp3?token=signed'),
+  isUserKey: (key: string, userId: string) => key.startsWith(`users/${userId}/`),
+}));
+
 jest.mock('@/lib/avatarEngine/consentService', () => ({
   verifyAvatarConsent: jest.fn(),
 }));
@@ -49,15 +54,16 @@ function fakeExecute(statement: { sql: string; args?: unknown[] } | string) {
 
   if (sql.startsWith('INSERT INTO studio_inhouse_render_jobs_sql')) {
     const [id, avatarName, avatarProfileId, sourceImageUrl, sourceVideoUrl, script, voiceId, language, speechSpeed,
-      speechPitchHz, backgroundId,
-      clothingId, posture, ownerUserId, createdAt, updatedAt] = args;
+      speechPitchHz, backgroundId, clothingId, posture, ownerUserId, status, progressPercent, audioSource,
+      audioStoragePath, createdAt, updatedAt] = args;
     rows.set(String(id), {
       id, avatar_name: avatarName, avatar_profile_id: avatarProfileId, source_image_url: sourceImageUrl,
       source_video_url: sourceVideoUrl,
       owner_user_id: ownerUserId,
       script_text: script, voice_id: voiceId, language, speech_speed: speechSpeed,
       speech_pitch_hz: speechPitchHz, background_id: backgroundId,
-      clothing_id: clothingId, posture, status: 'synthesizing_speech', progress_percent: 10,
+      clothing_id: clothingId, posture, status, progress_percent: progressPercent,
+      audio_source: audioSource, audio_storage_path: audioStoragePath,
       created_at: createdAt, updated_at: updatedAt,
     });
     return Promise.resolve({ rows: [], rowsAffected: 1 });
@@ -113,7 +119,10 @@ function fakeExecute(statement: { sql: string; args?: unknown[] } | string) {
 
 describe('InhouseRenderQueue', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     rows.clear();
+    process.env.BUNNY_AVATAR_AUDIO_TOKEN_KEY = 'test-token-key';
+    process.env.BUNNY_AVATAR_AUDIO_CDN_HOST = 'avatarmohan.b-cdn.net';
     jest.mocked(getAvatarProfileById).mockResolvedValue(profile);
     jest.mocked(verifyAvatarConsent).mockResolvedValue(true);
     jest.mocked(bunnyExecute).mockImplementation(fakeExecute as never);
@@ -147,6 +156,44 @@ describe('InhouseRenderQueue', () => {
       userId: profile.userId,
       avatarName: profile.name,
     });
+  });
+
+  it('queues an owner-uploaded recording without synthesizing TTS and signs it only for the worker claim', async () => {
+    const job = await InhouseRenderQueue.createAndPrepare({
+      requesterId: 'admincrm',
+      allowSharedProfile: true,
+      avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4',
+      audioStoragePath: 'users/admincrm/avatar-audio/recording.mp3',
+      script: '',
+    });
+
+    expect(job.status).toBe('ready_for_worker');
+    expect(job.audioSource).toBe('recorded');
+    expect(job.audioUrl).toBeUndefined();
+    expect(InhouseAudioService.synthesizeSpeech).not.toHaveBeenCalled();
+
+    const claim = await InhouseRenderQueue.claimNextJob('gpu-worker-1');
+    expect(claim?.job.audioUrl).toContain('?token=signed');
+    expect(claim?.job.audioSource).toBe('recorded');
+    const { generateAvatarAudioPresignedUrl } = jest.requireMock('@/lib/bunny-storage');
+    expect(generateAvatarAudioPresignedUrl).toHaveBeenCalledWith(
+      'users/admincrm/avatar-audio/recording.mp3',
+      { expiresIn: 7200 },
+    );
+  });
+
+  it('rejects recorded audio outside the requesting user compartment', async () => {
+    await expect(InhouseRenderQueue.createAndPrepare({
+      requesterId: 'admincrm',
+      allowSharedProfile: true,
+      avatarProfileId: profile.id,
+      sourceVideoUrl: 'https://swaryogacrm.b-cdn.net/avatar/source/authorized.mp4',
+      audioStoragePath: 'users/another-user/avatar-audio/recording.mp3',
+      script: '',
+    })).rejects.toThrow('your own Avatar Studio audio folder');
+
+    expect(rows.size).toBe(0);
   });
 
   it('requires valid profile consent before creating a job', async () => {

@@ -156,7 +156,7 @@ export const DEFAULT_AVATAR_DNA_LOOKS: AvatarDnaLook[] = [
     heading: 'Executive Bespoke Suit — Global Keynote Master',
     description: 'High-level executive presentation in tailored corporate suit. Clear articulation, sharp leadership presence, and deep calm breath focus.',
     video_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/videos/083ce51f3ddaa878e1e10dfce9d5ee66e5d74c21badb5b7c3cb8be0832dca84c.mp4',
-    thumbnail_url: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg',
+    thumbnail_url: '',
     look_category: 'corporate_keynote',
     outfit_style: 'Tailored Bespoke Navy Suit & Tie',
     emotion_profile: 'Executive Presence & Strategic Clarity',

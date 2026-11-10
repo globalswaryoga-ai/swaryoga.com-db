@@ -52,20 +52,24 @@ import {
 import {
   MOHAN_SIR_MASTER_IDENTITY_ID,
 } from '@/lib/avatarStudio/masterIdentityEngine';
-import MohanSir2DPhotorealisticTwinStage from '@/components/admin/crm/avatar-studio/MohanSir2DPhotorealisticTwinStage';
 
 type StudioTab =
   | 'dashboard'
-  | '3d_twin'
   | 'anchor'
   | 'voice'
   | 'script'
   | 'engine'
+  | 'twins'
   | 'library';
 
 interface ConsentAvatarProfile {
   id: string;
   name: string;
+  gender?: string;
+  age_group?: string;
+  default_clothing?: string;
+  frontal_face_url?: string;
+  created_at?: string;
 }
 
 function getAvatarStudioToken(): string | null {
@@ -393,6 +397,10 @@ export default function MohanSirAvatarStudioPage() {
   const [avatarProfiles, setAvatarProfiles] = useState<ConsentAvatarProfile[]>([]);
   const [selectedAvatarProfileId, setSelectedAvatarProfileId] = useState('');
   const [sourceVideoUrl, setSourceVideoUrl] = useState('');
+  const [speechInputMode, setSpeechInputMode] = useState<'recorded' | 'tts'>('recorded');
+  const [recordedAudioStoragePath, setRecordedAudioStoragePath] = useState('');
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState('');
+  const [isUploadingRecordedAudio, setIsUploadingRecordedAudio] = useState(false);
   const [avatarProfilesError, setAvatarProfilesError] = useState<string | null>(null);
 
   // Video Library State
@@ -742,9 +750,44 @@ export default function MohanSirAvatarStudioPage() {
   };
 
   // Trigger Video Generation
+  const handleRecordedAudioUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsUploadingRecordedAudio(true);
+    setGenerationError(null);
+    setRecordedAudioStoragePath('');
+    setRecordedAudioUrl('');
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      const response = await fetch('/api/avatar/inhouse/audio/upload', {
+        method: 'POST',
+        headers: getAvatarAuthHeaders(),
+        credentials: 'include',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.audioStoragePath || !result.audioUrl) {
+        throw new Error(result.error || 'Recorded speech upload failed.');
+      }
+      setRecordedAudioStoragePath(result.audioStoragePath);
+      setRecordedAudioUrl(result.audioUrl);
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Recorded speech upload failed.');
+    } finally {
+      setIsUploadingRecordedAudio(false);
+    }
+  };
+
   const handleStartGeneration = async () => {
     if (!selectedAvatarProfileId) {
       setGenerationError('Create or select a consented avatar profile before queuing a render.');
+      return;
+    }
+    if (speechInputMode === 'recorded' && !recordedAudioStoragePath) {
+      setGenerationError('Upload your recorded MP3/WAV speech before queuing this talking-video job.');
       return;
     }
     const authHeaders = getAvatarAuthHeaders();
@@ -763,11 +806,12 @@ export default function MohanSirAvatarStudioPage() {
         body: JSON.stringify({
           avatarProfileId: selectedAvatarProfileId,
           sourceVideoUrl: sourceVideoUrl.trim(),
+          audioStoragePath: speechInputMode === 'recorded' ? recordedAudioStoragePath : undefined,
           backgroundId: selectedEnvironment.id,
           clothingId: selectedWardrobe.id,
           posture: 'standing',
           language: selectedLanguage,
-          script: scriptText,
+          script: speechInputMode === 'recorded' ? '' : scriptText,
         }),
       });
       const json = await res.json();
@@ -846,6 +890,13 @@ export default function MohanSirAvatarStudioPage() {
               ⚡ Queue Render Request
             </button>
             <button
+              onClick={() => setActiveTab('twins')}
+              className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
+            >
+              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              Twins Library ({avatarProfiles.length})
+            </button>
+            <button
               onClick={() => setActiveTab('library')}
               className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
             >
@@ -859,11 +910,11 @@ export default function MohanSirAvatarStudioPage() {
         <nav className="px-6 py-2.5 overflow-x-auto flex items-center gap-2.5 text-xs font-bold scrollbar-thin bg-slate-950/90 border-t border-slate-800">
           {[
             { id: 'dashboard', label: '1. Dashboard', icon: Layers },
-            { id: '3d_twin', label: '2. 2D Avatar Twin (Live Stage)', icon: Sparkles },
-            { id: 'anchor', label: '3. Master Anchor Videos', icon: Video },
-            { id: 'voice', label: '4. Voice Engine', icon: Volume2 },
-            { id: 'script', label: '5. Script Studio', icon: FileText },
-            { id: 'engine', label: '6. Render Queue (Colab GPU)', icon: Wand2 },
+            { id: 'anchor', label: '2. Master Anchor Videos', icon: Video },
+            { id: 'voice', label: '3. Voice Engine', icon: Volume2 },
+            { id: 'script', label: '4. Script Studio', icon: FileText },
+            { id: 'engine', label: '5. Render Queue (no renderer)', icon: Wand2 },
+            { id: 'twins', label: '6. Twins Library', icon: Layers },
             { id: 'library', label: '7. Video Library', icon: Film },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -892,6 +943,96 @@ export default function MohanSirAvatarStudioPage() {
             Stored-media library error: {libraryError}
           </div>
         )}
+        {activeTab === 'twins' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 text-xl font-black tracking-tight text-white">
+                    <Layers className="h-5 w-5 text-emerald-400" />
+                    TWINS LIBRARY ({avatarProfiles.length})
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-400">
+                    Saved, consent-verified avatar identity profiles you can select for a render request. These are reusable profile records, not trained or validated AI twins; video generation is unavailable until a GPU renderer is connected.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('engine')}
+                  className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-amber-400"
+                >
+                  Open render setup
+                </button>
+              </div>
+
+              {avatarProfilesError && (
+                <div className="mt-5 rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200" role="alert">
+                  Could not load the saved profiles: {avatarProfilesError}
+                </div>
+              )}
+
+              {!avatarProfilesError && avatarProfiles.length === 0 && (
+                <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-100">
+                  No consented avatar profiles are available for this account. New profile creation is currently blocked because real face-analysis validation is not connected.
+                </div>
+              )}
+
+              {avatarProfiles.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {avatarProfiles.map((profile) => {
+                    const selected = selectedAvatarProfileId === profile.id;
+                    return (
+                      <article
+                        key={profile.id}
+                        className={`overflow-hidden rounded-xl border bg-slate-950/70 ${selected ? 'border-emerald-400/70' : 'border-slate-700'}`}
+                      >
+                        <div className="flex gap-4 p-4">
+                          {profile.frontal_face_url ? (
+                            <img
+                              src={profile.frontal_face_url}
+                              alt={`${profile.name} saved avatar profile`}
+                              className="h-20 w-20 shrink-0 rounded-lg border border-slate-700 bg-slate-800 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800">
+                              <Layers className="h-7 w-7 text-slate-500" aria-hidden="true" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-sm font-bold text-white">{profile.name}</h3>
+                            <p className="mt-1 text-[11px] text-emerald-300">Consent-verified profile</p>
+                            <p className="mt-2 text-[11px] text-slate-400">
+                              {profile.gender ? `${profile.gender} · ` : ''}{profile.default_clothing || 'Appearance not specified'}
+                            </p>
+                            {profile.created_at && (
+                              <p className="mt-1 text-[10px] text-slate-500">
+                                Saved {new Date(profile.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-800 p-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAvatarProfileId(profile.id);
+                              setActiveTab('engine');
+                              showToast(`${profile.name} selected for render setup.`);
+                            }}
+                            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-slate-700"
+                          >
+                            {selected ? 'Selected · open render setup' : 'Select profile'}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* TAB 1: DIGITAL TWIN DASHBOARD                                   */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -901,48 +1042,35 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/20 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
                 <div className="flex items-center gap-5">
-                  <div className="relative">
-                    <img
-                      src="https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg"
-                      alt="Mohan Sir Master Face"
-                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-xl"
-                    />
-                    <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-900 rounded-full flex items-center justify-center text-[10px] text-black font-black">
-                      ✓
-                    </span>
+                  <div className="w-20 h-20 rounded-2xl border border-amber-400/40 bg-slate-950 flex flex-col items-center justify-center gap-1 text-amber-300">
+                    <Camera className="w-6 h-6" aria-hidden="true" />
+                    <span className="text-[9px] font-bold">IMAGE NEEDED</span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-xl font-black text-white">Mohan Kalburgi (Mohan Sir)</h2>
                       <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-black px-2 py-0.5 rounded-full">
-                        Verified Master Identity
+                        Reference-only identity
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
-                      Founder: Swar Yoga Foundation • Master Voice, 3D Mesh & Identity DNA Profile
+                      Founder: Swar Yoga Foundation • identity and voice not analyzed
                     </p>
                     <div className="flex items-center gap-3 mt-3 text-[11px] text-slate-300">
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Cpu className="w-3.5 h-3.5 text-amber-400" /> GPU Worker: Ready for Colab T4
+                        <Cpu className="w-3.5 h-3.5 text-amber-400" /> GPU Worker: Not connected
                       </span>
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Radio className="w-3.5 h-3.5 text-amber-400" /> Bunny CDN: Configured & Verified
+                        <Radio className="w-3.5 h-3.5 text-amber-400" /> Bunny media: metadata only
                       </span>
                       <span className="flex items-center gap-1 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
-                        <Volume2 className="w-3.5 h-3.5 text-amber-400" /> Voice Clone: 53m Training Dataset Ready
+                        <Volume2 className="w-3.5 h-3.5 text-amber-400" /> Voice clone: not configured
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                  <button
-                    onClick={() => setActiveTab('3d_twin')}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/25 transition cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 fill-current" />
-                    👤 2D Live Avatar Twin
-                  </button>
                   <button
                     onClick={() => setActiveTab('engine')}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-700 transition"
@@ -951,11 +1079,18 @@ export default function MohanSirAvatarStudioPage() {
                     GPU Render Queue
                   </button>
                   <a
-                    href="/colab/Swar_Yoga_Digital_Twin_Colab.ipynb"
+                    href="/colab/Mohan_Sir_Multilingual_LipSync_Pilot.ipynb"
                     download
                     className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition"
                   >
-                    <Download className="w-3.5 h-3.5 text-amber-400" /> Colab T4 Notebook
+                    <Download className="w-3.5 h-3.5 text-amber-400" /> Lip-Sync Pilot Preflight
+                  </a>
+                  <a
+                    href="/colab/Mohan_Sir_Bunny_Motion_Source_Audit.ipynb"
+                    download
+                    className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition"
+                  >
+                    <Download className="w-3.5 h-3.5 text-amber-400" /> Bunny Motion Source Audit
                   </a>
                 </div>
               </div>
@@ -1025,17 +1160,14 @@ export default function MohanSirAvatarStudioPage() {
                   QUICK 3-STEP WORKFLOW
                 </h3>
                 <div className="space-y-2.5">
-                  <div
-                    onClick={() => setActiveTab('3d_twin')}
-                    className="p-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-slate-800 hover:border-amber-400 border border-amber-500/40 cursor-pointer transition flex items-center justify-between"
-                  >
+                  <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700 flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold text-amber-300">★ 2D Avatar Twin (Live Stage)</div>
+                      <div className="text-xs font-bold text-amber-300">New twin source required</div>
                       <div className="text-[11px] text-slate-400">
-                        Test speech lip-sync & 2D photorealistic gestures
+                        Old previews and the generic 3D prototype were removed.
                       </div>
                     </div>
-                    <span className="text-xs font-black text-amber-400">View 👤 →</span>
+                    <Camera className="w-4 h-4 text-amber-400" aria-hidden="true" />
                   </div>
 
                   <div
@@ -1102,15 +1234,17 @@ export default function MohanSirAvatarStudioPage() {
                         onClick={() => setPreviewModalUrl(vid.video_url)}
                         className="relative aspect-video bg-black cursor-pointer overflow-hidden"
                       >
-                        <img
-                          src={
-                            vid.thumbnail_url && !vid.thumbnail_url.includes('blackbeard') && !vid.thumbnail_url.includes('lime')
-                              ? vid.thumbnail_url
-                              : 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_businessman_suit.jpg'
-                          }
-                          alt={vid.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        />
+                        {vid.thumbnail_url && !vid.thumbnail_url.includes('master-clone/') ? (
+                          <img
+                            src={vid.thumbnail_url}
+                            alt={vid.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-900 text-center text-xs text-slate-400">
+                            New approved image needed
+                          </div>
+                        )}
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                           <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg">
                             <Play className="w-5 h-5 fill-current ml-0.5" />
@@ -1172,24 +1306,6 @@ export default function MohanSirAvatarStudioPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: 2D DIGITAL TWIN (LIVE AVATAR STAGE)                     */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === '3d_twin' && (
-          <MohanSir2DPhotorealisticTwinStage
-            onTransferScript={(txt) => {
-              setScriptText(txt);
-              setActiveTab('script');
-              showToast('✨ Script transferred to Script Studio');
-            }}
-            onQueueRender={(txt) => {
-              setScriptText(txt);
-              setActiveTab('engine');
-              showToast('🚀 Ready to queue 1080p render on Google Colab GPU');
-            }}
-          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -1721,34 +1837,28 @@ export default function MohanSirAvatarStudioPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
               <h2 className="text-xl md:text-2xl font-black text-white tracking-tight border-l-4 border-amber-500 pl-3 flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-amber-400" />
-                CENTRAL AI VIDEO GENERATION ENGINE (GPU IN-HOUSE)
+                In-house render queue (neural renderer unavailable)
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Consent-aware in-house render pipeline. Dispatches neural video inference to dedicated GPU workers (Google Colab T4 / Kaggle).
+                The queue can prepare speech and track jobs. Neural video inference is not implemented and no GPU worker is connected.
               </p>
 
               {/* Permanent Master Identity Lock Box */}
               <div className="mt-5 p-4 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-400 shrink-0">
-                    <img src="https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg" alt="Master Identity" className="w-full h-full object-cover" />
+                  <div className="w-10 h-10 rounded-xl border border-amber-400/40 bg-slate-900 flex items-center justify-center shrink-0">
+                    <Camera className="w-4 h-4 text-amber-300" aria-hidden="true" />
                   </div>
                   <div>
                     <div className="font-bold text-white flex items-center gap-2">
-                      Selected Identity Profile: <span className="text-amber-400 font-mono">Consented Master Profile</span>
+                      Identity source: <span className="text-amber-400 font-mono">New approved images needed</span>
                       <span className="text-[10px] text-slate-300 bg-slate-700/50 border border-slate-600 px-1.5 py-0.2 rounded font-semibold">similarity not measured</span>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Face consistency is not measured or guaranteed by the current in-house queue.
+                      No old reference photo is selected. Add fresh approved identity images before creating a new twin.
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setActiveTab('anchor')}
-                  className="text-[11px] text-amber-400 hover:underline font-semibold"
-                >
-                  View Master Anchor Video →
-                </button>
               </div>
 
               <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100" role="note">
@@ -1789,6 +1899,53 @@ export default function MohanSirAvatarStudioPage() {
                   <p className="text-[11px] text-slate-400">
                     Use real, authorized motion footage. Existing promotional sample clips and still images are unverified and do not satisfy the acceptance test without review.
                   </p>
+                  <fieldset className="space-y-2">
+                    <legend className="block text-xs font-bold text-slate-200">Speech source</legend>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSpeechInputMode('recorded')}
+                        disabled={isGenerating || isUploadingRecordedAudio}
+                        aria-pressed={speechInputMode === 'recorded'}
+                        className={`rounded-lg px-3 py-2 text-xs font-semibold ${speechInputMode === 'recorded' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}
+                      >
+                        My recorded speech
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSpeechInputMode('tts')}
+                        disabled={isGenerating || isUploadingRecordedAudio}
+                        aria-pressed={speechInputMode === 'tts'}
+                        className={`rounded-lg px-3 py-2 text-xs font-semibold ${speechInputMode === 'tts' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}
+                      >
+                        Preview TTS (not my voice)
+                      </button>
+                    </div>
+                  </fieldset>
+                  {speechInputMode === 'recorded' ? (
+                    <div className="space-y-2">
+                      <label htmlFor="mohan-recorded-speech" className="block text-xs font-bold text-slate-200">
+                        Upload recorded speech (MP3 or WAV, max 25 MB)
+                      </label>
+                      <input
+                        id="mohan-recorded-speech"
+                        type="file"
+                        accept=".mp3,.wav,audio/mpeg,audio/wav"
+                        onChange={handleRecordedAudioUpload}
+                        disabled={isGenerating || isUploadingRecordedAudio}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs text-white disabled:opacity-60"
+                      />
+                      {isUploadingRecordedAudio && <p className="text-xs text-slate-300">Uploading your recording to Bunny…</p>}
+                      {recordedAudioUrl && <audio controls src={recordedAudioUrl} className="w-full" />}
+                      <p className="text-[11px] text-amber-300">
+                        The upload is stored in your user-scoped Bunny folder and worker access uses a signed URL. The current GPU adapter is not implemented, so this does not produce a video yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">
+                      Preview TTS is not your recorded voice and is not the selected path for your requested twin.
+                    </p>
+                  )}
                   {avatarProfilesError && <p className="text-xs text-rose-300">{avatarProfilesError}</p>}
                   {!avatarProfilesError && avatarProfiles.length === 0 && (
                     <p className="text-xs text-amber-300">
@@ -1849,7 +2006,7 @@ export default function MohanSirAvatarStudioPage() {
                   <div className="py-6 space-y-4">
                     <button
                       onClick={handleStartGeneration}
-                      disabled={!sourceVideoUrl.trim() || !selectedAvatarProfileId}
+                      disabled={!sourceVideoUrl.trim() || !selectedAvatarProfileId || (speechInputMode === 'recorded' && !recordedAudioStoragePath)}
                       className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm px-8 py-4 rounded-2xl shadow-2xl shadow-amber-500/30 transition transform hover:scale-105 active:scale-95"
                     >
                       <Wand2 className="w-5 h-5" />
@@ -1923,16 +2080,19 @@ export default function MohanSirAvatarStudioPage() {
                             </span>
                             <span className="px-2 text-[10px] text-slate-400">{vid.profession_name}</span>
                           </div>
-                        ) : (
+                        ) : vid.thumbnail_url && !vid.thumbnail_url.includes('master-clone/') ? (
                           <img
-                            src={
-                              vid.thumbnail_url && !vid.thumbnail_url.includes('blackbeard') && !vid.thumbnail_url.includes('lime')
-                                ? vid.thumbnail_url
-                                : 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg'
-                            }
+                            src={vid.thumbnail_url}
                             alt={vid.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                           />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-900 text-center text-slate-400">
+                            <Camera className="w-7 h-7 text-amber-400" aria-hidden="true" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">
+                              New approved image needed
+                            </span>
+                          </div>
                         )}
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                           <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg">

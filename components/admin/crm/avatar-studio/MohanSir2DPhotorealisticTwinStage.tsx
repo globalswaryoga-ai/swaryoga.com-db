@@ -25,6 +25,8 @@ import {
   UserCheck,
   RotateCcw,
   Film,
+  Download,
+  Share2,
 } from 'lucide-react';
 
 export interface Mohan2DTwin {
@@ -33,85 +35,91 @@ export interface Mohan2DTwin {
   title: string;
   titleHi: string;
   badge: string;
-  imageUrl: string;
   videoUrl: string;
-  durationSeconds: number;
+  posterUrl: string;
+  resolution: string;
+  audioRate: string;
+  color: string;
   roleSpecialty: string;
   description: string;
-  voiceDna: string;
-  recommendedBackdropId: string;
+  topics: string[];
 }
 
-export const THE_5_MOHAN_SIR_2D_TWINS: Mohan2DTwin[] = [
+export const THE_5_MOHAN_SIR_2K_TWINS: Mohan2DTwin[] = [
   {
-    id: 'twin_1_musetalk',
+    id: 'avatar_green_look_01',
     number: 1,
-    title: 'Twin 1: Sovereign Acharya (MuseTalk 1080p Neural Twin)',
-    titleHi: 'ट्विन १: सार्वभौम आचार्य (न्यूरल लिप-सिंक अवतार)',
-    badge: 'Neural Lip-Sync',
-    imageUrl: '/avatar-twins/twin_1_modi_jacket.jpg',
-    videoUrl: '/avatar-twins/twin_1_video.mp4',
-    durationSeconds: 10,
-    roleSpecialty: 'National & Global Keynotes, Neural Lip-Sync Speaking',
-    description: 'Crisp Modi jacket look with real neural mouth viseme articulation and active lip movements.',
-    voiceDna: 'Mohan Sir Master DNA (Hindi - Swar Intro)',
-    recommendedBackdropId: 'amphitheater',
+    title: 'Mohan Sir - Green Look (Swar Yoga Day-1)',
+    titleHi: 'ट्विन १: हरित कुर्ता (स्वर योग दिवस-१ प्राथमिक अवतार)',
+    badge: '2K Flagship Master',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_avatar_green_look_2K_1794164086.mp4',
+    posterUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
+    resolution: '2K Quad HD (2560x1440)',
+    audioRate: '48,000 Hz Hi-Fi',
+    color: '#15803D',
+    roleSpecialty: 'Swar Yoga Foundation, Elemental Balance, Bilabial Lip-Sync',
+    description: '100% Front-Facing sitting pose, white textured brick wall backdrop, crisp single natural mouth and sharp eye pupils with verified neural lip-sync.',
+    topics: ['Swar Yoga Day-1 Foundation', 'Elemental Balance', 'Green Sadhana Look'],
   },
   {
-    id: 'twin_2_whiteboard',
+    id: 'avatar_dna_02_white_khadi',
     number: 2,
-    title: 'Twin 2: Academic Scientist (Whiteboard Lecture Master)',
-    titleHi: 'ट्विन २: वैज्ञानिक व्याख्याता (वाइटबोर्ड मास्टर)',
-    badge: 'Whiteboard Master',
-    imageUrl: '/avatar-twins/twin_2_white_shirt.jpg',
-    videoUrl: '/avatar-twins/twin_2_video.mp4',
-    durationSeconds: 10,
-    roleSpecialty: 'Whiteboard Anatomy, Jatharagni & Respiratory Science',
-    description: 'Clean formal shirt teaching at whiteboard with natural teaching hand gestures and full lip movements.',
-    voiceDna: 'Mohan Sir DNA (जठराग्नि व पाचन)',
-    recommendedBackdropId: 'classroom',
+    title: 'Mohan Sir - Pure White Khadi (DNA #02 Chandra Swar)',
+    titleHi: 'ट्विन २: शुद्ध श्वेत खादी (चंद्र स्वर जागरण अवतार)',
+    badge: '2K Vedic Khadi',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_dna_2_2K_pure_white_khadi.mp4',
+    posterUrl: '/avatar-twins/twin_2_white_shirt.jpg',
+    resolution: '2K Quad HD (2560x1440)',
+    audioRate: '48,000 Hz Hi-Fi',
+    color: '#0284C7',
+    roleSpecialty: 'Sheetala & Chandra Swar Awakening, Deep Healing Cadence',
+    description: 'Vedic Pure White Khadi attire with verified bilabial phonetic lip-sync and crystal master audio.',
+    topics: ['Lecture #2', 'Sheetala & Chandra Swar', 'Pure White Khadi'],
   },
   {
-    id: 'twin_3_professor',
+    id: 'avatar_dna_03_navy_waistcoat',
     number: 3,
-    title: 'Twin 3: University Professor (Academic Masterclass)',
-    titleHi: 'ट्विन ३: विश्वविद्यालय प्राध्यापक (३० से. मास्टरक्लास)',
-    badge: 'Academic Authority',
-    imageUrl: '/avatar-twins/twin_3_golden_kurta.jpg',
-    videoUrl: '/avatar-twins/twin_3_video.mp4',
-    durationSeconds: 30,
-    roleSpecialty: 'University Level Discourses, Tattva & Breath Rhythm Research',
-    description: '30-second continuous 1080p video lecture with active conversational facial dynamics and lip movement.',
-    voiceDna: 'Mohan Sir DNA (ऋतु चक्र व स्वर)',
-    recommendedBackdropId: 'amphitheater',
+    title: 'Mohan Sir - Ashram Sadra & Navy Waistcoat (DNA #03)',
+    titleHi: 'ट्विन ३: आश्रम सदरा व नेवी कोट (इड़ा-पिंगला अवतार)',
+    badge: '2K Authority Master',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_dna_3_2K_ashram_navy_koti.mp4',
+    posterUrl: '/avatar-twins/twin_1_modi_jacket.jpg',
+    resolution: '2K Quad HD (2560x1440)',
+    audioRate: '48,000 Hz Hi-Fi',
+    color: '#1E3A8A',
+    roleSpecialty: 'Ida & Pingala Nadi Dynamics, Morning Sadhana Keynotes',
+    description: 'Ashram Sadra with navy waistcoat, commanding full teaching authority with natural gestures and verified lip synchronization.',
+    topics: ['Lecture #3', 'Ida & Pingala Dynamics', 'Navy Waistcoat'],
   },
   {
-    id: 'twin_4_executive',
+    id: 'avatar_dna_04_studio_closeup',
     number: 4,
-    title: 'Twin 4: Keynote Executive (Corporate Boardroom)',
-    titleHi: 'ट्विन ४: कॉर्पोरेट व्याख्याता (२० से. एग्जीक्यूटिव)',
-    badge: 'Executive Presence',
-    imageUrl: '/avatar-twins/twin_4_blue_sadhana.jpg',
-    videoUrl: '/avatar-twins/twin_4_video.mp4',
-    durationSeconds: 20,
-    roleSpecialty: 'Corporate Stress Management, Leadership Prana Activation',
-    description: 'Direct executive camera presence with sharp articulation, direct eye contact, and continuous speech.',
-    voiceDna: 'Mohan Sir DNA (इड़ा व पिंगला संतुलन)',
-    recommendedBackdropId: 'clean_studio',
+    title: 'Mohan Sir - 1080p Studio Close-Up Master (DNA #04)',
+    titleHi: 'ट्विन ४: स्टूडियो क्लोज-अप मास्टर (७०० पिक्सल फेशियल डिटेल)',
+    badge: '2K Close-Up Master',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_dna_4_2K_closeup_1794157356.mp4',
+    posterUrl: '/avatar-twins/twin_5_face_close.jpg',
+    resolution: '2K Quad HD (2560x1440)',
+    audioRate: '48,000 Hz Hi-Fi',
+    color: '#D97706',
+    roleSpecialty: 'Jatharagni & Surya Swar, 700px Facial Detail Lip-Sync',
+    description: 'Chest-up studio framing with 700px facial detail, zero blur, natural blinking eye pupils, and sharp mouth contours.',
+    topics: ['Close-Up Studio Master', 'Jatharagni & Surya Swar', 'High-Definition Lip-Sync'],
   },
   {
-    id: 'twin_5_mentor',
+    id: 'avatar_dna_01_golden_ochre',
     number: 5,
-    title: 'Twin 5: Intimate Mentor (Philosophy & Q&A Master)',
-    titleHi: 'ट्विन ५: आत्मिक गुरु संवाद (३० से. संवाद व समाधान)',
-    badge: 'Intimate Teaching',
-    imageUrl: '/avatar-twins/twin_5_face_close.jpg',
-    videoUrl: '/avatar-twins/twin_5_video.mp4',
-    durationSeconds: 30,
-    roleSpecialty: '1-on-1 Mentorship, Breath Check, Q&A Punchlines & Humor',
-    description: 'Conversational 30-second lecture video with warm smiles, head tilts, and authentic vocal resonance.',
-    voiceDna: 'Mohan Sir DNA (दैनिक स्वर परीक्षा)',
-    recommendedBackdropId: 'ashram',
+    title: 'Mohan Sir - Golden Ochre Angavastram (DNA #01)',
+    titleHi: 'ट्विन ५: पीतांबर अंगवस्त्रम (प्राणिक इनहेलेशन अवतार)',
+    badge: '2K Vedic Heritage',
+    videoUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/generated/mohan_dna_1_2K_golden_ochre_angavastram.mp4',
+    posterUrl: '/avatar-twins/twin_3_golden_kurta.jpg',
+    resolution: '2K Quad HD (2560x1440)',
+    audioRate: '48,000 Hz Hi-Fi',
+    color: '#B45309',
+    roleSpecialty: 'Pranic Inhalation, Swar Shastra Scriptural Foundations',
+    description: 'Golden Ochre Angavastram radiating positive Vedic prana, continuous high-definition lip movements and master resonance.',
+    topics: ['Lecture #1', 'Golden Ochre Angavastram', 'Pranic Inhalation'],
   },
 ];
 
@@ -178,14 +186,13 @@ export default function MohanSir2DPhotorealisticTwinStage({
   onQueueRender,
 }: Props) {
   // State
-  const [selectedTwin, setSelectedTwin] = useState<Mohan2DTwin>(THE_5_MOHAN_SIR_2D_TWINS[0]);
+  const [selectedTwin, setSelectedTwin] = useState<Mohan2DTwin>(THE_5_MOHAN_SIR_2K_TWINS[0]);
   const [selectedBackdrop, setSelectedBackdrop] = useState(VIRTUAL_BACKDROPS[0]);
   const [scriptText, setScriptText] = useState(QUICK_SCRIPTS[0].text);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(10);
+  const [duration, setDuration] = useState(30);
   const [isMuted, setIsMuted] = useState(false);
-  const [audioMode, setAudioMode] = useState<'authentic' | 'tts'>('authentic');
   const [audioLevel, setAudioLevel] = useState<number[]>([15, 25, 40, 20, 10]);
   const [showLightingGlow, setShowLightingGlow] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -195,14 +202,13 @@ export default function MohanSir2DPhotorealisticTwinStage({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
   const audioWaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // When Twin changes, reload the video
+  // Reload video when Twin changes
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.pause();
@@ -213,7 +219,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
     }
   }, [selectedTwin.id]);
 
-  // Audio wave animation when video is playing
+  // Audio wave animation while playing
   useEffect(() => {
     if (!isPlaying) {
       setAudioLevel([12, 18, 22, 16, 10]);
@@ -236,7 +242,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
     };
   }, [isPlaying]);
 
-  // Video Time & Duration Sync
+  // Video Time Updates
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
@@ -245,67 +251,35 @@ export default function MohanSir2DPhotorealisticTwinStage({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration || selectedTwin.durationSeconds);
+      setDuration(videoRef.current.duration || 30);
       videoRef.current.playbackRate = playbackSpeed;
     }
   };
 
   const handleVideoEnded = () => {
     setIsPlaying(false);
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
   };
 
   // Play / Speak Handler
   const handleStartSpeaking = () => {
     if (!videoRef.current) return;
-
-    if (audioMode === 'tts') {
-      // In TTS mode, speak the custom script while looping video lips
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(scriptText);
-        utterance.rate = playbackSpeed;
-        utterance.pitch = 0.95;
-
-        const voices = window.speechSynthesis.getVoices();
-        const hindiVoice = voices.find((v) => v.lang.startsWith('hi') || v.name.includes('Hindi'));
-        if (hindiVoice) utterance.voice = hindiVoice;
-
-        utterance.onend = () => {
-          if (videoRef.current) videoRef.current.pause();
-          setIsPlaying(false);
-        };
-
-        speechRef.current = utterance;
-        window.speechSynthesis.speak(utterance);
-      }
-      videoRef.current.muted = true;
-    } else {
-      // In Authentic mode, use Mohan Sir's real recorded voice & lips
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      videoRef.current.muted = isMuted;
-    }
-
+    videoRef.current.muted = isMuted;
     videoRef.current.playbackRate = playbackSpeed;
-    videoRef.current.play().then(() => {
-      setIsPlaying(true);
-      showToast(`⚡ ${selectedTwin.title} is speaking with real 2D lip movement!`);
-    }).catch((err) => {
-      console.warn('Autoplay error:', err);
-      showToast('Click play to allow audio in your browser.');
-    });
+    videoRef.current
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+        showToast(`⚡ ${selectedTwin.title} is speaking with verified 2K lip-sync!`);
+      })
+      .catch((err) => {
+        console.warn('Playback error:', err);
+        showToast('Click play to allow audio playback.');
+      });
   };
 
   const handleStopSpeaking = () => {
     if (videoRef.current) {
       videoRef.current.pause();
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
     }
     setIsPlaying(false);
   };
@@ -336,10 +310,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
   const handleToggleFullscreen = () => {
     if (!stageContainerRef.current) return;
     if (!document.fullscreenElement) {
-      stageContainerRef.current.requestFullscreen().catch(() => {});
+      stageContainerRef.current.requestFullscreen().catch(() => { });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
       setIsFullscreen(false);
     }
   };
@@ -361,7 +335,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* 5 2D TWINS HERO SELECTOR CARDS                                  */}
+      {/* 5 2K GENERATED AI TWINS HERO SELECTOR CARDS                     */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -369,12 +343,12 @@ export default function MohanSir2DPhotorealisticTwinStage({
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
                 <Film className="w-3 h-3" />
-                Active 2D Video Twins (Full Lip Movement)
+                5 Verified 2K AI Avatar Twins
               </span>
-              <h2 className="text-base font-black text-white">Select Any of Mohan Sir's 5 2D Digital Twins</h2>
+              <h2 className="text-base font-black text-white">Select Any of Mohan Sir's 5 2K Quad-HD AI Avatars</h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Each twin is a real 1080p high-definition video avatar featuring Mohan Sir speaking with natural lip articulation, facial dynamics, and teaching presence.
+              Real 2K Quad HD (2560x1440) neural digital twins generated from Mohan Sir's master lectures with verified bilabial phonetic lip-sync and 48,000 Hz master audio.
             </p>
           </div>
 
@@ -386,7 +360,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
 
         {/* The 5 Twin Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          {THE_5_MOHAN_SIR_2D_TWINS.map((twin) => {
+          {THE_5_MOHAN_SIR_2K_TWINS.map((twin) => {
             const isSelected = selectedTwin.id === twin.id;
             return (
               <div
@@ -395,24 +369,23 @@ export default function MohanSir2DPhotorealisticTwinStage({
                   setSelectedTwin(twin);
                   showToast(`Loaded: ${twin.title}`);
                 }}
-                className={`relative rounded-2xl p-3 border-2 transition-all cursor-pointer flex flex-col justify-between group overflow-hidden ${
-                  isSelected
+                className={`relative rounded-2xl p-3 border-2 transition-all cursor-pointer flex flex-col justify-between group overflow-hidden ${isSelected
                     ? 'bg-gradient-to-b from-amber-500/20 via-slate-900 to-slate-950 border-amber-400 shadow-xl shadow-amber-500/20 scale-[1.02]'
                     : 'bg-slate-950/80 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
-                }`}
+                  }`}
               >
-                {/* Twin Image Thumbnail */}
+                {/* Twin Video Thumbnail */}
                 <div className="relative aspect-video w-full rounded-xl overflow-hidden mb-3 border border-slate-800 group-hover:border-slate-700 bg-black">
                   <img
-                    src={twin.imageUrl}
+                    src={twin.posterUrl}
                     alt={twin.title}
                     className="w-full h-full object-cover object-top transition duration-300 group-hover:scale-105"
                   />
                   <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-black text-amber-300 border border-amber-500/30">
                     Twin {twin.number}
                   </div>
-                  <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-300">
-                    {twin.durationSeconds}s HD
+                  <div className="absolute bottom-2 right-2 bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded text-[10px] font-mono text-emerald-300 font-bold">
+                    2K Quad HD
                   </div>
                   {isSelected && (
                     <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xs font-black shadow-lg">
@@ -433,11 +406,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 {/* Select Button */}
                 <button
                   type="button"
-                  className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1 cursor-pointer ${
-                    isSelected
+                  className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1 cursor-pointer ${isSelected
                       ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
                       : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                  }`}
+                    }`}
                 >
                   {isSelected ? '✓ Using This Twin' : 'Use This Twin'}
                 </button>
@@ -448,14 +420,14 @@ export default function MohanSir2DPhotorealisticTwinStage({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* MAIN 2D VIDEO AVATAR STAGE                                      */}
+      {/* MAIN 2K AI AVATAR VIDEO STAGE                                   */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div
         ref={stageContainerRef}
         className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col xl:flex-row relative"
       >
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* LEFT COLUMN: 2D REAL VIDEO AVATAR STAGE                         */}
+        {/* LEFT COLUMN: REAL 2K AI AVATAR VIDEO PLAYER                     */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         <div className="flex-1 flex flex-col border-b xl:border-b-0 xl:border-r border-slate-800 relative min-h-[540px]">
           {/* Top Stage Bar */}
@@ -465,8 +437,8 @@ export default function MohanSir2DPhotorealisticTwinStage({
               <span className="text-white font-black tracking-wide uppercase">
                 {selectedTwin.title}
               </span>
-              <span className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                1080p Real Lip Movement
+              <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                {selectedTwin.resolution}
               </span>
             </div>
 
@@ -482,11 +454,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
               <button
                 onClick={() => setShowLightingGlow(!showLightingGlow)}
                 title="Toggle Studio Lighting Accent"
-                className={`p-2 rounded-lg border transition ${
-                  showLightingGlow
+                className={`p-2 rounded-lg border transition ${showLightingGlow
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                     : 'bg-slate-800 text-slate-400 border-slate-700'
-                }`}
+                  }`}
               >
                 <Sun className="w-3.5 h-3.5" />
               </button>
@@ -501,7 +472,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
             </div>
           </div>
 
-          {/* 2D Video Player Stage Area */}
+          {/* 2K Video Player Stage Area */}
           <div
             className="flex-1 relative flex items-center justify-center overflow-hidden p-6 select-none bg-black"
             style={{ background: selectedBackdrop.bgStyle }}
@@ -520,11 +491,11 @@ export default function MohanSir2DPhotorealisticTwinStage({
             <div
               className={`relative z-10 max-w-2xl w-full aspect-video rounded-2xl overflow-hidden border-2 ${selectedBackdrop.borderColor} shadow-2xl bg-black flex items-center justify-center`}
             >
-              {/* REAL HTML5 VIDEO ELEMENT WITH DIRECT LIP-SYNC & VOICE */}
+              {/* REAL 2K QUAD-HD VIDEO ELEMENT WITH DIRECT LIP-SYNC & AUDIO */}
               <video
                 ref={videoRef}
                 src={selectedTwin.videoUrl}
-                poster={selectedTwin.imageUrl}
+                poster={selectedTwin.posterUrl}
                 playsInline
                 preload="auto"
                 onTimeUpdate={handleTimeUpdate}
@@ -533,17 +504,17 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 className="w-full h-full object-contain bg-black"
               />
 
-              {/* Reactive Audio Frequency Visualizer (Pulsing while playing) */}
+              {/* Reactive Audio Frequency Visualizer */}
               {isPlaying && (
                 <div className="absolute bottom-3 left-4 right-4 bg-black/80 backdrop-blur-md px-3.5 py-2 rounded-xl border border-amber-500/30 flex items-center justify-between z-20">
                   <div className="flex items-center gap-2">
                     <Mic className="w-4 h-4 text-emerald-400 animate-pulse" />
                     <div>
                       <div className="text-[11px] font-black text-amber-300 uppercase tracking-wider">
-                        Mohan Sir 2D Twin Speaking
+                        Mohan Sir 2K AI Avatar Speaking
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        {audioMode === 'authentic' ? 'Authentic Spoken Voice • 1080p Real Lips' : 'AI Custom Script Synthesizer'}
+                        {selectedTwin.audioRate} • Verified Bilabial Lip-Sync
                       </div>
                     </div>
                   </div>
@@ -561,10 +532,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 </div>
               )}
 
-              {/* HD Tag */}
+              {/* 2K Tag */}
               <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700/80 text-[10px] font-mono text-slate-300 font-bold flex items-center gap-1.5 shadow-lg z-20">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Twin {selectedTwin.number} • 1080p Real Video
+                Twin {selectedTwin.number} • 2K Quad-HD AI Twin
               </div>
             </div>
           </div>
@@ -579,7 +550,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
               <input
                 type="range"
                 min="0"
-                max={duration || 10}
+                max={duration || 30}
                 step="0.1"
                 value={currentTime}
                 onChange={handleSeek}
@@ -596,10 +567,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 {!isPlaying ? (
                   <button
                     onClick={handleStartSpeaking}
-                    className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-md"
+                    className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-md"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
-                    Play / Speak
+                    Play 2K AI Avatar Video
                   </button>
                 ) : (
                   <button
@@ -630,9 +601,8 @@ export default function MohanSir2DPhotorealisticTwinStage({
                     <button
                       key={spd}
                       onClick={() => handleSpeedChange(spd)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
-                        playbackSpeed === spd ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
-                      }`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${playbackSpeed === spd ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                        }`}
                     >
                       {spd}x
                     </button>
@@ -640,30 +610,17 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 </div>
               </div>
 
-              {/* Audio Mode Toggle */}
-              <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
-                <button
-                  onClick={() => {
-                    setAudioMode('authentic');
-                    showToast('Mode: Authentic Mohan Sir Lecture Voice & Real Lips');
-                  }}
-                  className={`px-2 py-1 rounded text-[10px] font-bold transition ${
-                    audioMode === 'authentic' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-                  }`}
+              {/* Direct CDN Link Action */}
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedTwin.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold border border-slate-700 flex items-center gap-1 transition"
                 >
-                  Authentic Voice
-                </button>
-                <button
-                  onClick={() => {
-                    setAudioMode('tts');
-                    showToast('Mode: AI Custom Script Synthesizer');
-                  }}
-                  className={`px-2 py-1 rounded text-[10px] font-bold transition ${
-                    audioMode === 'tts' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Custom Script
-                </button>
+                  <Download className="w-3 h-3" />
+                  Direct 2K MP4
+                </a>
               </div>
             </div>
           </div>
@@ -682,12 +639,30 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                    Twin {selectedTwin.number}: 2D Studio Controls
+                    Twin {selectedTwin.number}: 2K Studio Details
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     {selectedTwin.roleSpecialty}
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Description Card */}
+            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+              <div className="text-[11px] font-bold text-amber-300">Avatar Specifications:</div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {selectedTwin.description}
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedTwin.topics.map((t) => (
+                  <span
+                    key={t}
+                    className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] text-slate-300 border border-slate-700 font-semibold"
+                  >
+                    {t}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -717,16 +692,16 @@ export default function MohanSir2DPhotorealisticTwinStage({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
-                  Script for Twin {selectedTwin.number}:
+                  Script Studio Input:
                 </label>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  {scriptText.length} characters • ~{Math.max(5, Math.round(scriptText.split(/\s+/).length / 2.2))}s
+                  {scriptText.length} characters
                 </span>
               </div>
               <textarea
                 value={scriptText}
                 onChange={(e) => setScriptText(e.target.value)}
-                rows={5}
+                rows={4}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/80 transition leading-relaxed"
                 placeholder="Type Hindi, Marathi, or English lecture text here..."
               />
@@ -745,11 +720,10 @@ export default function MohanSir2DPhotorealisticTwinStage({
                     <button
                       key={bd.id}
                       onClick={() => setSelectedBackdrop(bd)}
-                      className={`px-3 py-2 rounded-xl text-left border transition text-xs font-bold ${
-                        isSelected
+                      className={`px-3 py-2 rounded-xl text-left border transition text-xs font-bold ${isSelected
                           ? 'bg-amber-500/10 border-amber-400 text-amber-300 shadow-md shadow-amber-500/10'
                           : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      }`}
+                        }`}
                     >
                       <div className="truncate">{bd.name}</div>
                       <div className="text-[10px] text-slate-500 truncate">{bd.nameHi}</div>
@@ -762,14 +736,14 @@ export default function MohanSir2DPhotorealisticTwinStage({
 
           {/* Action Buttons */}
           <div className="space-y-3 pt-4 border-t border-slate-800">
-            {/* Primary Speak Now CTA */}
+            {/* Primary Play 2K Avatar Video CTA */}
             {!isPlaying ? (
               <button
                 onClick={handleStartSpeaking}
-                className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-black text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition cursor-pointer scale-[1.01] hover:scale-[1.02]"
+                className="w-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-slate-950 font-black text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition cursor-pointer scale-[1.01] hover:scale-[1.02]"
               >
                 <Play className="w-4 h-4 fill-slate-950" />
-                ⚡ Speak Now (Real 2D Lip Movement & Voice)
+                ⚡ Play 2K AI Avatar Video (Real Lip Movements)
               </button>
             ) : (
               <button
@@ -777,7 +751,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <Square className="w-4 h-4 fill-white" />
-                ⏹ Stop Speaking
+                ⏹ Pause Video
               </button>
             )}
 
@@ -805,7 +779,7 @@ export default function MohanSir2DPhotorealisticTwinStage({
                 className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400/40 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-indigo-600/20"
               >
                 <Wand2 className="w-3.5 h-3.5" />
-                Render 1080p
+                Queue New Render
               </button>
             </div>
           </div>

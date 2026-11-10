@@ -43,8 +43,8 @@ export const MOHAN_SIR_POSTURES = {
     name: 'Seated Lotus / Padmasana Meditation (पद्मासन व सुखासन)',
     description: 'Serene cross-legged yogic posture with spine erect, chin mudra on knees, calm breathing.',
     icon: '🧘',
-    anchorImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_pranayama_master.jpg',
-    cutoutUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg',
+    anchorImageUrl: '',
+    cutoutUrl: '',
     cameraDistance: 2.6,
     cameraHeight: 0.9,
     framingDefaults: { posX: 0, posY: 5, scale: 105, flipped: false },
@@ -54,8 +54,8 @@ export const MOHAN_SIR_POSTURES = {
     name: 'Upright Keynote & Vedic Teaching (सहज खड़े व उद्बोधन)',
     description: 'Upright commanding speaking stance with chest open and natural instructional hand gestures.',
     icon: '🧍',
-    anchorImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_chest_up_master.jpg',
-    cutoutUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg',
+    anchorImageUrl: '',
+    cutoutUrl: '',
     cameraDistance: 3.2,
     cameraHeight: 1.5,
     framingDefaults: { posX: 0, posY: 0, scale: 100, flipped: false },
@@ -65,8 +65,8 @@ export const MOHAN_SIR_POSTURES = {
     name: 'Mindful Garden & Stage Pacing (प्राकृतिक चलना)',
     description: 'Slow mindful walking locomotion pacing across the ashram pathway or presentation stage.',
     icon: '🚶',
-    anchorImageUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_frontal_1080p.jpg',
-    cutoutUrl: 'https://swaryogacrm.b-cdn.net/avatar-studio/master-clone/mohan_face_close_blackbeard.jpg',
+    anchorImageUrl: '',
+    cutoutUrl: '',
     cameraDistance: 3.8,
     cameraHeight: 1.4,
     framingDefaults: { posX: 0, posY: 0, scale: 95, flipped: false },
@@ -264,6 +264,11 @@ export class SwarNeuralVideoService {
    * 3. Start a Swar Yoga Neural Avatar Video Job
    */
   public static async createJob(params: SwarVideoJobParams): Promise<SwarVideoJobResult> {
+    const cutoutUrl = params.cutoutUrl || params.sourceAvatarUrl;
+    if (!cutoutUrl) {
+      throw new Error('A newly approved avatar image is required before creating a video job.');
+    }
+
     await this.initSchema();
 
     const jobId = `swar_vid_${crypto.randomUUID().substring(0, 10)}`;
@@ -271,8 +276,6 @@ export class SwarNeuralVideoService {
 
     const postureConfig = MOHAN_SIR_POSTURES[params.posture] || MOHAN_SIR_POSTURES.sitting;
     const bg = this.resolveBackground(params.backgroundId, params.customBackgroundUrl);
-    const cutoutUrl = params.cutoutUrl || postureConfig.cutoutUrl;
-
     await bunnyExecute({
       sql: `INSERT INTO swar_neural_video_jobs_sql (
         id, avatar_name, posture, background_id, background_url, cutout_url, language, voice_id, script_text, framing_json, status, admin_id, created_at, updated_at
@@ -373,9 +376,9 @@ export class SwarNeuralVideoService {
         args: [speech.audioUrl, speech.durationSeconds, now, jobId],
       });
 
-      const postureKey = (row.posture as keyof typeof MOHAN_SIR_POSTURES) || 'sitting';
-      const posture = MOHAN_SIR_POSTURES[postureKey];
-      const sourceImage = row.cutout_url || posture.cutoutUrl;
+      if (!row.cutout_url) {
+        throw new Error('The saved job has no approved avatar image. Upload a new source image and create a fresh job.');
+      }
 
       let finalVideoUrl = '';
 
@@ -391,10 +394,9 @@ export class SwarNeuralVideoService {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              // devxpy/cog-wav2lip - Clean cutout face without old wall or green shirt
               version: '8d65e3f4f4298520e079198b493c25adfc43c058ffec924f2aefc8010ed25eef',
               input: {
-                face: row.cutout_url || 'https://swaryogacrm.b-cdn.net/uploads/content-cache/Images/d99f90faf07d38394e0662fc419db063.png',
+                face: row.cutout_url,
                 audio: speech.audioUrl,
                 smooth: true,
                 fps: 25,

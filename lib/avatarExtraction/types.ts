@@ -22,7 +22,7 @@ export interface VideoValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
-  qualityScore: number; // 0 - 100
+  qualityScore: number | null; // null when no inference or measurement was performed
   resolutionLabel: string; // e.g. "1080p Full HD"
 }
 

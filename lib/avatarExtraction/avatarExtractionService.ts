@@ -224,11 +224,11 @@ export class AvatarExtractionService {
       },
       {
         provider: 'swar_neural',
-        name: 'Swar Yoga Neural Face Mesh Engine',
-        isConfigured: true,
-        description: 'Built-in edge facial extraction: 468 3D landmarks, 52 ARKit blendshapes & 99%+ identity match.',
+        name: 'Swar Yoga In-house Face Analysis (planned)',
+        isConfigured: this.swarNeural.isConfigured(),
+        description: 'Planned in-house face analysis; no landmark, blendshape, or identity inference is implemented.',
         requiredEnvVars: [],
-        notes: 'Always ready. Zero external credit cost, unlimited extractions.',
+        notes: 'Unavailable until an authorized local inference runtime is implemented and validated.',
       },
     ];
   }
@@ -461,6 +461,10 @@ export class AvatarExtractionService {
     consentConfirmed: boolean;
     adminId?: string;
   }): Promise<AvatarExtractionJob> {
+    if (params.provider === 'swar_neural') {
+      throw new Error('In-house facial extraction is unavailable: no inference pipeline is configured.');
+    }
+
     await this.initSchema();
 
     if (!params.consentConfirmed) {
@@ -519,6 +523,19 @@ export class AvatarExtractionService {
     if (!job) throw new Error('Job not found');
 
     const now = new Date().toISOString();
+    if (
+      job.provider === 'swar_neural' &&
+      !['completed', 'failed', 'cancelled'].includes(job.status)
+    ) {
+      const errorMessage = 'In-house facial extraction is unavailable: no inference pipeline is configured.';
+      await bunnyExecute({
+        sql: `UPDATE studio_avatar_extraction_jobs_sql
+              SET status = 'failed', progress_percent = 0, current_step_text = ?,
+                  error_message = ?, updated_at = ? WHERE id = ?`,
+        args: [errorMessage, errorMessage, now, jobId],
+      });
+      return (await this.getExtractionJob(jobId))!;
+    }
 
     if (job.status === 'queued') {
       // Step 1: Validate Video

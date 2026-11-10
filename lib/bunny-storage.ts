@@ -436,21 +436,49 @@ export async function generatePresignedUrl(
   const cdnHost = getCDNHost();
   if (!cdnHost) throw new Error('Bunny CDN host not configured');
 
-  const cleanKey = key.replace(/^\/+/, '');
-  const tokenKey = process.env.BUNNY_CDN_TOKEN_KEY;
+  return generateTokenUrl(key, cdnHost, process.env.BUNNY_CDN_TOKEN_KEY, options, false);
+}
 
-  if (tokenKey) {
-    // Token-authenticated URL (for private content)
-    const expiresIn = options.expiresIn || 3600;
-    const expiry = Math.floor(Date.now() / 1000) + expiresIn;
-    const path = `/${cleanKey}`;
-    const hashableBase = `${tokenKey}${path}${expiry}`;
-    const token = createHash('sha256').update(hashableBase).digest('base64url');
-    return `https://${cdnHost}${path}?token=${token}&expires=${expiry}`;
+export async function generateAvatarAudioPresignedUrl(
+  key: string,
+  options: S3PresignedUrlOptions = {}
+): Promise<string> {
+  const cdnHost = process.env.BUNNY_AVATAR_AUDIO_CDN_HOST?.trim();
+  const tokenKey = process.env.BUNNY_AVATAR_AUDIO_TOKEN_KEY;
+  if (!cdnHost || !tokenKey) {
+    throw new Error('Avatar audio Bunny CDN host and token key must be configured.');
+  }
+  const parsedHost = new URL(`https://${cdnHost}`);
+  if (
+    parsedHost.hostname !== cdnHost.toLowerCase() ||
+    parsedHost.pathname !== '/' ||
+    parsedHost.port ||
+    !parsedHost.hostname.endsWith('.b-cdn.net')
+  ) {
+    throw new Error('Avatar audio CDN host must be a Bunny CDN hostname.');
   }
 
-  // Public CDN URL
-  return `https://${cdnHost}/${cleanKey}`;
+  return generateTokenUrl(key, parsedHost.hostname, tokenKey, options, true);
+}
+
+function generateTokenUrl(
+  key: string,
+  cdnHost: string,
+  tokenKey: string | undefined,
+  options: S3PresignedUrlOptions,
+  requireToken: boolean,
+): string {
+  const cleanKey = key.replace(/^\/+/, '');
+  if (!tokenKey) {
+    if (requireToken) throw new Error('Bunny CDN token authentication key is not configured.');
+    return `https://${cdnHost}/${cleanKey}`;
+  }
+  const expiresIn = options.expiresIn || 3600;
+  const expiry = Math.floor(Date.now() / 1000) + expiresIn;
+  const path = `/${cleanKey}`;
+  const hashableBase = `${tokenKey}${path}${expiry}`;
+  const token = createHash('md5').update(hashableBase).digest('base64url');
+  return `https://${cdnHost}${path}?token=${token}&expires=${expiry}`;
 }
 
 /**
