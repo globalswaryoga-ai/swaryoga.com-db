@@ -170,6 +170,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Contabo Deployment and Dell Worktree Release (Session: November 10, 2026) — Commit `603bcb62`
+
+- Pushed the complete avatar source/Studio worktree to `avatar/nov-10-studio-and-source-updates`; used a branch instead of `main` to avoid its configured Vercel deployment workflow.
+- Contabo atomic build `nu67baaNCxeQwjiIyda7S` compiled successfully, generated all 508 pages, swapped the production build, and gracefully reloaded PM2. `swaryoga.com` and the Avatar Studio route both returned HTTP 200.
+- Four focused avatar test suites pass (19 tests). Neural rendering remains unavailable; this deployment did not generate or upload a twin/video.
+
 ### Avatar Source Evidence and Safe Cleanup (Session: November 10, 2026) — Commit `7ea68deb`
 
 - Consolidated the avatar source/provenance audit, Bunny source metadata and bounded pilot notebooks, recorded-speech upload and Bunny audio URL configuration, and reference-only identity/render-queue safeguards.
