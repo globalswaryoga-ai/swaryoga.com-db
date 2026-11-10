@@ -170,6 +170,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Avatar Source Evidence and Safe Cleanup (Session: November 10, 2026) — Commit `7ea68deb`
+
+- Consolidated the avatar source/provenance audit, Bunny source metadata and bounded pilot notebooks, recorded-speech upload and Bunny audio URL configuration, and reference-only identity/render-queue safeguards.
+- Removed retired prototype assets and scripts that could imply an unverified likeness or generated render. Added focused regression tests; 19 tests pass and the production build compiled and generated all 508 pages.
+- Updated the selected `02:20–02:50` body-motion source record to accurately describe the local face-redacted preview and its limitations. It remains local; no Bunny upload, inference, or avatar render occurred.
+
 ### Bunny Talking-Twin Motion Preview Face Redaction (Session: November 10, 2026) — Commit `working tree`
 
 - Created a local 29.96-second H.264 preview of the selected Bunny Stream interval `02:20–02:50`. A black head-region mask prevents the face from being used; one-frame-per-second review confirms torso and intermittent hand gestures remain visible.
